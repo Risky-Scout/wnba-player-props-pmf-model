@@ -1,4 +1,19 @@
+"""Feature contract: permitted model features and leakage guards.
+
+Rules:
+  1. Only features in FEATURE_FAMILIES may enter model training.
+  2. Any column in FORBIDDEN_MODEL_FEATURES must never appear in a training
+     feature list.
+  3. Market / evaluation columns are catalogued but blocked from models.
+  4. assert_no_forbidden_features() is the authoritative leakage gate.
+"""
 from __future__ import annotations
+
+from wnba_props_model.constants import FORBIDDEN_MARKET_COLUMNS
+
+# ---------------------------------------------------------------------------
+# Permitted feature families
+# ---------------------------------------------------------------------------
 
 IDENTITY_FEATURES = [
     "player_id_code",
@@ -82,7 +97,7 @@ SPARSE_EVENT_FEATURES = [
     "defender_role_code",
 ]
 
-FEATURE_FAMILIES = {
+FEATURE_FAMILIES: dict[str, list[str]] = {
     "identity": IDENTITY_FEATURES,
     "schedule": SCHEDULE_FEATURES,
     "minutes_role": MINUTES_ROLE_FEATURES,
@@ -93,22 +108,32 @@ FEATURE_FAMILIES = {
     "sparse_event": SPARSE_EVENT_FEATURES,
 }
 
-MODEL_FEATURES = [
-    f for family in FEATURE_FAMILIES.values() for f in family
-]
+MODEL_FEATURES: list[str] = [f for family in FEATURE_FAMILIES.values() for f in family]
 
-MARKET_FEATURES_LEAKAGE_TAGGED = [
-    "market_line",
-    "market_prob_over_no_vig",
-    "consensus_total",
-    "consensus_spread",
-]
+# ---------------------------------------------------------------------------
+# Forbidden columns  (market / post-game leakage)
+# ---------------------------------------------------------------------------
 
-FORBIDDEN_TARGET_LEAKAGE = {
-    "same_game_box_score": ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover", "min", "plus_minus"],
-    "market": MARKET_FEATURES_LEAKAGE_TAGGED,
-    "post_tip": ["actual_starter", "actual_minutes", "final_score", "home_score", "away_score"],
-}
+# Same-game box score leakage
+_BOX_SCORE_LEAKAGE = frozenset({
+    "pts", "reb", "ast", "fg3m", "stl", "blk", "turnover", "tov",
+    "min", "plus_minus", "actual_starter", "actual_minutes",
+    "final_score", "home_score", "away_score",
+    "home_team_score", "visitor_team_score", "total_score",
+})
+
+# Market data (full list from constants + legacy names)
+_MARKET_LEAKAGE = FORBIDDEN_MARKET_COLUMNS
+
+# Post-game / outcome leakage
+_OUTCOME_LEAKAGE = frozenset({
+    "outcome", "hit_result", "result", "settled",
+    "over_hit", "under_hit", "push",
+})
+
+FORBIDDEN_MODEL_FEATURES: frozenset[str] = (
+    _BOX_SCORE_LEAKAGE | _MARKET_LEAKAGE | _OUTCOME_LEAKAGE
+)
 
 
 def feature_families() -> dict[str, list[str]]:
@@ -116,7 +141,18 @@ def feature_families() -> dict[str, list[str]]:
 
 
 def assert_no_forbidden_features(features: list[str]) -> None:
-    forbidden = {x for xs in FORBIDDEN_TARGET_LEAKAGE.values() for x in xs}
-    overlap = sorted(set(features) & forbidden)
+    """Raise ValueError if any feature is in the forbidden set."""
+    overlap = sorted(set(features) & FORBIDDEN_MODEL_FEATURES)
     if overlap:
-        raise ValueError(f"Forbidden leakage features in training feature list: {overlap}")
+        raise ValueError(
+            f"Forbidden leakage features in training feature list: {overlap}"
+        )
+
+
+def assert_no_market_columns(columns: list[str]) -> None:
+    """Raise ValueError if any market/evaluation-only column is present."""
+    overlap = sorted(set(columns) & _MARKET_LEAKAGE)
+    if overlap:
+        raise ValueError(
+            f"Market-only (evaluation) columns found in model feature list: {overlap}"
+        )

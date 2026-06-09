@@ -8,14 +8,13 @@ data/raw/
 data/cache/
 data/processed/
 deliveries/
+
 artifacts/runs/
 artifacts/audits/
+artifacts/models/
+!artifacts/.gitkeep
 
 *.log
 
 *.egg-info/
 src/*.egg-info/
-
-# Generated artifacts
-artifacts/
-!artifacts/.gitkeep
