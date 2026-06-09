@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+data/raw/
+data/cache/
+data/processed/
+deliveries/
+artifacts/runs/
+artifacts/audits/
+
+*.log
