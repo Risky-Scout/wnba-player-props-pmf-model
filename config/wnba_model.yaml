@@ -1,0 +1,32 @@
+sport: wnba
+bdl:
+  base_url: "https://api.balldontlie.io"
+  request_timeout_seconds: 30
+  per_page: 100
+  max_retries: 3
+
+training:
+  min_training_days: 365
+  walk_forward_window_days: 28
+  holdout_last_date_frac: 0.15
+  quantiles: [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
+  production_draws: 50000
+  calibration_seed: 0
+  sparse_hurdle_draws: 4000
+  market_bootstrap_reps: 2000
+  market_bootstrap_seed: 20260512
+
+calibration_gates:
+  pit_ks_max: 0.075
+  ece_max: 0.025
+  mean_error_abs_max: 0.15
+  variance_error_abs_max: 0.20
+  ucb95_logloss_max: -0.0025
+  ucb95_brier_max: -0.0010
+  min_rows_ucb95: 100
+  min_rows_calibration_cell: 200
+
+delivery:
+  edge_threshold_abs: 0.04
+  snapshots: ["morning", "pre_close"]
+  vendors: ["draftkings", "fanduel", "caesars", "betrivers", "fanatics"]
