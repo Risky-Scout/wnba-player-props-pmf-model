@@ -88,24 +88,43 @@ PLAYERS_SCHEMA = TableSchema(
 
 PLAYER_PROPS_SCHEMA = TableSchema(
     name="wnba_player_props",
-    primary_key=[],  # may have multiple rows per player/game/book/line
+    primary_key=[],  # multiple rows per player/game/vendor/stat
     required_columns=[
-        "game_id", "player_id", "stat", "line",
+        "game_id", "player_id", "vendor", "prop_type_raw", "stat", "line",
         "over_odds", "under_odds",
         "source", "pull_timestamp_utc",
     ],
     numeric_columns=["line", "over_odds", "under_odds"],
     evaluation_only=True,
-    notes="Evaluation-only. Must never feed model-only predictive features.",
+    notes=(
+        "Evaluation-only. BDL live-only: historical props not stored. "
+        "double_double and triple_double are allowed in this table but "
+        "must not be included in the first PMF model. "
+        "Must never feed model-only predictive features."
+    ),
 )
 
 ODDS_SCHEMA = TableSchema(
     name="wnba_odds",
-    primary_key=[],  # may have multiple rows per game/book
-    required_columns=["game_id", "source", "pull_timestamp_utc"],
-    numeric_columns=["spread_value", "total_value"],
+    primary_key=[],  # multiple rows per game/vendor
+    required_columns=[
+        "odds_id", "game_id", "vendor",
+        "spread_home_value", "spread_home_odds", "spread_away_value", "spread_away_odds",
+        "moneyline_home_odds", "moneyline_away_odds",
+        "total_value", "total_over_odds", "total_under_odds",
+        "source", "pull_timestamp_utc",
+    ],
+    numeric_columns=[
+        "spread_home_value", "spread_home_odds", "spread_away_value", "spread_away_odds",
+        "moneyline_home_odds", "moneyline_away_odds",
+        "total_value", "total_over_odds", "total_under_odds",
+    ],
     evaluation_only=True,
-    notes="Evaluation-only. total_value may be used for market-context challenger only.",
+    notes=(
+        "Evaluation-only. BDL WNBA response is flat (no nested spread/total/moneyline). "
+        "game_date and season are joined from wnba_games in build_canonical_tables. "
+        "total_value may be used for market-context challenger only, explicitly labeled."
+    ),
 )
 
 INJURIES_SCHEMA = TableSchema(

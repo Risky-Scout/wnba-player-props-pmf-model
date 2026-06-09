@@ -140,9 +140,17 @@ def feature_families() -> dict[str, list[str]]:
     return FEATURE_FAMILIES.copy()
 
 
-def assert_no_forbidden_features(features: list[str]) -> None:
-    """Raise ValueError if any feature is in the forbidden set."""
-    overlap = sorted(set(features) & FORBIDDEN_MODEL_FEATURES)
+def assert_no_forbidden_features(features: "list[str] | pd.DataFrame") -> None:
+    """Raise ValueError if any feature/column is in the forbidden set.
+
+    Accepts either a list of column names or a pandas DataFrame (checks .columns).
+    """
+    import pandas as pd  # local import to avoid circular dependency at module level
+    if isinstance(features, pd.DataFrame):
+        cols: list[str] = list(features.columns)
+    else:
+        cols = list(features)
+    overlap = sorted(set(cols) & FORBIDDEN_MODEL_FEATURES)
     if overlap:
         raise ValueError(
             f"Forbidden leakage features in training feature list: {overlap}"

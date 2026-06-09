@@ -335,90 +335,172 @@ def normalize_injuries(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # Game odds
 # ---------------------------------------------------------------------------
 
+# Confirmed BDL WNBA /wnba/v1/odds response shape (flat, no nested objects):
+# {
+#   "id": 252022769,
+#   "game_id": 24752,
+#   "vendor": "fanduel",
+#   "spread_home_value": "-18.5",   ← string, needs float conversion
+#   "spread_home_odds": -128,
+#   "spread_away_value": "18.5",
+#   "spread_away_odds": -104,
+#   "moneyline_home_odds": -4500,
+#   "moneyline_away_odds": 1200,
+#   "total_value": "167.5",         ← string, needs float conversion
+#   "total_over_odds": -152,
+#   "total_under_odds": 114,
+#   "updated_at": "2026-05-08T23:49:03.201Z"
+# }
+# Note: game_date and season are NOT in the response; join from games table.
+
 def normalize_odds(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Normalize BDL WNBA game odds rows to canonical format.
+
+    game_date and season are added as None here; enrich by joining the
+    games table in build_canonical_tables.py.
+    """
     flat = []
     for r in rows:
-        game = r.get("game") or {}
-        spread = r.get("spread") or {}
-        total = r.get("total") or {}
-        ml = r.get("moneyline") or {}
-        game_date = pd.to_datetime(
-            game.get("date") or r.get("date"), utc=True, errors="coerce"
-        )
+        vendor = r.get("vendor") or r.get("book") or r.get("sportsbook")
         flat.append({
-            "game_id": game.get("id") or r.get("game_id"),
-            "game_date": game_date,
-            "season": game.get("season") or r.get("season"),
-            "book": r.get("book") or r.get("sportsbook"),
-            "sportsbook": r.get("sportsbook") or r.get("book"),
-            "spread_value": _to_numeric(spread.get("home_spread") or r.get("home_spread")),
-            "spread_home_odds": _to_numeric(spread.get("home_odds") or r.get("spread_home_odds")),
-            "spread_visitor_odds": _to_numeric(
-                spread.get("visitor_odds") or r.get("spread_visitor_odds")
-            ),
-            "total_value": _to_numeric(total.get("value") or r.get("total_value")),
-            "total_over_odds": _to_numeric(total.get("over_odds") or r.get("total_over_odds")),
-            "total_under_odds": _to_numeric(total.get("under_odds") or r.get("total_under_odds")),
-            "moneyline_home_odds": _to_numeric(ml.get("home_odds") or r.get("moneyline_home_odds")),
-            "moneyline_visitor_odds": _to_numeric(
-                ml.get("visitor_odds") or r.get("moneyline_visitor_odds")
-            ),
-            "snapshot_timestamp_utc": pd.to_datetime(
-                r.get("snapshot_timestamp") or r.get("updated_at"),
+            "odds_id": r.get("id"),
+            "game_id": r.get("game_id"),
+            "game_date": None,    # populated in build_canonical_tables
+            "season": None,       # populated in build_canonical_tables
+            "vendor": vendor,
+            "book": vendor,       # alias — same as vendor
+            "sportsbook": vendor, # alias — same as vendor
+            "spread_home_value": _to_numeric(r.get("spread_home_value")),
+            "spread_home_odds": _to_numeric(r.get("spread_home_odds")),
+            "spread_away_value": _to_numeric(r.get("spread_away_value")),
+            "spread_away_odds": _to_numeric(r.get("spread_away_odds")),
+            "moneyline_home_odds": _to_numeric(r.get("moneyline_home_odds")),
+            "moneyline_away_odds": _to_numeric(r.get("moneyline_away_odds")),
+            "total_value": _to_numeric(r.get("total_value")),
+            "total_over_odds": _to_numeric(r.get("total_over_odds")),
+            "total_under_odds": _to_numeric(r.get("total_under_odds")),
+            "updated_at": pd.to_datetime(
+                r.get("updated_at") or r.get("snapshot_timestamp"),
                 utc=True, errors="coerce",
             ),
         })
     df = pd.DataFrame(flat)
     if df.empty:
         return df
-    df["game_date"] = pd.to_datetime(df["game_date"])
-    return df.sort_values(["game_date", "game_id"]).reset_index(drop=True)
+    return df.sort_values(["game_id", "vendor"]).reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
-# Player props  (evaluation-only table)
+# Player props  (evaluation-only table — BDL is LIVE ONLY)
 # ---------------------------------------------------------------------------
+
+# BDL WNBA /wnba/v1/odds/player_props returns empty data[] for completed games.
+# Historical player prop data is not stored by BDL.
+# Supported prop types: points, rebounds, assists, threes, points_rebounds,
+#   points_assists, rebounds_assists, points_rebounds_assists,
+#   double_double, triple_double.
+# Supported vendors: betrivers, caesars, draftkings, fanatics, fanduel.
+#
+# Confirmed BDL live response shape (game_id=24837):
+# {
+#   "id": 8570929416,
+#   "game_id": 24837,
+#   "player_id": 547,           ← direct int (no nested player dict)
+#   "vendor": "draftkings",
+#   "prop_type": "assists",     ← field name is "prop_type"
+#   "line_value": "6.5",        ← field name is "line_value"
+#   "market": {
+#     "type": "over_under",
+#     "over_odds": 115,         ← nested under "market"
+#     "under_odds": -157
+#   },
+#   "updated_at": "2026-06-09T20:51:04.651Z"
+# }
+# No player dict, no team dict in the live response.
 
 def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Normalize BDL WNBA player props rows.
+
+    Returns an empty DataFrame for completed games (BDL live-only limitation).
+    An empty result is status=documented_empty, not an error.
+    """
     flat = []
     for r in rows:
-        player = r.get("player") or {}
-        game = r.get("game") or {}
-        team = r.get("team") or {}
-        raw_market = r.get("market") or r.get("prop_type") or r.get("stat_type") or ""
-        canonical_stat = PROP_STAT_NAME_MAP.get(str(raw_market).lower().replace(" ", "_"), raw_market)
+        # Player / team — may be nested dicts or absent (live response uses flat IDs)
+        player_raw = r.get("player")
+        player = player_raw if isinstance(player_raw, dict) else {}
+        team_raw = r.get("team")
+        team = team_raw if isinstance(team_raw, dict) else {}
+
+        # player_id: live API sends flat int; legacy may nest it
+        player_id_raw = r.get("player_id")
+        if isinstance(player_id_raw, dict):
+            player_id = player_id_raw.get("id")
+        elif player_id_raw is not None:
+            player_id = player_id_raw
+        else:
+            player_id = player.get("id")
+
+        # team_id similarly
+        team_id_raw = r.get("team_id")
+        if isinstance(team_id_raw, dict):
+            team_id = team_id_raw.get("id")
+        elif team_id_raw is not None:
+            team_id = team_id_raw
+        else:
+            team_id = team.get("id")
+
+        # Odds nested under "market" in the live API
+        market = r.get("market")
+        market = market if isinstance(market, dict) else {}
+
+        # Prop type: BDL live uses "prop_type"; older/mock rows may use "type"
+        raw_type = (
+            r.get("prop_type") or r.get("type")
+            or r.get("stat_type") or ""
+        )
+        # Ensure raw_type is a string (guard against accidentally capturing a dict)
+        if not isinstance(raw_type, str):
+            raw_type = str(raw_type)
+        canonical_stat = PROP_STAT_NAME_MAP.get(
+            raw_type.lower().strip().replace(" ", "_"), raw_type
+        )
+        vendor = r.get("vendor") or r.get("book") or r.get("sportsbook")
+
         flat.append({
-            "market_id": r.get("id") or r.get("market_id"),
-            "game_id": game.get("id") or r.get("game_id"),
-            "game_date": pd.to_datetime(
-                game.get("date") or r.get("date"), utc=True, errors="coerce"
-            ),
-            "season": game.get("season") or r.get("season"),
-            "player_id": player.get("id") or r.get("player_id"),
+            "odds_id": r.get("id"),
+            "game_id": r.get("game_id"),
+            "player_id": player_id,
             "player_name": " ".join(
                 x for x in [player.get("first_name"), player.get("last_name")] if x
-            ),
-            "team_id": team.get("id") or r.get("team_id"),
+            ) or None,
+            "team_id": team_id,
             "team_abbreviation": team.get("abbreviation"),
-            "market_raw": raw_market,
+            "vendor": vendor,
+            "book": vendor,
+            "sportsbook": vendor,
+            "prop_type_raw": raw_type,
             "stat": canonical_stat,
-            "line": _to_numeric(r.get("line") or r.get("value")),
-            "over_odds": _to_numeric(r.get("over_odds") or r.get("over")),
-            "under_odds": _to_numeric(r.get("under_odds") or r.get("under")),
-            "book": r.get("book") or r.get("sportsbook"),
-            "sportsbook": r.get("sportsbook") or r.get("book"),
-            "snapshot_timestamp_utc": pd.to_datetime(
-                r.get("snapshot_timestamp") or r.get("updated_at"),
+            # BDL live: "line_value"; older rows: "line" or "value"
+            "line": _to_numeric(
+                r.get("line_value") or r.get("line") or r.get("value")
+            ),
+            # BDL live: market.over_odds; older rows: r.over_odds
+            "over_odds": _to_numeric(
+                market.get("over_odds") or r.get("over_odds") or r.get("over")
+            ),
+            "under_odds": _to_numeric(
+                market.get("under_odds") or r.get("under_odds") or r.get("under")
+            ),
+            "updated_at": pd.to_datetime(
+                r.get("updated_at") or r.get("snapshot_timestamp"),
                 utc=True, errors="coerce",
             ),
         })
     df = pd.DataFrame(flat)
     if df.empty:
         return df
-    df["game_date"] = pd.to_datetime(df["game_date"])
-    return df.sort_values(["game_date", "game_id", "player_id", "stat"]).reset_index(
-        drop=True
-    )
+    return df.sort_values(["game_id", "player_id", "stat", "vendor"]).reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------

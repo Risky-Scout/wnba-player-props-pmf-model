@@ -178,21 +178,30 @@ def test_prop_stat_name_map(raw, expected_canonical):
 
 
 def test_normalize_player_props_stat_name():
+    # Matches actual BDL WNBA live player_props response structure.
     rows = [
         {
+            "id": 8570929416,
+            "game_id": 100,
+            "player_id": 1,
             "player": {"id": 1, "first_name": "A'ja", "last_name": "Wilson"},
-            "game": {"id": 100, "date": "2024-05-14", "season": 2024},
             "team": {"id": 10, "abbreviation": "LVA"},
-            "market": "points",
-            "line": 22.5,
-            "over_odds": -110,
-            "under_odds": -110,
-            "sportsbook": "DraftKings",
+            "vendor": "draftkings",
+            "prop_type": "points",    # BDL live field name
+            "line_value": "22.5",     # BDL live field name
+            "market": {               # BDL live nests odds under "market"
+                "type": "over_under",
+                "over_odds": -110,
+                "under_odds": -110,
+            },
+            "updated_at": "2026-06-09T10:00:00Z",
         }
     ]
     df = normalize_player_props(rows)
     assert df["stat"].iloc[0] == "pts"
-    assert df["line"].iloc[0] == 22.5
+    assert df["line"].iloc[0] == pytest.approx(22.5)
+    assert df["over_odds"].iloc[0] == -110
+    assert df["vendor"].iloc[0] == "draftkings"
 
 
 # ===========================================================================
@@ -446,18 +455,31 @@ def test_normalize_players():
 
 
 def test_normalize_odds():
+    # Updated to use the actual BDL WNBA flat response structure (no nested objects).
+    # Confirmed via debug: GET /wnba/v1/odds?game_ids[]=24752 returns flat row.
     rows = [
         {
-            "game": {"id": 100, "date": "2024-05-14", "season": 2024},
-            "spread": {"home_odds": -110, "visitor_odds": -110, "home_spread": -4.5},
-            "total": {"value": 162.5, "over_odds": -110, "under_odds": -110},
-            "moneyline": {"home_odds": -185, "visitor_odds": 155},
-            "sportsbook": "DraftKings",
+            "id": 252022769,
+            "game_id": 100,
+            "vendor": "draftkings",
+            "spread_home_value": "-4.5",
+            "spread_home_odds": -110,
+            "spread_away_value": "4.5",
+            "spread_away_odds": -110,
+            "moneyline_home_odds": -185,
+            "moneyline_away_odds": 155,
+            "total_value": "162.5",
+            "total_over_odds": -110,
+            "total_under_odds": -110,
+            "updated_at": "2024-05-14T23:00:00Z",
         }
     ]
     df = normalize_odds(rows)
-    assert df["total_value"].iloc[0] == 162.5
-    assert df["spread_value"].iloc[0] == -4.5
+    assert df["total_value"].iloc[0] == pytest.approx(162.5)
+    assert df["spread_home_value"].iloc[0] == pytest.approx(-4.5)
+    assert df["spread_away_value"].iloc[0] == pytest.approx(4.5)
+    assert df["vendor"].iloc[0] == "draftkings"
+    assert df["odds_id"].iloc[0] == 252022769
 
 
 def test_normalize_advanced_stats():

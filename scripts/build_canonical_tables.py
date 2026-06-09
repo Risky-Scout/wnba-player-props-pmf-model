@@ -285,12 +285,34 @@ def main(
         )
 
     # -- Odds (optional) --
+    # Enrich with game_date and season from the games table (not in BDL odds response).
     if odds_raw is not None:
+        odds_df = odds_raw.copy()
+        if "games_df" in dir() and not games_df.empty and "game_id" in games_df.columns:
+            date_season = games_df[["game_id", "game_date", "season"]].drop_duplicates("game_id")
+            if "game_date" in odds_df.columns:
+                odds_df = odds_df.drop(columns=["game_date"])
+            if "season" in odds_df.columns:
+                odds_df = odds_df.drop(columns=["season"])
+            odds_df = odds_df.merge(date_season, on="game_id", how="left")
         p = out / "wnba_odds.parquet"
-        odds_raw.to_parquet(p, index=False)
+        odds_df.to_parquet(p, index=False)
         written["wnba_odds"] = p
-        typer.echo(f"  wnba_odds: {len(odds_raw):,} rows")
-        validation_results.append(validate_table(odds_raw, ALL_SCHEMAS["wnba_odds"], str(p)))
+        vendors = sorted(odds_df["vendor"].dropna().unique().tolist()) if "vendor" in odds_df.columns else []
+        typer.echo(f"  wnba_odds: {len(odds_df):,} rows  vendors={vendors}")
+        validation_results.append(validate_table(odds_df, ALL_SCHEMAS["wnba_odds"], str(p)))
+
+    # -- Player props (optional, live-only) --
+    props_raw = _read_raw(raw, "wnba_player_props")
+    if props_raw is not None:
+        p = out / "wnba_player_props.parquet"
+        props_raw.to_parquet(p, index=False)
+        written["wnba_player_props"] = p
+        vendors_p = sorted(props_raw["vendor"].dropna().unique().tolist()) if "vendor" in props_raw.columns else []
+        typer.echo(f"  wnba_player_props: {len(props_raw):,} rows  vendors={vendors_p}")
+        validation_results.append(
+            validate_table(props_raw, ALL_SCHEMAS["wnba_player_props"], str(p))
+        )
 
     # -- Standings (optional) --
     if standings_raw is not None:

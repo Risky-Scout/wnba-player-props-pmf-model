@@ -125,8 +125,11 @@ FORBIDDEN_MARKET_COLUMNS: frozenset[str] = frozenset({
     "over_odds",
     "under_odds",
     "market_id",
+    "odds_id",
     "book",
     "sportsbook",
+    "vendor",               # canonical sportsbook identifier
+    "prop_type_raw",        # evaluation-only metadata
     # Derived market probabilities
     "market_prob_over",
     "market_prob_under",
@@ -144,15 +147,22 @@ FORBIDDEN_MARKET_COLUMNS: frozenset[str] = frozenset({
     "market_prob_over_no_vig",
     "consensus_total",
     "consensus_spread",
-    # Game odds columns
-    "spread_value",
-    "total_value",
+    # Game odds columns — actual BDL WNBA flat response field names
+    "spread_home_value",
     "spread_home_odds",
-    "spread_visitor_odds",
+    "spread_away_value",
+    "spread_away_odds",
+    "moneyline_home_odds",
+    "moneyline_away_odds",
+    "total_value",
     "total_over_odds",
     "total_under_odds",
-    "moneyline_home_odds",
+    # Legacy / alternate column names
+    "spread_value",
+    "spread_visitor_odds",
     "moneyline_visitor_odds",
+    "snapshot_timestamp_utc",
+    "updated_at",
 })
 
 # ---------------------------------------------------------------------------
