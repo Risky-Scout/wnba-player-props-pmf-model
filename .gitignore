@@ -12,3 +12,6 @@ artifacts/runs/
 artifacts/audits/
 
 *.log
+
+*.egg-info/
+src/*.egg-info/
