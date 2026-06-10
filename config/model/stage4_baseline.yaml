@@ -1,0 +1,61 @@
+random_seed: 42
+
+stats:
+  - pts
+  - reb
+  - ast
+  - fg3m
+  - stl
+  - blk
+  - turnover
+
+# Hurdle model (explicit P(Y>0)) for these sparse stats
+sparse_stats:
+  - stl
+  - blk
+
+# Maximum integer k included in atom PMF support
+pmf_support_caps:
+  pts: 60
+  reb: 30
+  ast: 25
+  fg3m: 15
+  stl: 10
+  blk: 10
+  turnover: 12
+
+# Minutes model output clipping
+minutes_clip_min: 0.0
+minutes_clip_max: 45.0
+
+# Lower bound on minutes sigma (prevents overconfident projections)
+min_minutes_sigma: 3.0
+
+# Minutes sigma multiplier for uncertain/injury-dependent roles
+uncertain_sigma_multiplier: 1.5
+
+# Minimum predicted stat mean for PMF generation (avoids degenerate near-zero PMFs)
+min_stat_mean: 0.01
+
+# Paths (can be overridden via CLI args)
+model_feature_manifest_path: data/processed/feature_schema_manifest.json
+input_wide_path: data/processed/wnba_player_game_features_wide.parquet
+input_long_path: data/processed/wnba_player_game_features_long.parquet
+output_dir: data/model_outputs/stage4_baseline
+model_artifact_dir: artifacts/models/stage4_baseline
+
+# Stage identifier written to all PMF rows
+pmf_source: stage4_baseline_uncalibrated_model_only
+
+# HistGradientBoosting model hyperparameters (modest for speed + reproducibility)
+hgb_regressor:
+  max_iter: 200
+  max_leaf_nodes: 31
+  learning_rate: 0.1
+  min_samples_leaf: 20
+
+hgb_classifier:
+  max_iter: 200
+  max_leaf_nodes: 31
+  learning_rate: 0.1
+  min_samples_leaf: 20
