@@ -29,13 +29,14 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Pull BDL history (current season)
+      - name: Pull BDL history (all seasons for OOF training)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
           YEAR=$(date -u +%Y)
+          # Pull full history so OOF walk-forward has training data (2022 onwards)
           python scripts/pull_bdl_history.py \
-            --start-season $YEAR --end-season $YEAR \
+            --start-season 2022 --end-season $YEAR \
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
