@@ -76,7 +76,23 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
 
 def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.DataFrame:
     props = normalize_player_props_snapshot(raw_props)
-    joined = props.merge(pmfs[["game_id", "player_id", "stat", "pmf_json", "mean", "role_bucket", "model_version"]], on=["game_id", "player_id", "stat"], how="inner")
+
+    # Guard: nothing to compare if props normalisation produced no rows
+    if props.empty or not all(c in props.columns for c in ["game_id", "player_id", "stat"]):
+        return pd.DataFrame()
+
+    # Resolve the mean column — pmf_engine outputs "pmf_mean"; predict.py combo rows
+    # add both "pmf_mean" and "mean".  Normalise to "pmf_mean" before selecting.
+    pmfs_sel = pmfs.copy()
+    if "pmf_mean" not in pmfs_sel.columns and "mean" in pmfs_sel.columns:
+        pmfs_sel["pmf_mean"] = pmfs_sel["mean"]
+
+    # Only select columns that actually exist to avoid KeyError on optional cols.
+    _must_have = ["game_id", "player_id", "stat", "pmf_json", "pmf_mean"]
+    _optional  = ["role_bucket", "model_version"]
+    sel_cols   = _must_have + [c for c in _optional if c in pmfs_sel.columns]
+    joined = props.merge(pmfs_sel[sel_cols], on=["game_id", "player_id", "stat"], how="inner")
+
     model_probs = []
     for _, r in joined.iterrows():
         model_probs.append(prob_over_from_pmf(json_to_pmf(r["pmf_json"]), r["line"]))
@@ -93,10 +109,10 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         for _, r in joined.iterrows()
     ]
 
-    # Mean-disagrement flag: |model_mean - market_implied_mean| > 2 (worth investigating)
-    if "mean" in joined.columns:
+    # Mean-disagreement flag: |model_mean - market_implied_mean| > 2 (worth investigating)
+    if "pmf_mean" in joined.columns:
         joined["mean_disagreement"] = (
-            (joined["mean"] - joined["market_implied_mean"]).abs() > 2.0
+            (joined["pmf_mean"] - joined["market_implied_mean"]).abs() > 2.0
         ).where(joined["market_implied_mean"].notna(), other=False)
 
     return joined

@@ -124,7 +124,7 @@ class LogLinearStatModel:
         context_df columns.  If context_df is None, falls back to the
         base model unmodified.
         """
-        base_lambda = self._base_model.predict(X)
+        base_lambda = self._base_model.predict_mean(X)
 
         if context_df is None or context_df.empty:
             return base_lambda
@@ -163,16 +163,39 @@ class LogLinearStatModel:
         return np.clip(adjusted, 0.0, None)
 
     # ------------------------------------------------------------------
-    # Delegate dispersion to wrapped model
+    # Inference alias: callers use predict_mean() not predict()
     # ------------------------------------------------------------------
 
-    def get_dispersion(self, role: str = "all") -> float | None:
-        """Return per-role (or global) NegBinom dispersion r."""
-        return self._base_model.get_dispersion(role)
+    def predict_mean(self, X: pd.DataFrame) -> np.ndarray:
+        """Return adjusted Poisson λ per row.
+
+        Passes *X* itself as context_df so the Dixon-Coles opponent-defense
+        and pace adjustments fire automatically — opp/pace columns are already
+        part of the feature matrix, so no separate context_df is needed.
+        """
+        return self.predict(X, context_df=X)
+
+    # ------------------------------------------------------------------
+    # Delegate dispersion + variance attributes to wrapped model
+    # ------------------------------------------------------------------
+
+    @property
+    def _global_var(self) -> float:
+        """Global variance of the training target (delegated to base model)."""
+        return self._base_model._global_var
+
+    @property
+    def dispersion_r(self) -> float | None:
+        """NegBinom dispersion r (delegated to base model; None → Poisson)."""
+        return self._base_model.dispersion_r
 
     @property
     def _dispersion_r(self) -> float | None:
         return self._base_model._dispersion_r
+
+    def get_dispersion(self, role: str = "all") -> float | None:
+        """Return per-role (or global) NegBinom dispersion r."""
+        return self._base_model.get_dispersion(role)
 
     @property
     def _role_dispersion(self) -> dict[str, float | None]:
