@@ -210,18 +210,28 @@ def build_all_pmfs(
         frame = pd.DataFrame({
             "game_id":                  stat_rows["game_id"].values,
             "game_date":                stat_rows["game_date"].values,
-            "season":                   stat_rows["season"].values,
+            "season":                   stat_rows["season"].values
+                                        if "season" in stat_rows.columns else None,
             "player_id":                stat_rows["player_id"].values,
-            "player_name":              stat_rows["player_name"].values,
-            "team_id":                  stat_rows["team_id"].values,
-            "team_abbreviation":        stat_rows["team_abbreviation"].values,
-            "opponent_team_id":         stat_rows["opponent_team_id"].values,
+            "player_name":              stat_rows["player_name"].values
+                                        if "player_name" in stat_rows.columns else None,
+            "team_id":                  stat_rows["team_id"].values
+                                        if "team_id" in stat_rows.columns else None,
+            "team_abbreviation":        stat_rows["team_abbreviation"].values
+                                        if "team_abbreviation" in stat_rows.columns else None,
+            "opponent_team_id":         stat_rows["opponent_team_id"].values
+                                        if "opponent_team_id" in stat_rows.columns
+                                        else None,
             "opponent_team_abbreviation": stat_rows["opponent_team_abbreviation"].values
                                         if "opponent_team_abbreviation" in stat_rows.columns
                                         else None,
             "stat":                     stat,
-            "actual_outcome":           stat_rows["actual_outcome"].values,
-            "actual_minutes":           stat_rows["actual_minutes"].values,
+            "actual_outcome":           stat_rows["actual_outcome"].values
+                                        if "actual_outcome" in stat_rows.columns
+                                        else None,
+            "actual_minutes":           stat_rows["actual_minutes"].values
+                                        if "actual_minutes" in stat_rows.columns
+                                        else None,
             "did_play":                 stat_rows["did_play"].values
                                         if "did_play" in stat_rows.columns else None,
             "minutes_mean":             stat_rows["minutes_mean"].values,
