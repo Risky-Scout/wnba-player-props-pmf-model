@@ -82,6 +82,13 @@ jobs:
             data/oof/oof_player_stat_pmfs.parquet \
             --config config/model/stage6_calibration.yaml
 
+      - name: Cache calibrators (shared across workflows)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/models/calibration/
+          key: calibrators-latest-${{ github.run_id }}
+
       - name: Upload calibrators (always)
         if: always()
         uses: actions/upload-artifact@v4
