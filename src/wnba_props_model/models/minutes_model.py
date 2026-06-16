@@ -55,6 +55,12 @@ class MinutesModel:
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
             random_state=seed,
         )
+        # sklearn's BinMapper raises "window shape cannot be larger than input
+        # array shape" on all-NaN columns (common in early-season data).
+        all_nan = [c for c in X.columns if X[c].isna().all()]
+        if all_nan:
+            X = X.drop(columns=all_nan)
+        self._usable_cols = list(X.columns)
         self._model.fit(X, y)
 
         # --- Residual-based sigma estimation -----------------------------------
@@ -96,6 +102,11 @@ class MinutesModel:
         """
         if not self._fitted or self._model is None:
             raise RuntimeError("MinutesModel not fitted")
+
+        # Align inference columns to the usable set determined at fit time
+        if hasattr(self, "_usable_cols"):
+            avail = [c for c in self._usable_cols if c in X.columns]
+            X = X[avail]
 
         y_pred = np.clip(
             self._model.predict(X),

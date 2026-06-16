@@ -58,6 +58,11 @@ class StatRateModel:
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
             random_state=seed,
         )
+        # Drop all-NaN columns to prevent sklearn BinMapper crash on early-season data
+        all_nan = [c for c in X.columns if X[c].isna().all()]
+        if all_nan:
+            X = X.drop(columns=all_nan)
+        self._usable_cols = list(X.columns)
         self._model.fit(X, y)
 
         # Estimate NegBinom dispersion from empirical moments
@@ -71,6 +76,9 @@ class StatRateModel:
         """Predict E[Y], clipped to >= min_stat_mean."""
         if not self._fitted or self._model is None:
             raise RuntimeError(f"StatRateModel({self.stat}) not fitted")
+        if hasattr(self, "_usable_cols"):
+            avail = [c for c in self._usable_cols if c in X.columns]
+            X = X[avail]
         min_mean = self.cfg.get("min_stat_mean", 0.01)
         return np.clip(self._model.predict(X), min_mean, None)
 
@@ -131,6 +139,12 @@ class HurdleModel:
         clf_kw = self.cfg.get("hgb_classifier", {})
         reg_kw = self.cfg.get("hgb_regressor", {})
 
+        # Drop all-NaN columns to prevent sklearn BinMapper crash on early-season data
+        all_nan = [c for c in X.columns if X[c].isna().all()]
+        if all_nan:
+            X = X.drop(columns=all_nan)
+        self._usable_cols = list(X.columns)
+
         # Stage A: binary classifier P(Y > 0)
         y_binary = (y > 0).astype(int)
         self._clf = HistGradientBoostingClassifier(
@@ -179,6 +193,11 @@ class HurdleModel:
         """
         if not self._fitted or self._clf is None:
             raise RuntimeError(f"HurdleModel({self.stat}) not fitted")
+
+        # Align inference to the usable column set from fit time
+        if hasattr(self, "_usable_cols"):
+            avail = [c for c in self._usable_cols if c in X.columns]
+            X = X[avail]
 
         # P(Y > 0)
         p_nz = self._clf.predict_proba(X)[:, 1]
