@@ -16,10 +16,24 @@ def fit_calibrators(
     out_dir: str | Path = "artifacts/models/calibration",
 ) -> dict[str, Path]:
     """Fit per-stat role-aware isotonic calibrators from OOF PMFs."""
-    oof = pd.read_parquet(oof_pmfs_path)
+    oof = pd.read_parquet(oof_pmfs_path).copy()
+
+    # Normalize column names: OOF parquet uses actual_outcome; calibrator expects outcome
+    if "outcome" not in oof.columns and "actual_outcome" in oof.columns:
+        oof["outcome"] = oof["actual_outcome"]
+
+    # role_bucket may not be in OOF parquet — default to "all" (global-only calibration)
+    if "role_bucket" not in oof.columns:
+        oof["role_bucket"] = "all"
+
+    # Build numpy PMF arrays from JSON
     if "pmf" not in oof.columns and "pmf_json" in oof.columns:
-        oof = oof.copy()
         oof["pmf"] = oof["pmf_json"].map(json_to_pmf)
+
+    # Only calibrate on eligible rows (excludes prior_only, low-minute games)
+    if "calibration_eligible" in oof.columns:
+        oof = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
+
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     paths = {}
