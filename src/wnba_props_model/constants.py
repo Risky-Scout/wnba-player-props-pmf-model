@@ -27,6 +27,7 @@ CANONICAL_STAT_NAMES = {
 }
 
 # BDL raw market stat name → canonical stat key
+# Aliased as BDL_PROP_TO_STAT for use in deliver.py and other pipeline code
 PROP_STAT_NAME_MAP: dict[str, str] = {
     "points": "pts",
     "rebounds": "reb",
@@ -52,6 +53,9 @@ PROP_STAT_NAME_MAP: dict[str, str] = {
     "double_double": "double_double",
     "triple_double": "triple_double",
 }
+
+# Alias used in pipeline/deliver.py
+BDL_PROP_TO_STAT = PROP_STAT_NAME_MAP
 
 # BDL raw column name → internal stat key (used in flatten_player_stat_row)
 STAT_TO_BDL_COL = {
