@@ -54,15 +54,6 @@ jobs:
             echo "game_date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Determine skip-train flag
-        id: skip_train
-        run: |
-          if [ "${{ github.event.inputs.skip_train }}" = "true" ]; then
-            echo "flag=--skip-train" >> $GITHUB_OUTPUT
-          else
-            echo "flag=" >> $GITHUB_OUTPUT
-          fi
-
       - name: Pull BDL history (current season)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -73,38 +64,19 @@ jobs:
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
-        run: |
-          python scripts/build_canonical_tables.py \
-            --raw-dir data/raw/bdl \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/canonical_schema_audit.json
+        run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
 
       - name: Build features
-        run: |
-          python scripts/build_features.py \
-            --canonical-dir data/processed \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/feature_audit.json
+        run: python scripts/build_features.py --data-dir data/processed
 
       - name: Train baseline PMFs (Stage 4)
         if: github.event.inputs.skip_train != 'true'
-        run: |
-          python scripts/train_baseline_pmfs.py \
-            --features-wide data/processed/wnba_player_game_features_wide.parquet \
-            --features-long data/processed/wnba_player_game_features_long.parquet \
-            --manifest data/processed/feature_schema_manifest.json \
-            --config config/model/stage4_baseline.yaml \
-            --model-dir artifacts/models/stage4_baseline \
-            --out-dir data/model_outputs/stage4_baseline \
-            --audit-out artifacts/audits/stage4_training_audit.json
+        run: python scripts/train_baseline_pmfs.py
 
       - name: Predict today (HGB + calibration)
         run: |
           python scripts/predict_today.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
-            --model-dir artifacts/models/stage4_baseline \
-            --config config/model/stage4_baseline.yaml \
-            --cal-dir artifacts/models/calibration \
             --game-date ${{ steps.date.outputs.game_date }} \
             --out-dir deliveries/today
 
@@ -112,11 +84,10 @@ jobs:
         run: |
           python scripts/build_edge_report.py \
             --pmfs deliveries/today/full_pmfs_wide.parquet \
-            --raw-props data/processed/player_props.parquet \
+            --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/today \
-            --edge-threshold 0.04 \
             --game-date ${{ steps.date.outputs.game_date }}
-        continue-on-error: true   # no props today → edge report is empty but not fatal
+        continue-on-error: true
 
       - name: Export betting sheets
         run: |
@@ -131,7 +102,5 @@ jobs:
         if: always()
         with:
           name: daily-delivery-${{ steps.date.outputs.game_date }}-${{ github.run_id }}
-          path: |
-            deliveries/today/
-            artifacts/audits/stage4_training_audit.json
+          path: deliveries/today/
           retention-days: 14

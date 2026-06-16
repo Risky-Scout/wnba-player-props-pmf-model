@@ -77,15 +77,13 @@ def main(
             "scripts/build_canonical_tables.py",
             "--raw-dir", "data/raw/bdl",
             "--out-dir", "data/processed",
-            "--audit-out", "artifacts/audits/canonical_schema_audit.json",
         ], "Build canonical tables")
 
     # Step 3: Build features
     if not skip_features:
         _run([
             "scripts/build_features.py",
-            "--canonical-dir", "data/processed",
-            "--out-dir", "data/processed",
+            "--data-dir", "data/processed",
             "--audit-out", "artifacts/audits/feature_audit.json",
         ], "Build features")
 

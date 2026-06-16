@@ -346,7 +346,11 @@ def _build_wide_oof_table(oof_df: pd.DataFrame, stats: list[str]) -> pd.DataFram
                    "actual_outcome", "calibration_eligible"]
 
     available_id = [c for c in id_cols if c in oof_df.columns]
-    id_df = (oof_df[available_id + ["player_id", "game_id"]]
+    # Ensure player_id and game_id are included (they're already in id_cols; avoid dups)
+    for col in ("player_id", "game_id"):
+        if col not in available_id:
+            available_id.append(col)
+    id_df = (oof_df[available_id]
              .drop_duplicates(subset=["player_id", "game_id"]))
 
     for stat in stats:

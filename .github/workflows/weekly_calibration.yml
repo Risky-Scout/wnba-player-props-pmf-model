@@ -3,12 +3,7 @@ name: Weekly OOF Refresh & Calibration
 on:
   schedule:
     - cron: "0 10 * * 1"   # Monday 6 AM ET (UTC-4)
-  workflow_dispatch:
-    inputs:
-      force_refit:
-        description: "Force calibrator refit even if gates would pass"
-        required: false
-        default: "false"
+  workflow_dispatch: {}
 
 jobs:
   weekly-calibration:
@@ -44,18 +39,10 @@ jobs:
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
-        run: |
-          python scripts/build_canonical_tables.py \
-            --raw-dir data/raw/bdl \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/canonical_schema_audit.json
+        run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
 
       - name: Build features
-        run: |
-          python scripts/build_features.py \
-            --canonical-dir data/processed \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/feature_audit.json
+        run: python scripts/build_features.py --data-dir data/processed
 
       - name: Build OOF PMFs (Stage 5)
         run: |
@@ -70,15 +57,13 @@ jobs:
       - name: Validate OOF PMFs
         run: |
           python scripts/validate_oof_pmfs.py \
-            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
-            --fold-manifest data/oof/oof_fold_manifest.parquet \
-            --audit-out artifacts/audits/stage5_oof_pmf_validation_audit.json
+            --pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --fold-manifest data/oof/oof_fold_manifest.parquet
 
-      - name: Score OOF PMFs (pre-calibration)
+      - name: Score OOF PMFs
         run: |
           python scripts/score_oof_pmfs.py \
-            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
-            --audit-out artifacts/audits/stage5_oof_scoring_audit.json \
+            --pmfs data/oof/oof_player_stat_pmfs.parquet \
             --summary-out artifacts/audits/stage5_oof_summary.md
 
       - name: Fit calibrators (Stage 6)
@@ -88,16 +73,12 @@ jobs:
             --out-dir artifacts/models/calibration
 
       - name: Verify calibration gates
-        id: gates
         run: |
           python scripts/verify_gates.py calibration \
             data/oof/oof_player_stat_pmfs.parquet \
-            --config config/model/stage6_calibration.yaml \
-            --ece-threshold 0.03 \
-            --ks-threshold 0.075
-        # Fails workflow if ECE > 0.03 for any stat — blocks bad calibrators from production
+            --config config/model/stage6_calibration.yaml
 
-      - name: Upload calibrators (only on gate pass)
+      - name: Upload calibrators (gate pass only)
         if: success()
         uses: actions/upload-artifact@v4
         with:

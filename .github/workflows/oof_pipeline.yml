@@ -36,30 +36,16 @@ jobs:
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
-        run: |
-          python scripts/build_canonical_tables.py \
-            --raw-dir data/raw/bdl \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/canonical_schema_audit.json
+        run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
 
       - name: Validate canonical schema
-        run: |
-          python scripts/validate_canonical_schema.py \
-            --processed-dir data/processed
+        run: python scripts/validate_canonical_schema.py
 
       - name: Build features
-        run: |
-          python scripts/build_features.py \
-            --canonical-dir data/processed \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/feature_audit.json
+        run: python scripts/build_features.py --data-dir data/processed
 
       - name: Validate features
-        run: |
-          python scripts/validate_features.py \
-            --features-wide data/processed/wnba_player_game_features_wide.parquet \
-            --features-long data/processed/wnba_player_game_features_long.parquet \
-            --manifest data/processed/feature_schema_manifest.json
+        run: python scripts/validate_features.py
 
       - name: Build OOF PMFs (Stage 5)
         run: |
@@ -74,14 +60,14 @@ jobs:
       - name: Validate OOF PMFs
         run: |
           python scripts/validate_oof_pmfs.py \
-            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --pmfs data/oof/oof_player_stat_pmfs.parquet \
             --fold-manifest data/oof/oof_fold_manifest.parquet \
             --audit-out artifacts/audits/stage5_oof_pmf_validation_audit.json
 
       - name: Score OOF PMFs
         run: |
           python scripts/score_oof_pmfs.py \
-            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --pmfs data/oof/oof_player_stat_pmfs.parquet \
             --audit-out artifacts/audits/stage5_oof_scoring_audit.json \
             --summary-out artifacts/audits/stage5_oof_summary.md
 

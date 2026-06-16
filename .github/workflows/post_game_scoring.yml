@@ -50,7 +50,7 @@ jobs:
           path: deliveries/scored_day
         continue-on-error: true
 
-      - name: Pull BDL actuals (for yesterday)
+      - name: Pull BDL actuals
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
@@ -59,16 +59,14 @@ jobs:
             --start-season $YEAR --end-season $YEAR \
             --out-dir data/raw/bdl
           python scripts/build_canonical_tables.py \
-            --raw-dir data/raw/bdl \
-            --out-dir data/processed \
-            --audit-out artifacts/audits/canonical_schema_audit.json
+            --raw-dir data/raw/bdl --out-dir data/processed
 
       - name: Score predictions vs. actuals
         run: |
           python scripts/score_daily_predictions.py \
             --predictions deliveries/scored_day/full_pmfs_wide.parquet \
             --market-comparison deliveries/scored_day/market_comparison.parquet \
-            --actuals data/processed/player_game_stats.parquet \
+            --actuals data/processed/wnba_player_game_stats.parquet \
             --game-date ${{ steps.date.outputs.game_date }} \
             --out-dir data/clv_tracking
         continue-on-error: true
