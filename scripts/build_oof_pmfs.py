@@ -201,7 +201,9 @@ def build(
                 errmsg = ""
                 print(f"    → model_oof  PMF rows={len(pmf_frame):,}")
             except Exception as e:
+                import traceback as _tb
                 print(f"    → FAILED: {e}")
+                _tb.print_exc()  # full stack trace so CI logs show exact cause
                 fold_meta = {**fold_meta_base, "oof_prediction_type": "failed_model_fit"}
                 pmf_frame = make_prior_only_pmfs(
                     val_wide_df, val_long_df, fold_meta, cfg, error_msg=str(e)
