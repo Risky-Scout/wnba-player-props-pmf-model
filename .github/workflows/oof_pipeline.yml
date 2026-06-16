@@ -1,0 +1,96 @@
+name: Stage 5 — Walk-Forward OOF Backfill
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  oof-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Pull BDL history (2022–2026)
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          python scripts/pull_bdl_history.py \
+            --start-season 2022 --end-season 2026 \
+            --out-dir data/raw/bdl
+
+      - name: Build canonical tables
+        run: |
+          python scripts/build_canonical_tables.py \
+            --raw-dir data/raw/bdl \
+            --out-dir data/processed \
+            --audit-out artifacts/audits/canonical_schema_audit.json
+
+      - name: Validate canonical schema
+        run: |
+          python scripts/validate_canonical_schema.py \
+            --processed-dir data/processed
+
+      - name: Build features
+        run: |
+          python scripts/build_features.py \
+            --canonical-dir data/processed \
+            --out-dir data/processed \
+            --audit-out artifacts/audits/feature_audit.json
+
+      - name: Validate features
+        run: |
+          python scripts/validate_features.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-long data/processed/wnba_player_game_features_long.parquet \
+            --manifest data/processed/feature_schema_manifest.json
+
+      - name: Build OOF PMFs (Stage 5)
+        run: |
+          python scripts/build_oof_pmfs.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-long data/processed/wnba_player_game_features_long.parquet \
+            --manifest data/processed/feature_schema_manifest.json \
+            --config config/model/stage5_oof.yaml \
+            --out-dir data/oof \
+            --audit-out artifacts/audits/stage5_oof_audit.json
+
+      - name: Validate OOF PMFs
+        run: |
+          python scripts/validate_oof_pmfs.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --fold-manifest data/oof/oof_fold_manifest.parquet \
+            --audit-out artifacts/audits/stage5_oof_pmf_validation_audit.json
+
+      - name: Score OOF PMFs
+        run: |
+          python scripts/score_oof_pmfs.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --audit-out artifacts/audits/stage5_oof_scoring_audit.json \
+            --summary-out artifacts/audits/stage5_oof_summary.md
+
+      - name: Upload OOF artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oof-outputs-${{ github.run_id }}
+          path: |
+            data/oof/
+            artifacts/audits/stage5_*
+          retention-days: 30

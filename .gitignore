@@ -19,7 +19,20 @@ artifacts/models/
 *.egg-info/
 src/*.egg-info/
 
-# Stage 4 model outputs and generated audits
+# Stage 4+ model outputs and generated audits
 data/model_outputs/
 artifacts/audits/stage4_*
 artifacts/audits/feature_validation_audit.json
+data/oof/
+artifacts/audits/stage5_*
+artifacts/audits/stage6_*
+
+# CLV tracking data (large, regenerated nightly)
+data/clv_tracking/
+
+# Daily betting sheets and deliveries
+deliveries/
+
+# Calibration audit files (regenerated weekly)
+artifacts/audits/clv_*.json
+artifacts/audits/clv_*.md

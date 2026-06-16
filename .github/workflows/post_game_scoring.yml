@@ -1,0 +1,94 @@
+name: Post-Game CLV Scoring
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 2 AM ET (UTC-4) — after final WNBA games complete
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: "ISO date of games to score (YYYY-MM-DD). Defaults to yesterday."
+        required: false
+        default: ""
+
+jobs:
+  score-games:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Set game date (default yesterday)
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.game_date }}" ]; then
+            echo "game_date=${{ github.event.inputs.game_date }}" >> $GITHUB_OUTPUT
+          else
+            echo "game_date=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download yesterday's predictions
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-delivery-${{ steps.date.outputs.game_date }}-*
+          path: deliveries/scored_day
+        continue-on-error: true
+
+      - name: Pull BDL actuals (for yesterday)
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          YEAR=$(echo "${{ steps.date.outputs.game_date }}" | cut -d'-' -f1)
+          python scripts/pull_bdl_history.py \
+            --start-season $YEAR --end-season $YEAR \
+            --out-dir data/raw/bdl
+          python scripts/build_canonical_tables.py \
+            --raw-dir data/raw/bdl \
+            --out-dir data/processed \
+            --audit-out artifacts/audits/canonical_schema_audit.json
+
+      - name: Score predictions vs. actuals
+        run: |
+          python scripts/score_daily_predictions.py \
+            --predictions deliveries/scored_day/full_pmfs_wide.parquet \
+            --market-comparison deliveries/scored_day/market_comparison.parquet \
+            --actuals data/processed/player_game_stats.parquet \
+            --game-date ${{ steps.date.outputs.game_date }} \
+            --out-dir data/clv_tracking
+        continue-on-error: true
+
+      - name: Generate CLV report
+        run: |
+          python scripts/generate_clv_report.py \
+            --results data/clv_tracking/results.parquet \
+            --lookback-days 30 \
+            --out-dir artifacts/audits \
+            --report-date ${{ steps.date.outputs.game_date }}
+        continue-on-error: true
+
+      - name: Upload CLV outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clv-report-${{ steps.date.outputs.game_date }}-${{ github.run_id }}
+          path: |
+            data/clv_tracking/
+            artifacts/audits/clv_*.json
+            artifacts/audits/clv_*.md
+          retention-days: 90

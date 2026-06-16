@@ -1,0 +1,26 @@
+# Stage 6 Calibration Configuration
+# Per PenaltyBlog methodology: isotonic regression per stat/role on OOF PIT values.
+
+# Hard pass/fail gates enforced by verify_gates.py calibration
+ece_threshold: 0.03        # ECE < 0.03 per stat (within 3pp of empirical frequency)
+pit_ks_threshold: 0.075    # PIT KS < 0.075 (near-uniform PIT distribution)
+mean_error_threshold: 0.15 # |mean_error| < 0.15 per stat/role
+
+# Minimum OOF rows required to fit a calibrator for a stat
+min_rows_for_calibration: 50
+
+# Calibrator artifacts output directory
+cal_dir: artifacts/models/calibration
+
+# No-vig extraction method (Shin recommended per PenaltyBlog)
+no_vig_method: shin
+
+# Stats for which calibrators are fit
+stats:
+  - pts
+  - reb
+  - ast
+  - fg3m
+  - stl
+  - blk
+  - turnover

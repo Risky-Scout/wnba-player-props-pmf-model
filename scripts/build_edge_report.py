@@ -1,0 +1,137 @@
+"""Stage 7 — Build edge report comparing model PMFs vs. BDL market odds.
+
+Uses Shin's no-vig method (PenaltyBlog methodology) to extract true market
+probabilities from BDL over/under odds, then computes model edge for each
+player prop line.
+
+Writes:
+  {out_dir}/market_comparison.parquet  — full joined table
+  {out_dir}/publishable_edges.parquet  — |edge| >= edge_threshold rows
+  {out_dir}/edge_report_{date}.json    — summary audit
+
+Usage:
+    python scripts/build_edge_report.py \\
+        --pmfs deliveries/today/full_pmfs_wide.parquet \\
+        --raw-props data/processed/player_props.parquet \\
+        --out-dir deliveries/today \\
+        --edge-threshold 0.04 \\
+        --game-date 2026-06-15
+"""
+from __future__ import annotations
+
+import json
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import typer
+
+from wnba_props_model.pipeline.deliver import build_market_comparison, normalize_player_props_snapshot
+from wnba_props_model.models.market import fair_american, prob_over_from_pmf
+from wnba_props_model.models.simulation import json_to_pmf
+
+app = typer.Typer(add_completion=False)
+
+
+@app.command()
+def main(
+    pmfs: str = typer.Option(..., help="Calibrated PMF parquet (full_pmfs_wide.parquet)."),
+    raw_props: str = typer.Option(..., help="BDL player props parquet."),
+    out_dir: str = typer.Option(..., help="Output directory for edge report files."),
+    edge_threshold: float = typer.Option(0.04, help="Minimum |edge| to publish (default 4pp)."),
+    game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
+    min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
+) -> None:
+    """Compare model PMFs vs. BDL market lines using Shin no-vig."""
+    today = game_date or date.today().isoformat()
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    pmfs_df = pd.read_parquet(pmfs)
+    typer.echo(f"Loaded {len(pmfs_df):,} PMF rows")
+
+    if not Path(raw_props).exists():
+        typer.echo(f"[WARN] No props file at {raw_props} — writing empty edge report", err=True)
+        _write_empty(out, today, edge_threshold)
+        return
+
+    props_df = pd.read_parquet(raw_props)
+    typer.echo(f"Loaded {len(props_df):,} market prop rows")
+
+    if props_df.empty:
+        typer.echo("[WARN] Props file is empty — no market lines to compare")
+        _write_empty(out, today, edge_threshold)
+        return
+
+    # normalize_player_props_snapshot uses shin_no_vig_two_way via no_vig_two_way
+    comp = build_market_comparison(pmfs_df, props_df)
+
+    if comp.empty:
+        typer.echo("[WARN] No player/game overlap between PMFs and props")
+        _write_empty(out, today, edge_threshold)
+        return
+
+    # Filter to sensible market lines (avoid very thin edge markets)
+    comp = comp[comp["market_prob_over_no_vig"].notna()]
+    comp = comp[comp["market_prob_over_no_vig"] >= min_market_prob]
+    comp = comp[comp["market_prob_over_no_vig"] <= (1.0 - min_market_prob)]
+
+    # Annotate with calibration status
+    for col in ("is_calibrated", "cal_source", "model_version"):
+        if col not in comp.columns and col in pmfs_df.columns:
+            merge_col = pmfs_df[["player_id", "game_id", "stat", col]].drop_duplicates()
+            comp = comp.merge(merge_col, on=["player_id", "game_id", "stat"], how="left")
+
+    comp_path = out / "market_comparison.parquet"
+    comp.to_parquet(comp_path, index=False)
+    typer.echo(f"Wrote market_comparison → {comp_path} ({len(comp):,} rows)")
+
+    # Publishable edges: |edge| >= threshold on either side
+    edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
+    edges = edges.sort_values("edge_over", key=np.abs, ascending=False)
+    edges_path = out / "publishable_edges.parquet"
+    edges.to_parquet(edges_path, index=False)
+    typer.echo(f"Wrote publishable_edges → {edges_path} ({len(edges):,} rows at |edge| >= {edge_threshold:.2%})")
+
+    # Audit JSON
+    audit = {
+        "game_date": today,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "no_vig_method": "shin",
+        "edge_threshold": edge_threshold,
+        "total_market_rows": len(comp),
+        "publishable_edge_rows": len(edges),
+        "stats_with_edges": sorted(edges["stat"].unique().tolist()) if len(edges) else [],
+        "mean_abs_edge": float(edges["edge_over"].abs().mean()) if len(edges) else None,
+        "max_edge": float(edges["edge_over"].abs().max()) if len(edges) else None,
+        "over_edges": int((edges["edge_over"] > 0).sum()),
+        "under_edges": int((edges["edge_over"] < 0).sum()),
+    }
+    audit_path = out / f"edge_report_{today}.json"
+    audit_path.write_text(json.dumps(audit, indent=2))
+    typer.echo(f"Wrote edge audit → {audit_path}")
+    typer.echo(
+        f"\nSummary: {len(edges)} publishable edges "
+        f"({audit['over_edges']} OVER / {audit['under_edges']} UNDER)"
+    )
+
+
+def _write_empty(out: Path, today: str, edge_threshold: float) -> None:
+    empty = pd.DataFrame()
+    empty.to_parquet(out / "market_comparison.parquet", index=False)
+    empty.to_parquet(out / "publishable_edges.parquet", index=False)
+    audit = {
+        "game_date": today,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "no_vig_method": "shin",
+        "edge_threshold": edge_threshold,
+        "total_market_rows": 0,
+        "publishable_edge_rows": 0,
+        "note": "no_props_data",
+    }
+    (out / f"edge_report_{today}.json").write_text(json.dumps(audit, indent=2))
+
+
+if __name__ == "__main__":
+    app()

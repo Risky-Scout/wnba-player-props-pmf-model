@@ -1,3 +1,6 @@
+# DEPRECATED: legacy quantile path superseded by Stage 4 HGB engine.
+# Retained for audit purposes. Do not use for production inference.
+# Use pipeline/predict.py → pmf_engine.build_all_pmfs() instead.
 from __future__ import annotations
 
 from pathlib import Path

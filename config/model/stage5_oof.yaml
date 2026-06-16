@@ -1,0 +1,86 @@
+random_seed: 20260610
+
+# OOF fold configuration
+validation_window_days: 14
+
+# Minimum training data before a fold qualifies for model_oof
+min_train_long_rows: 2000
+min_train_stat_rows: 250
+min_sparse_positive_rows: 50
+
+# DNP / low-minutes zero-inflation
+dnp_minutes_threshold: 1.0
+low_minutes_zero_inflation_enabled: true
+
+stats:
+  - pts
+  - reb
+  - ast
+  - fg3m
+  - stl
+  - blk
+  - turnover
+
+sparse_stats:
+  - stl
+  - blk
+
+pmf_support_caps:
+  pts: 60
+  reb: 30
+  ast: 25
+  fg3m: 15
+  stl: 10
+  blk: 10
+  turnover: 12
+
+# Calibration eligible only for model_oof rows
+calibration_eligible_prediction_types:
+  - model_oof
+
+# Stage identifier
+pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
+
+# HistGradientBoosting (slightly lighter than Stage 4 for repeated fold training)
+hgb_regressor:
+  max_iter: 50
+  max_leaf_nodes: 31
+  learning_rate: 0.1
+  min_samples_leaf: 20
+
+hgb_classifier:
+  max_iter: 50
+  max_leaf_nodes: 31
+  learning_rate: 0.1
+  min_samples_leaf: 20
+
+minutes_clip_min: 0.0
+minutes_clip_max: 45.0
+min_minutes_sigma: 3.0
+uncertain_sigma_multiplier: 1.5
+min_stat_mean: 0.01
+
+# League-average priors used for prior_only PMFs when training data is insufficient.
+# Estimated from Stage 4 full-data training (did_play=True rows).
+league_priors:
+  pts:
+    mean: 8.70
+    var: 55.56
+  reb:
+    mean: 3.61
+    var: 10.52
+  ast:
+    mean: 2.15
+    var: 5.17
+  fg3m:
+    mean: 0.85
+    var: 1.52
+  stl:
+    mean: 0.78
+    var: 0.94
+  blk:
+    mean: 0.43
+    var: 0.56
+  turnover:
+    mean: 1.38
+    var: 1.99
