@@ -36,7 +36,22 @@ def calibration(
         ks_threshold = cfg.get("pit_ks_threshold", ks_threshold)
         mean_error_threshold = cfg.get("mean_error_threshold", mean_error_threshold)
 
-    df = pd.read_parquet(oof_scored)
+    from wnba_props_model.models.simulation import json_to_pmf
+
+    df = pd.read_parquet(oof_scored).copy()
+
+    # Normalize OOF parquet columns to what calibration_report expects
+    if "outcome" not in df.columns and "actual_outcome" in df.columns:
+        df["outcome"] = df["actual_outcome"]
+    if "role_bucket" not in df.columns:
+        df["role_bucket"] = "all"
+    if "pmf" not in df.columns and "pmf_json" in df.columns:
+        df["pmf"] = df["pmf_json"].map(json_to_pmf)
+
+    # Only score calibration-eligible rows (excludes prior_only, DNP rows)
+    if "calibration_eligible" in df.columns:
+        df = df[df["calibration_eligible"] == True].copy()  # noqa: E712
+
     rep = calibration_report(df)
 
     typer.echo("\n=== Calibration Gate Report ===")
