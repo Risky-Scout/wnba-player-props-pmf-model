@@ -56,7 +56,8 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
         stat = BDL_PROP_TO_STAT.get(r.get("prop_type"))
         if stat is None:
             continue
-        po, pu = no_vig_two_way(market.get("over_odds"), market.get("under_odds"))
+        from wnba_props_model.models.market import shin_no_vig_two_way_with_z  # noqa: PLC0415
+        po, pu, z = shin_no_vig_two_way_with_z(market.get("over_odds"), market.get("under_odds"))
         rows.append({
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
@@ -67,6 +68,7 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
             "over_odds": market.get("over_odds"),
             "under_odds": market.get("under_odds"),
             "market_prob_over_no_vig": po,
+            "shin_z": z,
             "updated_at": r.get("updated_at"),
         })
     return pd.DataFrame(rows)
@@ -82,6 +84,21 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     joined["edge_over"] = joined["model_prob_over"] - joined["market_prob_over_no_vig"]
     joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
     joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
+
+    # Market-implied Poisson mean (Phase 4b)
+    from wnba_props_model.models.market import market_implied_mean as _mim  # noqa: PLC0415
+    joined["market_implied_mean"] = [
+        _mim(float(r["line"]), float(r["market_prob_over_no_vig"]), stat=str(r.get("stat", "")))
+        if pd.notna(r.get("market_prob_over_no_vig")) else None
+        for _, r in joined.iterrows()
+    ]
+
+    # Mean-disagrement flag: |model_mean - market_implied_mean| > 2 (worth investigating)
+    if "mean" in joined.columns:
+        joined["mean_disagreement"] = (
+            (joined["mean"] - joined["market_implied_mean"]).abs() > 2.0
+        ).where(joined["market_implied_mean"].notna(), other=False)
+
     return joined
 
 

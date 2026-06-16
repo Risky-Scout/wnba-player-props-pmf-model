@@ -1,5 +1,10 @@
 random_seed: 42
 
+# Use LogLinearStatModel (Dixon-Coles style opp-adj) instead of plain StatRateModel.
+# Applies multiplicative opponent-defense and pace adjustments post-prediction.
+# Set to false to fall back to vanilla HGB StatRateModel.
+use_log_linear: true
+
 stats:
   - pts
   - reb

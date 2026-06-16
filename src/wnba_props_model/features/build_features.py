@@ -478,7 +478,57 @@ def _build_player_features(
     )
 
     # ------------------------------------------------------------------ #
-    # 7. Advanced stats (shifted rolling; all optional)
+    # 7. Home/away split rolling features (Phase 2b)
+    # Computes rolling stats within home-only and away-only game subsets.
+    # Approach: filter to home/away games, compute within-split rolling mean,
+    # then merge back by (player_id, game_id) — NaN for the other split.
+    # ------------------------------------------------------------------ #
+    if "is_home" in df.columns:
+        for split_val, split_name in [(1, "home"), (0, "away")]:
+            split_df = df[df["is_home"] == split_val].copy()
+            split_df = split_df.sort_values(["player_id", "game_date", "game_id"])
+            if split_df.empty:
+                continue
+            s_grp_min = split_df.groupby("player_id", sort=False)["minutes"]
+            split_df[f"player_minutes_{split_name}_mean_l5"] = _sr(s_grp_min, 5)
+            for stat in STATS:
+                if stat not in split_df.columns:
+                    continue
+                s_grp_s = split_df.groupby("player_id", sort=False)[stat]
+                split_df[f"player_{stat}_{split_name}_mean_l5"] = _sr(s_grp_s, 5)
+            merge_cols = (
+                [f"player_minutes_{split_name}_mean_l5"]
+                + [f"player_{stat}_{split_name}_mean_l5" for stat in STATS if stat in split_df.columns]
+            )
+            df = df.merge(
+                split_df[["player_id", "game_id"] + merge_cols],
+                on=["player_id", "game_id"], how="left",
+            )
+
+    # ------------------------------------------------------------------ #
+    # 8. Player back-to-back flag (Phase 2c)
+    # ------------------------------------------------------------------ #
+    if "player_rest_days" in df.columns:
+        df["player_back_to_back_flag"] = (df["player_rest_days"] == 1).astype(int)
+        # Heavy-minutes back-to-back: B2B AND played heavy minutes prior game
+        df["player_heavy_minutes_b2b"] = (
+            df["player_back_to_back_flag"] & (df["player_minutes_last1"].fillna(0) > 30)
+        ).astype(int)
+
+    # ------------------------------------------------------------------ #
+    # 9. Per-minute rate × minutes interaction (Phase 2e)
+    # log(λ) = player_rate_per_min × minutes_mean — captures Poisson exposure.
+    # The interaction term lets the model reason about matchup minutes changes.
+    # ------------------------------------------------------------------ #
+    for stat in STATS:
+        rate_col = f"player_{stat}_per_min_l5"
+        if rate_col in df.columns and "projected_minutes_proxy" in df.columns:
+            df[f"player_{stat}_per_min_l5_x_proj_min"] = (
+                df[rate_col] * df["projected_minutes_proxy"]
+            ).replace([np.inf, -np.inf], np.nan)
+
+    # ------------------------------------------------------------------ #
+    # 10. Advanced stats (shifted rolling; all optional)
     # ------------------------------------------------------------------ #
     if adv_df is not None and not adv_df.empty:
         adv = adv_df.sort_values(["player_id", "game_date"]).copy()
@@ -496,6 +546,114 @@ def _build_player_features(
             df = df.drop(columns=[f"_adv_{col}"], errors="ignore")
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# Injury feature builder (Phase 2a)
+# ---------------------------------------------------------------------------
+
+def _build_injury_features(
+    wide_df: pd.DataFrame,
+    injuries_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach injury-context features to the wide feature table.
+
+    Temporal safety: all features reference what was KNOWN before the game starts.
+    - player_injured_l1:     player missed prior game due to injury/DNP
+    - teammate_injury_flag:  at least one teammate on same team is listed out
+                             going INTO this game (joined by game_id + team_id)
+    - vacated_minutes_l1:    sum of minutes from any teammate who did NOT play
+                             the prior game (redistributed opportunity signal)
+    - usage_share_delta:     change in player usage proxy between prior two games
+                             (positive = more opportunity, negative = less)
+
+    Parameters
+    ----------
+    wide_df:     wide feature table, one row per player × game (already sorted)
+    injuries_df: BDL injury records with columns: player_id, game_id, status
+                 (normalized: "out", "questionable", "available", ...)
+                 game_id here is the game the player is MISSING / at-risk for.
+    """
+    out = wide_df.copy()
+
+    # ---- player_injured_l1: player was injured/out prior game ----------------
+    # Use did_play column: if player's prior game was DNP (did_play == 0), flag it
+    if "did_play" in out.columns:
+        grp = out.groupby("player_id", sort=False)
+        out["player_injured_l1"] = grp["did_play"].transform(
+            lambda x: (x.shift(1) == 0).astype(float)
+        ).fillna(0.0)
+    else:
+        out["player_injured_l1"] = 0.0
+
+    # ---- usage_share_delta: shift(1) minus shift(2) of usage proxy ----------
+    if "player_usage_proxy_l5" in out.columns:
+        grp2 = out.groupby("player_id", sort=False)
+        out["usage_share_delta"] = (
+            grp2["player_usage_proxy_l5"].shift(0)   # already shifted
+            - grp2["player_usage_proxy_l5"].shift(1)  # previous game value
+        ).replace([np.inf, -np.inf], np.nan)
+    else:
+        out["usage_share_delta"] = np.nan
+
+    # ---- vacated_minutes_l1: minutes from prior-game DNP teammates -----------
+    # Compute per-team per-game total DNP minutes (teammates not playing).
+    # This tells us how many minutes are being redistributed for THIS game.
+    if "team_id" in out.columns and "did_play" in out.columns:
+        dnp_mins = out.copy()
+        _min_col = "actual_minutes" if "actual_minutes" in dnp_mins.columns else "minutes"
+        dnp_mins["_dnp_minutes"] = dnp_mins[_min_col].fillna(0.0) * (
+            1 - dnp_mins["did_play"].fillna(1).astype(int)
+        )
+        team_dnp = (
+            dnp_mins.groupby(["team_id", "game_id"])["_dnp_minutes"]
+            .sum()
+            .reset_index()
+            .rename(columns={"_dnp_minutes": "_team_dnp_min", "game_id": "_gid", "team_id": "_tid"})
+        )
+        # Shift: for each team, carry last game's DNP minutes forward
+        team_dnp = team_dnp.sort_values(["_tid", "_gid"])
+        team_dnp["vacated_minutes_l1"] = team_dnp.groupby("_tid")["_team_dnp_min"].shift(1)
+        out = out.merge(
+            team_dnp[["_tid", "_gid", "vacated_minutes_l1"]].rename(
+                columns={"_tid": "team_id", "_gid": "game_id"}
+            ),
+            on=["team_id", "game_id"], how="left",
+        )
+    else:
+        out["vacated_minutes_l1"] = np.nan
+
+    # ---- teammate_injury_flag: BDL injury data for current game -------------
+    # injuries_df may contain player_id + game_id rows where the player is listed
+    # as "out" or "doubtful" for THAT game. Attach team context to flag teammates.
+    out["teammate_injury_flag"] = 0.0
+    if injuries_df is not None and not injuries_df.empty and "game_id" in injuries_df.columns:
+        inj = injuries_df.copy()
+        inj_norm = inj.get("status", inj.get("injury_status", pd.Series(dtype=str)))
+        inj["_is_out"] = inj_norm.fillna("").str.lower().isin(["out", "doubtful", "inactive"])
+
+        # Build set of (game_id, player_id) pairs for players who are out
+        out_players = inj[inj["_is_out"]][["game_id", "player_id"]].drop_duplicates()
+
+        # Join team_id to injured players to find which team they're on
+        if "team_id" in out.columns:
+            player_team = out[["player_id", "game_id", "team_id"]].drop_duplicates()
+            out_with_team = out_players.merge(player_team, on=["game_id", "player_id"], how="left")
+
+            # Count out players per (game_id, team_id) — at least 1 = flag
+            team_out_count = (
+                out_with_team.groupby(["game_id", "team_id"])["player_id"]
+                .count()
+                .reset_index()
+                .rename(columns={"player_id": "_n_injured_teammates"})
+            )
+            out = out.merge(team_out_count, on=["game_id", "team_id"], how="left")
+            out["teammate_injury_flag"] = (
+                out["_n_injured_teammates"].fillna(0) > 0
+            ).astype(float)
+            out = out.drop(columns=["_n_injured_teammates"], errors="ignore")
+
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -537,33 +695,45 @@ def build_wide_table(
     ctx = _build_team_game_context(stats_df, games_df)
 
     # --- Team (self) context join ----------------------------------------
-    team_ctx_cols = {}
+    team_ctx_cols: dict[str, str] = {}
     for w in (5, 10):
         team_ctx_cols[f"t_pts_for_l{w}"]      = f"team_pts_for_mean_l{w}"
         team_ctx_cols[f"t_pts_against_l{w}"]   = f"team_pts_allowed_mean_l{w}"
         team_ctx_cols[f"t_total_score_l{w}"]   = f"team_total_score_mean_l{w}"
+        # Phase 1c: per-stat team offensive context (already computed in ctx)
+        for s in STATS:
+            team_ctx_cols[f"t_{s}_for_l{w}"] = f"team_{s}_for_mean_l{w}"
     team_ctx_cols["t_games_prior"]   = "team_games_prior"
     team_ctx_cols["t_rest_days"]     = "team_rest_days"
     team_ctx_cols["t_back_to_back"]  = "team_back_to_back_flag"
 
-    ctx_team = ctx.rename(columns=team_ctx_cols)[
-        ["game_id", "team_id"] + list(team_ctx_cols.values())
-    ]
+    # Only include columns that actually exist in ctx to avoid KeyErrors
+    ctx_team_rename = ctx.rename(columns=team_ctx_cols)
+    ctx_team_cols = ["game_id", "team_id"] + [v for v in team_ctx_cols.values() if v in ctx_team_rename.columns]
+    ctx_team = ctx_team_rename[ctx_team_cols].copy()
     # Add pace proxy aliases
     for w in (5, 10):
-        ctx_team[f"team_pace_proxy_l{w}"] = ctx_team[f"team_total_score_mean_l{w}"]
+        if f"team_total_score_mean_l{w}" in ctx_team.columns:
+            ctx_team[f"team_pace_proxy_l{w}"] = ctx_team[f"team_total_score_mean_l{w}"]
 
     wide = wide.merge(ctx_team, on=["game_id", "team_id"], how="left")
 
     # --- Opponent context join -------------------------------------------
-    opp_ctx_cols = {}
+    opp_ctx_cols: dict[str, str] = {}
     for w in (5, 10):
         opp_ctx_cols[f"t_pts_against_l{w}"]  = f"opp_pts_allowed_mean_l{w}"
         opp_ctx_cols[f"t_total_score_l{w}"]  = f"opp_total_score_allowed_mean_l{w}"
+    # L5 opponent per-stat (existing)
     for s in STATS:
         opp_ctx_cols[f"t_{s}_against_l5"] = (
             f"opp_turnover_forced_mean_l5" if s == "turnover"
             else f"opp_{s}_allowed_mean_l5"
+        )
+    # Phase 2d: L10 opponent per-stat (eliminates small-sample noise)
+    for s in STATS:
+        opp_ctx_cols[f"t_{s}_against_l10"] = (
+            f"opp_turnover_forced_mean_l10" if s == "turnover"
+            else f"opp_{s}_allowed_mean_l10"
         )
     opp_ctx_cols["t_games_prior"]  = "opp_games_prior"
     opp_ctx_cols["t_rest_days"]    = "opp_rest_days"
@@ -611,6 +781,33 @@ def build_wide_table(
     ts = datetime.now(timezone.utc).isoformat()
     wide["feature_build_timestamp_utc"] = ts
     wide["feature_cutoff_policy"] = FEATURE_CUTOFF_POLICY
+
+    # ------------------------------------------------------------------ #
+    # Pi Ratings (Phase 3b): player form + opponent defensive strength
+    # Computed AFTER the wide table has actual_* columns so residuals can
+    # be derived; fully shift-1 safe via pi_ratings module.
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.models.pi_ratings import attach_pi_ratings  # noqa: PLC0415
+        wide = attach_pi_ratings(wide)
+        audit_notes["pi_ratings_applied"] = True
+    except Exception as exc:
+        audit_notes["pi_ratings_applied"] = False
+        audit_notes["pi_ratings_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Injury features (Phase 2a)
+    # ------------------------------------------------------------------ #
+    if injuries_df is not None:
+        wide = _build_injury_features(wide, injuries_df)
+        audit_notes["injury_temporal_alignment"] = "aligned_via_game_id"
+        audit_notes["injuries_available_but_not_temporally_aligned"] = False
+    else:
+        # Ensure columns exist as NaN/0 for schema consistency
+        for col in ["player_injured_l1", "teammate_injury_flag",
+                    "vacated_minutes_l1", "usage_share_delta"]:
+            if col not in wide.columns:
+                wide[col] = 0.0 if col in ("player_injured_l1", "teammate_injury_flag") else np.nan
 
     # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns

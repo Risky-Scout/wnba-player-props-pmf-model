@@ -30,7 +30,11 @@ import numpy as np
 import pandas as pd
 import typer
 
-from wnba_props_model.models.market import fair_american
+from wnba_props_model.models.market import (
+    fair_american,
+    kelly_from_edge_and_prob,
+    market_implied_mean,
+)
 
 app = typer.Typer(add_completion=False)
 
@@ -96,6 +100,27 @@ def main(
     if top_n:
         df = df.head(top_n)
 
+    # Kelly sizing (quarter Kelly using edge + model prob)
+    df["kelly_q"] = df.apply(
+        lambda r: kelly_from_edge_and_prob(
+            edge=float(r["edge_over"]),
+            model_prob=float(r["model_prob_over"]),
+            fractional_kelly=0.25,
+        ),
+        axis=1,
+    ).round(4)
+
+    # Market-implied Poisson mean (compare to model mean to spot structural disagreement)
+    df["market_implied_mean"] = df.apply(
+        lambda r: market_implied_mean(
+            line=float(r["line"]),
+            market_prob_over=float(r["market_prob_over_no_vig"]),
+            stat=str(r.get("stat", "")),
+        )
+        if pd.notna(r.get("market_prob_over_no_vig")) and pd.notna(r.get("line")) else None,
+        axis=1,
+    )
+
     # Build main edge sheet
     sheet = pd.DataFrame({
         "player_name": df.get("player_name", df.get("player_id", "")),
@@ -109,6 +134,9 @@ def main(
         "fair_under_american": (1 - df["model_prob_over"]).map(fair_american).round(0).astype(int),
         "recommendation": df["edge_over"].map(_recommendation),
         "confidence": df["edge_abs"].map(_confidence),
+        "kelly_quarter": df["kelly_q"],
+        "market_implied_mean": df["market_implied_mean"].round(2) if "market_implied_mean" in df else np.nan,
+        "shin_z": df.get("shin_z", np.nan),
         "is_calibrated": df.get("is_calibrated", False),
         "role_bucket": df.get("role_bucket", "unknown"),
         "game_date": today,
@@ -141,6 +169,8 @@ def main(
             axis=1,
         ).round(4).values,
         "edge": df["edge_over"].abs().round(4).values,
+        "kelly_quarter": df["kelly_q"].values,
+        "shin_z": df.get("shin_z", pd.Series(np.nan, index=df.index)).values,
         "confidence": df["edge_abs"].map(_confidence).values,
         "game_date": today,
     })
@@ -172,6 +202,8 @@ def main(
         "min_edge": float(sheet["edge"].abs().min()),
         "high_confidence_picks": int(conf_counts.get("HIGH", 0)),
         "is_calibrated_pct": float(sheet["is_calibrated"].mean()) if "is_calibrated" in sheet else None,
+        "mean_kelly_quarter": float(sheet["kelly_quarter"].mean()) if "kelly_quarter" in sheet else None,
+        "max_kelly_quarter": float(sheet["kelly_quarter"].max()) if "kelly_quarter" in sheet else None,
     }
     summary_path = out / f"betting_summary_{today}.json"
     summary_path.write_text(json.dumps(summary, indent=2))

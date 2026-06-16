@@ -137,12 +137,24 @@ jobs:
             --out artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json
         continue-on-error: true
 
+      - name: Snapshot closing-line props (post-tip pull for true CLV)
+        # Pulls BDL props again ~3h after the morning run to capture closing lines.
+        # True CLV = model probability vs. CLOSING line (not open line).
+        # If run before tip-off, data is the same as open-line — no harm.
+        run: |
+          python scripts/pull_closing_lines.py \
+            --game-date ${{ steps.date.outputs.today }} \
+            --out-dir artifacts/audits \
+            --api-key "${{ secrets.BDL_API_KEY }}"
+        continue-on-error: true
+
       - name: Score yesterday's predictions (post-game CLV)
         run: |
           python scripts/score_daily_predictions.py \
             --predictions-dir deliveries \
             --game-date ${{ steps.date.outputs.today }} \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --closing-lines artifacts/audits/closing_lines_${{ steps.date.outputs.today }}.parquet \
             --out-dir artifacts/audits
         continue-on-error: true
 
@@ -205,4 +217,5 @@ jobs:
           path: |
             artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
             artifacts/audits/scored_predictions.parquet
+            artifacts/audits/closing_lines_${{ steps.date.outputs.today }}.parquet
           retention-days: 14

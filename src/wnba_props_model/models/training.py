@@ -28,6 +28,7 @@ import pandas as pd
 from sklearn.preprocessing import OrdinalEncoder
 
 from wnba_props_model.features.feature_contract import FORBIDDEN_MODEL_FEATURES
+from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel
 from wnba_props_model.models.minutes_model import MinutesModel
 from wnba_props_model.models.pmf_utils import (
     dispersion_from_moments,
@@ -210,10 +211,14 @@ def train_fold(
         else:
             # Pass context_df so StatRateModel can compute per-role dispersion.
             played_ctx = train_wide[played_mask].reset_index(drop=True)
-            m = StatRateModel(stat, cfg)
-            m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight)
+            if cfg.get("use_log_linear", False):
+                m = LogLinearStatModel(stat, cfg)
+                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight)
+            else:
+                m = StatRateModel(stat, cfg)
+                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight)
             stat_models[stat] = m
-            summaries[stat] = m.get_training_summary()
+            summaries[stat] = {"stat": stat, "model_type": type(m).__name__}
 
     return FoldModel(
         minutes_model=min_model,

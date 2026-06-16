@@ -1,5 +1,8 @@
 random_seed: 20260610
 
+# Use LogLinearStatModel (Dixon-Coles opponent adjustment) — same as Stage 4
+use_log_linear: true
+
 # OOF fold configuration
 validation_window_days: 14
 

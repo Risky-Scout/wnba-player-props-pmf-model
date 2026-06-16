@@ -17,6 +17,9 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from wnba_props_model.constants import DOMAIN_MAX
+from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket
+from wnba_props_model.models.bivariate_pmf import _DEFAULT_CORRELATIONS, adjust_combo_pmf_for_correlation
 from wnba_props_model.models.pmf_engine import (
     STATS,
     build_all_pmfs,
@@ -25,6 +28,7 @@ from wnba_props_model.models.pmf_engine import (
 from wnba_props_model.models.minutes_model import MinutesModel
 from wnba_props_model.models.rate_model import HurdleModel, StatRateModel
 from wnba_props_model.models.shrinkage import apply_bayesian_shrinkage
+from wnba_props_model.models.simulation import build_combo_pmfs, json_to_pmf, pmf_to_json
 from wnba_props_model.pipeline.calibrate import apply_calibrators
 
 logger = logging.getLogger(__name__)
@@ -102,6 +106,138 @@ def _load_stage4_models(model_dir: str | Path) -> dict:
     }
 
 
+def _attach_role_bucket(pmfs_long: pd.DataFrame) -> pd.DataFrame:
+    """Attach ex-ante role_bucket to PMF rows based on predicted minutes_mean.
+
+    role_bucket drives per-role calibration (isotonic calibrators are fitted
+    per stat × role).  Without this wiring, all predictions use the global
+    calibrator, losing the per-role precision.
+    """
+    if "minutes_mean" not in pmfs_long.columns:
+        pmfs_long["role_bucket"] = "all"
+        return pmfs_long
+
+    # Compute per player-game (minutes_mean is the same for all stats in a row)
+    unique_pg = pmfs_long[["player_id", "game_id", "minutes_mean"]].drop_duplicates()
+    unique_pg = add_ex_ante_role_bucket(unique_pg, minutes_col="minutes_mean")
+    rb_map = unique_pg.set_index(["player_id", "game_id"])["role_bucket"]
+
+    pmfs_long["role_bucket"] = pmfs_long.set_index(["player_id", "game_id"]).index.map(rb_map).values
+    pmfs_long["role_bucket"] = pmfs_long["role_bucket"].fillna("all")
+    return pmfs_long
+
+
+def _build_combo_pmf_rows(
+    pmfs_long: pd.DataFrame,
+    corr_map: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    """Convolve per-stat PMFs into combo-prop PMFs (stocks, pts_ast, etc.).
+
+    For correlated pairs (pts+ast, pts+reb, reb+ast, stl+blk), applies a
+    Gaussian copula correction using empirically estimated Pearson correlations.
+    This prevents the model from systematically overpricing (or underpricing)
+    combo props where components move together or in opposition.
+
+    Canonical stat key mapping:
+        stocks   = stl + blk
+        pts_ast  = pts + ast   (BDL prop: "points_assists")
+        pts_reb  = pts + reb   (BDL prop: "points_rebounds")
+        reb_ast  = reb + ast   (BDL prop: "rebounds_assists")
+        pts_reb_ast = pts+reb+ast (BDL prop: "points_rebounds_assists")
+    """
+    # Map build_combo_pmfs output keys to canonical stat names stored in delivery
+    _COMBO_KEY_TO_STAT = {
+        "stocks": "stocks",
+        "pa":     "pts_ast",
+        "pr":     "pts_reb",
+        "ra":     "reb_ast",
+        "pra":    "pts_reb_ast",
+    }
+    # Component pairs for bivariate copula adjustment (two-component combos only)
+    _COMBO_KEY_PAIRS: dict[str, tuple[str, str]] = {
+        "stocks": ("stl", "blk"),
+        "pa":     ("pts", "ast"),
+        "pr":     ("pts", "reb"),
+        "ra":     ("reb", "ast"),
+    }
+    if corr_map is None:
+        corr_map = _DEFAULT_CORRELATIONS
+
+    combo_rows: list[dict] = []
+
+    for (player_id, game_id), grp in pmfs_long.groupby(["player_id", "game_id"], sort=False):
+        # Collect component PMF arrays indexed by stat key
+        component_pmfs: dict[str, np.ndarray] = {}
+        for _, row in grp.iterrows():
+            stat = row["stat"]
+            if stat in ("pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"):
+                try:
+                    component_pmfs[stat] = json_to_pmf(row["pmf_json"])
+                except Exception:
+                    pass
+
+        if not component_pmfs:
+            continue
+
+        combos = build_combo_pmfs(component_pmfs)
+        if not combos:
+            continue
+
+        # Use the first stat row as a metadata template
+        tmpl = grp.iloc[0].to_dict()
+
+        for combo_key, pmf_arr in combos.items():
+            canonical_stat = _COMBO_KEY_TO_STAT.get(combo_key, combo_key)
+            cap = DOMAIN_MAX.get(combo_key, DOMAIN_MAX.get(canonical_stat, 105))
+
+            # Apply bivariate copula correction for two-component combos
+            if combo_key in _COMBO_KEY_PAIRS:
+                s1, s2 = _COMBO_KEY_PAIRS[combo_key]
+                if s1 in component_pmfs and s2 in component_pmfs:
+                    try:
+                        pmf_arr = adjust_combo_pmf_for_correlation(
+                            component_pmfs[s1], component_pmfs[s2],
+                            s1, s2, corr_map=corr_map,
+                        )
+                    except Exception as exc:
+                        logger.debug("[combo:%s] Copula adjustment failed: %s; using convolution", combo_key, exc)
+
+            # Truncate to domain cap and renormalize
+            pmf_arr = pmf_arr[: cap + 1]
+            if pmf_arr.sum() > 1e-9:
+                pmf_arr = pmf_arr / pmf_arr.sum()
+
+            ks = np.arange(len(pmf_arr))
+            pmf_mean = float(ks @ pmf_arr)
+            pmf_var  = float((ks ** 2) @ pmf_arr - pmf_mean ** 2)
+            p0       = float(pmf_arr[0]) if len(pmf_arr) > 0 else 0.0
+
+            row_dict = {
+                k: v for k, v in tmpl.items()
+                if k not in ("stat", "pmf_json", "mean", "pmf_mean", "pmf_variance",
+                             "stat_mean", "stat_variance", "p0", "actual_outcome",
+                             "actual_minutes", "did_play", "pmf_support_max")
+            }
+            row_dict.update({
+                "stat":           canonical_stat,
+                "pmf_json":       pmf_to_json(pmf_arr),
+                "mean":           round(pmf_mean, 4),
+                "pmf_mean":       round(pmf_mean, 4),
+                "pmf_variance":   round(pmf_var, 4),
+                "stat_mean":      round(pmf_mean, 4),
+                "stat_variance":  round(pmf_var, 4),
+                "p0":             round(p0, 6),
+                "pmf_support_max": cap,
+                "pmf_source":     "combo_convolution",
+                "actual_outcome": np.nan,
+            })
+            combo_rows.append(row_dict)
+
+    if not combo_rows:
+        return pd.DataFrame()
+    return pd.DataFrame(combo_rows)
+
+
 def predict_player_pmfs(
     feature_df: pd.DataFrame,
     model_dir: str | Path = "artifacts/models/stage4_baseline",
@@ -163,6 +299,17 @@ def predict_player_pmfs(
     pmfs_long["model_version"] = "wnba_pmf_v1.0_hgb_calibrated"
     pmfs_long["is_calibrated"] = False
     pmfs_long["cal_source"] = "uncalibrated"
+
+    # Attach ex-ante role bucket (needed for per-role calibration & dispersion)
+    pmfs_long = _attach_role_bucket(pmfs_long)
+
+    # Build combo-prop PMFs via discrete convolution + bivariate copula correction.
+    # These are appended as additional rows so edge reports cover BDL combo markets.
+    combo_rows = _build_combo_pmf_rows(pmfs_long)
+    if not combo_rows.empty:
+        pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
+        logger.info("Added %d combo PMF rows (%s)", len(combo_rows),
+                    sorted(combo_rows["stat"].unique().tolist()))
 
     # Apply PenaltyBlog-style Bayesian shrinkage for small-sample players
     if apply_shrinkage:

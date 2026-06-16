@@ -53,14 +53,38 @@ def main(
     game_date: str | None = typer.Option(None, help="ISO date of games scored (YYYY-MM-DD)."),
     out_dir: str = typer.Option("data/clv_tracking", help="CLV tracking output directory."),
     results_file: str = typer.Option("data/clv_tracking/results.parquet", help="Cumulative results file."),
+    closing_lines: str | None = typer.Option(None, help="Closing-line props parquet (from pull_closing_lines.py)."),
+    predictions_dir: str | None = typer.Option(None, help="Delivery dir to scan for full_pmfs_wide.parquet."),
+    features_wide: str | None = typer.Option(None, help="Wide feature table (fallback actuals source)."),
 ) -> None:
     """Score post-game predictions and compute CLV."""
     today = game_date or date.today().isoformat()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    pmfs_df = pd.read_parquet(predictions)
-    actuals_df = pd.read_parquet(actuals)
+    # Resolve predictions path (may be a directory scan or direct path)
+    pred_path = Path(predictions)
+    if pred_path.is_dir() or not pred_path.exists():
+        # Scan delivery dir
+        scan_dir = Path(predictions_dir or predictions)
+        candidates = list(scan_dir.rglob("full_pmfs_wide.parquet"))
+        if not candidates:
+            typer.echo(f"[WARN] No full_pmfs_wide.parquet found in {scan_dir}")
+            return
+        pred_path = sorted(candidates, key=lambda p: p.stat().st_mtime)[-1]
+        typer.echo(f"[score] Using predictions from {pred_path}")
+
+    pmfs_df = pd.read_parquet(pred_path)
+
+    # Resolve actuals (may be wide feature table or direct long format)
+    actuals_path = Path(actuals) if actuals else (Path(features_wide) if features_wide else None)
+    if actuals_path is None or not actuals_path.exists():
+        if features_wide and Path(features_wide).exists():
+            actuals_path = Path(features_wide)
+        else:
+            typer.echo(f"[WARN] No actuals source found")
+            return
+    actuals_df = pd.read_parquet(actuals_path)
 
     # Normalize stat names in actuals
     if "stat" not in actuals_df.columns:
@@ -132,10 +156,40 @@ def main(
                     joined.loc[valid, "hit_result"],
                 )
             ]
-            # CLV: positive = model edge was correct direction vs. market
+            # CLV (open-line): positive = model edge was correct direction vs. OPEN market
             joined.loc[valid, "clv"] = (
                 joined.loc[valid, "model_prob_over"] - joined.loc[valid, "market_prob_over_no_vig"]
             ) * (2 * joined.loc[valid, "hit_result"] - 1)
+            joined.loc[valid, "clv_type"] = "open"
+
+    # True CLV: compute vs. closing lines if available (the gold standard)
+    if closing_lines and Path(closing_lines).exists():
+        try:
+            cl_df = pd.read_parquet(closing_lines)
+            if not cl_df.empty and "market_prob_over_no_vig" in cl_df.columns:
+                cl_df = cl_df.rename(columns={
+                    "market_prob_over_no_vig": "closing_prob_over_no_vig",
+                    "line": "closing_line",
+                })
+                cl_sub = cl_df[["game_id", "player_id", "stat",
+                                "closing_prob_over_no_vig", "closing_line"]].dropna()
+                joined = joined.merge(cl_sub, on=["game_id", "player_id", "stat"], how="left")
+
+                cl_valid = (
+                    joined["closing_prob_over_no_vig"].notna()
+                    & joined["hit_result"].notna()
+                )
+                if cl_valid.any():
+                    joined.loc[cl_valid, "true_clv"] = (
+                        joined.loc[cl_valid, "model_prob_over"]
+                        - joined.loc[cl_valid, "closing_prob_over_no_vig"]
+                    ) * (2 * joined.loc[cl_valid, "hit_result"].astype(float) - 1)
+                    typer.echo(
+                        f"[score] True CLV computed for {cl_valid.sum()} rows "
+                        f"(mean={joined.loc[cl_valid, 'true_clv'].mean():+.4f})"
+                    )
+        except Exception as exc:
+            typer.echo(f"[WARN] Closing-line CLV computation failed: {exc}", err=True)
 
     joined["game_date"] = today
     joined["scored_at"] = datetime.now(timezone.utc).isoformat()

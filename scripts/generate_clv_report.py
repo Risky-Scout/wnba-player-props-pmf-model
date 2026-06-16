@@ -32,6 +32,104 @@ import typer
 app = typer.Typer(add_completion=False)
 
 
+def _calibration_curve(
+    model_probs: np.ndarray,
+    hit_results: np.ndarray,
+    n_bins: int = 10,
+) -> list[dict]:
+    """Compute binned calibration curve (predicted prob vs. empirical hit rate).
+
+    PenaltyBlog's 250M-bet study showed this is the fastest way to spot which
+    stat categories are over- or under-confident.
+
+    Returns list of dicts with keys: bin_center, mean_predicted, empirical_hit_rate, n.
+    """
+    bins = np.linspace(0, 1, n_bins + 1)
+    curve = []
+    for i in range(n_bins):
+        lo, hi = bins[i], bins[i + 1]
+        mask = (model_probs >= lo) & (model_probs < hi)
+        if i == n_bins - 1:
+            mask = (model_probs >= lo) & (model_probs <= hi)
+        if mask.sum() == 0:
+            continue
+        curve.append({
+            "bin_lo": round(float(lo), 3),
+            "bin_hi": round(float(hi), 3),
+            "bin_center": round(float((lo + hi) / 2), 3),
+            "mean_predicted": round(float(model_probs[mask].mean()), 4),
+            "empirical_hit_rate": round(float(hit_results[mask].mean()), 4),
+            "n": int(mask.sum()),
+        })
+    return curve
+
+
+def _kelly_roi_stats(df: pd.DataFrame) -> dict:
+    """Compute flat-bet ROI and Kelly-weighted ROI from scored predictions.
+
+    Requires: model_prob_over, hit_result, market_prob_over_no_vig columns.
+    Kelly ROI uses the quarter-Kelly stake fraction for each bet.
+    """
+    result: dict = {}
+    required = {"model_prob_over", "hit_result", "market_prob_over_no_vig"}
+    if not required.issubset(df.columns) or df.empty:
+        return result
+
+    valid = df[["model_prob_over", "hit_result", "market_prob_over_no_vig", "clv"]].dropna()
+    if valid.empty:
+        return result
+
+    # Flat-bet ROI: assume we bet $1 on every model-favored edge
+    # Payoff: market implied odds = 1/market_prob_over_no_vig - 1
+    model_bets_over = valid["model_prob_over"] > valid["market_prob_over_no_vig"]
+    p_win    = np.where(model_bets_over, valid["model_prob_over"], 1 - valid["model_prob_over"])
+    p_mkt    = np.where(model_bets_over, valid["market_prob_over_no_vig"], 1 - valid["market_prob_over_no_vig"])
+    hit      = np.where(model_bets_over, valid["hit_result"], 1 - valid["hit_result"])
+    b        = np.where(p_mkt > 0, 1.0 / p_mkt - 1.0, 0.0)  # net odds per $1
+
+    flat_pnl = hit * b - (1 - hit)
+    result["flat_bet_roi"] = round(float(np.mean(flat_pnl)), 4)
+    result["flat_bet_roi_pct"] = f"{float(np.mean(flat_pnl)):.1%}"
+
+    # Quarter-Kelly ROI
+    k = 0.25
+    kelly_stakes = np.clip((b * p_win - (1 - p_win)) / np.where(b > 0, b, 1.0) * k, 0, 0.25)
+    kelly_pnl    = kelly_stakes * (hit * b - (1 - hit))
+    total_staked = kelly_stakes.sum()
+    result["kelly_quarter_roi"]     = round(float(kelly_pnl.sum() / max(total_staked, 1e-9)), 4)
+    result["kelly_quarter_roi_pct"] = f"{float(kelly_pnl.sum() / max(total_staked, 1e-9)):.1%}"
+    result["n_bets"]                = int(len(valid))
+    result["n_model_over_bets"]     = int(model_bets_over.sum())
+
+    return result
+
+
+def _per_book_margin(df: pd.DataFrame) -> list[dict]:
+    """Compute average book margin (overround) and mean Shin z per vendor.
+
+    Shin z < 0.03 indicates a soft market (few informed bettors) — target these.
+    """
+    if "vendor" not in df.columns:
+        return []
+    result = []
+    for vendor, g in df.groupby("vendor"):
+        rec: dict = {"vendor": str(vendor), "n": len(g)}
+        # Overround = (1/over_implied + 1/under_implied) - 1
+        if "over_odds" in g.columns and "under_odds" in g.columns:
+            from wnba_props_model.models.market import american_to_prob  # noqa: PLC0415
+            p_o = g["over_odds"].map(american_to_prob).dropna()
+            p_u = g["under_odds"].map(american_to_prob).dropna()
+            if len(p_o) > 0 and len(p_u) > 0:
+                overround = ((p_o + p_u) - 1.0).mean()
+                rec["mean_overround"] = round(float(overround), 4)
+                rec["mean_margin_pct"] = f"{float(overround):.1%}"
+        if "shin_z" in g.columns and g["shin_z"].notna().any():
+            rec["mean_shin_z"] = round(float(g["shin_z"].dropna().mean()), 4)
+        result.append(rec)
+    result.sort(key=lambda r: r.get("mean_shin_z", 1.0))  # softest markets first
+    return result
+
+
 def _stat_report(df: pd.DataFrame) -> list[dict]:
     rows = []
     for stat, g in df.groupby("stat"):
@@ -58,11 +156,21 @@ def _stat_report(df: pd.DataFrame) -> list[dict]:
             if "clv" in gv and gv["clv"].notna().any():
                 rec["mean_clv"] = float(gv["clv"].mean())
                 rec["positive_clv_pct"] = float((gv["clv"] > 0).mean())
+            # True CLV (vs. closing line)
+            if "true_clv" in gv and gv["true_clv"].notna().any():
+                rec["mean_true_clv"] = float(gv["true_clv"].mean())
+                rec["positive_true_clv_pct"] = float((gv["true_clv"] > 0).mean())
 
             if "hit_result" in gv and "model_prob_over" in gv:
                 rec["empirical_hit_rate"] = float(gv["hit_result"].mean())
                 rec["mean_model_prob"] = float(gv["model_prob_over"].mean())
                 rec["mean_market_prob"] = float(gv["market_prob_over_no_vig"].mean())
+
+                # Calibration curve (10-bin)
+                hit_arr   = gv["hit_result"].dropna().values.astype(float)
+                prob_arr  = gv.loc[gv["hit_result"].notna(), "model_prob_over"].values.astype(float)
+                if len(hit_arr) >= 20:
+                    rec["calibration_curve"] = _calibration_curve(prob_arr, hit_arr)
 
         rows.append(rec)
     return rows
@@ -98,6 +206,10 @@ def main(
 
     stat_rows = _stat_report(recent)
 
+    # Overall CLV and ROI
+    roi_stats   = _kelly_roi_stats(recent)
+    book_margins = _per_book_margin(recent)
+
     overall: dict = {
         "report_date": today_str,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -105,12 +217,19 @@ def main(
         "n_total_rows": len(recent),
         "n_game_dates": recent["game_date"].nunique() if "game_date" in recent else 0,
         "stats": stat_rows,
+        "roi": roi_stats,
+        "per_book_margins": book_margins,
     }
 
     # Overall CLV summary
     if "clv" in recent.columns and recent["clv"].notna().any():
         overall["overall_mean_clv"] = float(recent["clv"].mean())
         overall["overall_positive_clv_pct"] = float((recent["clv"] > 0).mean())
+
+    # True CLV (vs. closing line)
+    if "true_clv" in recent.columns and recent["true_clv"].notna().any():
+        overall["overall_mean_true_clv"] = float(recent["true_clv"].mean())
+        overall["overall_positive_true_clv_pct"] = float((recent["true_clv"] > 0).mean())
 
     if "logloss_delta" in [r.get("logloss_delta") for r in stat_rows if "logloss_delta" in r]:
         deltas = [r["logloss_delta"] for r in stat_rows if "logloss_delta" in r]
@@ -149,11 +268,43 @@ def main(
             f"| {r.get('mean_model_prob', float('nan')):.3f} |"
         )
 
+    # ROI section
+    if roi_stats:
+        lines += [
+            "",
+            "## ROI & Kelly Performance",
+            "",
+            f"- Flat-bet ROI: {roi_stats.get('flat_bet_roi_pct', 'N/A')}",
+            f"- Quarter-Kelly ROI: {roi_stats.get('kelly_quarter_roi_pct', 'N/A')}",
+            f"- Total bets: {roi_stats.get('n_bets', 'N/A')} "
+            f"(OVER: {roi_stats.get('n_model_over_bets', '?')})",
+        ]
+        if "overall_mean_true_clv" in overall:
+            lines.append(f"- Mean True CLV (vs closing): {overall['overall_mean_true_clv']:+.4f}")
+
+    # Per-book margin section
+    if book_margins:
+        lines += [
+            "",
+            "## Per-Book Margin Analysis (30d, softest first)",
+            "",
+            "| Book | N | Margin | Shin z |",
+            "|------|---|--------|--------|",
+        ]
+        for b in book_margins:
+            lines.append(
+                f"| {b['vendor']} | {b['n']} "
+                f"| {b.get('mean_margin_pct', 'N/A')} "
+                f"| {b.get('mean_shin_z', 'N/A')} |"
+            )
+        lines.append("*Low Shin z = fewer informed bettors = softer market = higher confidence in model edge.*")
+
     lines += [
         "",
         "---",
         "*Ignorance Score (log loss in bits) is the primary binary metric per PenaltyBlog methodology.*",
         "*CLV = (model_prob - market_prob) × (2 × hit_result - 1). Positive CLV = model edge was correct.*",
+        "*True CLV uses closing-line props (most efficient price) rather than open-line snapshot.*",
     ]
     md_path = out / f"clv_summary_{today_str}.md"
     md_path.write_text("\n".join(lines))

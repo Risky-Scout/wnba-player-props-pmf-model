@@ -5,6 +5,7 @@ import math
 from typing import Mapping
 
 import numpy as np
+from scipy import optimize, stats
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,45 @@ def _multiplicative_no_vig(over_odds: float | int | None, under_odds: float | in
     return po / s, pu / s
 
 
-def shin_no_vig_two_way(over_odds: float | int | None, under_odds: float | int | None) -> tuple[float | None, float | None]:
+def shin_no_vig_two_way_with_z(
+    over_odds: float | int | None,
+    under_odds: float | int | None,
+) -> tuple[float | None, float | None, float | None]:
+    """Shin's method returning (p_over, p_under, z).
+
+    z is Shin's informed-bettor fraction parameter.  Low z = soft market =
+    higher confidence in model edge.  Typical range: 0.01 to 0.08.
+
+    Returns (None, None, None) if odds are missing or Shin fails.
+    """
+    if over_odds is None or under_odds is None:
+        return None, None, None
+    try:
+        from penaltyblog.implied import calculate_implied  # type: ignore[import]
+        from penaltyblog.implied.models import ImpliedMethod, OddsFormat  # type: ignore[import]
+
+        result = calculate_implied(
+            [float(over_odds), float(under_odds)],
+            method=ImpliedMethod.SHIN,
+            odds_format=OddsFormat.AMERICAN,
+        )
+        probs = result.probabilities
+        z_param = None
+        if hasattr(result, "method_params") and result.method_params:
+            z_param = result.method_params.get("z")
+        if len(probs) >= 2 and all(math.isfinite(p) for p in probs):
+            return float(probs[0]), float(probs[1]), (float(z_param) if z_param is not None else None)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("shin_no_vig_two_way_with_z failed (%s)", exc)
+    # Fallback: multiplicative, z=None
+    p_o, p_u = _multiplicative_no_vig(over_odds, under_odds)
+    return p_o, p_u, None
+
+
+def shin_no_vig_two_way(
+    over_odds: float | int | None,
+    under_odds: float | int | None,
+) -> tuple[float | None, float | None]:
     """Shin's method for two-way market no-vig extraction.
 
     Theoretically superior to multiplicative: accounts for favourite-longshot
@@ -91,3 +130,119 @@ def ignorance_score_binary(p: float, y: int) -> float:
 
 def brier(p: float, y: int) -> float:
     return float((float(p) - int(y)) ** 2)
+
+
+# ---------------------------------------------------------------------------
+# Kelly Criterion (Phase 4a)
+# ---------------------------------------------------------------------------
+
+def kelly_fraction(
+    model_prob: float,
+    over_odds_american: float | int,
+    fractional_kelly: float = 0.25,
+) -> float:
+    """Full Kelly × fractional_kelly stake fraction.
+
+    f* = (b*p - q) / b, where b = decimal_odds - 1, p = model prob, q = 1-p.
+
+    The fractional multiplier (default 0.25 = quarter Kelly) is standard
+    bankroll management: reduces variance while preserving expected value.
+
+    Returns 0.0 if the edge is non-positive (no bet recommended).
+
+    Parameters
+    ----------
+    model_prob        : model probability for the bet direction
+    over_odds_american: American odds for the bet (positive or negative integer)
+    fractional_kelly  : Kelly fraction (0.25 = quarter Kelly is recommended)
+    """
+    o = float(over_odds_american)
+    if o > 0:
+        decimal_odds = o / 100.0 + 1.0
+    elif o < 0:
+        decimal_odds = 100.0 / abs(o) + 1.0
+    else:
+        return 0.0
+
+    b = decimal_odds - 1.0  # net odds per unit wagered
+    p = float(model_prob)
+    q = 1.0 - p
+
+    full_kelly = (b * p - q) / b
+    return float(max(0.0, full_kelly * fractional_kelly))
+
+
+def kelly_from_edge_and_prob(
+    edge: float,
+    model_prob: float,
+    fractional_kelly: float = 0.25,
+) -> float:
+    """Compute Kelly fraction from raw edge and model probability.
+
+    edge = model_prob_over - market_prob_over_no_vig
+
+    The market's fair decimal odds are inferred from market_prob = 1 - edge:
+        b ≈ 1/market_prob - 1
+
+    This avoids needing raw American odds when only edge is available.
+    """
+    market_prob = float(model_prob) - float(edge)
+    if market_prob <= 0 or market_prob >= 1:
+        return 0.0
+    b = (1.0 / market_prob) - 1.0
+    p = float(model_prob)
+    q = 1.0 - p
+    full_kelly = (b * p - q) / b
+    return float(max(0.0, full_kelly * fractional_kelly))
+
+
+# ---------------------------------------------------------------------------
+# Market-implied Poisson mean (Phase 4b)
+# ---------------------------------------------------------------------------
+
+def market_implied_mean(
+    line: float,
+    market_prob_over: float,
+    max_k: int = 150,
+    stat: str | None = None,
+) -> float | None:
+    """Numerically invert Poisson CDF to find market-implied λ.
+
+    Solves: P(Y > line; λ) = market_prob_over for λ.
+
+    This gives the Poisson mean the market is pricing.  Compare to the
+    model's predicted mean: a large discrepancy (|model_λ - market_λ| > 2)
+    signals a structural disagreement worth investigating.
+
+    Returns None if the inversion fails or the inputs are invalid.
+
+    Parameters
+    ----------
+    line             : the prop line (e.g. 17.5)
+    market_prob_over : market's no-vig P(Y > line) from Shin extraction
+    max_k            : upper cap on the Poisson support for numerical CDF
+    stat             : optional stat name for logging context
+    """
+    if not (0.0 < market_prob_over < 1.0):
+        return None
+    if line < 0:
+        return None
+
+    def objective(lam: float) -> float:
+        """Return P(Y > line; λ) - target."""
+        if lam <= 0:
+            return -market_prob_over
+        # P(Y > line; λ) = 1 - CDF(floor(line); λ)
+        k_floor = int(math.floor(line))
+        p_over  = 1.0 - float(stats.poisson.cdf(k_floor, lam))
+        return p_over - market_prob_over
+
+    # Bracket: at λ=0, P(Y > line) ≈ 0.  At λ = large, P(Y > line) ≈ 1.
+    lo, hi = 0.01, 100.0
+    try:
+        result = optimize.brentq(objective, lo, hi, xtol=1e-4, maxiter=100)
+        return float(result)
+    except ValueError:
+        logger.debug("[market_implied_mean] Brentq failed for %s line=%.1f p_over=%.3f",
+                     stat or "?", line, market_prob_over)
+        return None
