@@ -136,10 +136,27 @@ def train_fold(
     # ---- Feature encoding ------------------------------------------------
     X_train, pos_encoder = encode_features(train_wide, model_feature_cols, fit_encoder=True)
 
+    # Drop all-NaN columns: sklearn's BinMapper raises
+    # "window shape cannot be larger than input array shape" when a column is
+    # entirely NaN (common in early OOF folds before rolling history exists).
+    all_nan_cols = [c for c in X_train.columns if X_train[c].isna().all()]
+    if all_nan_cols:
+        X_train = X_train.drop(columns=all_nan_cols)
+
+    if X_train.empty or len(X_train.columns) == 0:
+        raise ValueError(
+            f"All {len(model_feature_cols)} feature columns are entirely NaN — "
+            "insufficient game history for this fold."
+        )
+
+    usable_feature_cols = list(X_train.columns)
+
     # ---- Minutes model ---------------------------------------------------
     y_min = train_wide["actual_minutes"].fillna(0.0)
     min_model = MinutesModel(cfg)
     min_model.fit(X_train, y_min, train_wide)
+    # Remember which columns were usable so inference aligns to the same set
+    min_model._feature_cols = usable_feature_cols
     min_model._pos_encoder = pos_encoder  # store for inference
     min_summary = min_model.get_training_summary()
 
@@ -189,7 +206,9 @@ def train_fold(
         stat_models=stat_models,
         hurdle_models=hurdle_models,
         pos_encoder=pos_encoder,
-        feature_cols=[c for c in model_feature_cols if c in train_wide.columns],
+        # Use only columns that had non-NaN values in training (all-NaN cols were
+        # dropped before fitting; inference must align to the same column set).
+        feature_cols=usable_feature_cols,
         summaries=summaries,
         train_wide_rows=len(train_wide),
         train_long_rows=len(train_long),
