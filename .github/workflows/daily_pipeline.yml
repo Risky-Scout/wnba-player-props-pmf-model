@@ -3,7 +3,7 @@ name: Daily WNBA PMF Pipeline
 on:
   schedule:
     # Run at 9 AM ET (13:00 UTC during summer, 14:00 UTC during winter)
-    # Predicts for TOMORROW's games — one day before gameday per NoVig contract
+    # Predicts for TOMORROW's games — one day before gameday
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
@@ -54,7 +54,7 @@ jobs:
             # Manual override: predict for specified date
             echo "target_date=${{ github.event.inputs.game_date }}" >> $GITHUB_OUTPUT
           else
-            # Default: predict for tomorrow (D+1 per NoVig contract)
+            # Default: predict for tomorrow (D+1)
             echo "target_date=$(date -u -d 'tomorrow' +%Y-%m-%d 2>/dev/null || date -v+1d -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
           fi
           # Record today for data ingestion
@@ -104,7 +104,7 @@ jobs:
             --game-date ${{ steps.date.outputs.target_date }}
         continue-on-error: true
 
-      - name: Export NoVig betting sheets
+      - name: Export betting sheets
         run: |
           python scripts/export_betting_sheet.py \
             --edges deliveries/next_game/publishable_edges.parquet \
@@ -120,17 +120,17 @@ jobs:
             --out artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json
         continue-on-error: true
 
-      - name: Upload NoVig delivery (primary artifact)
+      - name: Upload daily delivery (primary artifact)
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: novig-delivery-${{ steps.date.outputs.target_date }}-${{ github.run_id }}
+          name: daily-delivery-${{ steps.date.outputs.target_date }}-${{ github.run_id }}
           path: |
             deliveries/next_game/
             artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json
           retention-days: 30
 
-      - name: Upload betting sheets (NoVig / Kalshi / Polymarket)
+      - name: Upload betting sheets (Kalshi / Polymarket)
         uses: actions/upload-artifact@v4
         if: always()
         with:

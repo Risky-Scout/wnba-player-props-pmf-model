@@ -1,6 +1,6 @@
 """Player minutes override and DNP redistribution pipeline.
 
-Supports three NoVig operational requirements:
+Supports three operational requirements:
   1. Mark a player DNP — zero their minutes, redistribute to active teammates
   2. Manually set projected minutes for a player
   3. Remove a player and see projected impact on teammates

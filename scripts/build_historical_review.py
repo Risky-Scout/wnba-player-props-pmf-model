@@ -1,8 +1,7 @@
-"""Build historical review package for NoVig evaluation.
+"""Build historical review package for model evaluation.
 
 Generates per-stat accuracy metrics, calibration curves, and hit rate tables
-over the OOF holdout window. This is the historical performance package
-required by NoVig to evaluate model quality before commercialization.
+over the OOF holdout window.
 
 Outputs:
     artifacts/historical_review/
@@ -250,7 +249,7 @@ def main(
     n_calibration_bins: int = typer.Option(10),
     docs_path: str = typer.Option("docs/HISTORICAL_REVIEW.md"),
 ) -> None:
-    """Build the historical review package for NoVig."""
+    """Build the historical review package."""
     typer.echo(f"Loading OOF scored data: {oof_scored}")
     oof = pd.read_parquet(oof_scored)
     typer.echo(f"  Rows: {len(oof)}")

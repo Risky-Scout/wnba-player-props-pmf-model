@@ -1,6 +1,6 @@
 """Generate PMF projections with injury/lineup overrides.
 
-Supports three NoVig use cases:
+Supports three operational use cases:
   1. Mark players as DNP — redistributes minutes to teammates
   2. Override projected minutes for specific players
   3. Remove player and see full cascade impact on teammates
@@ -62,8 +62,8 @@ def _parse_minutes(s: str) -> dict[int, float]:
     return out
 
 
-def _add_novig_ladder(pmfs: pd.DataFrame) -> pd.DataFrame:
-    """Add P(stat >= k) ladder columns required by NoVig output contract."""
+def _add_pge_ladder(pmfs: pd.DataFrame) -> pd.DataFrame:
+    """Add P(stat >= k) ladder columns per output contract."""
     out = pmfs.copy()
     thresholds = [1, 3, 5, 10, 15, 20]
     for k in thresholds:
@@ -137,8 +137,8 @@ def main(
     override_meta = overridden[["player_id", "override_applied", "override_source"]].drop_duplicates("player_id")
     pmfs = pmfs.merge(override_meta, on="player_id", how="left")
 
-    # Add NoVig ladder columns
-    pmfs = _add_novig_ladder(pmfs)
+    # Add P(>=k) ladder columns
+    pmfs = _add_pge_ladder(pmfs)
 
     # Tag output
     pmfs["game_date_et"] = target
@@ -152,7 +152,7 @@ def main(
     pmfs.to_parquet(pmf_path, index=False)
     typer.echo(f"\nProjections → {pmf_path}")
 
-    # Write JSON for NoVig ingestion
+    # Write JSON delivery
     json_path = out / f"player_projections_{target}_override.json"
     pmfs.drop(columns=["pmf_json"], errors="ignore").to_json(json_path, orient="records", indent=2)
     typer.echo(f"JSON → {json_path}")

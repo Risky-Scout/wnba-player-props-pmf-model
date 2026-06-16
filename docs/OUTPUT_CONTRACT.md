@@ -1,12 +1,12 @@
-# NoVig Output Contract — WNBA Player Prop PMF Model
+# Output Contract — WNBA Player Prop PMF Model
 
 Version: `v1.0` | Updated: 2026-06-16
 
 ## Overview
 
 This document describes the stable, versioned output format produced by the WNBA player prop
-model for ingestion into NoVig systems. Outputs are generated daily, **one day before gameday**,
-covering all players on the active roster for the next slate of games.
+model. Outputs are generated daily, **one day before gameday**, covering all players on the
+active roster for the next slate of games.
 
 ---
 
@@ -217,4 +217,4 @@ See `scripts/build_historical_review.py` and `docs/HISTORICAL_REVIEW.md`.
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.0 | 2026-06-16 | Initial NoVig contract |
+| v1.0 | 2026-06-16 | Initial release |

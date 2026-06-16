@@ -7,7 +7,7 @@ Runs the full production pipeline in sequence:
   4. Train baseline PMFs (full retrain with latest data)
   5. Apply calibrators
   6. Build edge report (Shin no-vig vs. model PMF)
-  7. Export betting sheet (NoVig / Kalshi / Polymarket)
+  7. Export betting sheets (Kalshi / Polymarket)
 
 Usage:
     python scripts/run_daily_pipeline.py \\
@@ -128,7 +128,7 @@ def main(
         "--edges", f"{out_dir}/publishable_edges.parquet",
         "--out-dir", out_dir,
         "--game-date", today,
-    ], "Export betting sheets (NoVig / Kalshi / Polymarket)")
+    ], "Export betting sheets (Kalshi / Polymarket)")
 
     typer.echo(f"\n[DONE] Daily pipeline complete — {today}")
     typer.echo(f"Outputs in: {out_dir}/")

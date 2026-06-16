@@ -1,16 +1,16 @@
-"""Export daily betting sheets for NoVig, Kalshi, and Polymarket.
+"""Export daily betting sheets for Kalshi and Polymarket.
 
 Reads publishable_edges.parquet (|edge| >= 4pp) and formats platform-specific
 CSV outputs ready for copy-paste or programmatic submission.
 
 Outputs:
-  {out_dir}/betting_sheet_{date}.csv      — full NoVig-ready sheet
+  {out_dir}/betting_sheet_{date}.csv      — main edge sheet
   {out_dir}/kalshi_sheet_{date}.csv       — Kalshi binary format
   {out_dir}/polymarket_sheet_{date}.csv   — Polymarket binary format
   {out_dir}/betting_summary_{date}.json   — machine-readable audit
 
 Column schema (betting_sheet):
-  player_name, stat, line, model_prob_over, market_prob_over_shin_novig,
+  player_name, stat, line, model_prob_over, market_prob_over_shin,
   edge, edge_pct, fair_over_american, fair_under_american,
   recommendation, confidence, is_calibrated, role_bucket, game_date
 
@@ -68,7 +68,7 @@ def main(
     min_edge: float = typer.Option(0.04, help="Minimum |edge| to include (4pp default)."),
     top_n: int | None = typer.Option(None, help="Limit to top N picks by |edge|. None = all."),
 ) -> None:
-    """Format publishable edges into NoVig, Kalshi, and Polymarket betting sheets."""
+    """Format publishable edges into betting sheets for Kalshi and Polymarket."""
     today = game_date or date.today().isoformat()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -96,13 +96,13 @@ def main(
     if top_n:
         df = df.head(top_n)
 
-    # Build NoVig sheet
+    # Build main edge sheet
     sheet = pd.DataFrame({
         "player_name": df.get("player_name", df.get("player_id", "")),
         "stat": df["stat"],
         "line": df["line"],
         "model_prob_over": df["model_prob_over"].round(4),
-        "market_prob_over_shin_novig": df["market_prob_over_no_vig"].round(4),
+        "market_prob_over_shin": df["market_prob_over_no_vig"].round(4),
         "edge": df["edge_over"].round(4),
         "edge_pct": (df["edge_over"] * 100).round(2).astype(str) + "%",
         "fair_over_american": df["model_prob_over"].map(fair_american).round(0).astype(int),
@@ -114,9 +114,9 @@ def main(
         "game_date": today,
     })
 
-    novig_path = out / f"betting_sheet_{today}.csv"
-    sheet.to_csv(novig_path, index=False)
-    typer.echo(f"Wrote NoVig betting sheet → {novig_path} ({len(sheet)} picks)")
+    sheet_path = out / f"betting_sheet_{today}.csv"
+    sheet.to_csv(sheet_path, index=False)
+    typer.echo(f"Wrote betting sheet → {sheet_path} ({len(sheet)} picks)")
 
     # Kalshi format
     kalshi = pd.DataFrame({
@@ -195,7 +195,7 @@ def main(
     for _, r in sheet.head(10).iterrows():
         typer.echo(
             f"  {r['recommendation']} {r.get('player_name','?')} {r['stat']} {r['line']} "
-            f"(model={r['model_prob_over']:.3f}, mkt={r['market_prob_over_shin_novig']:.3f}, "
+            f"(model={r['model_prob_over']:.3f}, mkt={r['market_prob_over_shin']:.3f}, "
             f"edge={r['edge']:+.3f}, {r['confidence']})"
         )
 

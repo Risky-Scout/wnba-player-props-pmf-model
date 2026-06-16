@@ -85,8 +85,8 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     return joined
 
 
-def build_novig_projections(pmfs: pd.DataFrame, game_date: str | None = None) -> pd.DataFrame:
-    """Build the NoVig-ready projection table per NOVIG_OUTPUT_CONTRACT.md.
+def build_projection_output(pmfs: pd.DataFrame, game_date: str | None = None) -> pd.DataFrame:
+    """Build the standardised projection table per docs/OUTPUT_CONTRACT.md.
 
     Adds: opponent_abbreviation, home_away, game_date_et, injury_flag, dnp_risk,
     override_applied, override_source, model_version, generated_at,
@@ -95,7 +95,7 @@ def build_novig_projections(pmfs: pd.DataFrame, game_date: str | None = None) ->
     import datetime as dt
     out = pmfs.copy()
 
-    # Add ladder columns at NoVig thresholds
+    # Add P(>=k) ladder columns
     for k in [1, 3, 5, 10, 15, 20]:
         col = f"p_ge_{k}"
         if col not in out.columns:
@@ -139,16 +139,16 @@ def write_delivery(
     full_path = out / "full_pmfs_wide.parquet"
     full.to_parquet(full_path, index=False)
 
-    # NoVig projection output (per contract schema)
-    novig = build_novig_projections(full, game_date=game_date)
+    # Projection output (per docs/OUTPUT_CONTRACT.md schema)
+    proj = build_projection_output(full, game_date=game_date)
     date_tag = game_date or "latest"
-    novig_parquet = out / f"player_projections_{date_tag}.parquet"
-    novig.to_parquet(novig_parquet, index=False)
+    proj_parquet = out / f"player_projections_{date_tag}.parquet"
+    proj.to_parquet(proj_parquet, index=False)
 
     # JSON delivery (drop pmf_json for size)
-    novig_json = novig.drop(columns=["pmf_json"], errors="ignore")
-    novig_json_path = out / f"player_projections_{date_tag}.json"
-    novig_json.to_json(novig_json_path, orient="records", indent=2)
+    proj_json = proj.drop(columns=["pmf_json"], errors="ignore")
+    proj_json_path = out / f"player_projections_{date_tag}.json"
+    proj_json.to_json(proj_json_path, orient="records", indent=2)
 
     board = build_fair_odds_board(pmfs)
     board_path = out / "fair_odds_board.parquet"
@@ -156,8 +156,8 @@ def write_delivery(
 
     paths: dict[str, Path] = {
         "full_pmfs_wide": full_path,
-        "player_projections_parquet": novig_parquet,
-        "player_projections_json": novig_json_path,
+        "player_projections_parquet": proj_parquet,
+        "player_projections_json": proj_json_path,
         "fair_odds_board": board_path,
     }
 

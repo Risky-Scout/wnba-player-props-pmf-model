@@ -4,7 +4,7 @@ Identifies upcoming scheduled games (default: next calendar day in ET),
 cross-references the active player roster from the feature table, and
 produces a filtered feature DataFrame ready for inference.
 
-This enables the model to predict one day BEFORE gameday — a core NoVig requirement.
+This enables the model to predict one day BEFORE gameday.
 
 Usage:
     # Predict for tomorrow's games (default)
@@ -160,7 +160,7 @@ def main(
     slate.to_parquet(slate_path, index=False)
     typer.echo(f"\nSlate written → {slate_path}")
 
-    # Also write slate manifest JSON for NoVig ingestion
+    # Write slate manifest JSON
     manifest = {
         "game_date": target,
         "games": [
