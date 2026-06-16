@@ -24,6 +24,7 @@ from wnba_props_model.models.pmf_engine import (
 )
 from wnba_props_model.models.minutes_model import MinutesModel
 from wnba_props_model.models.rate_model import HurdleModel, StatRateModel
+from wnba_props_model.models.shrinkage import apply_bayesian_shrinkage
 from wnba_props_model.pipeline.calibrate import apply_calibrators
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,8 @@ def predict_player_pmfs(
     config_path: str | Path | None = "config/model/stage4_baseline.yaml",
     cal_dir: str | Path | None = "artifacts/models/calibration",
     apply_calibration: bool = True,
+    apply_shrinkage: bool = True,
+    shrinkage_k: float = 15.0,
 ) -> pd.DataFrame:
     """Generate calibrated PMFs for all players in feature_df.
 
@@ -112,9 +115,17 @@ def predict_player_pmfs(
         cfg=cfg,
     )
 
-    pmfs_long["model_version"] = "wnba_pmf_v0.1_hgb"
+    pmfs_long["model_version"] = "wnba_pmf_v1.0_hgb_calibrated"
     pmfs_long["is_calibrated"] = False
     pmfs_long["cal_source"] = "uncalibrated"
+
+    # Apply PenaltyBlog-style Bayesian shrinkage for small-sample players
+    if apply_shrinkage:
+        pmfs_long = apply_bayesian_shrinkage(
+            pmfs_long,
+            features=feature_df,
+            k=shrinkage_k,
+        )
 
     if apply_calibration and cal_dir is not None:
         cal_dir = Path(cal_dir)
