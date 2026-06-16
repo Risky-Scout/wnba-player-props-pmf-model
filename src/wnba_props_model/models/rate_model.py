@@ -77,8 +77,7 @@ class StatRateModel:
         if not self._fitted or self._model is None:
             raise RuntimeError(f"StatRateModel({self.stat}) not fitted")
         if hasattr(self, "_usable_cols"):
-            avail = [c for c in self._usable_cols if c in X.columns]
-            X = X[avail]
+            X = X.reindex(columns=self._usable_cols)
         min_mean = self.cfg.get("min_stat_mean", 0.01)
         return np.clip(self._model.predict(X), min_mean, None)
 
@@ -194,10 +193,10 @@ class HurdleModel:
         if not self._fitted or self._clf is None:
             raise RuntimeError(f"HurdleModel({self.stat}) not fitted")
 
-        # Align inference to the usable column set from fit time
+        # Align inference to the exact column set used at fit time.
+        # Missing columns are filled with NaN — HGB handles NaN natively.
         if hasattr(self, "_usable_cols"):
-            avail = [c for c in self._usable_cols if c in X.columns]
-            X = X[avail]
+            X = X.reindex(columns=self._usable_cols)
 
         # P(Y > 0)
         p_nz = self._clf.predict_proba(X)[:, 1]

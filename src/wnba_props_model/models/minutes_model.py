@@ -103,10 +103,10 @@ class MinutesModel:
         if not self._fitted or self._model is None:
             raise RuntimeError("MinutesModel not fitted")
 
-        # Align inference columns to the usable set determined at fit time
+        # Align inference to the exact column set used at fit time.
+        # Missing columns are filled with NaN — HGB handles NaN natively.
         if hasattr(self, "_usable_cols"):
-            avail = [c for c in self._usable_cols if c in X.columns]
-            X = X[avail]
+            X = X.reindex(columns=self._usable_cols)
 
         y_pred = np.clip(
             self._model.predict(X),
