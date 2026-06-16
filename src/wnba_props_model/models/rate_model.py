@@ -42,12 +42,21 @@ class StatRateModel:
         self._global_var: float = 0.0
         self._fitted = False
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "StatRateModel":
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        context_df: pd.DataFrame | None = None,
+        sample_weight: np.ndarray | None = None,
+    ) -> "StatRateModel":
         """Fit regressor on did_play rows.
 
         Args:
             X: Feature matrix (model_feature_columns, numeric, NaN allowed).
             y: actual_{stat} values for did_play=True rows.
+            context_df: Original wide-table rows (same index as X/y) used for
+                computing per-role dispersion. Needs a ``role_bucket`` column.
+            sample_weight: Optional per-sample weights (e.g. temporal decay).
         """
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
@@ -63,12 +72,26 @@ class StatRateModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
-        self._model.fit(X, y)
+        self._model.fit(X, y, sample_weight=sample_weight)
 
-        # Estimate NegBinom dispersion from empirical moments
+        # Global NegBinom dispersion from empirical moments
         self._global_mean = float(y.mean())
         self._global_var = float(y.var())
         self._dispersion_r = dispersion_from_moments(self._global_mean, self._global_var)
+
+        # Per-role dispersion: stratify by role_bucket for fatter tails on stars,
+        # narrower tails on bench players (fixes PIT KS underdispersion for pts).
+        self._role_dispersion: dict[str, float | None] = {}
+        if context_df is not None and "role_bucket" in context_df.columns:
+            ctx = context_df.reset_index(drop=True)
+            y_aligned = y.reset_index(drop=True)
+            for role, grp in ctx.groupby("role_bucket"):
+                y_role = y_aligned.loc[grp.index]
+                if len(y_role) >= 20:
+                    self._role_dispersion[str(role)] = dispersion_from_moments(
+                        float(y_role.mean()), float(y_role.var())
+                    )
+
         self._fitted = True
         return self
 
@@ -85,6 +108,11 @@ class StatRateModel:
     def dispersion_r(self) -> float | None:
         return self._dispersion_r
 
+    def get_dispersion(self, role: str) -> float | None:
+        """Return per-role dispersion r, falling back to global r if unavailable."""
+        role_disp = getattr(self, "_role_dispersion", {})
+        return role_disp.get(role, self._dispersion_r)
+
     def get_training_summary(self) -> dict[str, Any]:
         return {
             "stat": self.stat,
@@ -93,6 +121,7 @@ class StatRateModel:
             "global_var": self._global_var,
             "dispersion_r": self._dispersion_r,
             "pmf_type": "negbinom" if self._dispersion_r is not None else "poisson",
+            "role_dispersion": getattr(self, "_role_dispersion", {}),
         }
 
     def save(self, path: str) -> None:
@@ -127,12 +156,20 @@ class HurdleModel:
         self._n_pos: int = 0
         self._fitted = False
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "HurdleModel":
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        context_df: pd.DataFrame | None = None,
+        sample_weight: np.ndarray | None = None,
+    ) -> "HurdleModel":
         """Fit hurdle model on did_play rows.
 
         Args:
             X: Feature matrix (model_feature_columns, numeric, NaN allowed).
             y: actual_{stat} values for did_play=True rows.
+            context_df: Unused for HurdleModel (kept for API symmetry with StatRateModel).
+            sample_weight: Optional per-sample weights (e.g. temporal decay).
         """
         seed = self.cfg.get("random_seed", 42)
         clf_kw = self.cfg.get("hgb_classifier", {})
@@ -153,13 +190,14 @@ class HurdleModel:
             min_samples_leaf=clf_kw.get("min_samples_leaf", 20),
             random_state=seed,
         )
-        self._clf.fit(X, y_binary)
+        self._clf.fit(X, y_binary, sample_weight=sample_weight)
 
         # Stage B: regressor E[Y | Y > 0] on positive rows
         pos_mask = y > 0
         self._n_pos = int(pos_mask.sum())
         X_pos = X[pos_mask]
         y_pos = y[pos_mask]
+        sw_pos = sample_weight[pos_mask] if sample_weight is not None else None
 
         if self._n_pos >= 10:
             self._reg = HistGradientBoostingRegressor(
@@ -169,7 +207,7 @@ class HurdleModel:
                 min_samples_leaf=reg_kw.get("min_samples_leaf", 20),
                 random_state=seed,
             )
-            self._reg.fit(X_pos, y_pos)
+            self._reg.fit(X_pos, y_pos, sample_weight=sw_pos)
             self._pos_mean = float(y_pos.mean())
             self._pos_var = float(y_pos.var())
             self._pos_dispersion_r = dispersion_from_moments(self._pos_mean, self._pos_var)

@@ -9,9 +9,11 @@ stats:
   - blk
   - turnover
 
-# Hurdle model (explicit P(Y>0)) for these sparse stats
+# Hurdle model (explicit P(Y>0)) for structurally zero-inflated sparse stats.
+# stl removed: var/mean=1.21 is near-Poisson, NOT structurally zero-inflated.
+# Direct NegBinom with r≈3.8 matches empirical ~52% zero rate via the Poisson tail.
+# blk retained: var/mean≈1.30, blocks are more bursty/positional — structural zeros.
 sparse_stats:
-  - stl
   - blk
 
 # Maximum integer k included in atom PMF support
@@ -46,6 +48,11 @@ model_artifact_dir: artifacts/models/stage4_baseline
 
 # Stage identifier written to all PMF rows
 pmf_source: stage4_baseline_uncalibrated_model_only
+
+# Exponential decay sample weighting: games from halflife days ago have weight 0.5.
+# Reduces systematic mean_error bias caused by scoring trend shifts across seasons.
+# Set to null to disable.
+sample_weight_halflife_days: 180
 
 # HistGradientBoosting model hyperparameters (modest for speed + reproducibility)
 hgb_regressor:

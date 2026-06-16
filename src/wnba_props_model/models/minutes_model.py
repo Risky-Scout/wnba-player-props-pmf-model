@@ -37,6 +37,7 @@ class MinutesModel:
         X: pd.DataFrame,
         y: pd.Series,
         metadata_df: pd.DataFrame,
+        sample_weight: np.ndarray | None = None,
     ) -> "MinutesModel":
         """Fit minutes regressor and estimate role-stratified sigma.
 
@@ -45,6 +46,7 @@ class MinutesModel:
             y: Target = actual_minutes (all rows, including DNP zeros).
             metadata_df: Wide table rows aligned with X, for sigma stratification.
                 Must contain 'projected_minutes_bucket' and 'role_uncertainty_bucket'.
+            sample_weight: Optional per-sample weights (e.g. temporal decay).
         """
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
@@ -61,7 +63,7 @@ class MinutesModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
-        self._model.fit(X, y)
+        self._model.fit(X, y, sample_weight=sample_weight)
 
         # --- Residual-based sigma estimation -----------------------------------
         y_pred = np.clip(self._model.predict(X), 0.0, self.cfg.get("minutes_clip_max", 45.0))

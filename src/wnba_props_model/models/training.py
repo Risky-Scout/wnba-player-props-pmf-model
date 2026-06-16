@@ -151,10 +151,22 @@ def train_fold(
 
     usable_feature_cols = list(X_train.columns)
 
+    # ---- Temporal sample weights (exponential decay) ---------------------
+    # Exponential decay: games from 6 months ago have weight ~0.5; 1-year-old
+    # games have weight ~0.25. Reduces systematic bias from stale season trends.
+    sample_weight: np.ndarray | None = None
+    halflife = cfg.get("sample_weight_halflife_days", None)
+    if halflife and "game_date" in train_wide.columns:
+        cutoff = pd.to_datetime(train_wide["game_date"]).max()
+        days_ago = (cutoff - pd.to_datetime(train_wide["game_date"])).dt.days.fillna(0)
+        sw = np.exp(-np.log(2) / halflife * days_ago.values)
+        sw = sw / sw.mean()  # normalize so total effective sample size is preserved
+        sample_weight = sw.astype(np.float64)
+
     # ---- Minutes model ---------------------------------------------------
     y_min = train_wide["actual_minutes"].fillna(0.0)
     min_model = MinutesModel(cfg)
-    min_model.fit(X_train, y_min, train_wide)
+    min_model.fit(X_train, y_min, train_wide, sample_weight=sample_weight)
     # Remember which columns were usable so inference aligns to the same set
     min_model._feature_cols = usable_feature_cols
     min_model._pos_encoder = pos_encoder  # store for inference
@@ -192,12 +204,14 @@ def train_fold(
             if int((y_stat > 0).sum()) < min_pos:
                 continue
             m = HurdleModel(stat, cfg)
-            m.fit(X_played, y_stat)
+            m.fit(X_played, y_stat, sample_weight=sample_weight)
             hurdle_models[stat] = m
             summaries[stat] = m.get_training_summary()
         else:
+            # Pass context_df so StatRateModel can compute per-role dispersion.
+            played_ctx = train_wide[played_mask].reset_index(drop=True)
             m = StatRateModel(stat, cfg)
-            m.fit(X_played, y_stat)
+            m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight)
             stat_models[stat] = m
             summaries[stat] = m.get_training_summary()
 
@@ -314,14 +328,28 @@ def generate_fold_pmfs(
             stat_model_type = "rate"
 
         # ---- Build PMF matrix --------------------------------------------
+        roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
         if stat in fold_model.hurdle_models:
             model = fold_model.hurdle_models[stat]
             pmf_mat = hurdle_pmf_batch(p_nz_out, pos_mus_out, model.pos_dispersion_r, cap)
         elif stat in fold_model.stat_models:
             model = fold_model.stat_models[stat]
-            r = model.dispersion_r
-            pmf_mat = (negbinom_pmf_batch(stat_means_out, r, cap)
-                       if r is not None else poisson_pmf_batch(stat_means_out, cap))
+            # Role-aware NegBinom: batch by role so stars get fatter tails
+            if roles is not None and getattr(model, "_role_dispersion", None):
+                n = len(stat_means_out)
+                pmf_mat = np.zeros((n, cap + 1))
+                for role in np.unique(roles):
+                    mask = roles == role
+                    r_role = model.get_dispersion(str(role))
+                    mu_role = stat_means_out[mask]
+                    if r_role is not None:
+                        pmf_mat[mask] = negbinom_pmf_batch(mu_role, r_role, cap)
+                    else:
+                        pmf_mat[mask] = poisson_pmf_batch(mu_role, cap)
+            else:
+                r = model.dispersion_r
+                pmf_mat = (negbinom_pmf_batch(stat_means_out, r, cap)
+                           if r is not None else poisson_pmf_batch(stat_means_out, cap))
         else:
             # Stat not trained — fall back to Poisson with global prior
             prior = cfg.get("league_priors", {}).get(stat, {})

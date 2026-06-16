@@ -193,12 +193,26 @@ def train(
         raise ValueError(f"Forbidden columns in feature matrix: {bad_in_X}")
 
     # ------------------------------------------------------------------
+    # 3b. Temporal sample weights (exponential decay)
+    # ------------------------------------------------------------------
+    sample_weight: np.ndarray | None = None
+    halflife = cfg.get("sample_weight_halflife_days", None)
+    if halflife and "game_date" in wide.columns:
+        cutoff = pd.to_datetime(wide["game_date"]).max()
+        days_ago = (cutoff - pd.to_datetime(wide["game_date"])).dt.days.fillna(0)
+        sw = np.exp(-np.log(2) / halflife * days_ago.values)
+        sw = sw / sw.mean()
+        sample_weight = sw.astype(np.float64)
+        print(f"\nTemporal weighting: halflife={halflife}d, "
+              f"weight range [{sample_weight.min():.3f}, {sample_weight.max():.3f}]")
+
+    # ------------------------------------------------------------------
     # 4. Train minutes model
     # ------------------------------------------------------------------
     print("\nTraining minutes model...")
     y_minutes = wide["actual_minutes"].fillna(0.0)
     minutes_mdl = MinutesModel(cfg)
-    minutes_mdl.fit(X_all, y_minutes, wide)
+    minutes_mdl.fit(X_all, y_minutes, wide, sample_weight=sample_weight)
     minutes_mdl._pos_encoder = pos_encoder  # store for inference
     minutes_path = model_dir / "minutes_model.joblib"
     minutes_mdl.save(str(minutes_path))
@@ -242,21 +256,28 @@ def train(
 
         print(f"\nTraining {stat} model  (n={n_played:,}, zero_rate={zero_rate:.3f})")
 
+        # Sample weights for played rows (subset of full weight vector)
+        sw_played = sample_weight[played_mask] if sample_weight is not None else None
+        if sw_played is not None:
+            sw_played = sw_played[: len(X_played)]  # guard against index mismatch
+
         if stat in sparse_stats:
             model_h = HurdleModel(stat, cfg)
-            model_h.fit(X_played, y_stat)
+            model_h.fit(X_played, y_stat, sample_weight=sw_played)
             hurdle_models[stat] = model_h
             s = model_h.get_training_summary()
             print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
                   f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
         else:
+            played_ctx = wide[played_mask].reset_index(drop=True)
             model_r = StatRateModel(stat, cfg)
-            model_r.fit(X_played, y_stat)
+            model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
             stat_models[stat] = model_r
             s = model_r.get_training_summary()
             print(f"  StatRateModel  mean={s['global_mean']:.3f}  "
                   f"var={s['global_var']:.3f}  "
-                  f"type={s['pmf_type']}  r={s['dispersion_r']}")
+                  f"type={s['pmf_type']}  r={s['dispersion_r']}  "
+                  f"role_buckets={len(s.get('role_dispersion', {}))}")
 
         stat_summaries[stat] = s
 

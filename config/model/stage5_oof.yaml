@@ -21,8 +21,9 @@ stats:
   - blk
   - turnover
 
+# stl removed: near-Poisson (var/mean=1.21), direct NegBinom is correct.
+# blk retained: structurally zero-inflated (positional/foul-out dependent).
 sparse_stats:
-  - stl
   - blk
 
 pmf_support_caps:
@@ -40,6 +41,9 @@ calibration_eligible_prediction_types:
 
 # Stage identifier
 pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
+
+# Exponential decay sample weighting (same halflife as Stage 4)
+sample_weight_halflife_days: 180
 
 # HistGradientBoosting (slightly lighter than Stage 4 for repeated fold training)
 hgb_regressor:

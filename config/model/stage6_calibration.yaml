@@ -1,10 +1,20 @@
 # Stage 6 Calibration Configuration
 # Per PenaltyBlog methodology: isotonic regression per stat/role on OOF PIT values.
 
-# Hard pass/fail gates enforced by verify_gates.py calibration
+# ── Post-calibration gates (strict) ──────────────────────────────────────────
+# Checked on CALIBRATED OOF predictions. These are the real quality gates.
 ece_threshold: 0.03        # ECE < 0.03 per stat (within 3pp of empirical frequency)
 pit_ks_threshold: 0.075    # PIT KS < 0.075 (near-uniform PIT distribution)
 mean_error_threshold: 0.15 # |mean_error| < 0.15 per stat/role
+
+# ── Pre-calibration sanity gates (loose) ─────────────────────────────────────
+# Checked on RAW OOF predictions BEFORE fitting calibrators.
+# Catches completely broken models (distributional collapse, data leakage, etc.).
+# A new or early-season model will breach the strict post-cal gates but should
+# always pass these.
+pre_cal_ece_threshold: 0.12
+pre_cal_pit_ks_threshold: 0.20
+pre_cal_mean_error_threshold: 1.0
 
 # Minimum OOF rows required to fit a calibrator for a stat
 min_rows_for_calibration: 50

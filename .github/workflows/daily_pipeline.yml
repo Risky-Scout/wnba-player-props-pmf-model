@@ -137,6 +137,45 @@ jobs:
             --out artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json
         continue-on-error: true
 
+      - name: Score yesterday's predictions (post-game CLV)
+        run: |
+          python scripts/score_daily_predictions.py \
+            --predictions-dir deliveries \
+            --game-date ${{ steps.date.outputs.today }} \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --out-dir artifacts/audits
+        continue-on-error: true
+
+      - name: Check calibration drift
+        # Compares last 100 scored predictions per stat against ECE/mean_error thresholds.
+        # Soft drift (ECE>0.06): warning logged, pipeline continues.
+        # Hard drift (ECE>0.12): exit 1, triggers auto-refit below.
+        id: drift-check
+        continue-on-error: true
+        run: |
+          python scripts/check_calibration_drift.py \
+            --scored-predictions artifacts/audits/scored_predictions.parquet \
+            --thresholds-soft-ece 0.06 \
+            --thresholds-hard-ece 0.12 \
+            --out artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
+
+      - name: Auto-refit calibrators on hard drift
+        # Only triggered when drift-check exits 1 (hard drift detected).
+        if: steps.drift-check.outcome == 'failure'
+        run: |
+          echo "[AUTO-RECAL] Hard drift detected — refitting calibrators from OOF data"
+          python scripts/fit_calibrators.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --out-dir artifacts/models/calibration
+          echo "[AUTO-RECAL] Calibrators refitted. Caching for next run."
+
+      - name: Cache auto-refit calibrators
+        if: steps.drift-check.outcome == 'failure'
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/models/calibration/
+          key: calibrators-latest-${{ github.run_id }}
+
       - name: Upload daily delivery (primary artifact)
         uses: actions/upload-artifact@v4
         if: always()
@@ -157,3 +196,13 @@ jobs:
             deliveries/next_game/kalshi_sheet_${{ steps.date.outputs.target_date }}.csv
             deliveries/next_game/polymarket_sheet_${{ steps.date.outputs.target_date }}.csv
           retention-days: 30
+
+      - name: Upload drift/scoring audits
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-audit-${{ steps.date.outputs.today }}-${{ github.run_id }}
+          path: |
+            artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
+            artifacts/audits/scored_predictions.parquet
+          retention-days: 14

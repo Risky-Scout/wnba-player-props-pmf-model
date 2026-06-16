@@ -67,19 +67,39 @@ jobs:
             --pmfs data/oof/oof_player_stat_pmfs.parquet \
             --summary-out artifacts/audits/stage5_oof_summary.md
 
+      - name: Pre-calibration sanity gate (raw OOF)
+        # Loose gate on raw OOF — catches completely broken models before we waste
+        # compute fitting calibrators. ECE<0.12, PIT KS<0.20, |mean_error|<1.0.
+        # Fatal: a new model that fails pre-cal sanity has a training bug, not just
+        # calibration drift.
+        run: |
+          python scripts/verify_gates.py calibration \
+            data/oof/oof_player_stat_pmfs.parquet \
+            --config config/model/stage6_calibration.yaml \
+            --pre-cal
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
             --out-dir artifacts/models/calibration
 
-      - name: Verify calibration gates
-        # Non-fatal: gates are informational on first runs. Calibrators are always
-        # uploaded so the daily pipeline can run. Tighten gates once model matures.
+      - name: Apply calibrators to OOF (for post-cal gate)
+        run: |
+          python scripts/apply_calibrators.py \
+            --pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --cal-dir artifacts/models/calibration \
+            --out data/oof/oof_player_stat_pmfs_calibrated.parquet
+
+      - name: Verify calibration gates (calibrated OOF — strict)
+        # Post-calibration gate: ECE<0.03, PIT KS<0.075, |mean_error|<0.15.
+        # Checked on CALIBRATED predictions so the gate is meaningful.
+        # Non-fatal on first model generation — tighten to fatal once model matures
+        # by removing continue-on-error.
         continue-on-error: true
         run: |
           python scripts/verify_gates.py calibration \
-            data/oof/oof_player_stat_pmfs.parquet \
+            data/oof/oof_player_stat_pmfs_calibrated.parquet \
             --config config/model/stage6_calibration.yaml
 
       - name: Cache calibrators (shared across workflows)

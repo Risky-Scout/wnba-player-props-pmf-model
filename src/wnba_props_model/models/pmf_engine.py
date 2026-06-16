@@ -181,9 +181,10 @@ def build_all_pmfs(
             pos_mus = None
 
         # ---- Build PMF matrix ---------------------------------------------
+        roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
         pmf_mat = _build_pmf_matrix(
             stat, stat_means, p_nz, pos_mus,
-            stat_models, hurdle_models, cap
+            stat_models, hurdle_models, cap, roles=roles
         )
 
         validate_pmf_matrix(pmf_mat)
@@ -272,20 +273,42 @@ def _build_pmf_matrix(
     stat_models: dict,
     hurdle_models: dict,
     cap: int,
+    roles: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Build PMF matrix (n × cap+1) for a stat."""
+    """Build PMF matrix (n × cap+1) for a stat.
+
+    When ``roles`` is provided and the model has per-role dispersion, PMFs are
+    batched by role_bucket so each group gets its own NegBinom r parameter.
+    Typically 4-6 role groups — this is fast.
+    """
     if stat in hurdle_models:
         model = hurdle_models[stat]
         pos_r = model.pos_dispersion_r
-        pmf_mat = hurdle_pmf_batch(p_nz, pos_mus, pos_r, cap)  # type: ignore[arg-type]
-    else:
-        model = stat_models.get(stat)
-        r = getattr(model, "dispersion_r", None) if model is not None else None
-        if r is not None:
-            pmf_mat = negbinom_pmf_batch(stat_means, r, cap)
-        else:
-            pmf_mat = poisson_pmf_batch(stat_means, cap)
-    return pmf_mat
+        return hurdle_pmf_batch(p_nz, pos_mus, pos_r, cap)  # type: ignore[arg-type]
+
+    model = stat_models.get(stat)
+    if model is None:
+        return poisson_pmf_batch(stat_means, cap)
+
+    # Role-aware NegBinom batching: star players have fatter tails than bench.
+    if roles is not None and getattr(model, "_role_dispersion", None):
+        n = len(stat_means)
+        pmf_mat = np.zeros((n, cap + 1))
+        for role in np.unique(roles):
+            mask = roles == role
+            r_role = model.get_dispersion(str(role))
+            mu_role = stat_means[mask]
+            if r_role is not None:
+                pmf_mat[mask] = negbinom_pmf_batch(mu_role, r_role, cap)
+            else:
+                pmf_mat[mask] = poisson_pmf_batch(mu_role, cap)
+        return pmf_mat
+
+    # Global dispersion fallback
+    r = getattr(model, "dispersion_r", None)
+    if r is not None:
+        return negbinom_pmf_batch(stat_means, r, cap)
+    return poisson_pmf_batch(stat_means, cap)
 
 
 # ---------------------------------------------------------------------------
