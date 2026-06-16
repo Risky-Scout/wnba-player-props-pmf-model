@@ -138,18 +138,24 @@ def predict_player_pmfs(
     artifacts = _load_stage4_models(model_dir)
     model_dir = Path(model_dir)
 
-    X, pos_enc = prepare_feature_matrix(
-        feature_df,
-        model_feature_cols=artifacts["model_feature_cols"],
-        pos_encoder=artifacts["pos_encoder"],
-        fit_encoder=False,
-    )
+    # Build a synthetic long_df for inference: one row per (player, game, stat).
+    # The engine uses long_df to define which (player_id, game_id) pairs exist
+    # for each stat; we replicate every wide row for each target stat.
+    stats_to_predict = cfg.get("stats", STATS)
+    long_rows = []
+    for stat in stats_to_predict:
+        stat_slice = feature_df.copy()
+        stat_slice["stat"] = stat
+        stat_slice[f"actual_{stat}"] = np.nan  # unknown at inference time
+        long_rows.append(stat_slice)
+    long_df_infer = pd.concat(long_rows, ignore_index=True) if long_rows else pd.DataFrame()
 
     pmfs_long = build_all_pmfs(
-        df=feature_df,
-        X=X,
+        wide_df=feature_df,
+        long_df=long_df_infer,
+        model_feature_cols=artifacts["model_feature_cols"],
         minutes_model=artifacts["minutes"],
-        rate_models=artifacts["rate_models"],
+        stat_models=artifacts["rate_models"],
         hurdle_models=artifacts["hurdle_models"],
         cfg=cfg,
     )
