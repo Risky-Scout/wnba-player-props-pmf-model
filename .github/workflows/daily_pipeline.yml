@@ -90,8 +90,15 @@ jobs:
 
       - name: Predict D+1 projections (HGB + calibration)
         run: |
+          # Use the D+1 slate if it was built; fall back to full feature table with date filter
+          SLATE="deliveries/next_game/slate_${{ steps.date.outputs.target_date }}.parquet"
+          if [ -f "$SLATE" ]; then
+            FEATURES_SRC="$SLATE"
+          else
+            FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
+          fi
           python scripts/predict_today.py \
-            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-wide "$FEATURES_SRC" \
             --game-date ${{ steps.date.outputs.target_date }} \
             --out-dir deliveries/next_game
 

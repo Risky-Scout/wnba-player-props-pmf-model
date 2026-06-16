@@ -31,28 +31,67 @@ logger = logging.getLogger(__name__)
 
 
 def _load_stage4_models(model_dir: str | Path) -> dict:
-    """Load Stage 4 HGB artifacts from disk."""
+    """Load Stage 4 HGB artifacts from disk.
+
+    Supports both file layout conventions:
+    - Bundled: minutes_model.joblib + stat_rate_models.joblib + hurdle_models.joblib
+      (produced by train_baseline_pmfs.py)
+    - Per-stat: minutes_model.pkl + rate_{stat}.pkl + hurdle_{stat}.pkl
+      (legacy layout)
+    """
     model_dir = Path(model_dir)
     if not model_dir.exists():
         raise FileNotFoundError(
             f"Stage 4 model directory not found: {model_dir}\n"
             "Run `python scripts/train_baseline_pmfs.py` first."
         )
-    minutes = MinutesModel.load(str(model_dir / "minutes_model.pkl"))
-    pos_encoder = joblib.load(model_dir / "pos_encoder.pkl") if (model_dir / "pos_encoder.pkl").exists() else None
+
+    # --- Minutes model (try both naming conventions) ---
+    for minutes_name in ("minutes_model.joblib", "minutes_model.pkl"):
+        minutes_path = model_dir / minutes_name
+        if minutes_path.exists():
+            minutes = MinutesModel.load(str(minutes_path))
+            break
+    else:
+        raise FileNotFoundError(
+            f"minutes_model not found in {model_dir} — "
+            "run `python scripts/train_baseline_pmfs.py` first."
+        )
+
+    # --- Pos encoder ---
+    pos_encoder = None
+    for enc_name in ("pos_encoder.pkl", "pos_encoder.joblib"):
+        enc_path = model_dir / enc_name
+        if enc_path.exists():
+            pos_encoder = joblib.load(enc_path)
+            break
+
+    # --- Stat models ---
     rate_models: dict[str, StatRateModel] = {}
     hurdle_models: dict[str, HurdleModel] = {}
+
+    # Bundled format (train_baseline_pmfs.py output)
+    bundled_rate = model_dir / "stat_rate_models.joblib"
+    bundled_hurdle = model_dir / "hurdle_models.joblib"
+    if bundled_rate.exists():
+        rate_models = joblib.load(bundled_rate)
+    if bundled_hurdle.exists():
+        hurdle_models = joblib.load(bundled_hurdle)
+
+    # Per-stat format (legacy)
+    if not rate_models and not hurdle_models:
+        for stat in STATS:
+            hurdle_path = model_dir / f"hurdle_{stat}.pkl"
+            rate_path = model_dir / f"rate_{stat}.pkl"
+            if hurdle_path.exists():
+                hurdle_models[stat] = HurdleModel.load(str(hurdle_path))
+            elif rate_path.exists():
+                rate_models[stat] = StatRateModel.load(str(rate_path))
+
+    # --- Feature manifest ---
     manifest_path = model_dir / "feature_manifest.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     model_feature_cols = manifest.get("model_feature_columns", [])
-
-    for stat in STATS:
-        rate_path = model_dir / f"rate_{stat}.pkl"
-        hurdle_path = model_dir / f"hurdle_{stat}.pkl"
-        if hurdle_path.exists():
-            hurdle_models[stat] = HurdleModel.load(str(hurdle_path))
-        elif rate_path.exists():
-            rate_models[stat] = StatRateModel.load(str(rate_path))
 
     return {
         "minutes": minutes,

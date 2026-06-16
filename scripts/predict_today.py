@@ -39,8 +39,20 @@ def main(
 
     if game_date:
         if "game_date" in features_df.columns:
-            features_df = features_df[features_df["game_date"].astype(str) == game_date].copy()
-        typer.echo(f"Filtered to game_date={game_date}: {len(features_df):,} rows")
+            filtered = features_df[features_df["game_date"].astype(str) == game_date].copy()
+            typer.echo(f"Filtered to game_date={game_date}: {len(filtered):,} rows")
+            if not filtered.empty:
+                features_df = filtered
+            else:
+                typer.echo(
+                    f"[WARN] 0 rows for game_date={game_date}. "
+                    "Using all rows from input (slate forward-dated features)."
+                )
+                # Slate files have game_date already set to the target date so no filter needed
+
+    if features_df.empty:
+        typer.echo(f"[WARN] No player rows to predict — no games on {game_date}. Exiting.")
+        raise typer.Exit(0)
 
     typer.echo(f"Generating PMFs for {len(features_df):,} player-game rows...")
 
