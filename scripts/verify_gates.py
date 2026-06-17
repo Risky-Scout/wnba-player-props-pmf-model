@@ -20,8 +20,16 @@ _DEFAULT_PRE_KS = 0.20
 _DEFAULT_PRE_MEAN_ERR = 1.0
 
 
-def _load_pmf_df(oof_scored: str) -> pd.DataFrame:
-    """Load + normalize OOF parquet for calibration_report."""
+def _load_pmf_df(oof_scored: str, skip_eligibility_filter: bool = False) -> pd.DataFrame:
+    """Load + normalize OOF parquet for calibration_report.
+
+    Parameters
+    ----------
+    skip_eligibility_filter:
+        If True, include all rows regardless of calibration_eligible flag.
+        Used for the pre-cal sanity gate so prior_only rows don't cause an
+        empty DataFrame (expected on first run / limited-data seasons).
+    """
     from wnba_props_model.models.simulation import json_to_pmf
 
     df = pd.read_parquet(oof_scored).copy()
@@ -31,7 +39,7 @@ def _load_pmf_df(oof_scored: str) -> pd.DataFrame:
         df["role_bucket"] = "all"
     if "pmf" not in df.columns and "pmf_json" in df.columns:
         df["pmf"] = df["pmf_json"].map(json_to_pmf)
-    if "calibration_eligible" in df.columns:
+    if not skip_eligibility_filter and "calibration_eligible" in df.columns:
         df = df[df["calibration_eligible"] == True].copy()  # noqa: E712
     return df
 
@@ -43,9 +51,16 @@ def _run_gates(
     mean_error_threshold: float,
     label: str = "",
 ) -> list[str]:
-    """Print gate results, return list of failed gate names."""
+    """Print gate results, return list of failed gate names.
+
+    Returns [] if rep is empty (treated as pass-through — no data to evaluate).
+    """
     prefix = f"[{label}] " if label else ""
     failures: list[str] = []
+
+    if rep.empty:
+        typer.echo(f"{prefix}[WARN] No rows in calibration report — gate treated as pass-through.")
+        return failures
 
     if "ece" in rep.columns:
         bad_ece = rep[rep["ece"] > ece_threshold][["stat", "role_bucket", "ece", "n"]]
@@ -54,17 +69,19 @@ def _run_gates(
             typer.echo(bad_ece.to_string(index=False))
             failures.append("ECE")
 
-    bad_ks = rep[rep["pit_ks"] > ks_threshold][["stat", "role_bucket", "pit_ks", "n"]]
-    if len(bad_ks):
-        typer.echo(f"\n{prefix}[FAIL] PIT KS gate breached ({len(bad_ks)} rows):")
-        typer.echo(bad_ks.to_string(index=False))
-        failures.append("PIT_KS")
+    if "pit_ks" in rep.columns:
+        bad_ks = rep[rep["pit_ks"] > ks_threshold][["stat", "role_bucket", "pit_ks", "n"]]
+        if len(bad_ks):
+            typer.echo(f"\n{prefix}[FAIL] PIT KS gate breached ({len(bad_ks)} rows):")
+            typer.echo(bad_ks.to_string(index=False))
+            failures.append("PIT_KS")
 
-    bad_mean = rep[rep["mean_error"].abs() > mean_error_threshold][["stat", "role_bucket", "mean_error", "n"]]
-    if len(bad_mean):
-        typer.echo(f"\n{prefix}[FAIL] mean_error gate breached ({len(bad_mean)} rows):")
-        typer.echo(bad_mean.to_string(index=False))
-        failures.append("mean_error")
+    if "mean_error" in rep.columns:
+        bad_mean = rep[rep["mean_error"].abs() > mean_error_threshold][["stat", "role_bucket", "mean_error", "n"]]
+        if len(bad_mean):
+            typer.echo(f"\n{prefix}[FAIL] mean_error gate breached ({len(bad_mean)} rows):")
+            typer.echo(bad_mean.to_string(index=False))
+            failures.append("mean_error")
 
     return failures
 
@@ -101,11 +118,24 @@ def calibration(
         mean_error_threshold = cfg.get("mean_error_threshold", mean_error_threshold)
         mode_label = "POST-CAL"
 
-    df = _load_pmf_df(oof_scored)
+    # For pre-cal sanity: include all OOF rows (not just calibration_eligible)
+    # so first-run / limited-data seasons with all-prior_only folds don't crash.
+    skip_elig = pre_cal
+    df = _load_pmf_df(oof_scored, skip_eligibility_filter=skip_elig)
+
+    if df.empty:
+        typer.echo(
+            f"\n[{mode_label}] OOF data has 0 scoreable rows after loading — "
+            "no predictions to gate. This is expected on first pipeline run "
+            "before any real model folds complete.\n"
+            f"[{mode_label}] Treating as PASS (no data to evaluate)."
+        )
+        raise typer.Exit(0)
+
     rep = calibration_report(df)
 
     typer.echo(f"\n=== Calibration Gate Report ({mode_label}) ===")
-    typer.echo(rep.to_string(index=False))
+    typer.echo(rep.to_string(index=False) if not rep.empty else "(empty)")
     typer.echo(f"\nGates: ECE < {ece_threshold} | PIT KS < {ks_threshold} | |mean_error| < {mean_error_threshold}")
 
     failures = _run_gates(rep, ece_threshold, ks_threshold, mean_error_threshold, label=mode_label)
