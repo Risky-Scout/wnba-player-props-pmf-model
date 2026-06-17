@@ -576,6 +576,17 @@ def _build_injury_features(
     """
     out = wide_df.copy()
 
+    # Normalize game_id dtype to int64 throughout to prevent merge errors when
+    # BDL API returns game_id as strings vs the main stats table's int64.
+    def _coerce_game_id(df: pd.DataFrame) -> pd.DataFrame:
+        if "game_id" in df.columns and df["game_id"].dtype == object:
+            df = df.copy()
+            df["game_id"] = pd.to_numeric(df["game_id"], errors="coerce").astype("Int64")
+        return df
+
+    out = _coerce_game_id(out)
+    injuries_df = _coerce_game_id(injuries_df)
+
     # ---- player_injured_l1: player was injured/out prior game ----------------
     # Use did_play column: if player's prior game was DNP (did_play == 0), flag it
     if "did_play" in out.columns:
