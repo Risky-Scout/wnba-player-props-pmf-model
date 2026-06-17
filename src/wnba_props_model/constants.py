@@ -63,8 +63,7 @@ STAT_TO_BDL_COL = {
     "reb": "reb",
     "ast": "ast",
     "fg3m": "fg3m",
-    "turnover": "turnover",
-    "tov": "turnover",   # backward-compat alias
+    "tov": "turnover",  # BDL field "turnover" → raw parquet col "tov" → canonical renames to "turnover"
     "stl": "stl",
     "blk": "blk",
 }
