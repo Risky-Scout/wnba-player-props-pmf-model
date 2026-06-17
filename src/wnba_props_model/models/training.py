@@ -183,27 +183,10 @@ def train_fold(
                    else (train_wide["actual_minutes"] > 0))
     X_played = X_train[played_mask].reset_index(drop=True)
 
-    # #region agent log — hypothesis A post-fix verification
-    import json as _json, time as _time
-    try:
-        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
-            _lf.write(_json.dumps({"sessionId": "94807e", "runId": "post-fix", "hypothesisId": "A", "location": "training.py:played_mask", "message": "shape check post-fix", "data": {"sw_shape": int(len(sample_weight)) if sample_weight is not None else None, "X_all_rows": int(len(X_train)), "X_played_rows": int(len(X_played)), "played_count": int(played_mask.sum())}, "timestamp": int(_time.time()*1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion
-
     # Filter sample_weight to played rows before passing to stat models.
     # The temporal decay weight is computed over all train_wide rows; stat models
     # train only on did_play=True rows (X_played), so the weight must be subsetted.
     sample_weight_played = sample_weight[played_mask] if sample_weight is not None else None
-
-    # #region agent log — hypothesis A post-fix verification
-    try:
-        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
-            _lf.write(_json.dumps({"sessionId": "94807e", "runId": "post-fix", "hypothesisId": "A", "location": "training.py:sample_weight_played", "message": "filtered weight shape matches X_played", "data": {"sw_played_shape": int(len(sample_weight_played)) if sample_weight_played is not None else None, "matches_X_played": int(len(X_played)) == (int(len(sample_weight_played)) if sample_weight_played is not None else -1)}, "timestamp": int(_time.time()*1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion
 
     stat_models: dict[str, StatRateModel] = {}
     hurdle_models: dict[str, HurdleModel] = {}

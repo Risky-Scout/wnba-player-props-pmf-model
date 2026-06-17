@@ -143,16 +143,6 @@ def fit_calibrators(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     paths = {}
-    # #region agent log — H1 verification: confirm "turnover" in calibration set
-    import json as _json, time as _time
-    _stats_in_oof = sorted(set(oof_eligible["stat"]))
-    _stats_to_cal = sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS))
-    try:
-        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
-            _lf.write(_json.dumps({"sessionId": "94807e", "runId": "post-fix-tov", "hypothesisId": "H1", "location": "calibrate.py:fit_calibrators", "message": "stats_intersection_check", "data": {"oof_stats": _stats_in_oof, "supported_stats": sorted(SUPPORTED_STATS), "intersection": _stats_to_cal, "turnover_in_oof": "turnover" in _stats_in_oof, "turnover_in_supported": "turnover" in SUPPORTED_STATS, "turnover_in_intersection": "turnover" in _stats_to_cal}, "timestamp": int(_time.time() * 1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion
     for stat in sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS)):
         cal = fit_role_aware_calibrator(oof_eligible, stat)
         path = out / f"pmf_cal_role_{stat}.pkl"

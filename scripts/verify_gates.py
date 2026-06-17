@@ -74,14 +74,6 @@ def _run_gates(
                 f"{prefix}[INFO] Excluding {len(excluded)} row(s) from gate "
                 f"(role_buckets: {exclude_role_buckets}) — these use global-only calibration."
             )
-        # #region agent log — H2 verification: inactive_risk exclusion
-        import json as _json, time as _time
-        try:
-            with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
-                _lf.write(_json.dumps({"sessionId": "94807e", "runId": "post-fix-gate", "hypothesisId": "H2", "location": "verify_gates.py:_run_gates", "message": "inactive_risk_exclusion", "data": {"exclude_role_buckets": exclude_role_buckets, "excluded_rows": int(len(excluded)), "remaining_rows": int(len(rep)), "excluded_stats": sorted(excluded["stat"].unique().tolist()) if len(excluded) else []}, "timestamp": int(_time.time() * 1000)}) + "\n")
-        except Exception:
-            pass
-        # #endregion
 
     if rep.empty:
         typer.echo(f"{prefix}[WARN] No rows remain after role exclusions — gate treated as pass-through.")
