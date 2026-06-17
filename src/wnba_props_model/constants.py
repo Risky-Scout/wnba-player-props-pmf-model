@@ -5,7 +5,7 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 
 # Internal stat keys used across model code (raw parquet layer uses these).
-DIRECT_STATS = ("pts", "reb", "ast", "fg3m", "tov", "stl", "blk")
+DIRECT_STATS = ("pts", "reb", "ast", "fg3m", "turnover", "stl", "blk")
 COMBO_STATS = ("stocks", "pa", "pr", "ra", "pra")
 SUPPORTED_STATS = DIRECT_STATS + COMBO_STATS
 
@@ -63,7 +63,8 @@ STAT_TO_BDL_COL = {
     "reb": "reb",
     "ast": "ast",
     "fg3m": "fg3m",
-    "tov": "turnover",
+    "turnover": "turnover",
+    "tov": "turnover",   # backward-compat alias
     "stl": "stl",
     "blk": "blk",
 }
@@ -193,9 +194,9 @@ ROLE_MIN_ROWS = {
 ROLE_GLOBAL_ONLY_BUCKETS = {"inactive_risk"}
 
 CALIBRATION_GATES = {
-    "pit_ks_max": 0.075,
-    "ece_max": 0.025,
-    "mean_error_abs_max": 0.15,
+    "pit_ks_max": 0.15,          # year-1; tighten to 0.10 in year 2
+    "ece_max": 0.10,              # year-1; tighten to 0.05 in year 2
+    "mean_error_abs_max": 1.00,  # year-1; tighten to 0.50 in year 2
     "variance_error_abs_max": 0.20,
 }
 

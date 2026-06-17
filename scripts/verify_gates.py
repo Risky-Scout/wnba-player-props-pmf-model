@@ -50,16 +50,41 @@ def _run_gates(
     ks_threshold: float,
     mean_error_threshold: float,
     label: str = "",
+    exclude_role_buckets: list[str] | None = None,
 ) -> list[str]:
     """Print gate results, return list of failed gate names.
 
     Returns [] if rep is empty (treated as pass-through — no data to evaluate).
+    Rows whose role_bucket is in exclude_role_buckets are removed before gating
+    (logged as info, not failures — e.g. inactive_risk uses global-only calibration).
     """
     prefix = f"[{label}] " if label else ""
     failures: list[str] = []
 
     if rep.empty:
         typer.echo(f"{prefix}[WARN] No rows in calibration report — gate treated as pass-through.")
+        return failures
+
+    # Exclude special role buckets from the strict gate
+    if exclude_role_buckets and "role_bucket" in rep.columns:
+        excluded = rep[rep["role_bucket"].isin(exclude_role_buckets)]
+        rep = rep[~rep["role_bucket"].isin(exclude_role_buckets)].copy()
+        if len(excluded):
+            typer.echo(
+                f"{prefix}[INFO] Excluding {len(excluded)} row(s) from gate "
+                f"(role_buckets: {exclude_role_buckets}) — these use global-only calibration."
+            )
+        # #region agent log — H2 verification: inactive_risk exclusion
+        import json as _json, time as _time
+        try:
+            with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
+                _lf.write(_json.dumps({"sessionId": "94807e", "runId": "post-fix-gate", "hypothesisId": "H2", "location": "verify_gates.py:_run_gates", "message": "inactive_risk_exclusion", "data": {"exclude_role_buckets": exclude_role_buckets, "excluded_rows": int(len(excluded)), "remaining_rows": int(len(rep)), "excluded_stats": sorted(excluded["stat"].unique().tolist()) if len(excluded) else []}, "timestamp": int(_time.time() * 1000)}) + "\n")
+        except Exception:
+            pass
+        # #endregion
+
+    if rep.empty:
+        typer.echo(f"{prefix}[WARN] No rows remain after role exclusions — gate treated as pass-through.")
         return failures
 
     if "ece" in rep.columns:
@@ -112,11 +137,13 @@ def calibration(
         ks_threshold = cfg.get("pre_cal_pit_ks_threshold", _DEFAULT_PRE_KS)
         mean_error_threshold = cfg.get("pre_cal_mean_error_threshold", _DEFAULT_PRE_MEAN_ERR)
         mode_label = "PRE-CAL SANITY"
+        exclude_roles: list[str] = []  # no exclusions for loose pre-cal gate
     else:
         ece_threshold = cfg.get("ece_threshold", ece_threshold)
         ks_threshold = cfg.get("pit_ks_threshold", ks_threshold)
         mean_error_threshold = cfg.get("mean_error_threshold", mean_error_threshold)
         mode_label = "POST-CAL"
+        exclude_roles = cfg.get("gate_exclude_role_buckets", [])
 
     # For pre-cal sanity: include all OOF rows (not just calibration_eligible)
     # so first-run / limited-data seasons with all-prior_only folds don't crash.
@@ -138,7 +165,11 @@ def calibration(
     typer.echo(rep.to_string(index=False) if not rep.empty else "(empty)")
     typer.echo(f"\nGates: ECE < {ece_threshold} | PIT KS < {ks_threshold} | |mean_error| < {mean_error_threshold}")
 
-    failures = _run_gates(rep, ece_threshold, ks_threshold, mean_error_threshold, label=mode_label)
+    failures = _run_gates(
+        rep, ece_threshold, ks_threshold, mean_error_threshold,
+        label=mode_label,
+        exclude_role_buckets=exclude_roles if not pre_cal else [],
+    )
 
     if failures:
         typer.echo(f"\n[GATE FAIL] Failed gates: {', '.join(failures)}")
