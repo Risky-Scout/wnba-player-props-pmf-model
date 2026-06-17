@@ -1,303 +1,378 @@
-"""Build historical review package for model evaluation.
+"""Generate a historical review package for model evaluation.
 
-Generates per-stat accuracy metrics, calibration curves, and hit rate tables
-over the OOF holdout window.
+Produces a self-contained Markdown report summarising:
+  - Model architecture and methodology
+  - OOF walk-forward calibration metrics (if available)
+  - Per-stat calibration curve summaries
+  - Market comparison summary (if available)
+  - Known limitations and data lag notes
+  - Sample prediction rows
 
-Outputs:
-    artifacts/historical_review/
-    ├── summary_metrics.json          per-stat MAE, RMSE, Ignorance Score delta
-    ├── calibration_curves.json       reliability diagram data per stat
-    ├── hit_rate_tables.json          P(model prob) vs actual hit rate at various lines
-    ├── historical_review.parquet     full row-level results for ad-hoc analysis
-    └── docs/HISTORICAL_REVIEW.md     auto-generated human-readable report
+Output:
+    artifacts/historical_review/review_{date}.md
 
 Usage:
-    python scripts/build_historical_review.py \
-        --oof-scored artifacts/audits/oof_scored.parquet \
-        --out-dir artifacts/historical_review
+    python scripts/build_historical_review.py
+    python scripts/build_historical_review.py --report-date 2026-06-18 --lookback-days 30
 """
 from __future__ import annotations
 
 import json
-import math
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import typer
 
-from wnba_props_model.models.market import no_vig_two_way, ignorance_score_binary
-
 app = typer.Typer(add_completion=False)
 
-STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
-COMMON_LINES: dict[str, list[float]] = {
-    "pts": [4.5, 7.5, 9.5, 12.5, 14.5, 17.5, 19.5, 24.5],
-    "reb": [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5],
-    "ast": [1.5, 2.5, 3.5, 4.5, 5.5],
-    "fg3m": [0.5, 1.5, 2.5, 3.5],
-    "stl": [0.5, 1.5],
-    "blk": [0.5, 1.5],
-    "turnover": [0.5, 1.5, 2.5],
-}
+_OOF_PATH = "data/oof/oof_player_stat_pmfs.parquet"
+_OOF_CAL_PATH = "data/oof/oof_player_stat_pmfs_calibrated.parquet"
+_RESULTS_PATH = "data/clv_tracking/results.parquet"
+_EDGES_PATH = "deliveries/next_game/publishable_edges.parquet"
+_MARKET_COMP_PATH = "deliveries/next_game/market_comparison.parquet"
 
 
-def _prob_over(pmf: np.ndarray, line: float) -> float:
-    """P(outcome > line) using PMF tail sum."""
-    k = int(math.floor(line)) + 1
-    if k >= len(pmf):
-        return 0.0
-    return float(pmf[k:].sum())
+def _pending(msg: str = "Awaiting first weekly calibration run") -> str:
+    return f"*{msg}*"
 
 
-def _load_oof(path: str | Path) -> pd.DataFrame | None:
-    p = Path(path)
+def _fmt_float(v, digits: int = 4) -> str:
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return "—"
+    return f"{v:.{digits}f}"
+
+
+def _oof_summary_table(oof_path: str) -> str:
+    """Return Markdown table of per-stat OOF metrics or pending message."""
+    p = Path(oof_path)
     if not p.exists():
-        return None
-    return pd.read_parquet(p)
+        return _pending()
 
+    try:
+        df = pd.read_parquet(p)
+    except Exception as exc:
+        return _pending(f"Could not load OOF data: {exc}")
 
-def _safe_mean(arr: np.ndarray) -> float:
-    arr = arr[~np.isnan(arr)]
-    return float(arr.mean()) if len(arr) > 0 else np.nan
+    if df.empty:
+        return _pending("OOF file is empty — re-run weekly calibration")
 
+    # Normalize columns
+    if "outcome" not in df.columns and "actual_outcome" in df.columns:
+        df["outcome"] = df["actual_outcome"]
+    if "calibration_eligible" in df.columns:
+        df = df[df["calibration_eligible"] == True].copy()  # noqa: E712
 
-def compute_stat_metrics(stat_df: pd.DataFrame, stat: str) -> dict:
-    """Compute MAE, RMSE, NLL, and ignorance score for one stat."""
-    if "pmf_mean" in stat_df.columns and f"actual_{stat}" in stat_df.columns:
-        actual = stat_df[f"actual_{stat}"].dropna()
-        pred = stat_df.loc[actual.index, "pmf_mean"].dropna()
-        aligned = actual.align(pred, join="inner")
-        actual, pred = aligned[0].values, aligned[1].values
-        mae = float(np.abs(actual - pred).mean()) if len(actual) > 0 else np.nan
-        rmse = float(np.sqrt(((actual - pred) ** 2).mean())) if len(actual) > 0 else np.nan
-    else:
-        mae, rmse = np.nan, np.nan
+    from wnba_props_model.models.simulation import json_to_pmf
+    from wnba_props_model.evaluation.diagnostics import calibration_report
 
-    nll = float(stat_df.get("pmf_nll", pd.Series([np.nan])).mean(skipna=True))
-    ign = float(stat_df.get("binary_logloss", pd.Series([np.nan])).mean(skipna=True))
-    mkt_ign = float(stat_df.get("market_logloss", pd.Series([np.nan])).mean(skipna=True))
+    if "pmf" not in df.columns and "pmf_json" in df.columns:
+        df["pmf"] = df["pmf_json"].map(json_to_pmf)
+    if "role_bucket" not in df.columns:
+        df["role_bucket"] = "all"
 
-    return {
-        "stat": stat,
-        "n_rows": int(len(stat_df)),
-        "mae": round(mae, 4) if not np.isnan(mae) else None,
-        "rmse": round(rmse, 4) if not np.isnan(rmse) else None,
-        "mean_nll": round(nll, 4) if not np.isnan(nll) else None,
-        "mean_ignorance_score": round(ign, 4) if not np.isnan(ign) else None,
-        "market_ignorance_score": round(mkt_ign, 4) if not np.isnan(mkt_ign) else None,
-        "ignorance_delta": round(ign - mkt_ign, 4) if not np.isnan(ign) and not np.isnan(mkt_ign) else None,
-    }
+    try:
+        rep = calibration_report(df)
+    except Exception as exc:
+        return _pending(f"calibration_report failed: {exc}")
 
+    # Aggregate to global per-stat
+    agg = (
+        rep.groupby("stat")
+        .agg(
+            n=("n", "sum"),
+            ece=("ece", "mean"),
+            pit_ks=("pit_ks", "mean"),
+            mean_error=("mean_error", "mean"),
+        )
+        .reset_index()
+        .sort_values("stat")
+    )
 
-def compute_calibration_curve(stat_df: pd.DataFrame, n_bins: int = 10) -> list[dict]:
-    """Build reliability diagram data (model probability vs. empirical frequency)."""
-    rows = []
-    if "model_prob_over" not in stat_df.columns or "outcome_over" not in stat_df.columns:
-        return rows
-    df = stat_df[["model_prob_over", "outcome_over"]].dropna()
-    if len(df) < 20:
-        return rows
-    bins = np.linspace(0, 1, n_bins + 1)
-    labels = [(bins[i] + bins[i + 1]) / 2 for i in range(n_bins)]
-    df["bin"] = pd.cut(df["model_prob_over"], bins=bins, labels=labels, include_lowest=True)
-    for center, grp in df.groupby("bin", observed=True):
-        rows.append({
-            "bin_center": round(float(center), 2),
-            "n": int(len(grp)),
-            "model_prob": round(float(grp["model_prob_over"].mean()), 4),
-            "empirical_freq": round(float(grp["outcome_over"].mean()), 4),
-            "calibration_error": round(float(abs(grp["model_prob_over"].mean() - grp["outcome_over"].mean())), 4),
-        })
-    return rows
-
-
-def compute_hit_rate_table(stat_df: pd.DataFrame, stat: str) -> list[dict]:
-    """For each market line, compute model accuracy and calibration."""
-    rows = []
-    lines = COMMON_LINES.get(stat, [])
-    if "pmf_json" not in stat_df.columns or f"actual_{stat}" not in stat_df.columns:
-        return rows
-
-    import json as _json
-    for line in lines:
-        subset = []
-        for _, r in stat_df.iterrows():
-            actual = r.get(f"actual_{stat}")
-            pmf_json = r.get("pmf_json")
-            if pd.isna(actual) or not pmf_json:
-                continue
-            try:
-                pmf_dict = _json.loads(pmf_json)
-                pmf = np.array([pmf_dict.get(str(k), 0.0) for k in range(max(int(k) for k in pmf_dict) + 1)])
-                pmf = pmf / pmf.sum()
-            except Exception:
-                continue
-            model_prob = _prob_over(pmf, line)
-            outcome = int(actual > line)
-            subset.append({"model_prob": model_prob, "outcome": outcome})
-
-        if not subset:
-            continue
-        sub = pd.DataFrame(subset)
-        n = len(sub)
-        model_avg = float(sub["model_prob"].mean())
-        actual_rate = float(sub["outcome"].mean())
-        # Brier score
-        brier = float(((sub["model_prob"] - sub["outcome"]) ** 2).mean())
-        rows.append({
-            "line": line,
-            "n": n,
-            "model_prob_avg": round(model_avg, 4),
-            "actual_hit_rate": round(actual_rate, 4),
-            "calibration_error": round(abs(model_avg - actual_rate), 4),
-            "brier_score": round(brier, 4),
-        })
-    return rows
-
-
-def build_markdown_report(metrics: list[dict], cal_curves: dict, hit_tables: dict, out_dir: Path) -> str:
     lines = [
-        "# WNBA PMF Model — Historical Review Package",
-        "",
-        "> Generated by `scripts/build_historical_review.py`  ",
-        f"> Based on walk-forward OOF (out-of-fold) validation  ",
-        "",
-        "## Overview",
-        "",
-        "This package documents model accuracy over the historical holdout window.",
-        "All metrics are computed on **out-of-fold** predictions — the model never",
-        "saw the test rows during training.",
-        "",
-        "## Per-Stat Summary Metrics",
-        "",
-        "| Stat | N | MAE | RMSE | Ignorance Score | Market Ign. | Delta |",
-        "|------|---|-----|------|----------------|-------------|-------|",
+        "| Stat | N | ECE | PIT KS | Mean Error |",
+        "|------|---|-----|--------|------------|",
     ]
-    for m in metrics:
-        mae = f"{m['mae']:.3f}" if m["mae"] is not None else "—"
-        rmse = f"{m['rmse']:.3f}" if m["rmse"] is not None else "—"
-        ign = f"{m['mean_ignorance_score']:.4f}" if m["mean_ignorance_score"] is not None else "—"
-        mkt = f"{m['market_ignorance_score']:.4f}" if m["market_ignorance_score"] is not None else "—"
-        delta = f"{m['ignorance_delta']:.4f}" if m["ignorance_delta"] is not None else "—"
-        lines.append(f"| {m['stat']} | {m['n_rows']} | {mae} | {rmse} | {ign} | {mkt} | {delta} |")
-
-    lines += [
-        "",
-        "**Ignorance Score** = log-loss in bits. Lower is better. Delta < 0 means model beats market.",
-        "",
-        "## Calibration Curves",
-        "",
-        "Reliability diagrams show model probability vs. actual frequency.",
-        "A perfectly calibrated model lies on the diagonal.",
-        "",
-    ]
-    for stat, curve in cal_curves.items():
-        if not curve:
-            continue
-        lines.append(f"### {stat.upper()}")
-        lines.append("")
-        lines.append("| Bin | N | Model Prob | Empirical Freq | Cal. Error |")
-        lines.append("|-----|---|-----------|----------------|------------|")
-        for row in curve:
-            lines.append(
-                f"| {row['bin_center']:.2f} | {row['n']} | "
-                f"{row['model_prob']:.3f} | {row['empirical_freq']:.3f} | {row['calibration_error']:.3f} |"
-            )
-        lines.append("")
-
-    lines += [
-        "## Hit Rate Tables",
-        "",
-        "Model over-probability vs. actual hit rate at common market lines.",
-        "",
-    ]
-    for stat, table in hit_tables.items():
-        if not table:
-            continue
-        lines.append(f"### {stat.upper()}")
-        lines.append("")
-        lines.append("| Line | N | Model P(over) | Actual Hit Rate | Cal. Error | Brier |")
-        lines.append("|------|---|--------------|----------------|------------|-------|")
-        for row in table:
-            lines.append(
-                f"| {row['line']} | {row['n']} | {row['model_prob_avg']:.3f} | "
-                f"{row['actual_hit_rate']:.3f} | {row['calibration_error']:.3f} | {row['brier_score']:.4f} |"
-            )
-        lines.append("")
-
-    lines += [
-        "## Methodology Notes",
-        "",
-        "- **OOF Protocol**: Strict chronological walk-forward validation with expanding window.",
-        "  Minimum 100 games training data before first prediction.",
-        "- **Calibration**: Role-aware isotonic regression on PIT (Probability Integral Transform) values.",
-        "  ECE gate: < 0.03. PIT KS gate: < 0.075.",
-        "- **Market Comparison**: Shin's method for implied probability extraction (no-vig).",
-        "  Log-loss (ignorance score) used per PenaltyBlog recommendation.",
-        "- **Minutes Model**: HistGradientBoosting with role-aware uncertainty.",
-        "- **Stat Models**: HGB rate models + hurdle models for sparse stats (stl, blk).",
-        "",
-    ]
+    for _, row in agg.iterrows():
+        lines.append(
+            f"| {row['stat']} | {int(row['n']):,} | "
+            f"{_fmt_float(row['ece'], 4)} | "
+            f"{_fmt_float(row['pit_ks'], 4)} | "
+            f"{_fmt_float(row['mean_error'], 4)} |"
+        )
     return "\n".join(lines)
+
+
+def _calibration_curve_summary(oof_raw_path: str, oof_cal_path: str) -> str:
+    """Compare ECE before vs. after isotonic calibration."""
+    rp, cp = Path(oof_raw_path), Path(oof_cal_path)
+    if not rp.exists():
+        return _pending()
+
+    try:
+        from wnba_props_model.models.simulation import json_to_pmf
+        from wnba_props_model.evaluation.diagnostics import calibration_report
+
+        def _load(path: Path) -> pd.DataFrame:
+            df = pd.read_parquet(path).copy()
+            if "outcome" not in df.columns and "actual_outcome" in df.columns:
+                df["outcome"] = df["actual_outcome"]
+            if "calibration_eligible" in df.columns:
+                df = df[df["calibration_eligible"] == True].copy()  # noqa: E712
+            if "pmf" not in df.columns and "pmf_json" in df.columns:
+                df["pmf"] = df["pmf_json"].map(json_to_pmf)
+            if "role_bucket" not in df.columns:
+                df["role_bucket"] = "all"
+            return df
+
+        raw_rep = calibration_report(_load(rp)).groupby("stat")["ece"].mean()
+        if cp.exists():
+            cal_rep = calibration_report(_load(cp)).groupby("stat")["ece"].mean()
+        else:
+            cal_rep = None
+
+        lines = [
+            "| Stat | Raw ECE | Calibrated ECE | Improvement |",
+            "|------|---------|----------------|-------------|",
+        ]
+        for stat in sorted(raw_rep.index):
+            raw_v = raw_rep.get(stat, np.nan)
+            cal_v = cal_rep.get(stat, np.nan) if cal_rep is not None else np.nan
+            imp = (raw_v - cal_v) if (not np.isnan(raw_v) and not np.isnan(cal_v)) else np.nan
+            lines.append(
+                f"| {stat} | {_fmt_float(raw_v, 4)} | "
+                f"{_fmt_float(cal_v, 4) if cal_rep is not None else '—'} | "
+                f"{_fmt_float(imp, 4)} |"
+            )
+        return "\n".join(lines)
+    except Exception as exc:
+        return _pending(f"Could not compute calibration curves: {exc}")
+
+
+def _market_summary(results_path: str, edges_path: str, lookback_days: int) -> str:
+    """Summarise market edge and CLV performance."""
+    rp = Path(results_path)
+    ep = Path(edges_path)
+
+    lines = []
+
+    if rp.exists():
+        try:
+            res = pd.read_parquet(rp)
+            if "game_date" in res.columns:
+                cutoff = (date.today() - timedelta(days=lookback_days)).isoformat()
+                res = res[res["game_date"].astype(str) >= cutoff]
+
+            n_total = len(res)
+            if n_total == 0:
+                lines.append("*No scored predictions in the lookback window yet.*")
+            else:
+                lines.append(f"**Scored predictions (last {lookback_days} days):** {n_total:,}")
+                if "clv" in res.columns:
+                    clv_valid = res["clv"].dropna()
+                    lines.append(f"**Open-line CLV (mean):** {clv_valid.mean():+.4f} ({len(clv_valid):,} bets)")
+                if "true_clv" in res.columns:
+                    tclv_valid = res["true_clv"].dropna()
+                    if len(tclv_valid):
+                        lines.append(f"**True CLV vs closing line (mean):** {tclv_valid.mean():+.4f} ({len(tclv_valid):,} bets)")
+                if "model_bin_logloss" in res.columns and "market_bin_logloss" in res.columns:
+                    valid = res.dropna(subset=["model_bin_logloss", "market_bin_logloss"])
+                    if len(valid):
+                        ll_delta = (valid["model_bin_logloss"] - valid["market_bin_logloss"]).mean()
+                        lines.append(f"**Log-loss delta vs market (mean):** {ll_delta:+.5f} (negative = model beats market)")
+        except Exception as exc:
+            lines.append(f"*Could not load results: {exc}*")
+    else:
+        lines.append(_pending("No scored predictions yet. CLV tracking starts after first live prediction day."))
+
+    if ep.exists():
+        try:
+            edges = pd.read_parquet(ep)
+            if not edges.empty:
+                lines.append(f"\n**Publishable edges in latest slate:** {len(edges):,}")
+                if "stat" in edges.columns:
+                    by_stat = edges.groupby("stat")["edge_over"].agg(["count", "mean"])
+                    lines.append("\n| Stat | # Edges | Mean Edge |")
+                    lines.append("|------|---------|-----------|")
+                    for stat, row in by_stat.iterrows():
+                        lines.append(f"| {stat} | {int(row['count'])} | {row['mean']:+.3f} |")
+        except Exception:
+            pass
+
+    return "\n".join(lines) if lines else _pending()
+
+
+def _sample_predictions(edges_path: str, n: int = 5) -> str:
+    """Show N sample predictions in human-readable format."""
+    ep = Path(edges_path)
+    if not ep.exists():
+        return _pending("No edge report yet — run the daily pipeline first.")
+
+    try:
+        df = pd.read_parquet(ep)
+        if df.empty:
+            return _pending("Edge report is empty.")
+
+        cols = [c for c in (
+            "player_name", "stat", "line", "model_prob_over",
+            "market_prob_over_no_vig", "edge_over", "pmf_mean",
+        ) if c in df.columns]
+
+        sample = df[cols].head(n)
+        lines = ["| " + " | ".join(cols) + " |",
+                 "|" + "|".join(["---"] * len(cols)) + "|"]
+        for _, row in sample.iterrows():
+            cells = []
+            for c in cols:
+                v = row[c]
+                if isinstance(v, float):
+                    cells.append(f"{v:.3f}")
+                else:
+                    cells.append(str(v))
+            lines.append("| " + " | ".join(cells) + " |")
+        return "\n".join(lines)
+    except Exception as exc:
+        return _pending(f"Could not load sample predictions: {exc}")
 
 
 @app.command()
 def main(
-    oof_scored: str = typer.Argument(..., help="Path to scored OOF parquet."),
+    report_date: str | None = typer.Option(None, help="ISO date for report title (default: today)."),
+    lookback_days: int = typer.Option(30, help="CLV lookback window in days."),
+    oof_path: str = typer.Option(_OOF_PATH),
+    oof_cal_path: str = typer.Option(_OOF_CAL_PATH),
+    results_path: str = typer.Option(_RESULTS_PATH),
+    edges_path: str = typer.Option(_EDGES_PATH),
     out_dir: str = typer.Option("artifacts/historical_review"),
-    n_calibration_bins: int = typer.Option(10),
-    docs_path: str = typer.Option("docs/HISTORICAL_REVIEW.md"),
 ) -> None:
-    """Build the historical review package."""
-    typer.echo(f"Loading OOF scored data: {oof_scored}")
-    oof = pd.read_parquet(oof_scored)
-    typer.echo(f"  Rows: {len(oof)}")
-
+    """Build a self-contained Markdown historical review report."""
+    report_date = report_date or date.today().isoformat()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    all_metrics = []
-    cal_curves: dict = {}
-    hit_tables: dict = {}
+    typer.echo("Building historical review report...")
 
-    for stat in STATS:
-        stat_df = oof[oof["stat"] == stat] if "stat" in oof.columns else oof
-        typer.echo(f"Processing {stat}: {len(stat_df)} rows")
+    oof_table = _oof_summary_table(oof_path)
+    cal_curves = _calibration_curve_summary(oof_path, oof_cal_path)
+    market_section = _market_summary(results_path, edges_path, lookback_days)
+    samples = _sample_predictions(edges_path)
 
-        metrics = compute_stat_metrics(stat_df, stat)
-        all_metrics.append(metrics)
+    report = f"""# WNBA Player Props PMF Model — Historical Review
+**Report Date:** {report_date}
+**Lookback Window:** {lookback_days} days
 
-        cal_curves[stat] = compute_calibration_curve(stat_df, n_calibration_bins)
-        hit_tables[stat] = compute_hit_rate_table(stat_df, stat)
+---
 
-    # Write JSON outputs
-    (out / "summary_metrics.json").write_text(json.dumps(all_metrics, indent=2))
-    (out / "calibration_curves.json").write_text(json.dumps(cal_curves, indent=2))
-    (out / "hit_rate_tables.json").write_text(json.dumps(hit_tables, indent=2))
+## 1. Model Overview
 
-    # Write full parquet
-    review_path = out / "historical_review.parquet"
-    oof.to_parquet(review_path, index=False)
+### What It Predicts
+Full probability mass functions (PMFs) for WNBA player prop markets across
+**7 direct stats** and **5 combination stats**:
 
-    # Build markdown report
-    report_md = build_markdown_report(all_metrics, cal_curves, hit_tables, out)
-    Path(docs_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(docs_path).write_text(report_md)
+- **Direct stats:** points (pts), rebounds (reb), assists (ast), 3-pointers made (fg3m),
+  steals (stl), blocks (blk), turnovers (turnover)
+- **Combo stats:** stocks (stl+blk), pts+ast, pts+reb, reb+ast, pts+reb+ast
 
-    typer.echo(f"\nHistorical review outputs:")
-    typer.echo(f"  Summary metrics → {out}/summary_metrics.json")
-    typer.echo(f"  Calibration curves → {out}/calibration_curves.json")
-    typer.echo(f"  Hit rate tables → {out}/hit_rate_tables.json")
-    typer.echo(f"  Full results → {review_path}")
-    typer.echo(f"  Report → {docs_path}")
+### Methodology
+- **Base model:** HistGradientBoosting regressor/classifier (HGB), one per stat.
+  Minutes prediction is separated from per-stat prediction (two-stage model).
+- **Hurdle model:** Sparse stats (blk) use a zero-inflated hurdle model.
+- **Bayesian shrinkage:** Small-sample players are shrunk toward hierarchical
+  Gamma-Poisson priors; shrinkage strength is learned per-stat from data.
+- **Calibration:** PenaltyBlog-style isotonic regression calibrators fitted on
+  strict chronological out-of-fold (OOF) predictions. One calibrator per
+  stat × role-bucket (starter/core/bench/fringe/inactive_risk).
+- **Combo PMFs:** Discrete convolution of base stat PMFs; Gaussian copula
+  correction for empirical correlations (e.g. pts/ast r≈0.45).
+- **Market comparison:** Shin's no-vig method for extracting true probabilities
+  from BDL over/under American odds. Edge = model prob − Shin prob.
 
-    # Print summary to console
-    typer.echo("\n=== Per-Stat Summary ===")
-    for m in all_metrics:
-        ign_str = f"{m['mean_ignorance_score']:.4f}" if m["mean_ignorance_score"] is not None else "N/A"
-        delta_str = f"{m['ignorance_delta']:.4f}" if m["ignorance_delta"] is not None else "N/A"
-        typer.echo(f"  {m['stat']:10s} MAE={m['mae'] or 'N/A':>7}  Ign={ign_str}  Δ={delta_str}")
+### Pipeline
+```
+Daily (9 AM ET):  BDL ingest → Features → HGB inference → Calibration
+                  → PMFs → Edge report → D+1 delivery
+Weekly (Mon):     Full OOF walk-forward → Fit calibrators → Gate check
+Nightly (2 AM):   Pull actuals → Score predictions → CLV tracking
+```
+
+---
+
+## 2. OOF Walk-Forward Calibration Metrics
+
+*Computed on calibration-eligible model_oof rows (excludes prior_only and DNP rows).
+ECE = Expected Calibration Error; PIT KS = Probability Integral Transform Kolmogorov-Smirnov.
+Gate thresholds: ECE < 0.03, PIT KS < 0.075, |mean_error| < 0.15.*
+
+{oof_table}
+
+---
+
+## 3. Calibration Curves (Before vs. After Isotonic Calibration)
+
+{cal_curves}
+
+---
+
+## 4. Market Performance (Last {lookback_days} Days)
+
+{market_section}
+
+---
+
+## 5. Known Limitations
+
+| Limitation | Details |
+|-----------|---------|
+| BDL API latency | Player props and injury data may lag 15–60 min from official announcements |
+| Injury reaction speed | Injury news from unofficial sources is not auto-ingested; use `apply_injury_news.py` for manual updates |
+| Small sample sizes | Early-season projections rely more heavily on priors; accuracy improves as season progresses |
+| Combo props | Calibrated on convolved OOF data; slightly wider calibration intervals than direct stats |
+| No play-by-play features | Current feature set uses game-level box scores; play-by-play shot quality / on-off splits not included |
+| New players (rookies) | Use league-average Gamma priors until ≥10 games played |
+| Minutes model | Minutes prediction is the largest source of PMF variance; injury/rest news dominates |
+
+---
+
+## 6. Sample Predictions (Latest Slate)
+
+{samples}
+
+---
+
+## 7. Forward Testing Guide
+
+After running for at least 7 days, check:
+
+```bash
+# View CLV report
+python scripts/generate_clv_report.py \\
+  --results data/clv_tracking/results.parquet \\
+  --lookback-days 7 \\
+  --out-dir artifacts/audits
+
+# Check calibration drift
+python scripts/check_calibration_drift.py \\
+  --scored-predictions data/clv_tracking/drift_window.parquet
+
+# Market superiority gate (informational)
+python scripts/verify_gates.py market \\
+  data/clv_tracking/results.parquet --min-rows 50
+```
+
+Key metrics to track:
+- `mean_true_clv > 0` per stat (model is finding real edge vs closing line)
+- `logloss_delta < 0` per stat (model beats market log-loss)
+- ECE drift stays below 0.06 (calibrators are still accurate)
+
+---
+
+*Generated by `scripts/build_historical_review.py` on {report_date}.*
+"""
+
+    out_path = out / f"review_{report_date}.md"
+    out_path.write_text(report, encoding="utf-8")
+    typer.echo(f"Historical review report → {out_path}")
 
 
 if __name__ == "__main__":
