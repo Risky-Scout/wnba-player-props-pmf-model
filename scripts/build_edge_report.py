@@ -42,8 +42,22 @@ def main(
     edge_threshold: float = typer.Option(0.04, help="Minimum |edge| to publish (default 4pp)."),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
+    max_shin_z: float = typer.Option(
+        0.06,
+        help=(
+            "Shin-z soft filter threshold. Edges where shin_z > max_shin_z are flagged as "
+            "'high_adversity' (sharp market, higher adverse-selection risk) but NOT removed. "
+            "Lower z = softer market = better for retail bettor. Default 0.06."
+        ),
+    ),
 ) -> None:
-    """Compare model PMFs vs. BDL market lines using Shin no-vig."""
+    """Compare model PMFs vs. BDL market lines using Shin no-vig.
+
+    Edges are tiered by Shin-z (market sharpness proxy):
+    - shin_z <= max_shin_z  → confidence_tier = 'standard'   (softer market)
+    - shin_z > max_shin_z   → confidence_tier = 'high_adversity' (sharp market — flagged)
+    - shin_z is None/NaN    → confidence_tier = 'unknown'
+    """
     today = game_date or date.today().isoformat()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -83,16 +97,37 @@ def main(
             merge_col = pmfs_df[["player_id", "game_id", "stat", col]].drop_duplicates()
             comp = comp.merge(merge_col, on=["player_id", "game_id", "stat"], how="left")
 
+    # ── Shin-z tiering ────────────────────────────────────────────────────────
+    # Low shin_z = soft market (recreational / low-limit book).
+    # High shin_z = sharp market (lots of informed money, higher adverse selection).
+    # Edges in sharp markets are NOT removed but are flagged for lower-confidence
+    # interpretation by downstream consumers.
+    if "shin_z" in comp.columns:
+        def _tier(z):
+            if pd.isna(z):
+                return "unknown"
+            return "standard" if float(z) <= max_shin_z else "high_adversity"
+        comp["confidence_tier"] = comp["shin_z"].map(_tier)
+    else:
+        comp["confidence_tier"] = "unknown"
+
     comp_path = out / "market_comparison.parquet"
     comp.to_parquet(comp_path, index=False)
     typer.echo(f"Wrote market_comparison → {comp_path} ({len(comp):,} rows)")
 
-    # Publishable edges: |edge| >= threshold on either side
+    # Publishable edges: |edge| >= threshold on either side (all tiers included)
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     edges = edges.sort_values("edge_over", key=np.abs, ascending=False)
     edges_path = out / "publishable_edges.parquet"
     edges.to_parquet(edges_path, index=False)
-    typer.echo(f"Wrote publishable_edges → {edges_path} ({len(edges):,} rows at |edge| >= {edge_threshold:.2%})")
+
+    standard_edges = int((edges.get("confidence_tier", pd.Series(dtype=str)) == "standard").sum()) if "confidence_tier" in edges.columns else len(edges)
+    high_adv_edges = int((edges.get("confidence_tier", pd.Series(dtype=str)) == "high_adversity").sum()) if "confidence_tier" in edges.columns else 0
+
+    typer.echo(
+        f"Wrote publishable_edges → {edges_path} ({len(edges):,} rows at |edge| >= {edge_threshold:.2%}) "
+        f"[{standard_edges} standard | {high_adv_edges} high_adversity (shin_z>{max_shin_z})]"
+    )
 
     # Audit JSON
     audit = {
@@ -100,8 +135,11 @@ def main(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "no_vig_method": "shin",
         "edge_threshold": edge_threshold,
+        "max_shin_z_threshold": max_shin_z,
         "total_market_rows": len(comp),
         "publishable_edge_rows": len(edges),
+        "standard_edge_rows": standard_edges,
+        "high_adversity_edge_rows": high_adv_edges,
         "stats_with_edges": sorted(edges["stat"].unique().tolist()) if len(edges) else [],
         "mean_abs_edge": float(edges["edge_over"].abs().mean()) if len(edges) else None,
         "max_edge": float(edges["edge_over"].abs().max()) if len(edges) else None,

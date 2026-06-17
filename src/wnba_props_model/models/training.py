@@ -28,6 +28,7 @@ import pandas as pd
 from sklearn.preprocessing import OrdinalEncoder
 
 from wnba_props_model.features.feature_contract import FORBIDDEN_MODEL_FEATURES
+from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket
 from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel
 from wnba_props_model.models.minutes_model import MinutesModel
 from wnba_props_model.models.pmf_utils import (
@@ -444,7 +445,20 @@ def generate_fold_pmfs(
 
     if not all_frames:
         return pd.DataFrame()
-    return pd.concat(all_frames, ignore_index=True)
+
+    result = pd.concat(all_frames, ignore_index=True)
+
+    # Attach ex-ante role_bucket (required for per-role calibrator fitting).
+    # Without this, fit_calibrators() defaults every OOF row to "all" and the
+    # role-aware calibrators are never trained — only a global calibrator ships.
+    if "minutes_mean" in result.columns and "role_bucket" not in result.columns:
+        unique_pg = result[["player_id", "game_id", "minutes_mean"]].drop_duplicates()
+        unique_pg = add_ex_ante_role_bucket(unique_pg, minutes_col="minutes_mean")
+        rb_map = unique_pg.set_index(["player_id", "game_id"])["role_bucket"]
+        result["role_bucket"] = result.set_index(["player_id", "game_id"]).index.map(rb_map).values
+        result["role_bucket"] = result["role_bucket"].fillna("all")
+
+    return result
 
 
 # ---------------------------------------------------------------------------

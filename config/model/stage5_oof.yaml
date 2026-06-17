@@ -48,15 +48,17 @@ pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
 # Exponential decay sample weighting (same halflife as Stage 4)
 sample_weight_halflife_days: 180
 
-# HistGradientBoosting (slightly lighter than Stage 4 for repeated fold training)
+# HistGradientBoosting — 100 iterations balances fold-training speed with
+# matching production model bias closely enough that OOF-fitted calibrators
+# transfer correctly to Stage 4 predictions (Stage 4 uses 200 iterations).
 hgb_regressor:
-  max_iter: 50
+  max_iter: 100
   max_leaf_nodes: 31
   learning_rate: 0.1
   min_samples_leaf: 20
 
 hgb_classifier:
-  max_iter: 50
+  max_iter: 100
   max_leaf_nodes: 31
   learning_rate: 0.1
   min_samples_leaf: 20

@@ -69,6 +69,9 @@ jobs:
           fi
           # Record today for data ingestion
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          # Record yesterday — this is the game date whose closing lines we snapshot
+          # so that post_game_scoring.yml can download them for true CLV computation.
+          echo "yesterday=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Pull BDL history (current season)
         env:
@@ -137,36 +140,30 @@ jobs:
             --out artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json
         continue-on-error: true
 
-      - name: Snapshot closing-line props (post-tip pull for true CLV)
-        # Pulls BDL props again ~3h after the morning run to capture closing lines.
-        # True CLV = model probability vs. CLOSING line (not open line).
-        # If run before tip-off, data is the same as open-line — no harm.
+      - name: Snapshot closing-line props (for yesterday's games)
+        # Snapshot BDL props for YESTERDAY's games at morning run time.
+        # These become the closing lines used by post_game_scoring.yml tonight
+        # when it downloads this artifact and computes true CLV.
+        # At 9 AM ET the day-of lines are the closest available proxy for closing.
         run: |
           python scripts/pull_closing_lines.py \
-            --game-date ${{ steps.date.outputs.today }} \
+            --game-date ${{ steps.date.outputs.yesterday }} \
             --out-dir artifacts/audits \
             --api-key "${{ secrets.BDL_API_KEY }}"
         continue-on-error: true
 
-      - name: Score yesterday's predictions (post-game CLV)
-        run: |
-          python scripts/score_daily_predictions.py \
-            --predictions-dir deliveries \
-            --game-date ${{ steps.date.outputs.today }} \
-            --features-wide data/processed/wnba_player_game_features_wide.parquet \
-            --closing-lines artifacts/audits/closing_lines_${{ steps.date.outputs.today }}.parquet \
-            --out-dir artifacts/audits
-        continue-on-error: true
-
       - name: Check calibration drift
         # Compares last 100 scored predictions per stat against ECE/mean_error thresholds.
+        # Reads from data/clv_tracking/drift_window.parquet — a rolling 300-row-per-stat
+        # window WITH pmf_json written by post_game_scoring.yml. ECE computation requires
+        # the full PMF array so we cannot use results.parquet (which drops pmf_json).
         # Soft drift (ECE>0.06): warning logged, pipeline continues.
         # Hard drift (ECE>0.12): exit 1, triggers auto-refit below.
         id: drift-check
         continue-on-error: true
         run: |
           python scripts/check_calibration_drift.py \
-            --scored-predictions artifacts/audits/scored_predictions.parquet \
+            --scored-predictions data/clv_tracking/drift_window.parquet \
             --thresholds-soft-ece 0.06 \
             --thresholds-hard-ece 0.12 \
             --out artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
@@ -209,13 +206,12 @@ jobs:
             deliveries/next_game/polymarket_sheet_${{ steps.date.outputs.target_date }}.csv
           retention-days: 30
 
-      - name: Upload drift/scoring audits
+      - name: Upload drift/closing-line audits
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: drift-audit-${{ steps.date.outputs.today }}-${{ github.run_id }}
           path: |
             artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
-            artifacts/audits/scored_predictions.parquet
-            artifacts/audits/closing_lines_${{ steps.date.outputs.today }}.parquet
+            artifacts/audits/closing_lines_${{ steps.date.outputs.yesterday }}.parquet
           retention-days: 14

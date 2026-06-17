@@ -120,8 +120,12 @@ def main(
     if market_comparison and Path(market_comparison).exists():
         mkt = pd.read_parquet(market_comparison)
         if not mkt.empty and "market_prob_over_no_vig" in mkt.columns:
-            mkt_sub = mkt[["game_id", "player_id", "stat", "line",
-                            "market_prob_over_no_vig", "model_prob_over"]].copy()
+            # Include vendor and shin_z so per-book CLV analysis works downstream.
+            _optional_mkt_cols = ["vendor", "shin_z"]
+            _mkt_cols = ["game_id", "player_id", "stat", "line",
+                         "market_prob_over_no_vig", "model_prob_over"] + \
+                        [c for c in _optional_mkt_cols if c in mkt.columns]
+            mkt_sub = mkt[_mkt_cols].copy()
             joined = joined.merge(mkt_sub, on=["game_id", "player_id", "stat"], how="left")
             hit = (joined["actual_outcome"].astype(float) > joined["line"].astype(float))
             push = (joined["actual_outcome"].astype(float) == joined["line"].astype(float))
@@ -194,13 +198,13 @@ def main(
     joined["game_date"] = today
     joined["scored_at"] = datetime.now(timezone.utc).isoformat()
 
-    # Save today's scored rows
+    # Save today's scored rows (named by game date for easy lookup)
     today_path = out / f"scored_{today}.parquet"
     drop_cols = [c for c in ("pmf_json",) if c in joined.columns]
     joined.drop(columns=drop_cols).to_parquet(today_path, index=False)
     typer.echo(f"Wrote today's scored rows → {today_path} ({len(joined):,} rows)")
 
-    # Append to cumulative results
+    # Append to cumulative results (no pmf_json — keeps file small)
     results_path = Path(results_file)
     results_path.parent.mkdir(parents=True, exist_ok=True)
     if results_path.exists():
@@ -212,6 +216,32 @@ def main(
         combined = joined.drop(columns=drop_cols)
     combined.to_parquet(results_path, index=False)
     typer.echo(f"Updated cumulative results → {results_path} ({len(combined):,} total rows)")
+
+    # Write rolling drift-window file WITH pmf_json so check_calibration_drift.py
+    # can compute ECE from raw PMF arrays (not just aggregate scores).
+    # Keeps last 300 rows per stat to bound file size.
+    if "pmf_json" in joined.columns:
+        _DRIFT_WINDOW = 300
+        drift_frames = []
+        for _stat, _grp in joined.groupby("stat"):
+            drift_frames.append(_grp.tail(_DRIFT_WINDOW))
+        drift_df = pd.concat(drift_frames, ignore_index=True) if drift_frames else joined
+        drift_path = results_path.parent / "drift_window.parquet"
+        # Merge with prior drift window to maintain rolling history
+        if drift_path.exists():
+            try:
+                prior_drift = pd.read_parquet(drift_path)
+                prior_drift = prior_drift[prior_drift["game_date"] != today]
+                drift_df = pd.concat([prior_drift, drift_df], ignore_index=True)
+                # Re-trim after merge
+                trimmed = []
+                for _stat, _grp in drift_df.groupby("stat"):
+                    trimmed.append(_grp.tail(_DRIFT_WINDOW))
+                drift_df = pd.concat(trimmed, ignore_index=True) if trimmed else drift_df
+            except Exception:
+                pass
+        drift_df.to_parquet(drift_path, index=False)
+        typer.echo(f"Updated drift window → {drift_path} ({len(drift_df):,} rows with pmf_json)")
 
 
 if __name__ == "__main__":

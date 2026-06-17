@@ -25,7 +25,10 @@ cal_dir: artifacts/models/calibration
 # No-vig extraction method (Shin recommended per PenaltyBlog)
 no_vig_method: shin
 
-# Stats for which calibrators are fit
+# Stats for which calibrators are fit (direct + combo)
+# Combo stats (stocks, pts_ast, pts_reb, reb_ast, pts_reb_ast) use global-only
+# (role_bucket=all) calibration with a looser ECE gate since their PMFs are
+# derived by convolution and are already near-calibrated when base stats are calibrated.
 stats:
   - pts
   - reb
@@ -34,3 +37,13 @@ stats:
   - stl
   - blk
   - turnover
+
+combo_stats:
+  - stocks
+  - pts_ast
+  - pts_reb
+  - reb_ast
+  - pts_reb_ast
+
+# Looser ECE threshold for combo stats (convolution-derived PMFs)
+combo_ece_threshold: 0.06

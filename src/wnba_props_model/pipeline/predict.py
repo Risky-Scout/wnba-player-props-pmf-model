@@ -245,7 +245,7 @@ def predict_player_pmfs(
     cal_dir: str | Path | None = "artifacts/models/calibration",
     apply_calibration: bool = True,
     apply_shrinkage: bool = True,
-    shrinkage_k: float = 15.0,
+    shrinkage_k: float | None = None,
 ) -> pd.DataFrame:
     """Generate calibrated PMFs for all players in feature_df.
 
@@ -311,12 +311,15 @@ def predict_player_pmfs(
         logger.info("Added %d combo PMF rows (%s)", len(combo_rows),
                     sorted(combo_rows["stat"].unique().tolist()))
 
-    # Apply PenaltyBlog-style Bayesian shrinkage for small-sample players
+    # Apply PenaltyBlog-style Bayesian shrinkage for small-sample players.
+    # k=None lets apply_bayesian_shrinkage use its per-stat learned Gamma prior
+    # (hierarchical Bayes); k=None is now the default so the data drives shrinkage
+    # strength instead of a fixed value that ignores inter-stat variance differences.
     if apply_shrinkage:
         pmfs_long = apply_bayesian_shrinkage(
             pmfs_long,
             features=feature_df,
-            k=shrinkage_k,
+            k=shrinkage_k,  # None → use per-stat Gamma prior.beta
         )
 
     if apply_calibration and cal_dir is not None:

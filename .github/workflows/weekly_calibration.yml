@@ -94,28 +94,39 @@ jobs:
       - name: Verify calibration gates (calibrated OOF — strict)
         # Post-calibration gate: ECE<0.03, PIT KS<0.075, |mean_error|<0.15.
         # Checked on CALIBRATED predictions so the gate is meaningful.
-        # Non-fatal on first model generation — tighten to fatal once model matures
-        # by removing continue-on-error.
-        continue-on-error: true
+        # Fatal: if this fails, the new calibrators are NOT promoted to production.
+        # The previous week's calibrators (downloaded at the top of the daily pipeline)
+        # remain active, preventing uncalibrated predictions from shipping.
+        id: cal-gate
         run: |
           python scripts/verify_gates.py calibration \
             data/oof/oof_player_stat_pmfs_calibrated.parquet \
             --config config/model/stage6_calibration.yaml
 
-      - name: Cache calibrators (shared across workflows)
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: artifacts/models/calibration/
-          key: calibrators-latest-${{ github.run_id }}
-
-      - name: Upload calibrators (always)
-        if: always()
+      - name: Promote calibrators (gate passed)
+        # Only upload new calibrators when the post-cal gate passes.
+        if: steps.cal-gate.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: calibrators-latest
           path: artifacts/models/calibration/
           retention-days: 90
+
+      - name: Cache calibrators (gate passed)
+        if: steps.cal-gate.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/models/calibration/
+          key: calibrators-latest-${{ github.run_id }}
+
+      - name: Calibration gate failed — preserving previous calibrators
+        # When the post-cal gate fails, log the failure clearly so it is visible
+        # in the Actions UI but do NOT upload the failing calibrators.
+        # The daily pipeline will continue using the last passing calibrators.
+        if: steps.cal-gate.outcome == 'failure'
+        run: |
+          echo "::warning title=Calibration Gate Failed::Post-cal gate failed. New calibrators NOT promoted. Previous calibrators remain active."
+          echo "Gate failed on $(date -u +%Y-%m-%d). Check artifacts/audits/stage5_oof_summary.md for details."
 
       - name: Upload OOF audit artifacts
         uses: actions/upload-artifact@v4

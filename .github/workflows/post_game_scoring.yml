@@ -50,6 +50,26 @@ jobs:
           path: deliveries/scored_day
         continue-on-error: true
 
+      - name: Download closing lines for scored game date
+        # The daily pipeline snapshots BDL props for yesterday's games each morning.
+        # We need those lines here to compute true CLV (model prob vs. closing price).
+        uses: actions/download-artifact@v4
+        with:
+          name: drift-audit-*
+          path: artifacts/closing_lines_tmp
+        continue-on-error: true
+
+      - name: Locate closing lines parquet
+        id: closing
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          # Try artifact download path first, then fallback to a fixed name
+          CL=$(find artifacts/closing_lines_tmp -name "closing_lines_${GAME_DATE}.parquet" 2>/dev/null | head -1)
+          if [ -z "$CL" ]; then
+            CL="artifacts/audits/closing_lines_${GAME_DATE}.parquet"
+          fi
+          echo "path=$CL" >> $GITHUB_OUTPUT
+
       - name: Pull BDL actuals
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -61,14 +81,19 @@ jobs:
           python scripts/build_canonical_tables.py \
             --raw-dir data/raw/bdl --out-dir data/processed
 
-      - name: Score predictions vs. actuals
+      - name: Score predictions vs. actuals (with market lines + closing lines)
+        # This is the single authoritative CLV scoring path.
+        # Computes open-line CLV (vs. morning market price) and true CLV
+        # (vs. closing lines) for every scored bet.
         run: |
           python scripts/score_daily_predictions.py \
             --predictions deliveries/scored_day/full_pmfs_wide.parquet \
             --market-comparison deliveries/scored_day/market_comparison.parquet \
             --actuals data/processed/wnba_player_game_stats.parquet \
             --game-date ${{ steps.date.outputs.game_date }} \
-            --out-dir data/clv_tracking
+            --closing-lines "${{ steps.closing.outputs.path }}" \
+            --out-dir data/clv_tracking \
+            --results-file data/clv_tracking/results.parquet
         continue-on-error: true
 
       - name: Generate CLV report
@@ -78,6 +103,19 @@ jobs:
             --lookback-days 30 \
             --out-dir artifacts/audits \
             --report-date ${{ steps.date.outputs.game_date }}
+        continue-on-error: true
+
+      - name: Market superiority gate (informational)
+        # Asserts mean_true_clv > 0 and logloss_delta < 0 per stat using UCB95 bootstrap.
+        # INFORMATIONAL until 300+ samples per stat accumulate (first full WNBA season).
+        # Promote to --hard after first season by removing continue-on-error and passing --hard.
+        # Reads from results.parquet — must have model_bin_logloss + market_bin_logloss cols
+        # (written by score_daily_predictions.py when --market-comparison is passed).
+        run: |
+          python scripts/verify_gates.py market \
+            data/clv_tracking/results.parquet \
+            --min-rows 100 \
+            --informational
         continue-on-error: true
 
       - name: Upload CLV outputs

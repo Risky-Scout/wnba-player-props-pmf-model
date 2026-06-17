@@ -118,27 +118,109 @@ def calibration(
     raise typer.Exit(0)
 
 
+def _prepare_market_loss_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalise scored results.parquet into the format expected by market_superiority_report.
+
+    Accepts either:
+    - Already-prepared data with event_logloss_delta / brier_delta columns.
+    - Raw scored data with model_bin_logloss / market_bin_logloss columns
+      (output of score_daily_predictions.py).
+
+    Brier score delta is approximated from the binary hit_result and model/market
+    probabilities: brier = (p - outcome)^2, delta = model_brier - market_brier.
+    """
+    out = df.copy()
+
+    # Compute deltas if not already present
+    if "event_logloss_delta" not in out.columns:
+        if "model_bin_logloss" in out.columns and "market_bin_logloss" in out.columns:
+            out["event_logloss_delta"] = out["model_bin_logloss"] - out["market_bin_logloss"]
+        else:
+            out["event_logloss_delta"] = float("nan")
+
+    if "brier_delta" not in out.columns:
+        if all(c in out.columns for c in ("model_prob_over", "market_prob_over_no_vig", "hit_result")):
+            model_brier = (out["model_prob_over"] - out["hit_result"].astype(float)) ** 2
+            market_brier = (out["market_prob_over_no_vig"] - out["hit_result"].astype(float)) ** 2
+            out["brier_delta"] = model_brier - market_brier
+        else:
+            out["brier_delta"] = float("nan")
+
+    if "ignorance_score_delta" not in out.columns:
+        if "model_ignorance_score" in out.columns and "market_ignorance_score" in out.columns:
+            out["ignorance_score_delta"] = out["model_ignorance_score"] - out["market_ignorance_score"]
+
+    if "role_bucket" not in out.columns:
+        out["role_bucket"] = "all"
+
+    # Only rows with valid market comparisons
+    out = out.dropna(subset=["event_logloss_delta", "brier_delta"])
+    return out
+
+
 @app.command()
 def market(
-    loss_rows: str = typer.Argument(..., help="Path to event loss rows parquet."),
-    min_rows: int = typer.Option(100, help="Minimum rows to consider a stat/role eligible."),
+    loss_rows: str = typer.Argument(..., help="Path to scored results parquet (results.parquet or pre-computed loss rows)."),
+    min_rows: int = typer.Option(100, help="Minimum rows to consider a stat/role eligible (default 100; use 300 for hard gate)."),
+    informational: bool = typer.Option(
+        True,
+        "--informational/--hard",
+        help="Informational mode: report gate status but exit 0 even on failure (default). "
+             "Use --hard to make gate failures exit 1 once 300+ samples exist per stat.",
+    ),
 ) -> None:
-    """Verify market superiority gate (model must beat no-vig market on logloss + Brier)."""
+    """Verify market superiority gate (model must beat no-vig market on logloss + Brier).
+
+    Informational mode (default): prints the gate report but always exits 0.
+    Hard mode (--hard): exits 1 if any eligible stat fails the certified_pass test.
+
+    Certified pass requires (per PenaltyBlog / UCB95 bootstrap):
+    - event_logloss_delta UCB95 < -0.0025  (model log-loss reliably below market)
+    - brier_delta UCB95 < -0.0010          (model Brier score reliably below market)
+    with min_rows qualifying predictions for that stat/role.
+    """
     df = pd.read_parquet(loss_rows)
+    df = _prepare_market_loss_rows(df)
+
+    if df.empty:
+        typer.echo("[MARKET GATE] No valid market comparison rows — insufficient data. Skipping gate.")
+        raise typer.Exit(0)
+
     rep = market_superiority_report(df, min_rows=min_rows)
 
-    typer.echo("\n=== Market Superiority Report ===")
+    typer.echo("\n=== Market Superiority Gate Report ===")
     typer.echo(rep.to_string(index=False))
 
     eligible = rep[rep["eligible"]]
-    if len(eligible) and not eligible["certified_pass"].all():
-        failed = eligible[~eligible["certified_pass"]][["stat", "role_bucket", "event_logloss_delta_ucb95", "brier_delta_ucb95"]]
-        typer.echo(f"\n[GATE FAIL] Market superiority not certified for {len(failed)} stat/role(s):")
-        typer.echo(failed.to_string(index=False))
-        raise typer.Exit(1)
+    total_rows = int(rep["n"].sum())
 
-    typer.echo("\n[GATE PASS] Market superiority certified.")
-    raise typer.Exit(0)
+    if len(eligible) == 0:
+        typer.echo(
+            f"\n[MARKET GATE] Informational — only {total_rows:,} total scored rows "
+            f"({min_rows} per stat required). Accumulating data."
+        )
+        raise typer.Exit(0)
+
+    failing = eligible[~eligible["certified_pass"]]
+
+    if informational:
+        # Always exit 0 in informational mode — annotation only
+        if len(failing):
+            typer.echo(
+                f"\n[MARKET GATE] ⚠ Informational ({len(failing)} stat(s) not yet certified):"
+            )
+            typer.echo(failing[["stat", "role_bucket", "n", "event_logloss_delta_mean", "event_logloss_delta_ucb95"]].to_string(index=False))
+            typer.echo("\nPromote to --hard gate once 300+ samples exist per stat and first full season completes.")
+        else:
+            typer.echo("\n[MARKET GATE] ✓ All eligible stats certified (informational).")
+        raise typer.Exit(0)
+    else:
+        if len(failing):
+            typer.echo(f"\n[GATE FAIL] Market superiority not certified for {len(failing)} stat/role(s):")
+            typer.echo(failing[["stat", "role_bucket", "event_logloss_delta_ucb95", "brier_delta_ucb95"]].to_string(index=False))
+            raise typer.Exit(1)
+        typer.echo("\n[GATE PASS] Market superiority certified.")
+        raise typer.Exit(0)
 
 
 if __name__ == "__main__":
