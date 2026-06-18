@@ -13,7 +13,12 @@ def _make_train_data(n: int = 400, seed: int = 0) -> tuple:
         "player_minutes_mean_l5": rng.uniform(15, 35, n),
     })
     y = pd.Series(rng.integers(0, 25, n).astype(float))
+    # Include player_id and actual_pts so the Gamma-Poisson prior is actually fitted
+    # (without these, compute_league_priors_from_data falls back to None and the
+    # ensemble silently reduces to pure HGB — this tests the full prior path).
     ctx = pd.DataFrame({
+        "player_id": rng.integers(1, 30, n),
+        "actual_pts": rng.integers(0, 25, n).astype(float),
         "role_bucket": ["starter"] * n,
         "actual_minutes": rng.uniform(15, 35, n),
         "player_pts_l5_support": rng.integers(0, 10, n).astype(float),
