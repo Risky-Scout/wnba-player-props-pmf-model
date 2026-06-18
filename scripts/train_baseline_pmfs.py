@@ -241,7 +241,7 @@ def train(
     print(f"  Sigma buckets: {min_summary['n_sigma_buckets']}")
 
     # Minutes train predictions for audit
-    y_min_pred, _ = minutes_mdl.predict(X_all, wide)
+    y_min_pred, _, _p_dnp_audit = minutes_mdl.predict(X_all, wide)
     min_residuals = y_minutes.values - y_min_pred
     min_mae = float(np.abs(min_residuals).mean())
     min_rmse = float(np.sqrt((min_residuals ** 2).mean()))

@@ -146,10 +146,11 @@ class MinutesModel:
             raise RuntimeError("MinutesModel not fitted")
         X_aligned = X.reindex(columns=self._usable_cols)
         clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
+        _qm = getattr(self, "_quantile_models", {}) or {}
         cols = []
         for q in _QUANTILES:
-            if q in self._quantile_models:
-                raw = self._quantile_models[q].predict(X_aligned)
+            if q in _qm:
+                raw = _qm[q].predict(X_aligned)
             else:
                 raw = self._model.predict(X_aligned)  # fallback
             cols.append(np.clip(raw, 0.0, clip_max))
@@ -184,10 +185,11 @@ class MinutesModel:
         min_sigma = self.cfg.get("min_minutes_sigma", 3.0)
         unc_mult  = self.cfg.get("uncertain_sigma_multiplier", 1.5)
 
-        if self._quantile_models:
+        _qm = getattr(self, "_quantile_models", {}) or {}
+        if _qm:
             clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
-            q25_pred = np.clip(self._quantile_models[0.25].predict(X), 0.0, clip_max)
-            q75_pred = np.clip(self._quantile_models[0.75].predict(X), 0.0, clip_max)
+            q25_pred = np.clip(_qm[0.25].predict(X), 0.0, clip_max)
+            q75_pred = np.clip(_qm[0.75].predict(X), 0.0, clip_max)
             sigmas = np.maximum((q75_pred - q25_pred) / 1.35, min_sigma)
         else:
             # Legacy fallback: role-stratified residual sigma
@@ -208,8 +210,9 @@ class MinutesModel:
             sigmas = np.where(uncertain_mask, sigmas * unc_mult, sigmas)
 
         # --- P(DNP) ----------------------------------------------------------
-        if self._dnp_model is not None:
-            p_dnp = self._dnp_model.predict_proba(X)[:, 1].astype(float)
+        _dnp = getattr(self, "_dnp_model", None)
+        if _dnp is not None:
+            p_dnp = _dnp.predict_proba(X)[:, 1].astype(float)
         else:
             p_dnp = np.zeros(len(y_pred), dtype=float)
 
