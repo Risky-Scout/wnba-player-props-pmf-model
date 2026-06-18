@@ -217,11 +217,13 @@ def train_fold(
         else:
             # Pass context_df so StatRateModel can compute per-role dispersion.
             played_ctx = train_wide[played_mask].reset_index(drop=True)
+            # Merge global config with per-stat overrides (stat_overrides.{stat})
+            stat_cfg = {**cfg, **cfg.get("stat_overrides", {}).get(stat, {})}
             if cfg.get("use_log_linear", False):
-                m = LogLinearStatModel(stat, cfg)
+                m = LogLinearStatModel(stat, stat_cfg)
                 m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             else:
-                m = StatRateModel(stat, cfg)
+                m = StatRateModel(stat, stat_cfg)
                 m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             stat_models[stat] = m
             summaries[stat] = {"stat": stat, "model_type": type(m).__name__}

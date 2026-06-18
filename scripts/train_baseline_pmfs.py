@@ -159,6 +159,15 @@ def train(
     audit_out: Path = typer.Option(
         Path("artifacts/audits/stage4_training_audit.json"), "--audit-out"
     ),
+    time_decay_xi: float | None = typer.Option(
+        None,
+        "--time-decay-xi",
+        help=(
+            "Dixon-Coles decay xi: sample_weight = exp(-xi * days_ago). "
+            "Overrides sample_weight_halflife_days from config when provided. "
+            "At xi=0.003, a game 180 days ago gets weight exp(-0.54)=0.58 vs yesterday=1.0."
+        ),
+    ),
 ) -> None:
     t0 = time.time()
     print("=" * 70)
@@ -196,15 +205,25 @@ def train(
     # 3b. Temporal sample weights (exponential decay)
     # ------------------------------------------------------------------
     sample_weight: np.ndarray | None = None
-    halflife = cfg.get("sample_weight_halflife_days", None)
-    if halflife and "game_date" in wide.columns:
+    if "game_date" in wide.columns:
         cutoff = pd.to_datetime(wide["game_date"]).max()
         days_ago = (cutoff - pd.to_datetime(wide["game_date"])).dt.days.fillna(0)
-        sw = np.exp(-np.log(2) / halflife * days_ago.values)
-        sw = sw / sw.mean()
-        sample_weight = sw.astype(np.float64)
-        print(f"\nTemporal weighting: halflife={halflife}d, "
-              f"weight range [{sample_weight.min():.3f}, {sample_weight.max():.3f}]")
+
+        if time_decay_xi is not None:
+            # Dixon-Coles style: weight = exp(-xi * days_ago)
+            sw = np.exp(-time_decay_xi * days_ago.values)
+            sw = sw / sw.mean()
+            sample_weight = sw.astype(np.float64)
+            print(f"\nTemporal weighting (Dixon-Coles xi={time_decay_xi}): "
+                  f"weight range [{sample_weight.min():.3f}, {sample_weight.max():.3f}]")
+        else:
+            halflife = cfg.get("sample_weight_halflife_days", None)
+            if halflife:
+                sw = np.exp(-np.log(2) / halflife * days_ago.values)
+                sw = sw / sw.mean()
+                sample_weight = sw.astype(np.float64)
+                print(f"\nTemporal weighting: halflife={halflife}d, "
+                      f"weight range [{sample_weight.min():.3f}, {sample_weight.max():.3f}]")
 
     # ------------------------------------------------------------------
     # 4. Train minutes model

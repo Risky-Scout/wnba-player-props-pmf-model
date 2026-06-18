@@ -33,6 +33,62 @@ from wnba_props_model.models.simulation import json_to_pmf, normalize_pmf
 
 app = typer.Typer(add_completion=False)
 
+_IS_DELTA_FLAG_THRESHOLD = 0.0  # IS delta > 0 → market is better → flag for improvement
+
+
+def _print_rolling_is_summary(combined: pd.DataFrame, window_days: int = 30) -> None:
+    """Print 30-day rolling Ignorance Score delta vs market.
+
+    IS delta = model_ignorance_score - market_ignorance_score
+    Negative delta = model better (lower IS = sharper forecast).
+    Positive delta = market better (flag for improvement).
+
+    Example output:
+      Model vs Market (last 30 days):
+        pts:      IS delta = -0.0034  (model better)   n=847
+        reb:      IS delta = -0.0021  (model better)   n=821
+        turnover: IS delta = +0.0012  (market better)  n=756  ← flag
+    """
+    req_cols = {"game_date", "stat", "model_ignorance_score", "market_ignorance_score"}
+    if not req_cols.issubset(combined.columns):
+        return  # not enough data yet (market comparison not run)
+
+    cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=window_days)
+    recent = combined.copy()
+    if "game_date" in recent.columns:
+        try:
+            recent["game_date_dt"] = pd.to_datetime(recent["game_date"], utc=True, errors="coerce")
+            recent = recent[recent["game_date_dt"] >= cutoff]
+        except Exception:
+            pass
+
+    valid = recent[recent["model_ignorance_score"].notna() & recent["market_ignorance_score"].notna()]
+    if valid.empty:
+        return
+
+    typer.echo(f"\n{'='*55}")
+    typer.echo(f"Model vs Market — Last {window_days} Days Ignorance Score Delta")
+    typer.echo(f"{'='*55}")
+    typer.echo(f"  (negative IS delta = model better; positive = market better)")
+    typer.echo()
+
+    for stat, grp in valid.groupby("stat"):
+        model_is = float(grp["model_ignorance_score"].mean())
+        market_is = float(grp["market_ignorance_score"].mean())
+        delta = model_is - market_is
+        n = len(grp)
+        flag = "  ← flag for improvement" if delta > _IS_DELTA_FLAG_THRESHOLD else ""
+        direction = "model better" if delta < 0 else "market better"
+        typer.echo(
+            f"  {stat:<12} IS delta = {delta:+.4f}  ({direction})   n={n}{flag}"
+        )
+
+    overall_delta = float(valid["model_ignorance_score"].mean()) - float(valid["market_ignorance_score"].mean())
+    typer.echo()
+    typer.echo(f"  Overall IS delta = {overall_delta:+.4f}   n={len(valid):,}")
+    typer.echo(f"{'='*55}\n")
+
+
 _STAT_ALIASES = {
     "tov": "turnover",
     "to": "turnover",
@@ -216,6 +272,9 @@ def main(
         combined = joined.drop(columns=drop_cols)
     combined.to_parquet(results_path, index=False)
     typer.echo(f"Updated cumulative results → {results_path} ({len(combined):,} total rows)")
+
+    # ── 30-day rolling Ignorance Score delta summary ───────────────────────
+    _print_rolling_is_summary(combined, window_days=30)
 
     # Write rolling drift-window file WITH pmf_json so check_calibration_drift.py
     # can compute ECE from raw PMF arrays (not just aggregate scores).

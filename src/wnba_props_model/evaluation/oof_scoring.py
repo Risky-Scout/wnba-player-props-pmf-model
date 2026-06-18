@@ -1,7 +1,13 @@
 """OOF PMF scoring utilities for Stage 5.
 
-Computes NLL, RPS, mean error, variance ratio and related diagnostics
-from a long OOF PMF DataFrame.
+Computes NLL, RPS, Ignorance Score (IS), Brier score, mean error, variance ratio
+and related diagnostics from a long OOF PMF DataFrame.
+
+Four primary metrics (Plan M8):
+  NLL    — Negative log-likelihood: P(actual | PMF). Lower is better.
+  IS     — Ignorance Score (binary log-loss at median line). IS < 0.693 = informative.
+  RPS    — Ranked Probability Score (discrete CRPS). Lower is better.
+  Brier  — Brier score at median line P(Y > median). Lower is better.
 
 Works with JSON-string PMF columns (pmf_json) as stored in parquet.
 """
@@ -45,6 +51,70 @@ def exact_outcome_prob(pmf_json: str, actual: int | float) -> float:
     """p(actual) from the PMF."""
     pmf = json.loads(pmf_json)
     return float(pmf.get(str(int(actual)), 0.0))
+
+
+def ignorance_score_from_pmf_json(
+    pmf_json: str,
+    actual: int | float,
+    line: float | None = None,
+    eps: float = 1e-9,
+) -> float:
+    """Ignorance Score (binary log-loss) for a PMF at a given line.
+
+    IS = -log2(p_correct_side)
+    where p_correct_side = P(Y > line) if actual > line else P(Y <= line).
+
+    If line is None, uses the PMF median as the line.
+
+    IS < 1.0 (base-2) = model is informative (random = 1.0 bit).
+    IS < 0.0 (natural log) = model is better than random (we use natural log here).
+    """
+    pmf_dict = json.loads(pmf_json)
+    k_max = max(int(k) for k in pmf_dict.keys()) if pmf_dict else 20
+    arr = np.array([float(pmf_dict.get(str(k), 0.0)) for k in range(k_max + 1)])
+    arr = arr / (arr.sum() + eps)
+
+    if line is None:
+        cdf = np.cumsum(arr)
+        line = float(np.searchsorted(cdf, 0.5))
+
+    p_over = float(arr[int(math.floor(line)) + 1:].sum())
+    p_under = float(arr[:int(math.ceil(line))].sum())
+
+    if actual > line:
+        p = max(p_over, eps)
+    elif actual < line:
+        p = max(p_under, eps)
+    else:
+        # Push — use 0.5 as the "correct" probability (neutral outcome)
+        p = 0.5
+
+    return float(-math.log(p))
+
+
+def brier_from_pmf_json(
+    pmf_json: str,
+    actual: int | float,
+    line: float | None = None,
+    eps: float = 1e-9,
+) -> float:
+    """Brier score for a PMF at a given line.
+
+    B = (p_over - I(actual > line))^2
+    where I(actual > line) = 1 if actual > line else 0.
+    """
+    pmf_dict = json.loads(pmf_json)
+    k_max = max(int(k) for k in pmf_dict.keys()) if pmf_dict else 20
+    arr = np.array([float(pmf_dict.get(str(k), 0.0)) for k in range(k_max + 1)])
+    arr = arr / (arr.sum() + eps)
+
+    if line is None:
+        cdf = np.cumsum(arr)
+        line = float(np.searchsorted(cdf, 0.5))
+
+    p_over = float(arr[int(math.floor(line)) + 1:].sum())
+    outcome = 1.0 if actual > line else 0.0
+    return float((p_over - outcome) ** 2)
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +171,15 @@ def score_oof_dataframe(
         exact_probs = np.array([
             exact_outcome_prob(pj, a) for pj, a in zip(sub["pmf_json"], actuals)
         ])
+        # Ignorance Score and Brier at median line (no market data needed)
+        is_arr = np.array([
+            ignorance_score_from_pmf_json(pj, a)
+            for pj, a in zip(sub["pmf_json"], actuals)
+        ])
+        brier_arr = np.array([
+            brier_from_pmf_json(pj, a)
+            for pj, a in zip(sub["pmf_json"], actuals)
+        ])
 
         actual_mean = float(np.mean(actuals))
         actual_var = float(np.var(actuals))
@@ -111,8 +190,12 @@ def score_oof_dataframe(
             "n": int(len(sub)),
             "n_calibration_eligible": int((sub["calibration_eligible"] == True).sum()),  # noqa: E712
             "n_prior_only": int((sub["oof_prediction_type"] == "prior_only").sum()),
-            "pmf_nll_mean": float(np.mean(nlls)),
-            "pmf_rps_mean": float(np.mean(rps_arr)),
+            # ── Four primary metrics (M8) ──────────────────────────────────
+            "pmf_nll_mean": float(np.mean(nlls)),               # lower = better
+            "ignorance_score_mean": float(np.mean(is_arr)),     # IS at median line
+            "pmf_rps_mean": float(np.mean(rps_arr)),            # discrete CRPS
+            "brier_mean": float(np.mean(brier_arr)),            # at median line
+            # ── Calibration / bias diagnostics ────────────────────────────
             "mean_actual": actual_mean,
             "mean_pmf": pmf_mean_avg,
             "mean_error": round(pmf_mean_avg - actual_mean, 4),

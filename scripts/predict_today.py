@@ -17,6 +17,7 @@ from pathlib import Path
 import pandas as pd
 import typer
 
+from wnba_props_model.models.pmf_grid import pmfs_df_to_grids
 from wnba_props_model.pipeline.deliver import write_delivery
 from wnba_props_model.pipeline.predict import predict_player_pmfs
 
@@ -33,6 +34,8 @@ def main(
     raw_props: str | None = typer.Option(None, help="BDL player props parquet for edge calculation."),
     out_dir: str = typer.Option("deliveries/today", help="Delivery output directory."),
     game_date: str | None = typer.Option(None, help="ISO date filter (YYYY-MM-DD); predicts only this date."),
+    export_grids_json: bool = typer.Option(False, "--export-grids-json",
+        help="Also write a full WNBAPMFGrid JSON sidecar with all markets at 0.5-step lines."),
 ) -> None:
     """Predict today's WNBA player stat PMFs and compute market edges."""
     features_df = pd.read_parquet(features_wide)
@@ -71,9 +74,18 @@ def main(
     typer.echo(f"Calibrated: {n_cal:,}/{len(pmfs):,} rows")
 
     props_df = pd.read_parquet(raw_props) if raw_props else None
-    paths = write_delivery(pmfs, out_dir, props_df)
+    paths = write_delivery(pmfs, out_dir, props_df, game_date=game_date)
     for k, v in paths.items():
         typer.echo(f"  {k}: {v}")
+
+    if export_grids_json:
+        import json as _json
+        ctx_cols = ["game_id", "game_date", "team_id", "opponent_team_id", "is_home"]
+        grids = pmfs_df_to_grids(pmfs, game_context_cols=ctx_cols)
+        out_path = Path(out_dir) / f"pmf_grids_{game_date or 'latest'}.json"
+        with open(out_path, "w") as f:
+            _json.dump([g.to_dict() for g in grids], f, default=str, indent=2)
+        typer.echo(f"  pmf_grids_json: {out_path} ({len(grids)} grids)")
 
 
 if __name__ == "__main__":

@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from wnba_props_model.constants import BDL_PROP_TO_STAT
+from wnba_props_model.constants import BDL_PROP_TO_STAT, DOMAIN_MAX
 from wnba_props_model.models.market import fair_american, no_vig_two_way, prob_over_from_pmf
+from wnba_props_model.models.pmf_grid import WNBAPMFGrid, pmfs_df_to_grids
 from wnba_props_model.models.simulation import json_to_pmf
 
 
@@ -22,24 +23,62 @@ def add_pge_ladder(pmfs: pd.DataFrame, kmax: int = 20) -> pd.DataFrame:
 
 
 def build_fair_odds_board(pmfs: pd.DataFrame) -> pd.DataFrame:
+    """Build fair odds board using WNBAPMFGrid for push-correct probabilities.
+
+    Produces half-line markets (0.5, 1.5, …) where push probability is always
+    zero — market convention for player props. Use WNBAPMFGrid directly for
+    integer-line or quarter-line markets (Kalshi/Polymarket).
+    """
     rows = []
     for _, r in pmfs.iterrows():
-        pmf = json_to_pmf(r["pmf_json"])
-        for line in range(0, min(len(pmf) - 1, 60)):
-            p_over = prob_over_from_pmf(pmf, line + 0.5)
+        pmf_arr = json_to_pmf(r["pmf_json"])
+        stat = str(r["stat"])
+        domain = min(DOMAIN_MAX.get(stat, len(pmf_arr) - 1), len(pmf_arr) - 1)
+        grid = WNBAPMFGrid(
+            player_id=r.get("player_id", ""),
+            player_name=str(r.get("player_name", "")),
+            stat_pmfs={stat: pmf_arr},
+        )
+        for k in range(0, domain):
+            line = float(k) + 0.5
+            p_over = grid.prob_over(stat, line)
+            p_under = grid.prob_under(stat, line)
             rows.append({
                 "game_id": r.get("game_id"),
                 "player_id": r["player_id"],
                 "player_name": r.get("player_name"),
                 "team_id": r.get("team_id"),
-                "stat": r["stat"],
-                "line": line + 0.5,
+                "stat": stat,
+                "line": line,
                 "p_over": p_over,
-                "p_under": 1 - p_over,
+                "p_under": p_under,
+                "p_push": 0.0,  # half-lines never push
                 "fair_over_american": fair_american(p_over),
-                "fair_under_american": fair_american(1 - p_over),
+                "fair_under_american": fair_american(p_under),
                 "role_bucket": r.get("role_bucket"),
                 "model_version": r.get("model_version"),
+            })
+    return pd.DataFrame(rows)
+
+
+def build_grids_narratives(pmfs: pd.DataFrame) -> pd.DataFrame:
+    """Return a DataFrame with one-line narrative per player × stat.
+
+    Useful for rapid human review of the daily slate.
+    """
+    grids = pmfs_df_to_grids(pmfs, game_context_cols=["game_id", "game_date"])
+    rows = []
+    for grid in grids:
+        for stat in grid.stats:
+            rows.append({
+                "player_id": grid.player_id,
+                "player_name": grid.player_name,
+                "stat": stat,
+                "narrative": grid.narrative(stat),
+                "projected_mean": round(grid.pmf_mean(stat), 3),
+                "projected_std": round(grid.pmf_std(stat), 3),
+                "projected_minutes": grid.projected_minutes,
+                "role_bucket": grid.role_bucket,
             })
     return pd.DataFrame(rows)
 
@@ -187,12 +226,22 @@ def write_delivery(
     board_path = out / "fair_odds_board.parquet"
     board.to_parquet(board_path, index=False)
 
+    # WNBAPMFGrid narratives sidecar
+    try:
+        narratives = build_grids_narratives(pmfs)
+        narratives_path = out / "narratives.parquet"
+        narratives.to_parquet(narratives_path, index=False)
+    except Exception:
+        narratives_path = None
+
     paths: dict[str, Path] = {
         "full_pmfs_wide": full_path,
         "player_projections_parquet": proj_parquet,
         "player_projections_json": proj_json_path,
         "fair_odds_board": board_path,
     }
+    if narratives_path is not None:
+        paths["narratives"] = narratives_path
 
     if raw_props is not None and not raw_props.empty:
         comp = build_market_comparison(pmfs, raw_props)

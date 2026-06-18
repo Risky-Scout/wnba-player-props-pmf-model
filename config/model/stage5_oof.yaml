@@ -63,6 +63,13 @@ hgb_classifier:
   learning_rate: 0.1
   min_samples_leaf: 20
 
+# Per-stat configuration overrides (must match stage4_baseline.yaml)
+stat_overrides:
+  turnover:
+    use_minutes_offset: true
+  ast:
+    use_minutes_offset: true
+
 minutes_clip_min: 0.0
 minutes_clip_max: 45.0
 min_minutes_sigma: 3.0

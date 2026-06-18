@@ -31,9 +31,13 @@ import numpy as np
 import pandas as pd
 import typer
 
+from wnba_props_model.models.team_score import WNBATeamScoreModel
 from wnba_props_model.pipeline.predict import predict_player_pmfs
 
 app = typer.Typer(add_completion=False)
+
+# Directory where the fitted WNBATeamScoreModel lives
+_DEFAULT_GAME_TOTALS_DIR = "artifacts/models/game_totals"
 
 # Minutes cap implied by "limited" status when no explicit cap is provided
 _LIMITED_MULTIPLIER = 0.65
@@ -174,6 +178,19 @@ def main(
     cal_dir: str = typer.Option(_DEFAULT_CAL_DIR),
     config: str = typer.Option(_DEFAULT_CONFIG),
     raw_props: str | None = typer.Option(None, help="BDL player props parquet for edge recalculation."),
+    game_totals_dir: str = typer.Option(
+        _DEFAULT_GAME_TOTALS_DIR,
+        help="Directory with team_score_model.pkl for game-total recalculation.",
+    ),
+    games_parquet: str | None = typer.Option(
+        None,
+        help="Games parquet for pace-adjustment lookup (optional).",
+    ),
+    recalc_game_totals: bool = typer.Option(
+        True,
+        "--recalc-game-totals/--no-recalc-game-totals",
+        help="Recalculate WNBATeamScorePMFGrid for affected games after player override.",
+    ),
 ) -> None:
     """Recompute PMFs for overridden players (seconds, not minutes).
 
@@ -278,14 +295,131 @@ def main(
                 pass
 
     # ── Write outputs ─────────────────────────────────────────────────────
-    slate_out = out / "full_pmfs_wide.parquet"
+    # Compute diff_report: before/after for all affected player × stat lines
+    diff_records = []
+    for pid in sorted(affected_pids):
+        for stat in sorted(new_means.index.get_level_values("stat").unique()
+                           if hasattr(new_means.index, 'get_level_values') else []):
+            try:
+                old_v = float(old_means.get((pid, stat), np.nan))
+                new_v = float(new_means.get((pid, stat), np.nan))
+                diff_records.append({
+                    "player_id": pid,
+                    "stat": stat,
+                    "old_mean": round(old_v, 4) if not np.isnan(old_v) else None,
+                    "new_mean": round(new_v, 4) if not np.isnan(new_v) else None,
+                    "delta": round(new_v - old_v, 4) if not (np.isnan(old_v) or np.isnan(new_v)) else None,
+                    "change_log": change_log.get(str(pid), ""),
+                })
+            except Exception:
+                pass
+
+    diff_report = {
+        "game_date": game_date,
+        "n_overrides": len(override_map),
+        "n_affected_players": len(affected_pids),
+        "override_map": {str(k): v for k, v in override_map.items()},
+        "change_log": change_log,
+        "stat_changes": diff_records,
+    }
+
+    slate_out = out / "player_pmfs_override.parquet"
     revised_slate.to_parquet(slate_out, index=False)
+    # Also write the standard filename for compatibility
+    (out / "full_pmfs_wide.parquet").unlink(missing_ok=True)
+    revised_slate.to_parquet(out / "full_pmfs_wide.parquet", index=False)
     typer.echo(f"\nWrote revised slate → {slate_out} ({len(revised_slate):,} rows)")
 
-    # Rebuild edge report if props available
+    diff_path = out / "diff_report.json"
+    with open(diff_path, "w") as f:
+        json.dump(diff_report, f, indent=2, default=str)
+    typer.echo(f"Wrote diff report → {diff_path}")
+
+    # ── Game total recalculation ───────────────────────────────────────────
+    if recalc_game_totals:
+        model_path = Path(game_totals_dir) / "team_score_model.pkl"
+        if model_path.exists():
+            try:
+                typer.echo("\nRecalculating game totals for affected games...")
+                ts_model = WNBATeamScoreModel.load(str(model_path))
+
+                # Identify affected game_ids from the revised slate
+                affected_game_ids: set = set()
+                if "game_id" in revised_slate.columns:
+                    affected_game_ids = set(
+                        revised_slate[revised_slate["player_id"].isin(affected_pids)]["game_id"].dropna().unique()
+                    )
+
+                # Identify home/away teams for affected games
+                game_team_map: dict = {}  # game_id → {home, away}
+                if "game_id" in revised_slate.columns and "team_id" in revised_slate.columns:
+                    for game_id, grp in revised_slate.groupby("game_id"):
+                        teams = grp["team_id"].dropna().unique().tolist()
+                        if len(teams) >= 2:
+                            home_abbrs = []
+                            away_abbrs = []
+                            if "home_away" in grp.columns:
+                                home_abbrs = grp[grp["home_away"] == "home"]["team_abbreviation"].dropna().unique().tolist() \
+                                    if "team_abbreviation" in grp.columns else []
+                                away_abbrs = grp[grp["home_away"] == "away"]["team_abbreviation"].dropna().unique().tolist() \
+                                    if "team_abbreviation" in grp.columns else []
+                            if home_abbrs and away_abbrs:
+                                game_team_map[game_id] = {
+                                    "home": home_abbrs[0],
+                                    "away": away_abbrs[0],
+                                }
+
+                gt_rows = []
+                for game_id in affected_game_ids:
+                    if game_id not in game_team_map:
+                        typer.echo(f"  [SKIP] game_id={game_id}: team mapping unavailable")
+                        continue
+                    home = game_team_map[game_id]["home"]
+                    away = game_team_map[game_id]["away"]
+                    try:
+                        grid = ts_model.predict(home, away, game_id=game_id, game_date=game_date)
+                        d = grid.to_dict()
+                        d["override_applied"] = True
+                        gt_rows.append(d)
+                        diff_report["game_total_changes"] = diff_report.get("game_total_changes", [])
+                        diff_report["game_total_changes"].append({
+                            "game_id": game_id,
+                            "home": home,
+                            "away": away,
+                            "total_mean": d["total_mean"],
+                        })
+                        typer.echo(f"  Recalculated: {home} vs {away} → E[total]={d['total_mean']:.1f}")
+                    except Exception as exc:
+                        typer.echo(f"  [WARN] {home} vs {away}: {exc}")
+
+                if gt_rows:
+                    gt_df = pd.DataFrame([{
+                        "game_id": r.get("game_id"),
+                        "game_date": r.get("game_date"),
+                        "home_team": r.get("home_team"),
+                        "away_team": r.get("away_team"),
+                        "total_mean": r.get("total_mean"),
+                        "home_mean": r.get("home_mean"),
+                        "away_mean": r.get("away_mean"),
+                        "override_applied": True,
+                    } for r in gt_rows])
+                    gt_path = out / "game_total_override.parquet"
+                    gt_df.to_parquet(gt_path, index=False)
+                    typer.echo(f"Wrote game total override → {gt_path}")
+
+                # Refresh diff report with game total changes
+                with open(diff_path, "w") as f:
+                    json.dump(diff_report, f, indent=2, default=str)
+
+            except Exception as exc:
+                typer.echo(f"[WARN] Game total recalculation failed: {exc}", err=True)
+        else:
+            typer.echo(f"[INFO] No game totals model found at {model_path} — skipping")
+
+    # ── Rebuild edge report if props available ─────────────────────────────
     if raw_props and Path(raw_props).exists():
         try:
-            from wnba_props_model.pipeline.deliver import build_market_comparison, normalize_player_props_snapshot
+            from wnba_props_model.pipeline.deliver import build_market_comparison
             props_df = pd.read_parquet(raw_props)
             comp = build_market_comparison(revised_slate, props_df)
             if not comp.empty:

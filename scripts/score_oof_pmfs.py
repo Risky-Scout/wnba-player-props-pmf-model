@@ -89,17 +89,19 @@ def score(
     # ------------------------------------------------------------------
     # Print summary
     # ------------------------------------------------------------------
-    print(f"\n{'Stat':<12} {'N':>7} {'NLL':>8} {'RPS':>8} {'MeanErr':>9} {'VarRatio':>10} "
-          f"{'p0':>7} {'EmpZero':>9}")
-    print("-" * 80)
+    print(f"\n{'Stat':<12} {'N':>7} {'NLL':>8} {'IS':>8} {'RPS':>8} {'Brier':>8} {'MeanErr':>9} {'VarRatio':>10}")
+    print("-" * 90)
     for stat in ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]:
         s = results.get("by_stat", {}).get(stat, {})
         if not s:
             continue
-        print(f"{stat:<12} {s['n']:>7,} {s['pmf_nll_mean']:>8.4f} {s['pmf_rps_mean']:>8.4f} "
+        print(f"{stat:<12} {s['n']:>7,} "
+              f"{s['pmf_nll_mean']:>8.4f} "
+              f"{s.get('ignorance_score_mean', 0):>8.4f} "
+              f"{s['pmf_rps_mean']:>8.4f} "
+              f"{s.get('brier_mean', 0):>8.4f} "
               f"{s['mean_error']:>+9.3f} "
-              f"{s['variance_ratio'] or 0:>10.3f} "
-              f"{s['mean_predicted_p0']:>7.3f} {s['empirical_zero_rate']:>9.3f}")
+              f"{s['variance_ratio'] or 0:>10.3f}")
 
     # ------------------------------------------------------------------
     # Write audit
@@ -149,8 +151,8 @@ def _write_summary_md(
         "",
         "## Per-Stat Scoring",
         "",
-        "| Stat | N | NLL | RPS | Mean Error | Var Ratio | p0 | Emp Zero |",
-        "|------|---|-----|-----|------------|-----------|----|----|",
+        "| Stat | N | NLL | IS | RPS | Brier | Mean Error | Var Ratio |",
+        "|------|---|-----|----|-----|-------|------------|-----------|",
     ]
 
     for stat in ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]:
@@ -158,9 +160,13 @@ def _write_summary_md(
         if not s:
             continue
         lines.append(
-            f"| {stat} | {s['n']:,} | {s['pmf_nll_mean']:.4f} | {s['pmf_rps_mean']:.4f} "
-            f"| {s['mean_error']:+.3f} | {s['variance_ratio'] or 0:.3f} "
-            f"| {s['mean_predicted_p0']:.3f} | {s['empirical_zero_rate']:.3f} |"
+            f"| {stat} | {s['n']:,} "
+            f"| {s['pmf_nll_mean']:.4f} "
+            f"| {s.get('ignorance_score_mean', 0):.4f} "
+            f"| {s['pmf_rps_mean']:.4f} "
+            f"| {s.get('brier_mean', 0):.4f} "
+            f"| {s['mean_error']:+.3f} "
+            f"| {s['variance_ratio'] or 0:.3f} |"
         )
 
     # Worst cells by mean error

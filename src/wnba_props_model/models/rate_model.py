@@ -56,8 +56,11 @@ class StatRateModel:
             y: actual_{stat} values for did_play=True rows.
             context_df: Original wide-table rows (same index as X/y) used for
                 computing per-role dispersion. Needs a ``role_bucket`` column.
+                When ``use_minutes_offset`` is set in cfg, must contain
+                ``actual_minutes``.
             sample_weight: Optional per-sample weights (e.g. temporal decay).
         """
+        use_offset = self.cfg.get("use_minutes_offset", False)
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
         self._model = HistGradientBoostingRegressor(
@@ -72,11 +75,26 @@ class StatRateModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
-        self._model.fit(X, y, sample_weight=sample_weight)
 
-        # Global NegBinom dispersion from empirical moments
-        self._global_mean = float(y.mean())
-        self._global_var = float(y.var())
+        # Minutes-offset mode: fit on per-minute rate; scale at prediction time
+        if use_offset and context_df is not None and "actual_minutes" in context_df.columns:
+            minutes = context_df["actual_minutes"].clip(lower=1.0).reset_index(drop=True)
+            y_aligned = y.reset_index(drop=True)
+            y_rate = y_aligned / minutes
+            self._use_minutes_offset = True
+            self._minutes_offset_col = "player_minutes_mean_l5"  # feature col used at predict
+            self._model.fit(X, y_rate, sample_weight=sample_weight)
+            # Dispersion from rate-scale residuals back-transformed to count scale
+            # (use original counts for dispersion estimation, not rate)
+            self._global_mean = float(y_aligned.mean())
+            self._global_var = float(y_aligned.var())
+        else:
+            self._use_minutes_offset = False
+            self._model.fit(X, y, sample_weight=sample_weight)
+            # Global NegBinom dispersion from empirical moments
+            self._global_mean = float(y.mean())
+            self._global_var = float(y.var())
+
         self._dispersion_r = dispersion_from_moments(self._global_mean, self._global_var)
 
         # Per-role dispersion: stratify by role_bucket for fatter tails on stars,
@@ -96,13 +114,29 @@ class StatRateModel:
         return self
 
     def predict_mean(self, X: pd.DataFrame) -> np.ndarray:
-        """Predict E[Y], clipped to >= min_stat_mean."""
+        """Predict E[Y], clipped to >= min_stat_mean.
+
+        When ``use_minutes_offset`` was active at fit time, the model predicts
+        the per-minute rate.  We multiply by the projected minutes feature
+        (``player_minutes_mean_l5``) to recover the expected count.
+        """
         if not self._fitted or self._model is None:
             raise RuntimeError(f"StatRateModel({self.stat}) not fitted")
-        if hasattr(self, "_usable_cols"):
-            X = X.reindex(columns=self._usable_cols)
+        X_pred = X.reindex(columns=getattr(self, "_usable_cols", X.columns))
         min_mean = self.cfg.get("min_stat_mean", 0.01)
-        return np.clip(self._model.predict(X), min_mean, None)
+        raw = self._model.predict(X_pred)
+
+        if getattr(self, "_use_minutes_offset", False):
+            minutes_col = getattr(self, "_minutes_offset_col", "player_minutes_mean_l5")
+            if minutes_col in X.columns:
+                projected_min = X[minutes_col].values.astype(float)
+                projected_min = np.clip(projected_min, 1.0, None)
+            else:
+                # Fallback: use column-agnostic average if feature not available
+                projected_min = np.full(len(raw), max(self._global_mean / 0.5, 20.0))
+            return np.clip(raw * projected_min, min_mean, None)
+
+        return np.clip(raw, min_mean, None)
 
     @property
     def dispersion_r(self) -> float | None:

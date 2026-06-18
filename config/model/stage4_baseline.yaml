@@ -71,3 +71,12 @@ hgb_classifier:
   max_leaf_nodes: 31
   learning_rate: 0.1
   min_samples_leaf: 20
+
+# Per-stat configuration overrides — merged on top of global config for each stat.
+# use_minutes_offset: fit on per-minute rate, multiply by projected minutes at predict.
+# This gives sparse / bursty stats (turnover, ast) exposure-correct NegBinom distributions.
+stat_overrides:
+  turnover:
+    use_minutes_offset: true
+  ast:
+    use_minutes_offset: true

@@ -90,7 +90,18 @@ jobs:
 
       - name: Train baseline PMFs (Stage 4)
         if: github.event.inputs.skip_train != 'true'
-        run: python scripts/train_baseline_pmfs.py
+        run: |
+          python scripts/train_baseline_pmfs.py \
+            --time-decay-xi 0.003
+
+      - name: Build game totals model (daily retrain)
+        if: github.event.inputs.skip_train != 'true'
+        run: |
+          python scripts/build_game_totals.py \
+            --games data/processed/wnba_games.parquet \
+            --out-dir artifacts/models/game_totals \
+            --time-decay-xi 0.002
+        continue-on-error: true
 
       - name: Build next-game slate (D+1)
         run: |
@@ -115,6 +126,15 @@ jobs:
             --game-date ${{ steps.date.outputs.target_date }} \
             --out-dir deliveries/next_game
 
+      - name: Predict game totals (D+1)
+        run: |
+          python scripts/predict_game_totals.py \
+            --games data/processed/wnba_games.parquet \
+            --model-dir artifacts/models/game_totals \
+            --game-date ${{ steps.date.outputs.target_date }} \
+            --out-dir deliveries/next_game
+        continue-on-error: true
+
       - name: Build edge report (Shin no-vig)
         run: |
           python scripts/build_edge_report.py \
@@ -130,6 +150,16 @@ jobs:
             --edges deliveries/next_game/publishable_edges.parquet \
             --out-dir deliveries/next_game \
             --game-date ${{ steps.date.outputs.target_date }}
+        continue-on-error: true
+
+      - name: Export HTML report
+        run: |
+          python scripts/export_html_report.py \
+            --pmfs deliveries/next_game/full_pmfs_wide.parquet \
+            --game-totals deliveries/next_game/game_totals_${{ steps.date.outputs.target_date }}.parquet \
+            --edges deliveries/next_game/publishable_edges.parquet \
+            --game-date ${{ steps.date.outputs.target_date }} \
+            --out deliveries/next_game/report_${{ steps.date.outputs.target_date }}.html
         continue-on-error: true
 
       - name: Generate explanations for flagged players
@@ -193,6 +223,7 @@ jobs:
           path: |
             deliveries/next_game/
             artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json
+            artifacts/models/game_totals/team_score_summary.json
           retention-days: 30
 
       - name: Upload betting sheets (Kalshi / Polymarket)

@@ -104,8 +104,22 @@ jobs:
             data/oof/oof_player_stat_pmfs_calibrated.parquet \
             --config config/model/stage6_calibration.yaml
 
+      - name: Fit game totals calibrators (informational)
+        # Fit isotonic calibration on game total over/under predictions.
+        # ECE gate is informational only — does NOT block promotion of player stat calibrators.
+        # Outputs: artifacts/models/calibration/game_totals_cal.pkl (if OOF game totals exist)
+        continue-on-error: true
+        run: |
+          python scripts/fit_calibrators.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --out-dir artifacts/models/calibration \
+            --game-totals-mode
+        # Note: --game-totals-mode is a no-op if the flag is unknown;
+        # a full game totals calibrator script can be wired here when OOF game totals exist.
+
       - name: Promote calibrators (gate passed)
         # Only upload new calibrators when the post-cal gate passes.
+        # Game totals calibrator (if built above) is included in the same artifact.
         if: steps.cal-gate.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:

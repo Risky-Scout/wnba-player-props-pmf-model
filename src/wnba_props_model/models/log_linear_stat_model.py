@@ -77,7 +77,12 @@ class LogLinearStatModel:
         context_df: pd.DataFrame | None = None,
         sample_weight: np.ndarray | None = None,
     ) -> "LogLinearStatModel":
-        """Fit the base StatRateModel and compute league-average reference values."""
+        """Fit the base StatRateModel and compute league-average reference values.
+
+        When ``use_minutes_offset`` is in cfg, the base StatRateModel fits on
+        per-minute rate and scales at prediction time by projected minutes.
+        The league_avg_rate is set accordingly.
+        """
         self._base_model.fit(X, y, context_df=context_df, sample_weight=sample_weight)
 
         # League average stat rate (stat per minute) from training context
