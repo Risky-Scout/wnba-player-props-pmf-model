@@ -130,13 +130,15 @@ def _attach_role_bucket(pmfs_long: pd.DataFrame) -> pd.DataFrame:
 def _build_combo_pmf_rows(
     pmfs_long: pd.DataFrame,
     corr_map: dict[str, float] | None = None,
+    corr_map_by_pos: dict[str, dict[str, float]] | None = None,
 ) -> pd.DataFrame:
     """Convolve per-stat PMFs into combo-prop PMFs (stocks, pts_ast, etc.).
 
     For correlated pairs (pts+ast, pts+reb, reb+ast, stl+blk), applies a
     Gaussian copula correction using empirically estimated Pearson correlations.
-    This prevents the model from systematically overpricing (or underpricing)
-    combo props where components move together or in opposition.
+    When ``corr_map_by_pos`` is provided (position-stratified from P3.5), the
+    player's primary position is used to select the appropriate correlation map;
+    falls back to the flat ``corr_map`` for unknown positions.
 
     Canonical stat key mapping:
         stocks   = stl + blk
@@ -162,6 +164,17 @@ def _build_combo_pmf_rows(
     }
     if corr_map is None:
         corr_map = _DEFAULT_CORRELATIONS
+
+    # Build position lookup from pmfs_long if available (P3.5 position-stratified copula)
+    _has_position = "position" in pmfs_long.columns
+    _pos_map: dict[tuple, str] = {}
+    if _has_position and corr_map_by_pos:
+        _pos_map = (
+            pmfs_long[["player_id", "game_id", "position"]]
+            .drop_duplicates(subset=["player_id", "game_id"])
+            .set_index(["player_id", "game_id"])["position"]
+            .to_dict()
+        )
 
     combo_rows: list[dict] = []
 
@@ -190,14 +203,23 @@ def _build_combo_pmf_rows(
             canonical_stat = _COMBO_KEY_TO_STAT.get(combo_key, combo_key)
             cap = DOMAIN_MAX.get(combo_key, DOMAIN_MAX.get(canonical_stat, 105))
 
-            # Apply bivariate copula correction for two-component combos
+            # Apply bivariate copula correction for two-component combos (P3.5)
             if combo_key in _COMBO_KEY_PAIRS:
                 s1, s2 = _COMBO_KEY_PAIRS[combo_key]
                 if s1 in component_pmfs and s2 in component_pmfs:
                     try:
+                        # Resolve position-stratified corr map if available
+                        _pos = _pos_map.get((player_id, game_id)) if _pos_map else None
+                        _active_corr = corr_map
+                        if corr_map_by_pos and _pos:
+                            _pos_key = _pos[0].upper() if _pos else None  # "Guard" → "G"
+                            if _pos_key and _pos_key in corr_map_by_pos:
+                                _active_corr = corr_map_by_pos[_pos_key]
+                            elif "all" in corr_map_by_pos:
+                                _active_corr = corr_map_by_pos["all"]
                         pmf_arr = adjust_combo_pmf_for_correlation(
                             component_pmfs[s1], component_pmfs[s2],
-                            s1, s2, corr_map=corr_map,
+                            s1, s2, corr_map=_active_corr,
                         )
                     except Exception as exc:
                         logger.debug("[combo:%s] Copula adjustment failed: %s; using convolution", combo_key, exc)
@@ -303,9 +325,29 @@ def predict_player_pmfs(
     # Attach ex-ante role bucket (needed for per-role calibration & dispersion)
     pmfs_long = _attach_role_bucket(pmfs_long)
 
+    # P3.5: Attach player position so the copula uses position-stratified correlations.
+    if "position" in feature_df.columns and "position" not in pmfs_long.columns:
+        _pos_lu = (
+            feature_df[["player_id", "game_id", "position"]]
+            .drop_duplicates(subset=["player_id", "game_id"])
+        )
+        pmfs_long = pmfs_long.merge(_pos_lu, on=["player_id", "game_id"], how="left")
+
+    # P3.5: Load position-stratified combo correlations if artifact exists.
+    _corr_by_pos: dict[str, dict[str, float]] | None = None
+    _corr_by_pos_path = model_dir / "combo_correlations_by_pos.json"
+    if _corr_by_pos_path.exists():
+        try:
+            import json as _cjson
+            with open(_corr_by_pos_path) as _cf:
+                _corr_by_pos = _cjson.load(_cf)
+            logger.info("Loaded position-stratified combo correlations from %s", _corr_by_pos_path)
+        except Exception as _ce:
+            logger.warning("Failed to load corr_by_pos: %s", _ce)
+
     # Build combo-prop PMFs via discrete convolution + bivariate copula correction.
     # These are appended as additional rows so edge reports cover BDL combo markets.
-    combo_rows = _build_combo_pmf_rows(pmfs_long)
+    combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
     if not combo_rows.empty:
         pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
         logger.info("Added %d combo PMF rows (%s)", len(combo_rows),

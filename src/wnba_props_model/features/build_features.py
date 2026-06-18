@@ -452,16 +452,20 @@ def _build_player_features(
 
     # ------------------------------------------------------------------ #
     # 4d. EWMA rolling features (P2.4) — exponentially weighted recent form
+    # Batched via pd.concat to avoid DataFrame fragmentation.
     # ------------------------------------------------------------------ #
     _ewma_stats = list(STATS) + ["minutes"]
+    _ewma_cols: dict[str, pd.Series] = {}
     for _stat in _ewma_stats:
         if _stat not in df.columns:
             continue
         _eg = df.groupby("player_id", sort=False)[_stat]
         for _hl in (3, 5):
-            df[f"player_{_stat}_ewma_halflife{_hl}"] = _eg.transform(
+            _ewma_cols[f"player_{_stat}_ewma_halflife{_hl}"] = _eg.transform(
                 lambda s, hl=_hl: s.shift(1).ewm(halflife=hl, min_periods=hl).mean()
             )
+    if _ewma_cols:
+        df = pd.concat([df, pd.DataFrame(_ewma_cols, index=df.index)], axis=1)
 
     # ------------------------------------------------------------------ #
     # 5. Usage proxy features (shifted)

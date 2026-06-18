@@ -131,15 +131,30 @@ class StatRateModel:
                 pass  # fall back to global dispersion on any error
 
         # P3.3: Bayesian shrinkage prior (Gamma-Poisson empirical Bayes)
+        # Correctly uses compute_league_priors_from_data(context_df) → {"pts": mean, ...}
+        # then derives alpha, beta from inter-player rate variance in training data.
         self._league_prior_alpha: float | None = None
         self._league_prior_beta: float | None = None
         if self.cfg.get("use_model_ensemble", False) and context_df is not None:
             try:
                 from wnba_props_model.models.shrinkage import compute_league_priors_from_data  # noqa: PLC0415
-                priors = compute_league_priors_from_data(context_df, self.stat)
-                if priors is not None:
-                    self._league_prior_alpha = float(priors.get("alpha", 1.0))
-                    self._league_prior_beta  = float(priors.get("beta", 1.0))
+                # 1-arg call: returns {"pts": league_mean_pts, "reb": league_mean_reb, ...}
+                priors_dict = compute_league_priors_from_data(context_df)
+                league_mu = float(priors_dict.get(self.stat, self._global_mean))
+                # Compute inter-player rate variance for Gamma hyperparameters
+                actual_col = f"actual_{self.stat}"
+                if actual_col in context_df.columns and "player_id" in context_df.columns:
+                    per_player_mean = (
+                        context_df.dropna(subset=[actual_col])
+                        .groupby("player_id")[actual_col]
+                        .mean()
+                    )
+                    inter_var = float(per_player_mean.var()) if len(per_player_mean) >= 5 else None
+                else:
+                    inter_var = None
+                if inter_var is not None and inter_var > 1e-6 and league_mu > 1e-6:
+                    self._league_prior_alpha = league_mu ** 2 / inter_var
+                    self._league_prior_beta  = league_mu / inter_var
             except Exception:
                 pass
 

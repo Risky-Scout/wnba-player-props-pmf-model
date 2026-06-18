@@ -97,8 +97,11 @@ def _build_edge_table_html(edges_df: pd.DataFrame) -> str:
         "line": "Line",
         "model_prob_over": "Model P(Over)",
         "market_prob_over_no_vig": "Market P(Over)",
-        "edge_over": "Edge",
+        "edge_over": "Edge (Over)",
+        "edge_under": "Edge (Under)",
         "fair_over_american": "Fair (Over)",
+        "prop_line_open": "Open Line",
+        "line_delta": "Line Move",
         "role_bucket": "Role",
     }
     available = {k: v for k, v in cols.items() if k in df.columns}
@@ -108,8 +111,11 @@ def _build_edge_table_html(edges_df: pd.DataFrame) -> str:
         cells = ""
         for col in available:
             val = r.get(col, "")
-            if col == "edge_over":
-                cells += f"<td>{_edge_cell(float(val))}</td>"
+            if col in ("edge_over", "edge_under") and pd.notna(val):
+                try:
+                    cells += f"<td>{_edge_cell(float(val))}</td>"
+                except (TypeError, ValueError):
+                    cells += f"<td>{val}</td>"
             elif col in ("model_prob_over", "market_prob_over_no_vig") and pd.notna(val):
                 cells += f"<td>{float(val):.1%}</td>"
             elif col == "role_bucket":
@@ -208,13 +214,19 @@ def _build_game_totals_html(game_totals_df: pd.DataFrame) -> str:
         away_mean = r.get("away_mean", r.get("expected_away", "?"))
         game_id = r.get("game_id", "")
 
+        def _fmt(v: Any, default: str = "N/A") -> str:
+            try:
+                return f"{float(v):.1f}"
+            except (TypeError, ValueError):
+                return default
+
         html_parts.append(f"""
         <div class="game-card">
           <h3>{home} vs {away}
             <span class="badge">{r.get('game_date', '')}</span>
           </h3>
           <p class="player-meta">
-            E[{home}]={float(home_mean):.1f} · E[{away}]={float(away_mean):.1f} · E[Total]={float(total_mean):.1f}
+            E[{home}]={_fmt(home_mean)} · E[{away}]={_fmt(away_mean)} · E[Total]={_fmt(total_mean)}
           </p>
         </div>
         """)
@@ -258,7 +270,7 @@ def _build_backtest_html(backtest_dir: Path) -> str:
     kelly_b64  = _png_b64(kelly_png)
 
     rows = "\n".join(
-        f"<tr><td>{k}</td><td>{v:.4f if isinstance(v, float) else v}</td></tr>"
+        f"<tr><td>{k}</td><td>{f'{v:.4f}' if isinstance(v, float) else v}</td></tr>"
         for k, v in summary.items()
     )
     table_html = f"<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>{rows}</tbody></table>"
