@@ -96,6 +96,7 @@ def build_all_pmfs(
     stat_models: dict[str, Any],
     hurdle_models: dict[str, Any],
     cfg: dict[str, Any],
+    bb_models: dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     """Build full PMF table (one row per player_id × game_id × stat).
 
@@ -129,10 +130,11 @@ def build_all_pmfs(
     # ------------------------------------------------------------------ #
     # Minutes predictions
     # ------------------------------------------------------------------ #
-    min_means, min_sigmas = minutes_model.predict(X_wide, wide_df)
+    min_means, min_sigmas, p_dnp = minutes_model.predict(X_wide, wide_df)
     wide_with_min = wide_df.assign(
         minutes_mean=min_means,
         minutes_sigma=min_sigmas,
+        p_dnp=p_dnp,
     )
 
     # ------------------------------------------------------------------ #
@@ -151,7 +153,7 @@ def build_all_pmfs(
         # Merge long-table rows for this stat with wide-table min predictions
         stat_rows = long_df[long_df["stat"] == stat].copy()
         stat_rows = stat_rows.merge(
-            wide_with_min[["player_id", "game_id", "minutes_mean", "minutes_sigma"]],
+            wide_with_min[["player_id", "game_id", "minutes_mean", "minutes_sigma", "p_dnp"]],
             on=["player_id", "game_id"], how="left"
         )
 
@@ -182,10 +184,37 @@ def build_all_pmfs(
 
         # ---- Build PMF matrix ---------------------------------------------
         roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
-        pmf_mat = _build_pmf_matrix(
-            stat, stat_means, p_nz, pos_mus,
-            stat_models, hurdle_models, cap, roles=roles
-        )
+
+        use_marginalization = cfg.get("use_minutes_marginalization", False)
+        if use_marginalization and hasattr(minutes_model, "_quantile_models") and minutes_model._quantile_models:
+            # Retrieve per-player quantile minutes for quadrature
+            X_for_quant = wide_df.set_index(["player_id", "game_id"]).reindex(
+                pd.MultiIndex.from_frame(stat_rows[["player_id", "game_id"]])
+            ).reset_index(drop=True)
+            X_for_quant_aligned, _ = prepare_feature_matrix(
+                X_for_quant, model_feature_cols,
+                pos_encoder=getattr(minutes_model, "_pos_encoder", None),
+                fit_encoder=False,
+            )
+            quant_mat = minutes_model.predict_quantiles(X_for_quant_aligned, X_for_quant)
+            quad_weights = np.array(cfg.get(
+                "minutes_marginalization_weights", [0.10, 0.15, 0.50, 0.15, 0.10]
+            ))
+            pmf_mat = _build_marginalized_pmf_matrix(
+                stat, quant_mat, quad_weights, p_nz, pos_mus,
+                stat_models, hurdle_models, cap, roles=roles
+            )
+        else:
+            pmf_mat = _build_pmf_matrix(
+                stat, stat_means, p_nz, pos_mus,
+                stat_models, hurdle_models, cap, roles=roles,
+                bb_models=bb_models, X_stat_df=X_stat_df,
+            )
+
+        # ---- Apply DNP blending -------------------------------------------
+        p_dnp_arr = stat_rows["p_dnp"].fillna(0.0).values.astype(float)
+        if use_marginalization and np.any(p_dnp_arr > 0.0):
+            pmf_mat = _blend_with_dnp(pmf_mat, p_dnp_arr)
 
         validate_pmf_matrix(pmf_mat)
 
@@ -274,13 +303,23 @@ def _build_pmf_matrix(
     hurdle_models: dict,
     cap: int,
     roles: np.ndarray | None = None,
+    bb_models: dict | None = None,
+    X_stat_df: "pd.DataFrame | None" = None,
 ) -> np.ndarray:
     """Build PMF matrix (n × cap+1) for a stat.
 
     When ``roles`` is provided and the model has per-role dispersion, PMFs are
     batched by role_bucket so each group gets its own NegBinom r parameter.
     Typically 4-6 role groups — this is fast.
+
+    When ``bb_models`` contains a BetaBinomialStatModel for fg3m and X_stat_df
+    is provided, uses the Beta-Binomial PMF instead of NegBinom.
     """
+    # ---- Beta-Binomial for fg3m -----------------------------------------
+    if (stat == "fg3m" and bb_models is not None and "fg3m" in bb_models
+            and X_stat_df is not None):
+        return bb_models["fg3m"].predict_pmf_matrix(X_stat_df, cap=cap)
+
     if stat in hurdle_models:
         model = hurdle_models[stat]
         pos_r = model.pos_dispersion_r
@@ -309,6 +348,97 @@ def _build_pmf_matrix(
     if r is not None:
         return negbinom_pmf_batch(stat_means, r, cap)
     return poisson_pmf_batch(stat_means, cap)
+
+
+# ---------------------------------------------------------------------------
+# Minutes-marginalized PMF construction (F1)
+# ---------------------------------------------------------------------------
+
+def _build_marginalized_pmf_matrix(
+    stat: str,
+    quant_mat: np.ndarray,
+    quad_weights: np.ndarray,
+    p_nz: np.ndarray | None,
+    pos_mus: np.ndarray | None,
+    stat_models: dict,
+    hurdle_models: dict,
+    cap: int,
+    roles: np.ndarray | None = None,
+) -> np.ndarray:
+    """Build minutes-marginalized PMF matrix using Gauss-style quadrature.
+
+    For each of the 5 quantile minute points (q10..q90):
+      mu_i = rate_per_min * m_i  (scale the rate-model mean)
+      PMF_i = PMF at mu_i
+    Final PMF = sum(weight_i * PMF_i)
+
+    For hurdle models the p_nz component is held fixed (non-playing probability
+    does not change with minute variance); only the positive tail is blended.
+    """
+    n = quant_mat.shape[0]
+    n_q = quant_mat.shape[1]  # 5 quantile points
+    if len(quad_weights) != n_q:
+        quad_weights = np.full(n_q, 1.0 / n_q)
+    quad_weights = quad_weights / quad_weights.sum()
+
+    pmf_acc = np.zeros((n, cap + 1), dtype=float)
+
+    # Compute the baseline mean from the median column (index 2 = q50)
+    q50_means = quant_mat[:, 2].clip(0.001)
+
+    for qi in range(n_q):
+        q_mins = quant_mat[:, qi].clip(0.0)
+        # Scale factor: q_i / q50 (ratio to median)
+        scale = np.where(q50_means > 0, q_mins / q50_means, 1.0)
+
+        if stat in hurdle_models:
+            model = hurdle_models[stat]
+            # Scale pos_mus by the minute ratio; p_nz unchanged
+            scaled_pos_mus = np.clip(pos_mus * scale, 1e-9, None)  # type: ignore[operator]
+            pmf_i = hurdle_pmf_batch(p_nz, scaled_pos_mus, model.pos_dispersion_r, cap)
+        else:
+            model = stat_models.get(stat)
+            # Retrieve global mean (stat_means from q50 path) — scale it
+            # q50_means serves as the stat_means baseline here
+            scaled_means = (q50_means * scale).clip(1e-9)
+            if model is None:
+                pmf_i = poisson_pmf_batch(scaled_means, cap)
+            elif roles is not None and getattr(model, "_role_dispersion", None):
+                pmf_i = np.zeros((n, cap + 1))
+                for role in np.unique(roles):
+                    mask = roles == role
+                    r_role = model.get_dispersion(str(role))
+                    if r_role is not None:
+                        pmf_i[mask] = negbinom_pmf_batch(scaled_means[mask], r_role, cap)
+                    else:
+                        pmf_i[mask] = poisson_pmf_batch(scaled_means[mask], cap)
+            else:
+                r = getattr(model, "dispersion_r", None)
+                if r is not None:
+                    pmf_i = negbinom_pmf_batch(scaled_means, r, cap)
+                else:
+                    pmf_i = poisson_pmf_batch(scaled_means, cap)
+
+        pmf_acc += quad_weights[qi] * pmf_i
+
+    # Renormalize (weights sum to 1 but floating-point may drift)
+    row_sums = pmf_acc.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums > 0, row_sums, 1.0)
+    return pmf_acc / row_sums
+
+
+def _blend_with_dnp(pmf_mat: np.ndarray, p_dnp: np.ndarray) -> np.ndarray:
+    """Blend PMF with degenerate-at-zero using DNP probability.
+
+    final_pmf = p_dnp * [1, 0, 0, ...] + (1 - p_dnp) * pmf
+
+    Replaces the crude apply_low_minutes_adjustment for rows where DNP model is available.
+    """
+    p_dnp = np.clip(p_dnp, 0.0, 0.99)  # never fully degenerate
+    result = pmf_mat.copy()
+    result[:, 0] = p_dnp + (1.0 - p_dnp) * pmf_mat[:, 0]
+    result[:, 1:] = (1.0 - p_dnp[:, np.newaxis]) * pmf_mat[:, 1:]
+    return result
 
 
 # ---------------------------------------------------------------------------

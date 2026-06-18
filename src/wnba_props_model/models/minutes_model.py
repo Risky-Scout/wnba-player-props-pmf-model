@@ -1,12 +1,12 @@
 """Stage 4 minutes model.
 
-Predicts expected playing time (minutes_mean) and uncertainty (minutes_sigma)
-for each player-game row.
+Predicts expected playing time and uncertainty for each player-game row.
 
 Key design:
-- Trained on all rows (including DNP rows with 0 minutes).
-- HistGradientBoostingRegressor handles NaN features natively.
-- Sigma estimated from training residuals, grouped by role/uncertainty bucket.
+- Mean regressor: HistGradientBoostingRegressor fitted on all rows (including DNPs).
+- Quantile regressors: 5 quantile HGBRs (q10, q25, q50, q75, q90) for uncertainty.
+- DNP model: LogisticRegression predicting P(did_not_play).
+- Sigma estimated from IQR of quantile predictions (IQR/1.35 ≈ std for normal).
 - Minimum sigma enforced to prevent overconfident projections.
 - actual_minutes is NEVER included as a model feature.
 """
@@ -18,16 +18,23 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+
+_QUANTILES = [0.10, 0.25, 0.50, 0.75, 0.90]
 
 
 class MinutesModel:
-    """Predicts (minutes_mean, minutes_sigma) for each player-game row."""
+    """Predicts (minutes_mean, minutes_sigma, p_dnp) for each player-game row."""
 
-    VERSION = "stage4_baseline_v1"
+    VERSION = "stage4_baseline_v2"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
         self._model: HistGradientBoostingRegressor | None = None
+        self._quantile_models: dict[float, HistGradientBoostingRegressor] = {}
+        self._dnp_model: Pipeline | None = None
         self._sigma_lookup: dict[tuple[str, str], float] = {}
         self._global_sigma: float = cfg.get("min_minutes_sigma", 3.0)
         self._fitted = False
@@ -39,17 +46,27 @@ class MinutesModel:
         metadata_df: pd.DataFrame,
         sample_weight: np.ndarray | None = None,
     ) -> "MinutesModel":
-        """Fit minutes regressor and estimate role-stratified sigma.
+        """Fit mean regressor, quantile regressors, DNP model, and sigma lookup.
 
         Args:
             X: Feature matrix (model_feature_columns, already numeric).
             y: Target = actual_minutes (all rows, including DNP zeros).
             metadata_df: Wide table rows aligned with X, for sigma stratification.
                 Must contain 'projected_minutes_bucket' and 'role_uncertainty_bucket'.
+                If 'did_play' column is present it is used to fit the DNP model.
             sample_weight: Optional per-sample weights (e.g. temporal decay).
         """
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
+        clip_max = self.cfg.get("minutes_clip_max", 45.0)
+
+        # Drop all-NaN columns (common in early-season data)
+        all_nan = [c for c in X.columns if X[c].isna().all()]
+        if all_nan:
+            X = X.drop(columns=all_nan)
+        self._usable_cols = list(X.columns)
+
+        # --- Mean regressor --------------------------------------------------
         self._model = HistGradientBoostingRegressor(
             max_iter=hgb_kw.get("max_iter", 200),
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
@@ -57,16 +74,44 @@ class MinutesModel:
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
             random_state=seed,
         )
-        # sklearn's BinMapper raises "window shape cannot be larger than input
-        # array shape" on all-NaN columns (common in early-season data).
-        all_nan = [c for c in X.columns if X[c].isna().all()]
-        if all_nan:
-            X = X.drop(columns=all_nan)
-        self._usable_cols = list(X.columns)
         self._model.fit(X, y, sample_weight=sample_weight)
 
-        # --- Residual-based sigma estimation -----------------------------------
-        y_pred = np.clip(self._model.predict(X), 0.0, self.cfg.get("minutes_clip_max", 45.0))
+        # --- Quantile regressors (q10, q25, q50, q75, q90) ------------------
+        self._quantile_models = {}
+        for q in _QUANTILES:
+            qm = HistGradientBoostingRegressor(
+                loss="quantile",
+                quantile=q,
+                max_iter=hgb_kw.get("max_iter", 200),
+                max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
+                learning_rate=hgb_kw.get("learning_rate", 0.1),
+                min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+                random_state=seed,
+            )
+            qm.fit(X, y, sample_weight=sample_weight)
+            self._quantile_models[q] = qm
+
+        # --- DNP logistic regression (P(did_not_play)) -----------------------
+        did_play_col = metadata_df.get("did_play", None) if metadata_df is not None else None
+        if did_play_col is None and "did_play" in metadata_df.columns:
+            did_play_col = metadata_df["did_play"]
+        if did_play_col is not None:
+            dnp_y = (did_play_col.values == 0).astype(int)
+            if len(np.unique(dnp_y)) >= 2:
+                self._dnp_model = Pipeline([
+                    ("imp", SimpleImputer(strategy="median")),
+                    ("clf", LogisticRegression(max_iter=1000, class_weight="balanced",
+                                               random_state=seed)),
+                ])
+                self._dnp_model.fit(X, dnp_y)
+            else:
+                # All same class — skip DNP model (everyone plays or no one plays)
+                self._dnp_model = None
+        else:
+            self._dnp_model = None
+
+        # --- Residual-based sigma fallback (legacy) --------------------------
+        y_pred = np.clip(self._model.predict(X), 0.0, clip_max)
         residuals = y.values - y_pred
         global_std = float(np.std(residuals))
         self._global_sigma = max(global_std, self.cfg.get("min_minutes_sigma", 3.0))
@@ -91,22 +136,41 @@ class MinutesModel:
         self._fitted = True
         return self
 
+    def predict_quantiles(
+        self,
+        X: pd.DataFrame,
+        metadata_df: pd.DataFrame,  # noqa: ARG002 — kept for API symmetry
+    ) -> np.ndarray:
+        """Return (n, 5) array of quantile minute predictions [q10..q90], clipped [0, 42]."""
+        if not self._fitted:
+            raise RuntimeError("MinutesModel not fitted")
+        X_aligned = X.reindex(columns=self._usable_cols)
+        clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
+        cols = []
+        for q in _QUANTILES:
+            if q in self._quantile_models:
+                raw = self._quantile_models[q].predict(X_aligned)
+            else:
+                raw = self._model.predict(X_aligned)  # fallback
+            cols.append(np.clip(raw, 0.0, clip_max))
+        return np.column_stack(cols)  # (n, 5)
+
     def predict(
         self,
         X: pd.DataFrame,
         metadata_df: pd.DataFrame,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Return (minutes_mean, minutes_sigma) arrays.
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return (minutes_mean, minutes_sigma, p_dnp) arrays.
 
-        minutes_mean: predicted expected minutes, clipped to [clip_min, clip_max].
-        minutes_sigma: estimated residual std for this player's role category,
-                       with minimum enforced and multiplier for uncertain roles.
+        minutes_mean  : predicted expected minutes, clipped to [clip_min, clip_max].
+        minutes_sigma : IQR-derived std when quantile models are available, else
+                        residual-std lookup from training, with minimum enforced.
+        p_dnp         : P(player does not play), from LogisticRegression.
+                        Returns zeros if DNP model was not fitted.
         """
         if not self._fitted or self._model is None:
             raise RuntimeError("MinutesModel not fitted")
 
-        # Align inference to the exact column set used at fit time.
-        # Missing columns are filled with NaN — HGB handles NaN natively.
         if hasattr(self, "_usable_cols"):
             X = X.reindex(columns=self._usable_cols)
 
@@ -116,22 +180,40 @@ class MinutesModel:
             self.cfg.get("minutes_clip_max", 45.0),
         )
 
-        min_bucket = metadata_df.get("projected_minutes_bucket", pd.Series(["unknown"] * len(X)))
-        unc_bucket = metadata_df.get("role_uncertainty_bucket", pd.Series(["unknown"] * len(X)))
+        # --- Sigma from IQR of quantile predictions -------------------------
         min_sigma = self.cfg.get("min_minutes_sigma", 3.0)
-        unc_mult = self.cfg.get("uncertain_sigma_multiplier", 1.5)
+        unc_mult  = self.cfg.get("uncertain_sigma_multiplier", 1.5)
 
-        sigmas = np.array([
-            self._sigma_lookup.get((str(mb), str(ub)), self._global_sigma)
-            for mb, ub in zip(min_bucket, unc_bucket)
-        ], dtype=float)
-        sigmas = np.clip(sigmas, min_sigma, None)
+        if self._quantile_models:
+            clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
+            q25_pred = np.clip(self._quantile_models[0.25].predict(X), 0.0, clip_max)
+            q75_pred = np.clip(self._quantile_models[0.75].predict(X), 0.0, clip_max)
+            sigmas = np.maximum((q75_pred - q25_pred) / 1.35, min_sigma)
+        else:
+            # Legacy fallback: role-stratified residual sigma
+            min_bucket = metadata_df.get("projected_minutes_bucket",
+                                         pd.Series(["unknown"] * len(X)))
+            unc_bucket = metadata_df.get("role_uncertainty_bucket",
+                                         pd.Series(["unknown"] * len(X)))
+            sigmas = np.array([
+                self._sigma_lookup.get((str(mb), str(ub)), self._global_sigma)
+                for mb, ub in zip(min_bucket, unc_bucket)
+            ], dtype=float)
+            sigmas = np.clip(sigmas, min_sigma, None)
 
         # Increase sigma for uncertain/injury-dependent roles
-        uncertain_mask = np.isin(unc_bucket.values, ["uncertain", "injury_dependent"])
-        sigmas = np.where(uncertain_mask, sigmas * unc_mult, sigmas)
+        if "role_uncertainty_bucket" in metadata_df.columns:
+            unc_bucket = metadata_df["role_uncertainty_bucket"]
+            uncertain_mask = np.isin(unc_bucket.values, ["uncertain", "injury_dependent"])
+            sigmas = np.where(uncertain_mask, sigmas * unc_mult, sigmas)
 
-        return y_pred, sigmas
+        # --- P(DNP) ----------------------------------------------------------
+        if self._dnp_model is not None:
+            p_dnp = self._dnp_model.predict_proba(X)[:, 1].astype(float)
+        else:
+            p_dnp = np.zeros(len(y_pred), dtype=float)
+
+        return y_pred, sigmas, p_dnp
 
     def get_training_summary(self) -> dict[str, Any]:
         return {
@@ -139,6 +221,8 @@ class MinutesModel:
             "global_sigma": self._global_sigma,
             "n_sigma_buckets": len(self._sigma_lookup),
             "sigma_by_bucket": {f"{k[0]}_{k[1]}": v for k, v in self._sigma_lookup.items()},
+            "quantile_models_fitted": len(self._quantile_models),
+            "dnp_model_fitted": self._dnp_model is not None,
         }
 
     def save(self, path: str) -> None:

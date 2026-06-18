@@ -104,6 +104,16 @@ jobs:
             data/oof/oof_player_stat_pmfs_calibrated.parquet \
             --config config/model/stage6_calibration.yaml
 
+      - name: Run strategy backtest
+        continue-on-error: true
+        run: |
+          python scripts/backtest_strategy.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --clv-tracking data/clv_tracking/results.parquet \
+            --out-dir artifacts/reports \
+            --edge-threshold 0.04 \
+            --kelly-fraction 0.25
+
       - name: Fit game totals calibrators (informational)
         # Fit isotonic calibration on game total over/under predictions.
         # ECE gate is informational only — does NOT block promotion of player stat calibrators.

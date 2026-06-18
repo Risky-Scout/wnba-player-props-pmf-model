@@ -1,10 +1,11 @@
-"""Build and persist the WNBATeamScoreModel (replaces quantile GameTotalsModel).
+"""Build and persist WNBATeamScoreModel (NegBinom) + WNBAWeibullCopulaScoreModel ensemble.
 
 Usage:
     python scripts/build_game_totals.py \
         --games data/processed/wnba_games.parquet \
         --out-dir artifacts/models/game_totals \
-        --time-decay-xi 0.002
+        --time-decay-xi 0.002 \
+        --ensemble-weight-negbinom 0.5
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import typer
 
-from wnba_props_model.models.team_score import WNBATeamScoreModel
+from wnba_props_model.models.team_score import WNBATeamScoreModel, WNBAWeibullCopulaScoreModel
 
 app = typer.Typer(add_completion=False)
 
@@ -52,8 +53,11 @@ def main(
     time_decay_xi: float = typer.Option(0.002, "--time-decay-xi",
         help="Dixon-Coles time-decay xi: weight = exp(-xi * days_ago). "
              "Typical: 0.002–0.005."),
+    ensemble_weight_negbinom: float = typer.Option(0.5, "--ensemble-weight-negbinom",
+        help="Blend weight for NegBinom model in ensemble (0–1). "
+             "Remaining weight goes to WeibullCopula."),
 ) -> None:
-    """Fit WNBATeamScoreModel and save to out_dir."""
+    """Fit NegBinom + Weibull Copula game totals ensemble and save to out_dir."""
     games_df = pd.read_parquet(games)
     typer.echo(f"Loaded {len(games_df):,} game rows from {games}")
 
@@ -63,25 +67,64 @@ def main(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    model = WNBATeamScoreModel()
-    model.fit(train, xi=time_decay_xi)
+    # --- NegBinom model (primary) -----------------------------------------
+    typer.echo("Fitting WNBATeamScoreModel (NegBinom)…")
+    negbinom_model = WNBATeamScoreModel()
+    negbinom_model.fit(train, xi=time_decay_xi)
 
-    model_path = out / "team_score_model.pkl"
-    model.save(str(model_path))
+    negbinom_path = out / "team_score_negbinom.pkl"
+    negbinom_model.save(str(negbinom_path))
 
-    summary = model.get_training_summary()
+    nb_summary = negbinom_model.get_training_summary()
     summary_path = out / "team_score_summary.json"
     with open(summary_path, "w") as f:
-        json.dump(summary, f, indent=2, default=str)
+        json.dump(nb_summary, f, indent=2, default=str)
 
-    typer.echo(f"Model saved → {model_path}")
-    typer.echo(f"Training summary → {summary_path}")
+    # Keep legacy path for backward compatibility
+    legacy_path = out / "team_score_model.pkl"
+    negbinom_model.save(str(legacy_path))
+
     typer.echo(
-        f"  Teams: {summary.get('n_teams')}, "
-        f"Games: {summary.get('n_games')}, "
-        f"xi={time_decay_xi}, "
-        f"Converged: {summary.get('converged')}, "
-        f"NLL: {summary.get('final_nll', 0):.2f}"
+        f"  NegBinom: Teams={nb_summary.get('n_teams')}, "
+        f"Games={nb_summary.get('n_games')}, "
+        f"Converged={nb_summary.get('converged')}, "
+        f"NLL={nb_summary.get('final_nll', 0):.2f}"
+    )
+
+    # --- Weibull Copula model (secondary) ---------------------------------
+    typer.echo("Fitting WNBAWeibullCopulaScoreModel…")
+    weibull_model = WNBAWeibullCopulaScoreModel()
+    weibull_fitted = False
+    try:
+        weibull_model.fit(train, time_decay_xi=time_decay_xi)
+        weibull_path = out / "team_score_weibull.pkl"
+        weibull_model.save(str(weibull_path))
+        weibull_fitted = True
+        typer.echo(f"  WeibullCopula: fitted on {len(train)} games")
+    except Exception as exc:
+        typer.echo(f"  WeibullCopula fit failed: {exc} — using NegBinom only")
+        ensemble_weight_negbinom = 1.0  # fall back to 100% NegBinom
+
+    # --- Ensemble config ---------------------------------------------------
+    ensemble_cfg = {
+        "negbinom_weight": float(ensemble_weight_negbinom),
+        "weibull_weight": float(1.0 - ensemble_weight_negbinom),
+        "weibull_fitted": weibull_fitted,
+        "time_decay_xi": time_decay_xi,
+        "negbinom_path": "team_score_negbinom.pkl",
+        "weibull_path": "team_score_weibull.pkl" if weibull_fitted else None,
+    }
+    ensemble_cfg_path = out / "team_score_ensemble_config.json"
+    with open(ensemble_cfg_path, "w") as f:
+        json.dump(ensemble_cfg, f, indent=2)
+
+    typer.echo(f"Ensemble config → {ensemble_cfg_path}")
+    typer.echo(f"NegBinom model → {negbinom_path}")
+    if weibull_fitted:
+        typer.echo(f"WeibullCopula model → {out / 'team_score_weibull.pkl'}")
+    typer.echo(
+        f"Blend weights: NegBinom={ensemble_weight_negbinom:.2f}, "
+        f"Weibull={1 - ensemble_weight_negbinom:.2f}"
     )
 
 

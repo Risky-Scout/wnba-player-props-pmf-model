@@ -37,17 +37,12 @@ _IS_DELTA_FLAG_THRESHOLD = 0.0  # IS delta > 0 → market is better → flag for
 
 
 def _print_rolling_is_summary(combined: pd.DataFrame, window_days: int = 30) -> None:
-    """Print 30-day rolling Ignorance Score delta vs market.
+    """Print 30-day rolling Ignorance Score delta vs market (Shin and Power methods).
 
     IS delta = model_ignorance_score - market_ignorance_score
     Negative delta = model better (lower IS = sharper forecast).
     Positive delta = market better (flag for improvement).
-
-    Example output:
-      Model vs Market (last 30 days):
-        pts:      IS delta = -0.0034  (model better)   n=847
-        reb:      IS delta = -0.0021  (model better)   n=821
-        turnover: IS delta = +0.0012  (market better)  n=756  ← flag
+    Reports which vig-removal method (Shin vs Power) produces better IS delta.
     """
     req_cols = {"game_date", "stat", "model_ignorance_score", "market_ignorance_score"}
     if not req_cols.issubset(combined.columns):
@@ -66,27 +61,57 @@ def _print_rolling_is_summary(combined: pd.DataFrame, window_days: int = 30) -> 
     if valid.empty:
         return
 
-    typer.echo(f"\n{'='*55}")
+    typer.echo(f"\n{'='*65}")
     typer.echo(f"Model vs Market — Last {window_days} Days Ignorance Score Delta")
-    typer.echo(f"{'='*55}")
+    typer.echo(f"{'='*65}")
     typer.echo(f"  (negative IS delta = model better; positive = market better)")
     typer.echo()
 
+    stat_results = []
     for stat, grp in valid.groupby("stat"):
         model_is = float(grp["model_ignorance_score"].mean())
-        market_is = float(grp["market_ignorance_score"].mean())
-        delta = model_is - market_is
+        market_is_shin = float(grp["market_ignorance_score"].mean())
+        delta_shin = model_is - market_is_shin
         n = len(grp)
-        flag = "  ← flag for improvement" if delta > _IS_DELTA_FLAG_THRESHOLD else ""
-        direction = "model better" if delta < 0 else "market better"
+        flag = "  ← flag" if delta_shin > _IS_DELTA_FLAG_THRESHOLD else ""
+        direction = "model better" if delta_shin < 0 else "market better"
         typer.echo(
-            f"  {stat:<12} IS delta = {delta:+.4f}  ({direction})   n={n}{flag}"
+            f"  {stat:<12} IS delta (Shin)  = {delta_shin:+.4f}  ({direction})   n={n}{flag}"
         )
+
+        # Power method IS delta (if market_prob_over_power column exists)
+        if "market_prob_over_power" in grp.columns:
+            valid_p = grp[grp["market_prob_over_power"].notna() & grp["actual_outcome"].notna()]
+            if len(valid_p) >= 5:
+                from wnba_props_model.models.market import ignorance_score_binary  # noqa: PLC0415
+                power_is = float(np.mean([
+                    ignorance_score_binary(float(row["market_prob_over_power"]), int(row["actual_outcome"] > row["line"]))
+                    for _, row in valid_p.iterrows()
+                    if pd.notna(row.get("line"))
+                ]))
+                delta_power = model_is - power_is
+                better_method = "Shin" if delta_shin < delta_power else "Power"
+                typer.echo(
+                    f"  {stat:<12} IS delta (Power) = {delta_power:+.4f}  (best method: {better_method})"
+                )
+                stat_results.append({"stat": stat, "delta_shin": delta_shin, "delta_power": delta_power})
+            else:
+                stat_results.append({"stat": stat, "delta_shin": delta_shin, "delta_power": None})
+        else:
+            stat_results.append({"stat": stat, "delta_shin": delta_shin, "delta_power": None})
 
     overall_delta = float(valid["model_ignorance_score"].mean()) - float(valid["market_ignorance_score"].mean())
     typer.echo()
-    typer.echo(f"  Overall IS delta = {overall_delta:+.4f}   n={len(valid):,}")
-    typer.echo(f"{'='*55}\n")
+    typer.echo(f"  Overall IS delta (Shin) = {overall_delta:+.4f}   n={len(valid):,}")
+
+    # Summary: which method wins most stats
+    has_power = [r for r in stat_results if r["delta_power"] is not None]
+    if has_power:
+        shin_wins = sum(1 for r in has_power if r["delta_shin"] <= r["delta_power"])
+        power_wins = len(has_power) - shin_wins
+        typer.echo(f"  Vig method wins: Shin={shin_wins}/{len(has_power)}, Power={power_wins}/{len(has_power)}")
+
+    typer.echo(f"{'='*65}\n")
 
 
 _STAT_ALIASES = {

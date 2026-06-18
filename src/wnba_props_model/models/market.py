@@ -100,6 +100,96 @@ def no_vig_two_way(over_odds: float | int | None, under_odds: float | int | None
     return shin_no_vig_two_way(over_odds, under_odds)
 
 
+# ---------------------------------------------------------------------------
+# Multi-method implied probability comparison (F5)
+# ---------------------------------------------------------------------------
+
+_PB_IMPLIED_METHODS = ["multiplicative", "additive", "power", "shin",
+                        "differential_margin_weighting", "odds_ratio", "logarithmic"]
+
+
+def implied_probs_all_methods(
+    over_odds: float | int | None,
+    under_odds: float | int | None,
+) -> dict[str, tuple[float | None, float | None]]:
+    """Compute no-vig implied probabilities using all available PenaltyBlog methods.
+
+    Returns a dict: {method_name: (p_over, p_under)}
+    Methods that fail gracefully return (None, None).
+    """
+    if over_odds is None or under_odds is None:
+        return {m: (None, None) for m in _PB_IMPLIED_METHODS}
+
+    results: dict[str, tuple[float | None, float | None]] = {}
+
+    try:
+        from penaltyblog.implied import calculate_implied  # noqa: PLC0415
+        from penaltyblog.implied.models import OddsFormat  # noqa: PLC0415
+
+        for method_name in _PB_IMPLIED_METHODS:
+            try:
+                result = calculate_implied(
+                    [float(over_odds), float(under_odds)],
+                    method=method_name,
+                    odds_format=OddsFormat.AMERICAN,
+                )
+                probs = result.probabilities
+                if len(probs) >= 2 and all(math.isfinite(p) for p in probs):
+                    results[method_name] = (float(probs[0]), float(probs[1]))
+                else:
+                    results[method_name] = (None, None)
+            except Exception:
+                results[method_name] = (None, None)
+    except ImportError:
+        # penaltyblog unavailable — use multiplicative fallback
+        p_o, p_u = _multiplicative_no_vig(over_odds, under_odds)
+        for m in _PB_IMPLIED_METHODS:
+            results[m] = (p_o, p_u)
+
+    return results
+
+
+def get_no_vig_prob(
+    over_odds: float | int | None,
+    under_odds: float | int | None,
+    method: str = "shin",
+) -> tuple[float | None, float | None]:
+    """Get no-vig P(over) and P(under) using the specified method.
+
+    Supported methods: any PenaltyBlog ImpliedMethod name (case-insensitive),
+    or 'multiplicative' as a pure-Python fallback.
+
+    Returns (p_over, p_under).  Falls back to Shin on failure.
+    """
+    if over_odds is None or under_odds is None:
+        return None, None
+
+    method_lower = method.lower()
+
+    if method_lower == "shin":
+        return shin_no_vig_two_way(over_odds, under_odds)
+
+    if method_lower == "multiplicative":
+        return _multiplicative_no_vig(over_odds, under_odds)
+
+    try:
+        from penaltyblog.implied import calculate_implied  # noqa: PLC0415
+        from penaltyblog.implied.models import OddsFormat  # noqa: PLC0415
+
+        result = calculate_implied(
+            [float(over_odds), float(under_odds)],
+            method=method_lower,
+            odds_format=OddsFormat.AMERICAN,
+        )
+        probs = result.probabilities
+        if len(probs) >= 2 and all(math.isfinite(p) for p in probs):
+            return float(probs[0]), float(probs[1])
+    except Exception as exc:
+        logger.debug("get_no_vig_prob(%s) failed: %s — falling back to Shin", method, exc)
+
+    return shin_no_vig_two_way(over_odds, under_odds)
+
+
 def prob_over_from_pmf(pmf: Mapping[int, float] | np.ndarray, line: float) -> float:
     if isinstance(pmf, np.ndarray):
         return float(pmf[np.arange(len(pmf)) > float(line)].sum())

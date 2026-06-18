@@ -72,10 +72,48 @@ hgb_classifier:
   learning_rate: 0.1
   min_samples_leaf: 20
 
+# --------------------------------------------------------------------------
+# F1: Minutes distribution marginalization
+# --------------------------------------------------------------------------
+# Marginalize over the full minutes distribution (5-point quadrature) instead
+# of conditioning on the point-estimate mean. Increases PMF variance for players
+# with uncertain playing time, improving calibration at the tails.
+use_minutes_marginalization: false  # set true after re-validating OOF gates
+minutes_marginalization_quadrature_points:
+  - 0.10
+  - 0.25
+  - 0.50
+  - 0.75
+  - 0.90
+minutes_marginalization_weights:
+  - 0.10
+  - 0.15
+  - 0.50
+  - 0.15
+  - 0.10
+
+# --------------------------------------------------------------------------
+# F3: ZINB for sparse stats
+# --------------------------------------------------------------------------
+# Replace HurdleModel with ZINBStatModel for stl + blk.
+# ZINB is theoretically superior for structural zero-inflation: it jointly
+# models the zero-inflation probability (π) and the NegBinom mean (μ).
+use_zinb_for_sparse_stats: false   # set true after OOF validation
+
+# --------------------------------------------------------------------------
+# F5: Vig-removal method for market benchmark
+# --------------------------------------------------------------------------
+no_vig_method: shin
+secondary_no_vig_method: power
+
+# --------------------------------------------------------------------------
 # Per-stat configuration overrides — merged on top of global config for each stat.
 # use_minutes_offset: fit on per-minute rate, multiply by projected minutes at predict.
 # This gives sparse / bursty stats (turnover, ast) exposure-correct NegBinom distributions.
+# use_beta_binomial: use Beta-Binomial model for fg3m (requires fg3a in data).
 stat_overrides:
+  fg3m:
+    use_beta_binomial: false  # set true after fg3a data is available in production
   turnover:
     use_minutes_offset: true
   ast:

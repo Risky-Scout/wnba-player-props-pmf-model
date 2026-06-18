@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+from scipy.special import gammaln as _gammaln
 from scipy.stats import nbinom as scipy_nbinom
 from scipy.stats import poisson as scipy_poisson
 
@@ -240,6 +241,63 @@ def _degenerate_at_zero(n: int) -> np.ndarray:
     arr = np.zeros(n)
     arr[0] = 1.0
     return arr
+
+
+def zinb_pmf_batch(
+    pi: np.ndarray,
+    mu: np.ndarray,
+    r: float,
+    cap: int,
+) -> np.ndarray:
+    """Batch Zero-Inflated Negative Binomial PMF.
+
+    P(k=0) = π + (1-π) * NB(0; μ, r)
+    P(k>0) = (1-π) * NB(k; μ, r)
+
+    Returns shape (n, cap+1), rows sum to 1.
+    """
+    n = len(pi)
+    r = max(float(r), 1e-4)
+    mu_safe = np.clip(mu, 1e-9, None)
+    p_nb = r / (r + mu_safe)        # success prob for NegBinom
+
+    k_arr = np.arange(cap + 1)
+    log_r = np.log(r)
+
+    # Compute log NB PMF for each k — vectorized over (n, cap+1)
+    k_broad = k_arr[np.newaxis, :]                      # (1, cap+1)
+    mu_broad = mu_safe[:, np.newaxis]                   # (n, 1)
+    p_broad  = p_nb[:, np.newaxis]                      # (n, 1)
+
+    log_nb = (
+        _gammaln(k_broad + r) - _gammaln(r) - _gammaln(k_broad + 1)
+        + r * np.log(p_broad) + k_broad * np.log1p(-p_broad + 1e-300)
+    )
+    nb_pmf = np.exp(np.clip(log_nb, -700, 0))
+    nb_pmf = np.clip(nb_pmf, 0.0, None)
+
+    pi_broad = pi[:, np.newaxis]                        # (n, 1)
+    pmf_mat = (1.0 - pi_broad) * nb_pmf
+    pmf_mat[:, 0] += pi_broad[:, 0]                    # add structural zero mass
+
+    # Renormalize
+    row_sums = pmf_mat.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums > 0, row_sums, 1.0)
+    return pmf_mat / row_sums
+
+
+def beta_binomial_pmf_batch(
+    expected_n: np.ndarray,
+    alpha: float,
+    beta_param: float,
+    cap: int,
+) -> np.ndarray:
+    """Batch Beta-Binomial PMF — convenience re-export from beta_binomial module.
+
+    Returns shape (n, cap+1), each row sums to 1.
+    """
+    from wnba_props_model.models.beta_binomial import beta_binomial_pmf_batch as _bb  # noqa: PLC0415
+    return _bb(expected_n, alpha, beta_param, cap)
 
 
 def dispersion_from_moments(mean: float, var: float) -> float | None:

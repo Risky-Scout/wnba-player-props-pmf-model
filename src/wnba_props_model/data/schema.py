@@ -65,7 +65,7 @@ PLAYER_GAME_STATS_SCHEMA = TableSchema(
     ],
     numeric_columns=[
         "minutes", "pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
-        "oreb", "dreb", "fga", "fta", "pf",
+        "oreb", "dreb", "fga", "fg3a", "fta", "pf",
     ],
     datetime_columns=["game_date"],
     nonneg_stat_columns=["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover", "minutes"],

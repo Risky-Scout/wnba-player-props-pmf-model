@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize_scalar
 from scipy.special import gammaln
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, PoissonRegressor
 from sklearn.pipeline import Pipeline
 
 from wnba_props_model.constants import DOMAIN_MAX
 from wnba_props_model.models.simulation import normalize_pmf
+
+logger = logging.getLogger(__name__)
 
 
 def _nbinom_pmf(k: np.ndarray, mu: float, alpha: float) -> np.ndarray:
@@ -71,3 +78,144 @@ class SparseHurdleModel:
             pmf[0] = float(p0)
             out.append(normalize_pmf(pmf))
         return out
+
+
+# ---------------------------------------------------------------------------
+# Zero-Inflated Negative Binomial (ZINB) — Stage 4 replacement for HurdleModel
+# ---------------------------------------------------------------------------
+
+def _zinb_nll(r: float, y: np.ndarray, pi: float, mu: float) -> float:
+    """Negative log-likelihood for NegBinom component (used for MLE of r)."""
+    r = max(r, 1e-4)
+    p = r / (r + mu)
+    log_nb_0 = r * np.log(p)
+    ll = np.sum(
+        np.where(
+            y == 0,
+            np.log(pi + (1 - pi) * np.exp(log_nb_0) + 1e-300),
+            np.log((1 - pi) + 1e-300)
+            + gammaln(y + r) - gammaln(r) - gammaln(y + 1)
+            + r * np.log(p) + y * np.log1p(-p),
+        )
+    )
+    return -ll
+
+
+class ZINBStatModel:
+    """Zero-Inflated Negative Binomial model for sparse count stats (stl, blk).
+
+    Three-stage model:
+    Stage 1: LogisticRegression → π (structural zero probability).
+    Stage 2: HistGBR Regressor → μ (NegBinom mean for non-structural component).
+    Stage 3: Scalar MLE for dispersion r on the full data.
+
+    Interface matches HurdleModel:  .predict(X) → (p_nz, pos_mus)  [for compatibility]
+    ZINB interpretation: p_nz = 1 - π,  pos_mus = μ (the NegBinom mean)
+    Additional attribute: self._r  (NegBinom dispersion parameter)
+    """
+
+    VERSION = "stage4_zinb_v1"
+
+    def __init__(self, stat: str, cfg: dict[str, Any]) -> None:
+        if stat not in {"stl", "blk"}:
+            raise ValueError("ZINBStatModel is intended for stl/blk")
+        self.stat = stat
+        self.cfg = cfg
+        self._pi_model: Pipeline | None = None
+        self._mu_model: HistGradientBoostingRegressor | None = None
+        self._r: float = 1.0            # NegBinom dispersion
+        self._global_pi: float = 0.5
+        self._global_mu: float = 0.3
+        self._usable_cols: list[str] = []
+        self._fitted = False
+
+        # Compatibility attributes expected by hurdle_pmf_batch dispatch
+        self.pos_dispersion_r: float = 1.0   # alias for _r
+        self._pos_var: float = 1.0
+
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sample_weight: np.ndarray | None = None,
+    ) -> "ZINBStatModel":
+        seed  = self.cfg.get("random_seed", 42)
+        hgb_kw = self.cfg.get("hgb_regressor", {})
+
+        all_nan = [c for c in X.columns if X[c].isna().all()]
+        if all_nan:
+            X = X.drop(columns=all_nan)
+        self._usable_cols = list(X.columns)
+
+        y_arr = y.fillna(0).values.astype(float)
+        is_zero = (y_arr == 0).astype(int)
+
+        # Stage 1: π — structural zero probability
+        if len(np.unique(is_zero)) >= 2:
+            self._pi_model = Pipeline([
+                ("imp", SimpleImputer(strategy="median")),
+                ("clf", LogisticRegression(max_iter=1000, class_weight="balanced",
+                                           random_state=seed)),
+            ])
+            self._pi_model.fit(X, is_zero, **{"clf__sample_weight": sample_weight}
+                                if sample_weight is not None else {})
+        self._global_pi = float(is_zero.mean())
+
+        # Stage 2: μ — NegBinom mean (fit on all rows; model predicts unconditional mean)
+        self._mu_model = HistGradientBoostingRegressor(
+            max_iter=hgb_kw.get("max_iter", 200),
+            max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
+            learning_rate=hgb_kw.get("learning_rate", 0.1),
+            min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+            random_state=seed,
+        )
+        self._mu_model.fit(X, y_arr, sample_weight=sample_weight)
+        self._global_mu = float(y_arr.mean()) or 0.3
+
+        # Stage 3: MLE for dispersion r using global means
+        mu_hat = float(np.clip(self._mu_model.predict(X), 1e-9, None).mean())
+        pi_hat = self._global_pi
+        result = minimize_scalar(
+            _zinb_nll, args=(y_arr, pi_hat, mu_hat),
+            bounds=(1e-3, 100.0), method="bounded",
+        )
+        self._r = float(result.x)
+        self.pos_dispersion_r = self._r
+        self._pos_var = float(np.var(y_arr[y_arr > 0])) if (y_arr > 0).any() else 1.0
+
+        logger.info(
+            "ZINBStatModel %s: pi=%.3f mu=%.3f r=%.3f",
+            self.stat, pi_hat, mu_hat, self._r,
+        )
+        self._fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+        """Return (p_nz, pos_mus) compatible with hurdle_pmf_batch interface.
+
+        p_nz = 1 - π  (probability of a non-structural zero, i.e. plays)
+        pos_mus = μ   (NegBinom mean; dispersion r stored in self._r)
+        """
+        if not self._fitted:
+            raise RuntimeError("ZINBStatModel not fitted")
+        X_aligned = X.reindex(columns=self._usable_cols)
+        if self._pi_model is not None:
+            pi = self._pi_model.predict_proba(X_aligned)[:, 1]
+        else:
+            pi = np.full(len(X_aligned), self._global_pi)
+        if self._mu_model is not None:
+            mu = np.clip(self._mu_model.predict(X_aligned), 1e-9, None)
+        else:
+            mu = np.full(len(X_aligned), self._global_mu)
+        p_nz = np.clip(1.0 - pi, 0.0, 1.0)
+        return p_nz, mu
+
+    def get_training_summary(self) -> dict[str, Any]:
+        return {
+            "stat": self.stat,
+            "model_type": "ZINBStatModel",
+            "global_pi": self._global_pi,
+            "global_mu": self._global_mu,
+            "dispersion_r": self._r,
+            "version": self.VERSION,
+        }

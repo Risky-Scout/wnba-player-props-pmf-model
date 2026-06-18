@@ -222,12 +222,66 @@ def _build_game_totals_html(game_totals_df: pd.DataFrame) -> str:
     return "\n".join(html_parts)
 
 
+def _build_backtest_html(backtest_dir: Path) -> str:
+    """Embed equity curve and backtest summary from latest backtest run."""
+    import glob  # noqa: PLC0415
+
+    # Find latest backtest JSON
+    json_files = sorted(glob.glob(str(backtest_dir / "backtest_*.json")))
+    if not json_files:
+        return "<p>No backtest results found. Run <code>scripts/backtest_strategy.py</code> first.</p>"
+
+    with open(json_files[-1]) as f:
+        import json as _json  # noqa: PLC0415
+        summary = _json.load(f)
+
+    # Find equity curve PNG
+    equity_png = backtest_dir / "backtest_equity_curve.png"
+    roi_png    = backtest_dir / "backtest_per_stat_roi.png"
+    kelly_png  = backtest_dir / "backtest_kelly_dist.png"
+
+    try:
+        from wnba_props_model.visualization.pmf_plots import fig_to_base64  # noqa: PLC0415
+        import base64  # noqa: PLC0415
+
+        def _png_b64(path: Path) -> str | None:
+            if not path.exists():
+                return None
+            with open(path, "rb") as f2:
+                return base64.b64encode(f2.read()).decode("ascii")
+    except ImportError:
+        def _png_b64(path: Path) -> str | None:  # type: ignore[misc]
+            return None
+
+    equity_b64 = _png_b64(equity_png)
+    roi_b64    = _png_b64(roi_png)
+    kelly_b64  = _png_b64(kelly_png)
+
+    rows = "\n".join(
+        f"<tr><td>{k}</td><td>{v:.4f if isinstance(v, float) else v}</td></tr>"
+        for k, v in summary.items()
+    )
+    table_html = f"<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>{rows}</tbody></table>"
+
+    charts_html = ""
+    for b64, caption in [
+        (equity_b64, "Equity Curve"),
+        (roi_b64, "Per-Stat ROI"),
+        (kelly_b64, "Kelly Distribution"),
+    ]:
+        if b64:
+            charts_html += f'<div class="chart"><p>{caption}</p><img src="data:image/png;base64,{b64}" style="max-width:100%"></div>\n'
+
+    return f"<div>{table_html}{charts_html}</div>"
+
+
 def export_html_report(
     game_date: str,
     player_grids: list[WNBAPMFGrid],
     edges_df: pd.DataFrame,
     game_totals_df: pd.DataFrame | None = None,
     out_path: str | Path | None = None,
+    backtest_dir: str | Path | None = None,
 ) -> str:
     """Build a self-contained HTML report string.
 
@@ -250,6 +304,7 @@ def export_html_report(
     edge_table = _build_edge_table_html(edges_df)
     player_sections = _build_player_sections_html(player_grids, edges_df)
     gt_html = _build_game_totals_html(game_totals_df) if game_totals_df is not None else "<p>Not available.</p>"
+    bt_html = _build_backtest_html(Path(backtest_dir)) if backtest_dir and Path(backtest_dir).exists() else "<p>No backtest results available.</p>"
 
     n_players = len(player_grids)
     n_edges = len(edges_df)
@@ -277,6 +332,11 @@ def export_html_report(
 <section>
   <h2>🏀 Game Total Distributions</h2>
   {gt_html}
+</section>
+
+<section>
+  <h2>📈 Strategy Backtest</h2>
+  {bt_html}
 </section>
 
 <section>
@@ -308,6 +368,8 @@ def main(
         help="game_totals_{date}.parquet from predict_game_totals.py."),
     edges: str | None = typer.Option(None, "--edges",
         help="publishable_edges.parquet from build_edge_report.py."),
+    bt_dir: str | None = typer.Option(None, "--backtest-dir",
+        help="Directory containing backtest results (artifacts/reports)."),
     max_players: int = typer.Option(30, help="Max players to render in full PMF detail."),
 ) -> None:
     """Build a self-contained HTML report with PMF plots and edge table."""
@@ -341,6 +403,7 @@ def main(
         edges_df=edges_df,
         game_totals_df=gt_df,
         out_path=out,
+        backtest_dir=bt_dir,
     )
     typer.echo(f"\nHTML report → {out} ({len(html):,} bytes)")
 

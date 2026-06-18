@@ -63,6 +63,7 @@ class FoldModel:
     train_wide_rows: int
     train_long_rows: int
     train_stat_rows: dict[str, int] = field(default_factory=dict)
+    bb_models: dict = field(default_factory=dict)  # BetaBinomialStatModel keyed by stat
 
 
 # ---------------------------------------------------------------------------
@@ -190,8 +191,16 @@ def train_fold(
 
     stat_models: dict[str, StatRateModel] = {}
     hurdle_models: dict[str, HurdleModel] = {}
+    bb_models: dict = {}
     summaries: dict[str, Any] = {"minutes": min_summary}
     train_stat_rows: dict[str, int] = {}
+
+    # Check which special distributions are enabled
+    stat_overrides_cfg = cfg.get("stat_overrides", {})
+    use_beta_binomial_fg3m = (
+        stat_overrides_cfg.get("fg3m", {}).get("use_beta_binomial", False)
+        and "actual_fg3a" in train_wide.columns  # fg3a must be available
+    )
 
     for stat in stats:
         target_col = f"actual_{stat}"
@@ -210,15 +219,40 @@ def train_fold(
             min_pos = cfg.get("min_sparse_positive_rows", 50)
             if int((y_stat > 0).sum()) < min_pos:
                 continue
-            m = HurdleModel(stat, cfg)
-            m.fit(X_played, y_stat, sample_weight=sample_weight_played)
+            use_zinb = cfg.get("use_zinb_for_sparse_stats", False)
+            if use_zinb:
+                from wnba_props_model.models.hurdle import ZINBStatModel  # noqa: PLC0415
+                m = ZINBStatModel(stat, cfg)
+                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
+            else:
+                m = HurdleModel(stat, cfg)
+                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
             hurdle_models[stat] = m
             summaries[stat] = m.get_training_summary()
+        elif stat == "fg3m" and use_beta_binomial_fg3m:
+            # Beta-Binomial model for fg3m (uses fg3a as attempt count)
+            from wnba_props_model.models.beta_binomial import BetaBinomialStatModel  # noqa: PLC0415
+            played_ctx = train_wide[played_mask].reset_index(drop=True)
+            fg3a_col = "actual_fg3a" if "actual_fg3a" in played_ctx.columns else None
+            y_attempts = played_ctx[fg3a_col] if fg3a_col else None
+            stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
+            bb_m = BetaBinomialStatModel(stat_cfg)
+            bb_m.fit(X_played, y_stat, y_attempts, sample_weight=sample_weight_played)
+            bb_models["fg3m"] = bb_m
+            summaries["fg3m_bb"] = {
+                "stat": "fg3m", "model_type": "BetaBinomial",
+                "alpha": bb_m.alpha_, "beta": bb_m.beta_,
+            }
+            # Also fit a standard stat model as fallback stored in stat_models
+            stat_cfg2 = {**cfg, **stat_overrides_cfg.get(stat, {})}
+            m = StatRateModel(stat, stat_cfg2)
+            m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
+            stat_models[stat] = m
         else:
             # Pass context_df so StatRateModel can compute per-role dispersion.
             played_ctx = train_wide[played_mask].reset_index(drop=True)
             # Merge global config with per-stat overrides (stat_overrides.{stat})
-            stat_cfg = {**cfg, **cfg.get("stat_overrides", {}).get(stat, {})}
+            stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
             if cfg.get("use_log_linear", False):
                 m = LogLinearStatModel(stat, stat_cfg)
                 m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
@@ -232,6 +266,7 @@ def train_fold(
         minutes_model=min_model,
         stat_models=stat_models,
         hurdle_models=hurdle_models,
+        bb_models=bb_models,
         pos_encoder=pos_encoder,
         # Use only columns that had non-NaN values in training (all-NaN cols were
         # dropped before fitting; inference must align to the same column set).
@@ -272,11 +307,11 @@ def generate_fold_pmfs(
     )
 
     # Minutes predictions (aligned with val_wide)
-    min_means, min_sigmas = fold_model.minutes_model.predict(X_val, val_wide)
+    min_means, min_sigmas, p_dnp_arr = fold_model.minutes_model.predict(X_val, val_wide)
 
-    # Build lookup: (player_id, game_id) → (minutes_mean, minutes_sigma)
+    # Build lookup: (player_id, game_id) → (minutes_mean, minutes_sigma, p_dnp)
     min_lookup = {
-        (row.player_id, row.game_id): (min_means[i], min_sigmas[i])
+        (row.player_id, row.game_id): (min_means[i], min_sigmas[i], p_dnp_arr[i])
         for i, row in enumerate(val_wide.itertuples(index=False))
     }
 
@@ -297,14 +332,10 @@ def generate_fold_pmfs(
             continue
 
         # Attach minutes predictions
-        stat_rows["minutes_mean"] = [
-            min_lookup.get((r.player_id, r.game_id), (0.0, cfg.get("min_minutes_sigma", 3.0)))[0]
-            for r in stat_rows.itertuples(index=False)
-        ]
-        stat_rows["minutes_sigma"] = [
-            min_lookup.get((r.player_id, r.game_id), (0.0, cfg.get("min_minutes_sigma", 3.0)))[1]
-            for r in stat_rows.itertuples(index=False)
-        ]
+        _default_min = (0.0, cfg.get("min_minutes_sigma", 3.0), 0.0)
+        stat_rows["minutes_mean"]  = [min_lookup.get((r.player_id, r.game_id), _default_min)[0] for r in stat_rows.itertuples(index=False)]
+        stat_rows["minutes_sigma"] = [min_lookup.get((r.player_id, r.game_id), _default_min)[1] for r in stat_rows.itertuples(index=False)]
+        stat_rows["p_dnp"]         = [min_lookup.get((r.player_id, r.game_id), _default_min)[2] for r in stat_rows.itertuples(index=False)]
 
         # Feature matrix aligned to stat_rows (use val_wide indexed by player+game)
         wide_idx = val_wide.set_index(["player_id", "game_id"])
@@ -342,7 +373,37 @@ def generate_fold_pmfs(
 
         # ---- Build PMF matrix --------------------------------------------
         roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
-        if stat in fold_model.hurdle_models:
+        use_marginalization = cfg.get("use_minutes_marginalization", False)
+        bb_models_fold = getattr(fold_model, "bb_models", {})
+
+        if (use_marginalization
+                and hasattr(fold_model.minutes_model, "_quantile_models")
+                and fold_model.minutes_model._quantile_models):
+            # Get quantile predictions for all stat_rows
+            wide_idx2 = val_wide.set_index(["player_id", "game_id"])
+            aligned_wide2 = wide_idx2.reindex(
+                pd.MultiIndex.from_arrays(
+                    [stat_rows["player_id"].values, stat_rows["game_id"].values]
+                )
+            ).reset_index(drop=True)
+            X_for_quant, _ = encode_features(
+                aligned_wide2, fold_model.feature_cols,
+                pos_encoder=fold_model.pos_encoder, fit_encoder=False
+            )
+            quant_mat = fold_model.minutes_model.predict_quantiles(X_for_quant, aligned_wide2)
+            quad_weights = np.array(cfg.get(
+                "minutes_marginalization_weights", [0.10, 0.15, 0.50, 0.15, 0.10]
+            ))
+            from wnba_props_model.models.pmf_engine import (  # noqa: PLC0415
+                _build_marginalized_pmf_matrix, _blend_with_dnp,
+            )
+            pmf_mat = _build_marginalized_pmf_matrix(
+                stat, quant_mat, quad_weights, p_nz_out, pos_mus_out,
+                fold_model.stat_models, fold_model.hurdle_models, cap, roles=roles
+            )
+        elif stat == "fg3m" and bb_models_fold.get("fg3m") is not None:
+            pmf_mat = bb_models_fold["fg3m"].predict_pmf_matrix(X_stat, cap=cap)
+        elif stat in fold_model.hurdle_models:
             model = fold_model.hurdle_models[stat]
             pmf_mat = hurdle_pmf_batch(p_nz_out, pos_mus_out, model.pos_dispersion_r, cap)
         elif stat in fold_model.stat_models:
@@ -370,10 +431,18 @@ def generate_fold_pmfs(
             pmf_mat = poisson_pmf_batch(np.full(len(stat_rows), mu_prior), cap)
             stat_model_type = "prior_fallback"
 
-        # ---- DNP zero-inflation -----------------------------------------
+        # ---- DNP / zero-inflation -----------------------------------------
         low_min_applied = False
         low_min_count = 0
-        if apply_dnp:
+        if use_marginalization:
+            # Use DNP model output for zero inflation
+            p_dnp_row = stat_rows["p_dnp"].fillna(0.0).values.astype(float)
+            if np.any(p_dnp_row > 0.0):
+                from wnba_props_model.models.pmf_engine import _blend_with_dnp  # noqa: PLC0415
+                pmf_mat = _blend_with_dnp(pmf_mat, p_dnp_row)
+                low_min_applied = True
+                low_min_count = int(np.sum(p_dnp_row > 0.01))
+        elif apply_dnp:
             pmf_mat, low_min_count = apply_low_minutes_adjustment(
                 pmf_mat, stat_rows["minutes_mean"].values, dnp_threshold
             )
@@ -427,6 +496,7 @@ def generate_fold_pmfs(
             "calibration_eligible":         cal_elig,
             "minutes_mean":                 stat_rows["minutes_mean"].values,
             "minutes_sigma":                stat_rows["minutes_sigma"].values,
+            "p_dnp":                        stat_rows["p_dnp"].values if "p_dnp" in stat_rows.columns else np.zeros(len(stat_rows)),
             "minutes_prediction_type":      "model" if oof_type == "model_oof" else "prior",
             "stat_mean":                    stat_means_out,
             "stat_variance":                stat_var_out,

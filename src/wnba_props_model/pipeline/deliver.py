@@ -95,8 +95,11 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
         stat = BDL_PROP_TO_STAT.get(r.get("prop_type"))
         if stat is None:
             continue
-        from wnba_props_model.models.market import shin_no_vig_two_way_with_z  # noqa: PLC0415
+        from wnba_props_model.models.market import (  # noqa: PLC0415
+            shin_no_vig_two_way_with_z, get_no_vig_prob,
+        )
         po, pu, z = shin_no_vig_two_way_with_z(market.get("over_odds"), market.get("under_odds"))
+        po_power, _ = get_no_vig_prob(market.get("over_odds"), market.get("under_odds"), method="power")
         rows.append({
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
@@ -107,6 +110,7 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
             "over_odds": market.get("over_odds"),
             "under_odds": market.get("under_odds"),
             "market_prob_over_no_vig": po,
+            "market_prob_over_power": po_power,
             "shin_z": z,
             "updated_at": r.get("updated_at"),
         })

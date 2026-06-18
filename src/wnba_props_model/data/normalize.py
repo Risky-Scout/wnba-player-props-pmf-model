@@ -156,6 +156,7 @@ def flatten_player_stat_row(row: dict[str, Any]) -> dict[str, Any]:
     out["oreb"] = _coerce_int(row.get("oreb"))
     out["dreb"] = _coerce_int(row.get("dreb"))
     out["fga"] = _coerce_int(row.get("fga"))
+    out["fg3a"] = _coerce_int(row.get("fg3a"))
     out["fta"] = _coerce_int(row.get("fta"))
     out["pf"] = _coerce_int(row.get("pf"))
     out["plus_minus"] = row.get("plus_minus")

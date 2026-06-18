@@ -215,17 +215,24 @@ def _build_team_game_context(
     ctx = pd.DataFrame(records)
 
     # --- 2. Player-stat aggregates per team × game -------------------------
+    extra_agg: dict[str, tuple] = {}
+    if "fg3a" in stats_df.columns:
+        extra_agg["_t_fg3a"] = ("fg3a", "sum")
     stat_agg = stats_df.groupby(["game_id", "team_id"], as_index=False).agg(
-        **{f"_t_{s}": (s, "sum") for s in STATS}
+        **{f"_t_{s}": (s, "sum") for s in STATS},
+        **extra_agg,
     )
 
     # --- 3. Join own-team stats to ctx rows --------------------------------
     ctx = ctx.merge(stat_agg, on=["game_id", "team_id"], how="left")
 
     # --- 4. Join opponent stats (what opponent scored AGAINST this team) ---
+    opp_rename = {f"_t_{s}": f"_o_{s}" for s in STATS}
+    if "fg3a" in stats_df.columns:
+        opp_rename["_t_fg3a"] = "_o_fg3a"
     opp_agg = stat_agg.rename(columns={
         "team_id": "_opp_tid",
-        **{f"_t_{s}": f"_o_{s}" for s in STATS},
+        **opp_rename,
     })
     ctx = ctx.merge(
         opp_agg,
@@ -256,8 +263,16 @@ def _build_team_game_context(
     ctx["_days_since_last"] = (ctx["game_date"] - ctx["_prev_game_date"]).dt.days
     ctx["t_rest_days"] = (ctx["_days_since_last"] - 1).clip(lower=0)
     ctx["t_back_to_back"] = (ctx["_days_since_last"] == 1).astype(int)
+    # fg3a allowed rolling (opponent 3pt attempt volume against this team)
+    if "_o_fg3a" in ctx.columns:
+        grp2 = ctx.groupby("team_id", sort=False)
+        ctx["t_fg3a_against_l5"]  = _sr(grp2["_o_fg3a"], 5)
+        ctx["t_fg3a_against_l10"] = _sr(grp2["_o_fg3a"], 10)
+
+    drop_extra = ["_t_fg3a", "_o_fg3a"] if "_t_fg3a" in ctx.columns else []
     ctx = ctx.drop(columns=["_prev_game_date", "_days_since_last"] +
-                   [f"_t_{s}" for s in STATS] + [f"_o_{s}" for s in STATS],
+                   [f"_t_{s}" for s in STATS] + [f"_o_{s}" for s in STATS] +
+                   drop_extra,
                    errors="ignore")
     return ctx
 
@@ -378,6 +393,23 @@ def _build_player_features(
         df[f"player_{stat}_per_min_season"] = (
             (stat_sum_s / min_sum_s.clip(lower=1.0)).replace([np.inf, -np.inf], np.nan)
         )
+
+    # ------------------------------------------------------------------ #
+    # 4b. fg3a (three-point attempts) rolling features — fg3m model input
+    # ------------------------------------------------------------------ #
+    if "fg3a" in df.columns:
+        _fg3a_g = df.groupby("player_id", sort=False)["fg3a"]
+        _fg3m_g = df.groupby("player_id", sort=False)["fg3m"] if "fg3m" in df.columns else None
+        _mg = df.groupby("player_id", sort=False)["minutes"]
+        df["player_fg3a_mean_l5"]  = _sr(_fg3a_g, 5)
+        df["player_fg3a_mean_l10"] = _sr(_fg3a_g, 10)
+        df["player_fg3a_per_min_l5"] = (
+            _sr(_fg3a_g, 5, agg="sum") / _sr(_mg, 5, agg="sum").clip(lower=1.0)
+        ).replace([np.inf, -np.inf], np.nan)
+        if _fg3m_g is not None:
+            df["player_fg3_pct_l5"] = (
+                _sr(_fg3m_g, 5, agg="sum") / _sr(_fg3a_g, 5, agg="sum").clip(lower=0.5)
+            ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
 
     # ------------------------------------------------------------------ #
     # 5. Usage proxy features (shifted)
@@ -607,32 +639,39 @@ def _build_injury_features(
     else:
         out["usage_share_delta"] = np.nan
 
-    # ---- vacated_minutes_l1: minutes from prior-game DNP teammates -----------
-    # Compute per-team per-game total DNP minutes (teammates not playing).
-    # This tells us how many minutes are being redistributed for THIS game.
+    # ---- vacated_minutes_l1 + vacated_pts_l1: from prior-game DNP teammates --
+    # Compute per-team per-game total DNP minutes/pts (teammates not playing).
+    # This tells us how many minutes / pts are being redistributed for THIS game.
     if "team_id" in out.columns and "did_play" in out.columns:
         dnp_mins = out.copy()
         _min_col = "actual_minutes" if "actual_minutes" in dnp_mins.columns else "minutes"
-        dnp_mins["_dnp_minutes"] = dnp_mins[_min_col].fillna(0.0) * (
-            1 - dnp_mins["did_play"].fillna(1).astype(int)
+        _pts_col = "actual_pts" if "actual_pts" in dnp_mins.columns else "pts"
+        dnp_flag = 1 - dnp_mins["did_play"].fillna(1).astype(int)
+        dnp_mins["_dnp_minutes"] = dnp_mins[_min_col].fillna(0.0) * dnp_flag
+        dnp_mins["_dnp_pts"] = (
+            dnp_mins[_pts_col].fillna(0.0) * dnp_flag
+            if _pts_col in dnp_mins.columns else 0.0
         )
         team_dnp = (
-            dnp_mins.groupby(["team_id", "game_id"])["_dnp_minutes"]
-            .sum()
+            dnp_mins.groupby(["team_id", "game_id"])
+            .agg(_team_dnp_min=("_dnp_minutes", "sum"),
+                 _team_dnp_pts=("_dnp_pts", "sum"))
             .reset_index()
-            .rename(columns={"_dnp_minutes": "_team_dnp_min", "game_id": "_gid", "team_id": "_tid"})
+            .rename(columns={"game_id": "_gid", "team_id": "_tid"})
         )
-        # Shift: for each team, carry last game's DNP minutes forward
+        # Shift: for each team, carry last game's DNP values forward
         team_dnp = team_dnp.sort_values(["_tid", "_gid"])
         team_dnp["vacated_minutes_l1"] = team_dnp.groupby("_tid")["_team_dnp_min"].shift(1)
+        team_dnp["vacated_pts_l1"]     = team_dnp.groupby("_tid")["_team_dnp_pts"].shift(1)
         out = out.merge(
-            team_dnp[["_tid", "_gid", "vacated_minutes_l1"]].rename(
+            team_dnp[["_tid", "_gid", "vacated_minutes_l1", "vacated_pts_l1"]].rename(
                 columns={"_tid": "team_id", "_gid": "game_id"}
             ),
             on=["team_id", "game_id"], how="left",
         )
     else:
         out["vacated_minutes_l1"] = np.nan
+        out["vacated_pts_l1"]     = np.nan
 
     # ---- teammate_injury_flag: BDL injury data for current game -------------
     # injuries_df may contain player_id + game_id rows where the player is listed
@@ -749,6 +788,10 @@ def build_wide_table(
     opp_ctx_cols["t_games_prior"]  = "opp_games_prior"
     opp_ctx_cols["t_rest_days"]    = "opp_rest_days"
     opp_ctx_cols["t_back_to_back"] = "opp_back_to_back_flag"
+    # fg3a allowed by opponent (how many 3pt attempts opponent's defense gives up)
+    if "t_fg3a_against_l5" in ctx.columns:
+        opp_ctx_cols["t_fg3a_against_l5"]  = "opp_fg3a_allowed_mean_l5"
+        opp_ctx_cols["t_fg3a_against_l10"] = "opp_fg3a_allowed_mean_l10"
 
     ctx_opp = ctx.rename(columns=opp_ctx_cols)[
         ["game_id", "team_id"] + [v for v in opp_ctx_cols.values() if v in ctx.rename(columns=opp_ctx_cols).columns]
@@ -763,6 +806,29 @@ def build_wide_table(
         right_on=["game_id", "_opp_team_id"],
         how="left",
     ).drop(columns=["_opp_team_id"], errors="ignore")
+
+    # ------------------------------------------------------------------ #
+    # Pace-adjusted opponent defensive ratings (F7b)
+    # ------------------------------------------------------------------ #
+    if "opp_pace_proxy_l5" in wide.columns:
+        denom = wide["opp_pace_proxy_l5"].clip(lower=50.0) / 100.0
+        for s in STATS:
+            raw_col = f"opp_{s}_allowed_mean_l5"
+            if raw_col in wide.columns:
+                wide[f"opp_{s}_allowed_per_100_poss_l5"] = (
+                    wide[raw_col] / denom
+                ).replace([np.inf, -np.inf], np.nan)
+
+    # ------------------------------------------------------------------ #
+    # Rate × pace-adjusted opponent interaction features (F7c)
+    # ------------------------------------------------------------------ #
+    for s in STATS:
+        rate_col = f"player_{s}_per_min_l5"
+        opp_col  = f"opp_{s}_allowed_per_100_poss_l5"
+        if rate_col in wide.columns and opp_col in wide.columns:
+            wide[f"player_{s}_per_min_l5_x_opp_{s}_per_100_l5"] = (
+                wide[rate_col] * wide[opp_col]
+            ).replace([np.inf, -np.inf], np.nan)
 
     # ------------------------------------------------------------------ #
     # Rename actual stats to target columns
@@ -785,6 +851,22 @@ def build_wide_table(
             zip(opp_abbrev["visitor_team_id"], opp_abbrev["visitor_team_abbreviation"])
         )
         wide["opponent_team_abbreviation"] = wide["opponent_team_id"].map(id_to_abbrev)
+
+    # ------------------------------------------------------------------ #
+    # Season-stage features (F7d)
+    # ------------------------------------------------------------------ #
+    if "season" in wide.columns and "team_id" in wide.columns and "game_date" in wide.columns:
+        wide["game_number_in_season"] = (
+            wide.groupby(["team_id", "season"])["game_date"]
+            .rank(method="first")
+            .astype(int)
+        )
+        wide["season_completion_pct"] = (wide["game_number_in_season"] / 40.0).clip(0, 1)
+        wide["is_playoff_game"] = (wide["game_number_in_season"] > 36).astype(int)
+    else:
+        wide["game_number_in_season"] = np.nan
+        wide["season_completion_pct"]  = np.nan
+        wide["is_playoff_game"]        = 0
 
     # ------------------------------------------------------------------ #
     # Metadata columns
@@ -816,7 +898,7 @@ def build_wide_table(
     else:
         # Ensure columns exist as NaN/0 for schema consistency
         for col in ["player_injured_l1", "teammate_injury_flag",
-                    "vacated_minutes_l1", "usage_share_delta"]:
+                    "vacated_minutes_l1", "vacated_pts_l1", "usage_share_delta"]:
             if col not in wide.columns:
                 wide[col] = 0.0 if col in ("player_injured_l1", "teammate_injury_flag") else np.nan
 
@@ -893,7 +975,7 @@ def _derive_model_feature_columns(wide_df: pd.DataFrame) -> list[str]:
         "stat_line_all_zero_flag", "missing_team_flag", "missing_opponent_flag",
         "missing_game_date_flag", "started_proxy",  # raw, not rolled
         "pts_ast", "pts_reb", "pts_reb_ast", "reb_ast", "stocks",  # combo raw stats
-        "oreb", "dreb", "pf", "fga", "fta", "fg3m", "plus_minus",  # raw per-game stats
+        "oreb", "dreb", "pf", "fga", "fg3a", "fta", "fg3m", "plus_minus",  # raw per-game stats
     })
     model_cols = [
         c for c in wide_df.columns

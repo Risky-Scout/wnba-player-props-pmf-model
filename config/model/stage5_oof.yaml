@@ -63,8 +63,38 @@ hgb_classifier:
   learning_rate: 0.1
   min_samples_leaf: 20
 
+# --------------------------------------------------------------------------
+# F1: Minutes distribution marginalization (must match stage4_baseline.yaml)
+# --------------------------------------------------------------------------
+use_minutes_marginalization: false
+minutes_marginalization_quadrature_points:
+  - 0.10
+  - 0.25
+  - 0.50
+  - 0.75
+  - 0.90
+minutes_marginalization_weights:
+  - 0.10
+  - 0.15
+  - 0.50
+  - 0.15
+  - 0.10
+
+# --------------------------------------------------------------------------
+# F3: ZINB for sparse stats (must match stage4_baseline.yaml)
+# --------------------------------------------------------------------------
+use_zinb_for_sparse_stats: false
+
+# --------------------------------------------------------------------------
+# F5: Vig-removal method for market benchmark
+# --------------------------------------------------------------------------
+no_vig_method: shin
+secondary_no_vig_method: power
+
 # Per-stat configuration overrides (must match stage4_baseline.yaml)
 stat_overrides:
+  fg3m:
+    use_beta_binomial: false
   turnover:
     use_minutes_offset: true
   ast:

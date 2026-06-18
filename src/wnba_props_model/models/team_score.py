@@ -35,6 +35,12 @@ logger = logging.getLogger(__name__)
 TEAM_SCORE_MAX = 130
 GAME_TOTAL_MAX = DOMAIN_MAX.get("game_total", 260)
 
+try:
+    import penaltyblog
+    _PB_AVAILABLE = True
+except ImportError:
+    _PB_AVAILABLE = False
+
 
 def _negbinom_pmf(mu: float, r: float, domain: int = TEAM_SCORE_MAX) -> np.ndarray:
     """Negative binomial PMF with mean=mu, dispersion=r.
@@ -514,3 +520,131 @@ class WNBATeamScorePMFGrid:
             f"E[home]={self.expected_home_score():.1f}, "
             f"E[away]={self.expected_away_score():.1f})"
         )
+
+
+# ---------------------------------------------------------------------------
+# Weibull Copula Game Totals Model (F4)
+# ---------------------------------------------------------------------------
+
+class WNBAWeibullCopulaScoreModel:
+    """Thin wrapper around PenaltyBlog's WeibullCopulaGoalsModel for WNBA.
+
+    Requires ``penaltyblog`` package.  Gracefully falls back to returning None
+    if the package is unavailable (caller should fall back to NegBinom model).
+    """
+
+    VERSION = "stage4_weibull_copula_v1"
+
+    def __init__(self) -> None:
+        self._inner = None
+        self._teams: set[str] = set()
+
+    def fit(self, df: pd.DataFrame, time_decay_xi: float = 0.002) -> "WNBAWeibullCopulaScoreModel":
+        """Fit the Weibull Copula model.
+
+        Args:
+            df: DataFrame with columns: home_team, away_team, home_score, away_score,
+                days_since (days back from today — for time decay).
+            time_decay_xi: Dixon-Coles decay parameter (higher = faster decay).
+        """
+        if not _PB_AVAILABLE:
+            logger.warning("penaltyblog not available — WNBAWeibullCopulaScoreModel not fitted")
+            return self
+
+        required = {"home_team", "away_team", "home_score", "away_score"}
+        if not required.issubset(df.columns):
+            missing = required - set(df.columns)
+            raise ValueError(f"Missing columns for WeibullCopula fit: {missing}")
+
+        # Compute time-decay weights
+        if "days_since" in df.columns:
+            weights = penaltyblog.models.dixon_coles_weights(
+                df["days_since"].values, xi=time_decay_xi
+            )
+        else:
+            weights = None
+
+        self._inner = penaltyblog.models.WeibullCopulaGoalsModel(
+            goals_home=df["home_score"].astype(int),
+            goals_away=df["away_score"].astype(int),
+            teams_home=df["home_team"].astype(str),
+            teams_away=df["away_team"].astype(str),
+            weights=weights,
+        )
+        self._inner.fit()
+        self._teams = set(df["home_team"].tolist()) | set(df["away_team"].tolist())
+        logger.info(
+            "WNBAWeibullCopulaScoreModel fitted on %d games, %d teams",
+            len(df), len(self._teams),
+        )
+        return self
+
+    def predict(
+        self,
+        home_team: str,
+        away_team: str,
+        max_score: int = TEAM_SCORE_MAX,
+        game_id: Any = None,
+        game_date: Any = None,
+    ) -> "WNBATeamScorePMFGrid | None":
+        """Predict WNBATeamScorePMFGrid for a game.
+
+        Returns None if either team is unknown or model not fitted.
+        """
+        if self._inner is None:
+            return None
+
+        try:
+            grid = self._inner.predict(home_team, away_team, max_goals=max_score)
+        except Exception as exc:
+            logger.warning(
+                "WeibullCopula prediction failed for %s vs %s: %s",
+                home_team, away_team, exc,
+            )
+            return None
+
+        # Extract marginal score PMFs from FootballProbabilityGrid
+        # home_goal_distribution() / away_goal_distribution() return arrays
+        home_pmf = np.array(grid.home_goal_distribution())
+        away_pmf = np.array(grid.away_goal_distribution())
+
+        # Pad to max_score + 1 if needed
+        if len(home_pmf) < max_score + 1:
+            home_pmf = np.pad(home_pmf, (0, max_score + 1 - len(home_pmf)))
+        if len(away_pmf) < max_score + 1:
+            away_pmf = np.pad(away_pmf, (0, max_score + 1 - len(away_pmf)))
+
+        home_pmf = normalize_pmf(home_pmf[:max_score + 1])
+        away_pmf = normalize_pmf(away_pmf[:max_score + 1])
+        game_total_pmf = normalize_pmf(convolve_pmfs(home_pmf, away_pmf))
+
+        # Use the expected value as the lambda proxy
+        ks_h = np.arange(len(home_pmf))
+        ks_a = np.arange(len(away_pmf))
+        home_lambda = float(np.dot(ks_h, home_pmf))
+        away_lambda = float(np.dot(ks_a, away_pmf))
+
+        return WNBATeamScorePMFGrid(
+            home_team=home_team,
+            away_team=away_team,
+            home_score_pmf=home_pmf,
+            away_score_pmf=away_pmf,
+            game_total_pmf=game_total_pmf,
+            home_lambda=home_lambda,
+            away_lambda=away_lambda,
+            game_id=game_id,
+            game_date=game_date,
+        )
+
+    def can_predict(self, home_team: str, away_team: str) -> bool:
+        """Return True if both teams were seen in training data."""
+        return (self._inner is not None
+                and home_team in self._teams
+                and away_team in self._teams)
+
+    def save(self, path: str) -> None:
+        joblib.dump(self, path)
+
+    @classmethod
+    def load(cls, path: str) -> "WNBAWeibullCopulaScoreModel":
+        return joblib.load(path)
