@@ -486,6 +486,9 @@ def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
             "line": _to_numeric(
                 r.get("line_value") or r.get("line") or r.get("value")
             ),
+            # P4.1: opening line — earliest recorded line per (player_id, stat, game_id)
+            # set to None here; populated by normalize_player_props after grouping
+            "prop_line_open": None,
             # BDL live: market.over_odds; older rows: r.over_odds
             "over_odds": _to_numeric(
                 market.get("over_odds") or r.get("over_odds") or r.get("over")
@@ -501,6 +504,21 @@ def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
     df = pd.DataFrame(flat)
     if df.empty:
         return df
+    # P4.1: derive prop_line_open = earliest recorded line per (player_id, stat, game_id)
+    # when updated_at is available; otherwise first row's line for each group
+    if "updated_at" in df.columns and df["updated_at"].notna().any():
+        _open = (
+            df.sort_values("updated_at")
+            .groupby(["player_id", "stat", "game_id"])["line"]
+            .first()
+            .rename("prop_line_open")
+            .reset_index()
+        )
+        df = df.merge(_open, on=["player_id", "stat", "game_id"], how="left", suffixes=("", "_open_dup"))
+        if "prop_line_open_open_dup" in df.columns:
+            df = df.drop(columns=["prop_line_open_open_dup"])
+        # Overwrite the placeholder None column
+        df["prop_line_open"] = df["prop_line_open"]
     return df.sort_values(["game_id", "player_id", "stat", "vendor"]).reset_index(drop=True)
 
 

@@ -86,7 +86,8 @@ def estimate_correlations(
     features_wide: "pd.DataFrame",
     pairs: Iterable[tuple[str, str]] | None = None,
     min_samples: int = _MIN_SAMPLES_FOR_CORR,
-) -> dict[str, float]:
+    position_col: str | None = None,
+) -> "dict[str, float] | dict[str, dict[str, float]]":
     """Estimate empirical Pearson correlations between stat pairs from wide table.
 
     Parameters
@@ -97,7 +98,8 @@ def estimate_correlations(
 
     Returns
     -------
-    dict mapping combo key (e.g. "pts_ast") to Pearson ρ, clipped to [-MAX, MAX].
+    When ``position_col`` is None: dict mapping combo key → ρ.
+    When ``position_col`` is provided: dict {"G": {...}, "F": {...}, "C": {...}, "all": {...}}.
     Missing pairs fall back to _DEFAULT_CORRELATIONS.
     """
     import pandas as pd
@@ -110,24 +112,37 @@ def estimate_correlations(
             ("stl", "blk"),
         ]
 
-    corr_map = dict(_DEFAULT_CORRELATIONS)
+    def _compute_corr_map(df: "pd.DataFrame") -> dict[str, float]:
+        corr_map = dict(_DEFAULT_CORRELATIONS)
+        for s1, s2 in pairs:
+            c1, c2 = f"actual_{s1}", f"actual_{s2}"
+            if c1 not in df.columns or c2 not in df.columns:
+                continue
+            valid = df[[c1, c2]].dropna()
+            if len(valid) < min_samples:
+                continue
+            rho = float(np.corrcoef(valid[c1].values, valid[c2].values)[0, 1])
+            rho = float(np.clip(rho, -_MAX_ABS_RHO, _MAX_ABS_RHO))
+            key = f"{s1}_{s2}" if (s1, s2) in [("pts", "ast"), ("pts", "reb"), ("reb", "ast")] else f"{s2}_{s1}"
+            corr_map[key] = round(rho, 4)
+            logger.debug("[bivariate_pmf] Estimated ρ(%s, %s) = %.4f from %d samples", s1, s2, rho, len(valid))
+        return corr_map
 
-    for s1, s2 in pairs:
-        c1, c2 = f"actual_{s1}", f"actual_{s2}"
-        if c1 not in features_wide.columns or c2 not in features_wide.columns:
-            continue
-        valid = features_wide[[c1, c2]].dropna()
-        if len(valid) < min_samples:
-            logger.debug("[bivariate_pmf] Too few samples for %s_%s correlation (%d < %d)",
-                         s1, s2, len(valid), min_samples)
-            continue
-        rho = float(np.corrcoef(valid[c1].values, valid[c2].values)[0, 1])
-        rho = float(np.clip(rho, -_MAX_ABS_RHO, _MAX_ABS_RHO))
-        key = f"{s1}_{s2}" if (s1, s2) in [("pts", "ast"), ("pts", "reb"), ("reb", "ast")] else f"{s2}_{s1}"
-        corr_map[key] = round(rho, 4)
-        logger.debug("[bivariate_pmf] Estimated ρ(%s, %s) = %.4f from %d samples", s1, s2, rho, len(valid))
+    # P3.5: position-stratified correlations
+    if position_col is not None and position_col in features_wide.columns:
+        result: dict[str, dict[str, float]] = {"all": _compute_corr_map(features_wide)}
+        def _primary(pos: str) -> str:
+            if not isinstance(pos, str) or not pos:
+                return "F"
+            c = pos.strip()[0].upper()
+            return c if c in ("G", "F", "C") else "F"
+        primary_pos = features_wide[position_col].map(_primary)
+        for bucket in ("G", "F", "C"):
+            subset = features_wide[primary_pos == bucket]
+            result[bucket] = _compute_corr_map(subset)
+        return result
 
-    return corr_map
+    return _compute_corr_map(features_wide)
 
 
 def build_bivariate_pmf(
@@ -244,6 +259,8 @@ def adjust_combo_pmf_for_correlation(
     stat_x: str,
     stat_y: str,
     corr_map: dict[str, float] | None = None,
+    position: str | None = None,
+    corr_map_by_pos: "dict[str, dict[str, float]] | None" = None,
 ) -> np.ndarray:
     """Build a correlation-adjusted sum PMF P(X + Y = k).
 
@@ -253,14 +270,24 @@ def adjust_combo_pmf_for_correlation(
 
     Parameters
     ----------
-    pmf_x, pmf_y: marginal PMFs
-    stat_x, stat_y: stat names (used to look up ρ from corr_map)
-    corr_map: dict of canonical pair key → ρ; defaults to _DEFAULT_CORRELATIONS
+    pmf_x, pmf_y : marginal PMFs
+    stat_x, stat_y : stat names (used to look up ρ from corr_map)
+    corr_map : flat dict of canonical pair key → ρ; defaults to _DEFAULT_CORRELATIONS
+    position : P3.5 — primary position bucket ("G"/"F"/"C") for stratified lookup
+    corr_map_by_pos : P3.5 — {"G": {...}, "F": {...}, "C": {...}, "all": {...}}
 
     Returns
     -------
     1D array: PMF of X + Y, length = len(pmf_x) + len(pmf_y) - 1
     """
+    # P3.5: resolve the correlation map to use
+    if corr_map_by_pos is not None:
+        _primary = position.strip()[0].upper() if (isinstance(position, str) and position) else None
+        if _primary in corr_map_by_pos:
+            corr_map = corr_map_by_pos[_primary]
+        else:
+            corr_map = corr_map_by_pos.get("all", _DEFAULT_CORRELATIONS)
+
     if corr_map is None:
         corr_map = _DEFAULT_CORRELATIONS
 

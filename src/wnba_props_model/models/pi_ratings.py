@@ -80,6 +80,7 @@ def build_pi_rating_features(
     stats: Iterable[str] = _STATS,
     player_alpha: float = _PLAYER_FORM_ALPHA,
     team_beta: float = _TEAM_DEF_BETA,
+    model_predictions_df: "pd.DataFrame | None" = None,
 ) -> pd.DataFrame:
     """Compute Pi rating features for each (player_id, game_id) row.
 
@@ -92,13 +93,25 @@ def build_pi_rating_features(
 
     Parameters
     ----------
-    wide_df     : wide feature table (one row per player × game)
-    stats       : stat names to compute Pi ratings for
-    player_alpha: learning rate for player form EMA
-    team_beta   : learning rate for team defense EMA
+    wide_df              : wide feature table (one row per player × game)
+    stats                : stat names to compute Pi ratings for
+    player_alpha         : learning rate for player form EMA
+    team_beta            : learning rate for team defense EMA
+    model_predictions_df : P3.4 — OOF model predictions with columns
+                           (player_id, game_id, {stat}_model_pred). When provided,
+                           uses model predictions as the Pi rating baseline instead
+                           of rolling L5 mean.
     """
     df = wide_df.copy()
     df = df.sort_values(["player_id", "game_date", "game_id"]).reset_index(drop=True)
+
+    # P3.4: merge model predictions for use as baseline if provided
+    if model_predictions_df is not None and not model_predictions_df.empty:
+        pred_cols = [c for c in model_predictions_df.columns
+                     if c.endswith("_model_pred") or c in ("player_id", "game_id")]
+        df = df.merge(
+            model_predictions_df[pred_cols], on=["player_id", "game_id"], how="left"
+        )
 
     pi_cols: list[str] = []
     stats_list = list(stats)
@@ -108,7 +121,9 @@ def build_pi_rating_features(
     # ------------------------------------------------------------------
     for stat in stats_list:
         actual_col   = f"actual_{stat}"
-        baseline_col = f"player_{stat}_mean_l5"
+        # P3.4: use OOF model predictions as baseline if available, else rolling L5 mean
+        model_pred_col = f"{stat}_model_pred"
+        baseline_col = model_pred_col if model_pred_col in df.columns else f"player_{stat}_mean_l5"
         home_pi_col  = f"player_{stat}_pi_home_form"
         away_pi_col  = f"player_{stat}_pi_away_form"
 

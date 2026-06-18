@@ -87,6 +87,8 @@ def main(
         games_df=games_df,
         adv_df=adv_df,
         injuries_df=inj_df,
+        use_positional_defense_features=True,
+        use_matchup_features=True,
     )
     typer.echo(f"  Wide rows: {len(wide_df):,}  |  columns: {len(wide_df.columns)}")
 

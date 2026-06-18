@@ -260,6 +260,18 @@ def train(
     hurdle_models: dict[str, HurdleModel] = {}
     stat_summaries: dict[str, dict] = {}
 
+    # P3.2: Load tuned hyperparameters when use_tuned_hyperparams is set
+    tuned_params: dict[str, dict] = {}
+    if cfg.get("use_tuned_hyperparams", False):
+        import json as _json  # noqa: PLC0415
+        hp_path = Path(cfg.get("hgb_hyperparams_path", "artifacts/hyperparams/best_params_all.json"))
+        if hp_path.exists():
+            with open(hp_path) as _f:
+                tuned_params = _json.load(_f)
+            print(f"\nLoaded tuned hyperparams from {hp_path}: {list(tuned_params.keys())}")
+        else:
+            print(f"\n[WARN] use_tuned_hyperparams=true but {hp_path} not found — using defaults")
+
     X_played = X_all[played_mask].reset_index(drop=True)
 
     for stat in stats:
@@ -280,8 +292,22 @@ def train(
         if sw_played is not None:
             sw_played = sw_played[: len(X_played)]  # guard against index mismatch
 
+        # P3.2: merge tuned hyperparams for this stat into config copy
+        stat_cfg = dict(cfg)
+        if stat in tuned_params:
+            tp = tuned_params[stat]
+            hgb_r = dict(stat_cfg.get("hgb_regressor", {}))
+            hgb_r.update({k: tp[k] for k in ("max_iter", "max_leaf_nodes", "learning_rate",
+                                               "min_samples_leaf", "l2_regularization")
+                           if k in tp})
+            stat_cfg["hgb_regressor"] = hgb_r
+            hgb_c = dict(stat_cfg.get("hgb_classifier", {}))
+            hgb_c.update({k: tp[k] for k in ("max_iter", "max_leaf_nodes", "learning_rate",
+                                               "min_samples_leaf") if k in tp})
+            stat_cfg["hgb_classifier"] = hgb_c
+
         if stat in sparse_stats:
-            model_h = HurdleModel(stat, cfg)
+            model_h = HurdleModel(stat, stat_cfg)
             model_h.fit(X_played, y_stat, sample_weight=sw_played)
             hurdle_models[stat] = model_h
             s = model_h.get_training_summary()
@@ -289,7 +315,7 @@ def train(
                   f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
         else:
             played_ctx = wide[played_mask].reset_index(drop=True)
-            model_r = StatRateModel(stat, cfg)
+            model_r = StatRateModel(stat, stat_cfg)
             model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
             stat_models[stat] = model_r
             s = model_r.get_training_summary()
@@ -299,6 +325,19 @@ def train(
                   f"role_buckets={len(s.get('role_dispersion', {}))}")
 
         stat_summaries[stat] = s
+
+    # P3.5: Compute and save position-stratified combo correlations
+    try:
+        from wnba_props_model.models.bivariate_pmf import estimate_correlations  # noqa: PLC0415
+        pos_col = "position" if "position" in wide.columns else None
+        corr_by_pos = estimate_correlations(wide, position_col=pos_col)
+        corr_path = model_dir / "combo_correlations_by_pos.json"
+        import json as _json2  # noqa: PLC0415
+        with open(corr_path, "w") as _cf:
+            _json2.dump(corr_by_pos, _cf, indent=2, default=str)
+        print(f"\nSaved combo correlations by position: {corr_path}")
+    except Exception as _exc:
+        print(f"\n[WARN] Could not compute position-stratified correlations: {_exc}")
 
     # Save models
     stat_path = model_dir / "stat_rate_models.joblib"

@@ -113,6 +113,34 @@ def _print_rolling_is_summary(combined: pd.DataFrame, window_days: int = 30) -> 
 
     typer.echo(f"{'='*65}\n")
 
+    # P4.1: IS delta segmentation by line movement bucket
+    if "line_moved_toward_over" in valid.columns and "line_moved_toward_under" in valid.columns:
+        typer.echo(f"{'='*65}")
+        typer.echo("IS Delta by Line Movement (P4.1)")
+        typer.echo(f"{'='*65}")
+        typer.echo("  stale = line unchanged  |  steam_over = line moved toward over  |  steam_under = moved toward under")
+        typer.echo()
+
+        def _bucket_movement(row: pd.Series) -> str:
+            toward_over  = row.get("line_moved_toward_over")
+            toward_under = row.get("line_moved_toward_under")
+            if toward_over is True:
+                return "steam_over"
+            if toward_under is True:
+                return "steam_under"
+            return "stale"
+
+        valid["_line_bucket"] = valid.apply(_bucket_movement, axis=1)
+        for bucket, bgrp in valid.groupby("_line_bucket"):
+            b_model = float(bgrp["model_ignorance_score"].mean())
+            b_market = float(bgrp["market_ignorance_score"].mean())
+            b_delta = b_model - b_market
+            direction = "model better" if b_delta < 0 else "market better"
+            typer.echo(
+                f"  {bucket:<14} IS delta = {b_delta:+.4f}  ({direction})   n={len(bgrp):,}"
+            )
+        typer.echo(f"{'='*65}\n")
+
 
 _STAT_ALIASES = {
     "tov": "turnover",

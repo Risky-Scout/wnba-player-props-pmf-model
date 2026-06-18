@@ -178,7 +178,12 @@ def build_all_pmfs(
             stat_means = p_nz * pos_mus  # E[Y] = P(Y>0) * E[Y|Y>0]
         else:
             model = stat_models[stat]
-            stat_means = model.predict_mean(X_stat_df)
+            # P3.3: use Bayesian shrinkage ensemble when enabled
+            use_ensemble = cfg.get("use_model_ensemble", False)
+            if use_ensemble and hasattr(model, "predict_with_shrinkage"):
+                stat_means = model.predict_with_shrinkage(X_stat_df, X_stat)
+            else:
+                stat_means = model.predict_mean(X_stat_df)
             p_nz = None
             pos_mus = None
 
@@ -328,6 +333,19 @@ def _build_pmf_matrix(
     model = stat_models.get(stat)
     if model is None:
         return poisson_pmf_batch(stat_means, cap)
+
+    # P3.1: mean-dependent dispersion — per-row r(mu_i)
+    use_mean_dep = getattr(model, "cfg", {}).get("use_mean_dependent_dispersion", False)
+    if (use_mean_dep and getattr(model, "_dispersion_slope", None) is not None):
+        n = len(stat_means)
+        pmf_mat = np.zeros((n, cap + 1))
+        for i in range(n):
+            r_i = model.get_dispersion("", mu=float(stat_means[i]))
+            if r_i is not None:
+                pmf_mat[i] = negbinom_pmf_batch(stat_means[i:i+1], r_i, cap)[0]
+            else:
+                pmf_mat[i] = poisson_pmf_batch(stat_means[i:i+1], cap)[0]
+        return pmf_mat
 
     # Role-aware NegBinom batching: star players have fatter tails than bench.
     if roles is not None and getattr(model, "_role_dispersion", None):

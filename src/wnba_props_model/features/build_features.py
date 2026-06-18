@@ -269,6 +269,24 @@ def _build_team_game_context(
         ctx["t_fg3a_against_l5"]  = _sr(grp2["_o_fg3a"], 5)
         ctx["t_fg3a_against_l10"] = _sr(grp2["_o_fg3a"], 10)
 
+    # Team 3-in-4 flag (P2.3): team played 3 games in 4 days
+    _ctx_date_lag2 = grp["game_date"].shift(2)
+    ctx["t_3in4_flag"] = (
+        (ctx["game_date"] - _ctx_date_lag2).dt.days <= 3
+    ).fillna(False).astype(int)
+
+    # Timezone difference proxy (P2.3): static UTC offsets per abbreviation
+    _TZ_OFFSET: dict[str, int] = {
+        "NYL": -4, "CON": -4, "WAS": -4, "ATL": -4,
+        "CHI": -5, "IND": -5, "MIN": -5, "DAL": -5,
+        "PHO": -7, "LVA": -7,
+        "SEA": -7, "LA": -7, "LAS": -7,
+    }
+    if "team_id" in ctx.columns:
+        # team_abbreviation may not be in ctx — use opp_team_id side join approach;
+        # store as placeholder column; final join in build_wide_table merges abbrevs
+        ctx["_t_tz_placeholder"] = 0  # filled in build_wide_table using abbreviation map
+
     drop_extra = ["_t_fg3a", "_o_fg3a"] if "_t_fg3a" in ctx.columns else []
     ctx = ctx.drop(columns=["_prev_game_date", "_days_since_last"] +
                    [f"_t_{s}" for s in STATS] + [f"_o_{s}" for s in STATS] +
@@ -412,6 +430,40 @@ def _build_player_features(
             ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
 
     # ------------------------------------------------------------------ #
+    # 4c. Shot profile features (P2.1) — 3pt attempt rate from fg3a/fga
+    # ------------------------------------------------------------------ #
+    if "fg3a" in df.columns and "fga" in df.columns:
+        _fg3a_g2 = df.groupby("player_id", sort=False)["fg3a"]
+        _fga_g   = df.groupby("player_id", sort=False)["fga"]
+        for w in (5, 10):
+            fg3a_sum = _sr(_fg3a_g2, w, agg="sum")
+            fga_sum  = _sr(_fga_g, w, agg="sum")
+            df[f"player_fg3_attempt_rate_l{w}"] = (
+                fg3a_sum / fga_sum.clip(lower=0.5)
+            ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
+        df["player_fg3_attempt_rate_season"] = (
+            _sr(_fg3a_g2, 999, agg="expanding_sum") /
+            _sr(_fga_g, 999, agg="expanding_sum").clip(lower=0.5)
+        ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
+    # Shot-zone columns from wnba_shot_locations.parquet — NaN when file unavailable
+    for _zone_col in ["player_rim_freq_l5", "player_corner3_freq_l5", "player_above_break3_freq_l5"]:
+        if _zone_col not in df.columns:
+            df[_zone_col] = np.nan
+
+    # ------------------------------------------------------------------ #
+    # 4d. EWMA rolling features (P2.4) — exponentially weighted recent form
+    # ------------------------------------------------------------------ #
+    _ewma_stats = list(STATS) + ["minutes"]
+    for _stat in _ewma_stats:
+        if _stat not in df.columns:
+            continue
+        _eg = df.groupby("player_id", sort=False)[_stat]
+        for _hl in (3, 5):
+            df[f"player_{_stat}_ewma_halflife{_hl}"] = _eg.transform(
+                lambda s, hl=_hl: s.shift(1).ewm(halflife=hl, min_periods=hl).mean()
+            )
+
+    # ------------------------------------------------------------------ #
     # 5. Usage proxy features (shifted)
     # ------------------------------------------------------------------ #
     # BDL provides: fga, fta, turnover  → Oliver usage proxy
@@ -548,6 +600,36 @@ def _build_player_features(
         ).astype(int)
 
     # ------------------------------------------------------------------ #
+    # 8b. Fatigue features (P2.3): 3-in-4, weekly load, cumulative minutes
+    # ------------------------------------------------------------------ #
+    # player_3in4_flag: played 3 games in 4 calendar days (shift-1 safe)
+    # We check (game_date - game_date_two_games_prior).days <= 3
+    _game_dates_grp = df.groupby("player_id", sort=False)["game_date"]
+    df["_game_date_lag2"] = _game_dates_grp.shift(2)
+    df["player_3in4_flag"] = (
+        (df["game_date"] - df["_game_date_lag2"]).dt.days <= 3
+    ).fillna(False).astype(int)
+    df = df.drop(columns=["_game_date_lag2"], errors="ignore")
+
+    # player_games_in_last_7_days: count of prior games in rolling 7-day window
+    # Use the shift-1 game_date sequence and count how many fall within 7 days prior
+    def _games_in_7_days(s: pd.Series) -> pd.Series:
+        s = s.sort_values()
+        result = np.zeros(len(s), dtype=float)
+        dates = s.values
+        for i in range(len(dates)):
+            cutoff = dates[i] - np.timedelta64(7, "D")
+            result[i] = np.sum((dates[:i] >= cutoff) & (dates[:i] < dates[i]))
+        return pd.Series(result, index=s.index)
+
+    df["player_games_in_last_7_days"] = _game_dates_grp.transform(_games_in_7_days)
+
+    # player_cumulative_minutes_l3: sum of minutes in last 3 prior games (NOT mean)
+    df["player_cumulative_minutes_l3"] = _sr(
+        df.groupby("player_id", sort=False)["minutes"], 3, agg="sum"
+    )
+
+    # ------------------------------------------------------------------ #
     # 9. Per-minute rate × minutes interaction (Phase 2e)
     # log(λ) = player_rate_per_min × minutes_mean — captures Poisson exposure.
     # The interaction term lets the model reason about matchup minutes changes.
@@ -577,7 +659,8 @@ def _build_player_features(
             df[f"player_{col}_l5_support"] = _sr(_a_grp, 5, agg="count")
             df = df.drop(columns=[f"_adv_{col}"], errors="ignore")
 
-    return df
+    # Defragment DataFrame before returning — avoids PerformanceWarning downstream
+    return df.copy()
 
 
 # ---------------------------------------------------------------------------
@@ -710,11 +793,125 @@ def _build_injury_features(
 # Wide feature table builder
 # ---------------------------------------------------------------------------
 
+def _build_positional_defense_features(
+    stats_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build position-stratified opponent defense features (P2.2).
+
+    For each primary position bucket {G, F, C} and each of 7 stats, computes
+    opp_{stat}_vs_{pos}_allowed_l5: the rolling L5 mean of how many pts/reb/etc
+    that opponent team conceded to players of that position.
+
+    Returns a DataFrame with columns:
+        game_id, opponent_team_id, _primary_pos, opp_{stat}_vs_{pos}_allowed_l5
+    indexed by (game_id, opponent_team_id, _primary_pos).
+    """
+    if "position" not in stats_df.columns:
+        return pd.DataFrame()
+
+    df = stats_df.copy()
+    # Normalize position to primary bucket: first character of position string
+    def _primary_pos(pos: str | None) -> str:
+        if not isinstance(pos, str) or not pos:
+            return "F"
+        c = pos.strip()[0].upper()
+        return c if c in ("G", "F", "C") else "F"
+
+    df["_primary_pos"] = df["position"].map(_primary_pos)
+
+    # Compute per-game per-stat averages for each (opponent_team_id, game_id, pos)
+    # "opponent_team_id" here = the team that DEFENDED against those players
+    if "opponent_team_id" not in df.columns:
+        return pd.DataFrame()
+
+    records = []
+    for pos in ("G", "F", "C"):
+        pos_df = df[df["_primary_pos"] == pos].copy()
+        if pos_df.empty:
+            continue
+        # Aggregate: what did this opponent give up to this position in this game?
+        agg_dict = {s: (s, "mean") for s in STATS if s in pos_df.columns}
+        if not agg_dict:
+            continue
+        game_opp_agg = pos_df.groupby(
+            ["game_id", "game_date", "opponent_team_id"], as_index=False
+        ).agg(**agg_dict)
+        # Rolling L5 per opponent_team_id (shift-1)
+        game_opp_agg = game_opp_agg.sort_values(
+            ["opponent_team_id", "game_date", "game_id"]
+        ).reset_index(drop=True)
+        opp_grp = game_opp_agg.groupby("opponent_team_id", sort=False)
+        for s in STATS:
+            if s not in game_opp_agg.columns:
+                continue
+            game_opp_agg[f"opp_{s}_vs_{pos}_allowed_l5"] = _sr(
+                opp_grp[s], 5
+            )
+        game_opp_agg["_primary_pos"] = pos
+        records.append(game_opp_agg)
+
+    if not records:
+        return pd.DataFrame()
+
+    out = pd.concat(records, ignore_index=True)
+    keep = (
+        ["game_id", "opponent_team_id", "_primary_pos"]
+        + [f"opp_{s}_vs_{pos}_allowed_l5" for pos in ("G", "F", "C") for s in STATS
+           if f"opp_{s}_vs_{pos}_allowed_l5" in out.columns]
+    )
+    # Drop STAT sum cols (we only want the positional defense cols)
+    out = out[[c for c in keep if c in out.columns]].copy()
+    return out
+
+
+def _build_matchup_history_features(
+    stats_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Build player-vs-specific-opponent career matchup history features (P2.5).
+
+    Groups by (player_id, opponent_team_id), computes shift-1 rolling L3 mean,
+    career expanding mean, and support count per stat.
+
+    Returns merged DataFrame indexed by (player_id, game_id).
+    """
+    if "opponent_team_id" not in stats_df.columns:
+        return pd.DataFrame(columns=["player_id", "game_id"])
+
+    df = stats_df.copy().sort_values(
+        ["player_id", "opponent_team_id", "game_date", "game_id"]
+    ).reset_index(drop=True)
+
+    matchup_grp = df.groupby(["player_id", "opponent_team_id"], sort=False)
+    result_cols: list[str] = []
+
+    for stat in STATS + ["minutes"]:
+        if stat not in df.columns:
+            continue
+        mg = matchup_grp[stat]
+        col_l3    = f"player_{stat}_vs_opp_l3"
+        col_career = f"player_{stat}_vs_opp_career_mean"
+        col_supp   = f"player_{stat}_vs_opp_support"
+        df[col_l3]     = mg.transform(lambda s: s.shift(1).rolling(3, min_periods=1).mean())
+        df[col_career] = mg.transform(lambda s: s.shift(1).expanding(min_periods=1).mean())
+        df[col_supp]   = mg.transform(lambda s: s.shift(1).expanding(min_periods=1).count())
+        # NaN when support < 2 (insufficient history)
+        mask = df[col_supp] < 2
+        df.loc[mask, col_l3]     = np.nan
+        df.loc[mask, col_career] = np.nan
+        result_cols += [col_l3, col_career, col_supp]
+
+    return df[["player_id", "game_id"] + result_cols].drop_duplicates(
+        subset=["player_id", "game_id"]
+    )
+
+
 def build_wide_table(
     stats_df: pd.DataFrame,
     games_df: pd.DataFrame,
     adv_df: pd.DataFrame | None = None,
     injuries_df: pd.DataFrame | None = None,
+    use_positional_defense_features: bool = True,
+    use_matchup_features: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Build the canonical wide feature table (one row per player_id × game_id).
 
@@ -901,6 +1098,96 @@ def build_wide_table(
                     "vacated_minutes_l1", "vacated_pts_l1", "usage_share_delta"]:
             if col not in wide.columns:
                 wide[col] = 0.0 if col in ("player_injured_l1", "teammate_injury_flag") else np.nan
+
+    # ------------------------------------------------------------------ #
+    # Team 3-in-4 and opp 3-in-4 flags from ctx (P2.3)
+    # ------------------------------------------------------------------ #
+    if "t_3in4_flag" in ctx.columns:
+        _t3in4 = ctx[["game_id", "team_id", "t_3in4_flag"]].copy()
+        wide = wide.merge(_t3in4.rename(columns={"t_3in4_flag": "team_3in4_flag"}),
+                          on=["game_id", "team_id"], how="left")
+        _o3in4 = ctx[["game_id", "team_id", "t_3in4_flag"]].rename(
+            columns={"team_id": "_opp_tid2", "t_3in4_flag": "opp_3in4_flag"}
+        )
+        wide = wide.merge(
+            _o3in4, left_on=["game_id", "opponent_team_id"],
+            right_on=["game_id", "_opp_tid2"], how="left"
+        ).drop(columns=["_opp_tid2"], errors="ignore")
+
+    # ------------------------------------------------------------------ #
+    # Timezone difference proxy (P2.3)
+    # ------------------------------------------------------------------ #
+    _TZ_OFFSET: dict[str, int] = {
+        "NYL": -4, "CON": -4, "WAS": -4, "ATL": -4,
+        "CHI": -5, "IND": -5, "MIN": -5, "DAL": -5,
+        "PHO": -7, "LVA": -7, "SEA": -7, "LA": -7, "LAS": -7,
+    }
+    if "team_abbreviation" in wide.columns and "opponent_team_abbreviation" in wide.columns:
+        team_tz = wide["team_abbreviation"].map(_TZ_OFFSET).fillna(-5)
+        opp_tz  = wide["opponent_team_abbreviation"].map(_TZ_OFFSET).fillna(-5)
+        wide["team_timezone_diff"] = (team_tz - opp_tz).abs()
+    else:
+        wide["team_timezone_diff"] = np.nan
+
+    # ------------------------------------------------------------------ #
+    # Positional defense matchup features (P2.2)
+    # ------------------------------------------------------------------ #
+    if use_positional_defense_features:
+        pos_def = _build_positional_defense_features(stats_df)
+        if not pos_def.empty and "position" in wide.columns:
+            wide["_primary_pos"] = wide["position"].apply(
+                lambda pos: (pos.strip()[0].upper() if isinstance(pos, str) and pos else "F")
+            )
+            wide["_primary_pos"] = wide["_primary_pos"].apply(
+                lambda c: c if c in ("G", "F", "C") else "F"
+            )
+            # Merge positional defense cols per matching (game_id, opponent_team_id, primary_pos)
+            pos_def_cols = [c for c in pos_def.columns
+                            if c not in ("game_id", "opponent_team_id", "_primary_pos")]
+            wide = wide.merge(
+                pos_def[["game_id", "opponent_team_id", "_primary_pos"] + pos_def_cols],
+                on=["game_id", "opponent_team_id", "_primary_pos"],
+                how="left",
+            ).drop(columns=["_primary_pos"], errors="ignore")
+            audit_notes["positional_defense_features"] = True
+        else:
+            audit_notes["positional_defense_features"] = False
+    else:
+        audit_notes["positional_defense_features"] = False
+
+    # ------------------------------------------------------------------ #
+    # Lineup status and DNP overrides (P4.2)
+    # ------------------------------------------------------------------ #
+    if injuries_df is not None and not injuries_df.empty:
+        try:
+            from wnba_props_model.data.lineup_parser import apply_lineup_overrides  # noqa: PLC0415
+            wide = apply_lineup_overrides(wide, injuries_df)
+            audit_notes["lineup_parser_applied"] = True
+        except Exception as exc:
+            audit_notes["lineup_parser_applied"] = False
+            audit_notes["lineup_parser_error"] = str(exc)
+    else:
+        for col in ["confirmed_starter", "lineup_confirmed", "inferred_out", "p_dnp_override"]:
+            if col not in wide.columns:
+                wide[col] = np.nan
+        audit_notes["lineup_parser_applied"] = False
+
+    # ------------------------------------------------------------------ #
+    # Player-vs-specific-opponent matchup history (P2.5)
+    # ------------------------------------------------------------------ #
+    if use_matchup_features:
+        matchup_feats = _build_matchup_history_features(stats_df)
+        if not matchup_feats.empty and len(matchup_feats.columns) > 2:
+            matchup_cols = [c for c in matchup_feats.columns if c not in ("player_id", "game_id")]
+            wide = wide.merge(
+                matchup_feats[["player_id", "game_id"] + matchup_cols],
+                on=["player_id", "game_id"], how="left"
+            )
+            audit_notes["matchup_history_features"] = True
+        else:
+            audit_notes["matchup_history_features"] = False
+    else:
+        audit_notes["matchup_history_features"] = False
 
     # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns

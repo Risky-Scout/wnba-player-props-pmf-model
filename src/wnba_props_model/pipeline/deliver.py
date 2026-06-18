@@ -100,19 +100,31 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
         )
         po, pu, z = shin_no_vig_two_way_with_z(market.get("over_odds"), market.get("under_odds"))
         po_power, _ = get_no_vig_prob(market.get("over_odds"), market.get("under_odds"), method="power")
+        line_val = float(r.get("line_value") or r.get("line") or 0.0)
+        # P4.1: opening line and line movement features
+        prop_line_open = r.get("prop_line_open")
+        try:
+            prop_line_open = float(prop_line_open) if prop_line_open is not None else None
+        except (TypeError, ValueError):
+            prop_line_open = None
+        line_delta = (line_val - prop_line_open) if prop_line_open is not None else None
         rows.append({
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
             "vendor": r.get("vendor"),
             "prop_type": r.get("prop_type"),
             "stat": stat,
-            "line": float(r.get("line_value")),
+            "line": line_val,
             "over_odds": market.get("over_odds"),
             "under_odds": market.get("under_odds"),
             "market_prob_over_no_vig": po,
             "market_prob_over_power": po_power,
             "shin_z": z,
             "updated_at": r.get("updated_at"),
+            "prop_line_open": prop_line_open,
+            "line_delta": line_delta,
+            "line_moved_toward_over": (line_delta > 0.25) if line_delta is not None else None,
+            "line_moved_toward_under": (line_delta < -0.25) if line_delta is not None else None,
         })
     return pd.DataFrame(rows)
 
@@ -141,6 +153,8 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         model_probs.append(prob_over_from_pmf(json_to_pmf(r["pmf_json"]), r["line"]))
     joined["model_prob_over"] = model_probs
     joined["edge_over"] = joined["model_prob_over"] - joined["market_prob_over_no_vig"]
+    # edge_under: how much the model's under probability exceeds the market's under probability
+    joined["edge_under"] = joined["market_prob_over_no_vig"] - joined["model_prob_over"]
     joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
     joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
 
@@ -252,7 +266,9 @@ def write_delivery(
         comp_path = out / "market_comparison.parquet"
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path
-        edges = comp[comp["edge_over"].abs() >= 0.04].copy()
+        edges = comp[
+            (comp["edge_over"].abs() >= 0.04) | (comp["edge_under"].abs() >= 0.04)
+        ].copy()
         edges_path = out / "publishable_edges.parquet"
         edges.to_parquet(edges_path, index=False)
         paths["publishable_edges"] = edges_path

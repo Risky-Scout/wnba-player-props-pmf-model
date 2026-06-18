@@ -100,6 +100,16 @@ stat_overrides:
   ast:
     use_minutes_offset: true
 
+# Phase 2–3 feature and model flags (must match stage4_baseline.yaml)
+use_positional_defense_features: true
+use_ewma_features: true
+use_matchup_features: true
+use_mean_dependent_dispersion: false
+use_tuned_hyperparams: false
+hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
+use_model_ensemble: false
+pi_rating_use_model_baseline: false
+
 minutes_clip_min: 0.0
 minutes_clip_max: 45.0
 min_minutes_sigma: 3.0

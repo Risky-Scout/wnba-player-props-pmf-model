@@ -114,6 +114,72 @@ jobs:
             --edge-threshold 0.04 \
             --kelly-fraction 0.25
 
+      - name: Audit feature importance (P5.1)
+        continue-on-error: true
+        run: |
+          python scripts/audit_feature_importance.py \
+            --model-dir artifacts/models/stage4_baseline \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --manifest data/processed/feature_schema_manifest.json \
+            --out artifacts/audits/feature_importance_report.json \
+            --n-permutations 10
+
+      - name: Hyperparameter tuning — pts (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat pts --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — reb (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat reb --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — ast (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat ast --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — fg3m (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat fg3m --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — stl (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat stl --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — blk (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat blk --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — turnover (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat turnover --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
+      - name: Hyperparameter tuning — minutes (P3.2)
+        continue-on-error: true
+        run: |
+          python scripts/tune_hyperparams.py \
+            --stat minutes --n-trials 75 \
+            --out artifacts/hyperparams/best_params_all.json
+
       - name: Fit game totals calibrators (informational)
         # Fit isotonic calibration on game total over/under predictions.
         # ECE gate is informational only — does NOT block promotion of player stat calibrators.

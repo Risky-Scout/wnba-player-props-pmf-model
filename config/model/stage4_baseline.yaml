@@ -118,3 +118,39 @@ stat_overrides:
     use_minutes_offset: true
   ast:
     use_minutes_offset: true
+
+# --------------------------------------------------------------------------
+# P2.2: Positional defense matchup features
+# --------------------------------------------------------------------------
+use_positional_defense_features: true
+
+# --------------------------------------------------------------------------
+# P2.4: EWMA rolling features (halflife 3 and 5)
+# --------------------------------------------------------------------------
+use_ewma_features: true
+
+# --------------------------------------------------------------------------
+# P2.5: Player-vs-specific-opponent matchup history
+# --------------------------------------------------------------------------
+use_matchup_features: true
+
+# --------------------------------------------------------------------------
+# P3.1: Mean-dependent NegBinom dispersion r(mu)
+# --------------------------------------------------------------------------
+use_mean_dependent_dispersion: false  # set true after validating IS improvement
+
+# --------------------------------------------------------------------------
+# P3.2: Hyperparameter tuning via Optuna
+# --------------------------------------------------------------------------
+use_tuned_hyperparams: false
+hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
+
+# --------------------------------------------------------------------------
+# P3.3: HGB + Bayesian shrinkage ensemble
+# --------------------------------------------------------------------------
+use_model_ensemble: false  # set true after validating IS improvement
+
+# --------------------------------------------------------------------------
+# P3.4: Pi rating baseline from OOF model predictions
+# --------------------------------------------------------------------------
+pi_rating_use_model_baseline: false  # set true after first OOF run produces predictions

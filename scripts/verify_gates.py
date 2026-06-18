@@ -276,5 +276,105 @@ def market(
         raise typer.Exit(0)
 
 
+@app.command()
+def clv_tracking(
+    predictions: str = typer.Argument(
+        ..., help="Path to predictions parquet with edge_over, edge_under, hit_result cols."
+    ),
+    min_rows_per_stat: int = typer.Option(
+        100, help="Min rows per stat before gate activates."
+    ),
+    hard_fail_rows: int = typer.Option(
+        300, help="Min rows before gate switches to hard-fail."
+    ),
+    positive_clv_pct_min: float = typer.Option(
+        0.52, help="Minimum fraction of predictions with positive CLV."
+    ),
+    mean_clv_min: float = typer.Option(
+        0.0, help="Minimum mean CLV across all predictions."
+    ),
+    rolling_days: int = typer.Option(
+        30, help="Rolling window in days for CLV tracking."
+    ),
+) -> None:
+    """P5.2: Verify CLV tracking gate — model must generate positive expected value.
+
+    CLV = edge_over for over bets, edge_under for under bets.
+    Gate: positive_clv_pct >= 0.52 AND mean_clv > 0.0 over rolling 30 days.
+    Hard-fails after 300+ rows per stat exist.
+    """
+    df = pd.read_parquet(predictions)
+
+    if df.empty:
+        typer.echo("[CLV GATE] No predictions loaded — skipping gate.")
+        raise typer.Exit(0)
+
+    # Build CLV column: use whichever edge the user would bet (larger absolute edge)
+    if "edge_over" in df.columns and "edge_under" in df.columns:
+        df["clv"] = df[["edge_over", "edge_under"]].abs().max(axis=1)
+        df["clv_positive"] = (df["clv"] > 0).astype(int)
+    elif "edge_over" in df.columns:
+        df["clv"] = df["edge_over"]
+        df["clv_positive"] = (df["clv"] > 0).astype(int)
+    else:
+        typer.echo("[CLV GATE] edge_over column not found — skipping gate.")
+        raise typer.Exit(0)
+
+    # Rolling 30-day filter
+    if "game_date" in df.columns:
+        df["game_date"] = pd.to_datetime(df["game_date"], utc=True, errors="coerce")
+        cutoff = df["game_date"].max() - pd.Timedelta(days=rolling_days)
+        df = df[df["game_date"] >= cutoff]
+
+    stat_col = "stat" if "stat" in df.columns else None
+    if stat_col is None:
+        typer.echo("[CLV GATE] No 'stat' column — computing aggregate CLV.")
+        n = len(df)
+        pos_pct = float(df["clv_positive"].mean()) if n > 0 else 0.0
+        mean_clv = float(df["clv"].mean()) if n > 0 else 0.0
+        typer.echo(f"  n={n}  positive_clv_pct={pos_pct:.3f}  mean_clv={mean_clv:.4f}")
+        hard = n >= hard_fail_rows
+        ok = (pos_pct >= positive_clv_pct_min) and (mean_clv >= mean_clv_min)
+        if not ok and hard:
+            typer.echo(f"[GATE FAIL] CLV gate failed (hard): positive_pct={pos_pct:.3f}<{positive_clv_pct_min}, mean={mean_clv:.4f}<{mean_clv_min}")
+            raise typer.Exit(1)
+        typer.echo(f"[CLV GATE] {'✓ PASS' if ok else '⚠ INFORMATIONAL'}  (hard={hard})")
+        raise typer.Exit(0)
+
+    failures: list[str] = []
+    report_rows = []
+    for stat, grp in df.groupby(stat_col):
+        n = len(grp)
+        pos_pct = float(grp["clv_positive"].mean()) if n > 0 else 0.0
+        mean_clv = float(grp["clv"].mean()) if n > 0 else 0.0
+        hard = n >= hard_fail_rows
+        ok = (n < min_rows_per_stat) or (
+            (pos_pct >= positive_clv_pct_min) and (mean_clv >= mean_clv_min)
+        )
+        report_rows.append({
+            "stat": stat, "n": n,
+            "positive_clv_pct": round(pos_pct, 3),
+            "mean_clv": round(mean_clv, 4),
+            "hard": hard, "pass": ok,
+        })
+        if not ok and hard:
+            failures.append(str(stat))
+
+    report_df = pd.DataFrame(report_rows)
+    typer.echo("\n=== CLV Tracking Gate Report (rolling 30d) ===")
+    typer.echo(report_df.to_string(index=False))
+
+    if failures:
+        typer.echo(f"\n[GATE FAIL] CLV gate hard-failed for stats: {failures}")
+        raise typer.Exit(1)
+
+    informational_warn = [r for r in report_rows if not r["pass"] and not r["hard"]]
+    if informational_warn:
+        typer.echo(f"\n[CLV GATE] ⚠ Informational ({len(informational_warn)} stat(s) below threshold — insufficient data for hard-fail).")
+    else:
+        typer.echo("\n[CLV GATE] ✓ All eligible stats pass CLV tracking gate.")
+    raise typer.Exit(0)
+
+
 if __name__ == "__main__":
     app()

@@ -110,6 +110,46 @@ class StatRateModel:
                         float(y_role.mean()), float(y_role.var())
                     )
 
+        # P3.1: Mean-dependent dispersion r(mu) via log-linear fit
+        # r_approx(i) = mu_hat(i)^2 / max(y(i) - mu_hat(i), 0.01)
+        # log(r_approx) ~ beta0 + beta1 * log(mu_hat)  →  r(mu) = exp(beta0 + beta1*log(mu))
+        self._dispersion_slope: float | None = None
+        self._dispersion_intercept: float | None = None
+        if self.cfg.get("use_mean_dependent_dispersion", False) and self._model is not None:
+            try:
+                X_pred_fit = X.reindex(columns=self._usable_cols)
+                mu_hat = np.clip(self._model.predict(X_pred_fit), 0.01, None)
+                y_vals = y.reset_index(drop=True).values.astype(float)
+                r_approx = mu_hat ** 2 / np.maximum(y_vals - mu_hat, 0.01)
+                r_approx = np.clip(r_approx, 0.1, 100.0)
+                log_mu = np.log(np.clip(mu_hat, 0.01, None))
+                log_r  = np.log(r_approx)
+                beta1, beta0 = np.polyfit(log_mu, log_r, deg=1)
+                self._dispersion_slope = float(beta1)
+                self._dispersion_intercept = float(beta0)
+            except Exception:
+                pass  # fall back to global dispersion on any error
+
+        # P3.3: Bayesian shrinkage prior (Gamma-Poisson empirical Bayes)
+        self._league_prior_alpha: float | None = None
+        self._league_prior_beta: float | None = None
+        if self.cfg.get("use_model_ensemble", False) and context_df is not None:
+            try:
+                from wnba_props_model.models.shrinkage import compute_league_priors_from_data  # noqa: PLC0415
+                priors = compute_league_priors_from_data(context_df, self.stat)
+                if priors is not None:
+                    self._league_prior_alpha = float(priors.get("alpha", 1.0))
+                    self._league_prior_beta  = float(priors.get("beta", 1.0))
+            except Exception:
+                pass
+
+        # P5.1: Store feature importances from HGB inner model
+        self._feature_importances: dict[str, float] = {}
+        if self._model is not None and hasattr(self._model, "feature_importances_"):
+            self._feature_importances = dict(
+                zip(self._usable_cols, self._model.feature_importances_.tolist())
+            )
+
         self._fitted = True
         return self
 
@@ -142,10 +182,52 @@ class StatRateModel:
     def dispersion_r(self) -> float | None:
         return self._dispersion_r
 
-    def get_dispersion(self, role: str) -> float | None:
-        """Return per-role dispersion r, falling back to global r if unavailable."""
+    def get_dispersion(self, role: str, mu: float | None = None) -> float | None:
+        """Return dispersion r for NegBinom PMF generation.
+
+        When ``mu`` is provided and mean-dependent dispersion is fitted,
+        returns r(mu) = exp(intercept + slope * log(mu)) clamped to [0.5, 50].
+        Otherwise falls back to per-role or global r.
+        """
+        # P3.1: mean-dependent dispersion takes priority when mu is provided
+        slope = getattr(self, "_dispersion_slope", None)
+        intercept = getattr(self, "_dispersion_intercept", None)
+        if (mu is not None and slope is not None and intercept is not None
+                and self.cfg.get("use_mean_dependent_dispersion", False)):
+            r_mu = np.exp(intercept + slope * np.log(max(mu, 0.01)))
+            return float(np.clip(r_mu, 0.5, 50.0))
+        # Per-role fallback
         role_disp = getattr(self, "_role_dispersion", {})
         return role_disp.get(role, self._dispersion_r)
+
+    def predict_with_shrinkage(
+        self,
+        X: pd.DataFrame,
+        wide_df: pd.DataFrame,
+    ) -> np.ndarray:
+        """P3.3: Blend HGB prediction with Gamma-Poisson posterior mean.
+
+        Weight by player support (games played):
+            w = clip(support / 10, 0, 1)
+            result = w * mu_hgb + (1-w) * mu_bayes
+        """
+        mu_hgb = self.predict_mean(X)
+        alpha = getattr(self, "_league_prior_alpha", None)
+        beta  = getattr(self, "_league_prior_beta", None)
+        if alpha is None or beta is None:
+            return mu_hgb  # no prior available — pure HGB
+
+        support_col = f"player_{self.stat}_l5_support"
+        support = wide_df[support_col].fillna(0).astype(float).values if support_col in wide_df.columns else np.zeros(len(mu_hgb))
+        w = np.clip(support / 10.0, 0.0, 1.0)
+
+        # Gamma-Poisson posterior mean = (alpha + obs_sum) / (beta + n_games)
+        # Approximation: use support count and HGB prediction as obs_sum proxy
+        stat_col = f"player_{self.stat}_mean_l5"
+        obs_mean = wide_df[stat_col].fillna(float(self._global_mean)).values if stat_col in wide_df.columns else np.full(len(mu_hgb), self._global_mean)
+        obs_sum = obs_mean * support
+        mu_bayes = (alpha + obs_sum) / (beta + support)
+        return w * mu_hgb + (1.0 - w) * mu_bayes
 
     def get_training_summary(self) -> dict[str, Any]:
         return {
@@ -156,6 +238,14 @@ class StatRateModel:
             "dispersion_r": self._dispersion_r,
             "pmf_type": "negbinom" if self._dispersion_r is not None else "poisson",
             "role_dispersion": getattr(self, "_role_dispersion", {}),
+            "dispersion_slope": getattr(self, "_dispersion_slope", None),
+            "dispersion_intercept": getattr(self, "_dispersion_intercept", None),
+            "feature_importances_top10": dict(
+                sorted(
+                    getattr(self, "_feature_importances", {}).items(),
+                    key=lambda kv: kv[1], reverse=True
+                )[:10]
+            ),
         }
 
     def save(self, path: str) -> None:

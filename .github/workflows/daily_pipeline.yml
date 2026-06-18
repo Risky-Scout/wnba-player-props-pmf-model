@@ -88,6 +88,22 @@ jobs:
       - name: Build features
         run: python scripts/build_features.py --data-dir data/processed
 
+      - name: Assert feature table column count (P5.3)
+        # Fails fast if feature build regressed (fewer columns than expected).
+        # Threshold is 290 — accommodates minor schema changes while catching major regressions.
+        run: |
+          python - <<'EOF'
+          import pandas as pd, sys
+          w = pd.read_parquet("data/processed/wnba_player_game_features_wide.parquet")
+          n = len(w.columns)
+          threshold = 290
+          print(f"Feature table: {w.shape[0]:,} rows × {n} columns (threshold: {threshold})")
+          if n < threshold:
+              print(f"[FAIL] Feature column count {n} < {threshold} — feature build regressed!", file=sys.stderr)
+              sys.exit(1)
+          print("[PASS] Feature column count OK")
+          EOF
+
       - name: Train baseline PMFs (Stage 4)
         if: github.event.inputs.skip_train != 'true'
         run: |

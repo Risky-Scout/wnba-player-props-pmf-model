@@ -167,6 +167,11 @@ FORBIDDEN_MARKET_COLUMNS: frozenset[str] = frozenset({
     "moneyline_visitor_odds",
     "snapshot_timestamp_utc",
     "updated_at",
+    # Line movement tracking (P4.1) — derived from market data, not model features
+    "prop_line_open",
+    "line_delta",
+    "line_moved_toward_over",
+    "line_moved_toward_under",
 })
 
 # ---------------------------------------------------------------------------
