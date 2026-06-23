@@ -1,24 +1,29 @@
 """Possession-Level Monte Carlo Game Simulation (Enhancement 14).
 
-Replaces the marginal NegBin PMF + Gaussian copula approach with a full
-possession-by-possession simulation.  All cross-stat and cross-player
-correlations are endogenous to the simulation — no copula needed.
+Simulates a complete WNBA game possession-by-possession, producing:
+1. Full JOINT distribution of all player stats — no Gaussian copula needed.
+   All cross-stat and cross-player correlations are endogenous to the simulation.
+2. Game total, team totals, and final margin — coherent by construction.
+3. Quarter-by-quarter scoring for conditional/live props.
+4. Blowout / garbage-time detection with roster swaps.
 
-Key advantages over the copula approach:
-    1. Nonlinear dependency: pace/scoring regime naturally elevates all stats
-       simultaneously (captured by construction).
-    2. Game-total coherence: sum(player_pts) == game total by construction.
-    3. Blowout dynamics: rotation model substitutes bench players in Q4
-       blowouts, producing the correct negative correlation between star and
-       bench production.
-    4. Quarter-by-quarter scoring: enables quarter-specific props.
+Theory
+------
+Each possession has one discrete outcome (made_2pt, made_3pt, turnover, etc.)
+and that outcome simultaneously updates ALL relevant player stats.  This is the
+EPV (Expected Possession Value) framework (Cervone et al.; Terner & Franks 2020)
+applied as a simulation rather than an analytical model.
 
-Reference:
-    Terner & Franks (2020). Modeling Player and Team Performance in Basketball.
-    Annual Review of Statistics and Its Application.
-    https://www.annualreviews.org/doi/pdf/10.1146/annurev-statistics-040720-015536
-    Cervone et al. (2014). A Multiresolution Stochastic Process Model for
-    Predicting Basketball Possession Outcomes. SSAC.
+Advantages over Gaussian copula
+- Nonlinear dependencies: in a 130-pt game ALL starters' points are elevated.
+- Game-total coherence: sum(player_pts) == game_total by construction.
+- Blowout dynamics: late-game margin triggers bench substitutions, naturally
+  creating negative star/bench correlations without hand-coded copula weights.
+
+References
+----------
+Terner & Franks (2020). Modeling Player and Team Performance in Basketball.
+Annual Review of Statistics and Its Application.
 """
 from __future__ import annotations
 
@@ -27,61 +32,130 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# WNBA-calibrated constants
-WNBA_AVG_POSSESSIONS: float = 78.0
-WNBA_AVG_FT_PCT: float = 0.78
-WNBA_OREB_PCT: float = 0.28   # ~28% of missed shots get offensive rebound
-WNBA_AST_PCT: float = 0.58    # ~58% of made field goals are assisted
-WNBA_STL_PER_TO: float = 0.14 # ~14% of turnovers result in a steal
-WNBA_BLK_PER_MISS: float = 0.09 # ~9% of missed shots are blocked
+# WNBA-calibrated defaults
+WNBA_AVG_POSSESSIONS_PER_GAME = 78.0
+WNBA_QUARTER_DURATION_MINS = 10.0
+WNBA_MAX_PLAYER_MINUTES = 40.0
+
+POSSESSION_OUTCOMES = [
+    "made_2pt",
+    "missed_2pt",
+    "made_3pt",
+    "missed_3pt",
+    "turnover",
+    "foul_drawn",
+    "pass",  # ball moves to a teammate; re-simulated
+]
+
+
+@dataclass
+class PlayerRates:
+    """Per-possession rates for one player, WNBA-calibrated defaults."""
+    player_id:        int
+    usage:            float = 0.15
+    fg2_pct:          float = 0.45
+    fg3_pct:          float = 0.33
+    ft_pct:           float = 0.80
+    shoot_2_rate:     float = 0.25    # P(shoot 2pt | possession)
+    shoot_3_rate:     float = 0.20    # P(shoot 3pt | possession)
+    turnover_rate:    float = 0.12
+    foul_drawn_rate:  float = 0.08
+    ast_rate:         float = 0.15
+    oreb_rate:        float = 0.05
+    dreb_rate:        float = 0.15
+    stl_rate:         float = 0.03
+    blk_rate:         float = 0.02
+
+    @property
+    def pass_rate(self) -> float:
+        total = self.shoot_2_rate + self.shoot_3_rate + self.turnover_rate + self.foul_drawn_rate
+        return max(0.0, 1.0 - total)
+
+    @classmethod
+    def from_feature_row(cls, player_id: int, row: dict[str, Any]) -> "PlayerRates":
+        """Build from a feature-table row or projection dict."""
+        def g(k: str, default: float) -> float:
+            v = row.get(k, row.get(k.replace("player_", ""), default))
+            return float(v) if v is not None and not np.isnan(float(v)) else default
+
+        usage = g("player_usage_rate_l5", g("player_usage_rate_season", 0.15))
+        usage = np.clip(usage, 0.05, 0.40)
+
+        # Derive approximate per-possession rates from per-game rates / pace
+        pace = g("team_pace", WNBA_AVG_POSSESSIONS_PER_GAME)
+        minutes = g("projected_minutes", g("player_minutes_l5", 20.0))
+
+        poss_per_game = usage * pace
+        poss_played = poss_per_game if poss_per_game > 0 else 1.0
+
+        fg2a = g("player_fg2a_l5", poss_played * 0.25)
+        fg3a = g("player_fg3a_l5", poss_played * 0.20)
+        fta  = g("player_fta_l5",  poss_played * 0.08)
+        tov  = g("player_turnover_l5", poss_played * 0.12)
+
+        shoot2 = np.clip(fg2a / max(poss_played, 1), 0.0, 0.45)
+        shoot3 = np.clip(fg3a / max(poss_played, 1), 0.0, 0.35)
+        tov_r  = np.clip(tov  / max(poss_played, 1), 0.0, 0.20)
+        foul_r = np.clip(fta  / max(poss_played, 1) / 2.0, 0.0, 0.15)
+
+        return cls(
+            player_id=player_id,
+            usage=usage,
+            fg2_pct=np.clip(g("player_fg2_pct_l5", 0.45), 0.25, 0.75),
+            fg3_pct=np.clip(g("player_fg3_pct_l5", 0.33), 0.15, 0.60),
+            ft_pct=np.clip(g("player_ft_pct_l5", 0.80), 0.40, 1.0),
+            shoot_2_rate=shoot2,
+            shoot_3_rate=shoot3,
+            turnover_rate=tov_r,
+            foul_drawn_rate=foul_r,
+            ast_rate=np.clip(g("player_ast_per_min_l5", 0.15), 0.0, 0.40),
+            oreb_rate=np.clip(g("player_oreb_rate_l5", 0.05), 0.0, 0.15),
+            dreb_rate=np.clip(g("player_dreb_rate_l5", 0.15), 0.0, 0.30),
+            stl_rate=np.clip(g("player_stl_per_min_l5", 0.03) * 0.4, 0.0, 0.10),
+            blk_rate=np.clip(g("player_blk_per_min_l5", 0.02) * 0.4, 0.0, 0.10),
+        )
 
 
 @dataclass
 class PossessionSimulator:
     """Simulate a complete WNBA game at the possession level.
 
+    Key insight: each possession updates ALL stats simultaneously, so
+    cross-player and cross-stat correlations are endogenous.  No copula needed.
+
     Parameters
     ----------
-    player_rates  : {player_id: {rate_key: value}} — per-possession rates
-    player_minutes: {player_id: projected_minutes} — used for rotation logic
-    team_pace     : average possessions per game (default: 78 for WNBA)
-    n_simulations : number of MC iterations
+    home_rates, away_rates : dict {player_id: PlayerRates}
+    home_minutes, away_minutes : dict {player_id: projected_minutes}
+    team_pace : expected total possessions per game (each team's)
+    n_simulations : Monte Carlo replications
     """
+    home_rates:    dict[int, PlayerRates]
+    away_rates:    dict[int, PlayerRates]
+    home_minutes:  dict[int, float]
+    away_minutes:  dict[int, float]
+    team_pace:     float = WNBA_AVG_POSSESSIONS_PER_GAME
+    n_simulations: int = 5_000
 
-    player_rates:   dict[int, dict[str, float]]
-    player_minutes: dict[int, float]
-    team_pace:      float = WNBA_AVG_POSSESSIONS
-    n_simulations:  int   = 5_000
-    rng_seed:       int   = 42
+    # ── Public API ───────────────────────────────────────────────────────────
 
-    _rng: np.random.Generator = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        self._rng = np.random.default_rng(self.rng_seed)
-
-    # ── Public API ───────────────────────────────────────────────────────
-
-    def simulate_game(self) -> list[dict[str, Any]]:
+    def simulate_game(self) -> list[dict]:
         """Run n_simulations complete game simulations.
 
-        Returns
-        -------
-        list of dicts, each containing::
+        Returns list of dicts, each containing::
             {
-                "player_stats": {pid: {stat: value}},
-                "home_score": int,
-                "away_score": int,
-                "margin": int,
-                "possessions": int,
+              "player_stats": {player_id: {stat: value}},
+              "home_score": int,
+              "away_score": int,
+              "margin": int,
+              "possessions": int,
             }
         """
-        results = []
-        for _ in range(self.n_simulations):
-            results.append(self._simulate_single_game())
-        return results
+        return [self._simulate_single_game() for _ in range(self.n_simulations)]
 
     def compute_prop_pmf(
         self,
@@ -90,283 +164,373 @@ class PossessionSimulator:
         line: float,
         n_sims: int | None = None,
     ) -> dict[str, Any]:
-        """Compute P(stat > line) from possession-level simulations.
+        """Compute over/under probabilities from possession-level simulations.
 
         This replaces the marginal NegBin PMF + copula approach.
-        All correlation is endogenous.
 
         Returns
         -------
-        dict with keys:
-            pmf       : {value: probability}
-            p_over    : float
-            p_push    : float
-            mean      : float
-            std       : float
-            percentiles: {5, 10, 25, 50, 75, 90, 95}
+        dict with keys: pmf, p_over, p_under, p_push, mean, std, percentiles
         """
-        sims = self.n_simulations if n_sims is None else n_sims
-        results = []
-        for _ in range(sims):
-            r = self._simulate_single_game()
-            val = r["player_stats"].get(player_id, {}).get(stat, 0)
-            results.append(val)
+        sims = self.simulate_game() if n_sims is None else [self._simulate_single_game() for _ in range(n_sims)]
+        values = np.array([
+            r["player_stats"].get(player_id, {}).get(stat, 0)
+            for r in sims
+        ])
 
-        values = np.array(results, dtype=float)
         unique, counts = np.unique(values, return_counts=True)
-        pmf = dict(zip(unique.tolist(), (counts / len(values)).tolist()))
+        pmf = {int(v): float(c / len(values)) for v, c in zip(unique, counts)}
+
+        p_over  = float(np.mean(values > line))
+        p_push  = float(np.mean(values == line))
+        p_under = float(np.mean(values < line))
 
         return {
             "pmf": pmf,
-            "p_over":  float(np.mean(values > line)),
-            "p_push":  float(np.mean(values == line)),
-            "mean":    float(np.mean(values)),
-            "std":     float(np.std(values)),
+            "p_over": p_over,
+            "p_under": p_under,
+            "p_push": p_push,
+            "mean": float(np.mean(values)),
+            "std":  float(np.std(values)),
             "percentiles": {
-                p: float(np.percentile(values, p))
-                for p in [5, 10, 25, 50, 75, 90, 95]
+                p: float(np.percentile(values, p)) for p in [5, 10, 25, 50, 75, 90, 95]
             },
         }
 
-    def compute_game_total_pmf(self, line: float) -> dict[str, Any]:
-        """Compute P(game_total > line) from simulations."""
-        results = self.simulate_game()
-        totals = np.array([r["home_score"] + r["away_score"] for r in results])
-        unique, counts = np.unique(totals, return_counts=True)
-        pmf = dict(zip(unique.tolist(), (counts / len(totals)).tolist()))
+    def compute_joint_pmf(
+        self,
+        player_a: int,
+        stat_a: str,
+        line_a: float,
+        player_b: int,
+        stat_b: str,
+        line_b: float,
+    ) -> dict[str, float]:
+        """Compute joint over/over probability for a combo prop."""
+        sims = self.simulate_game()
+        a_vals = np.array([r["player_stats"].get(player_a, {}).get(stat_a, 0) for r in sims])
+        b_vals = np.array([r["player_stats"].get(player_b, {}).get(stat_b, 0) for r in sims])
         return {
-            "pmf": pmf,
-            "p_over": float(np.mean(totals > line)),
-            "mean":   float(np.mean(totals)),
-            "std":    float(np.std(totals)),
+            "p_both_over":  float(np.mean((a_vals > line_a) & (b_vals > line_b))),
+            "p_a_over_b_under": float(np.mean((a_vals > line_a) & (b_vals <= line_b))),
+            "p_a_under_b_over": float(np.mean((a_vals <= line_a) & (b_vals > line_b))),
+            "p_both_under": float(np.mean((a_vals <= line_a) & (b_vals <= line_b))),
         }
 
-    # ── Single-game simulation ───────────────────────────────────────────
+    def compute_game_total_pmf(self, line: float) -> dict[str, Any]:
+        """Compute game-total over/under probability from simulations."""
+        sims = self.simulate_game()
+        totals = np.array([r["home_score"] + r["away_score"] for r in sims])
+        return {
+            "p_over":  float(np.mean(totals > line)),
+            "p_under": float(np.mean(totals <= line)),
+            "mean":    float(np.mean(totals)),
+            "std":     float(np.std(totals)),
+        }
 
-    def _simulate_single_game(self) -> dict[str, Any]:
-        stat_keys = ["pts", "reb", "ast", "stl", "blk", "turnover",
-                     "fgm", "fga", "fg3m", "fg3a", "ftm", "fta"]
-        player_stats: dict[int, dict[str, int]] = {
-            pid: {s: 0 for s in stat_keys}
-            for pid in self.player_rates
+    # ── Core simulation ──────────────────────────────────────────────────────
+
+    def _simulate_single_game(self) -> dict:
+        """Simulate one complete game possession by possession."""
+        player_stats = {
+            pid: {s: 0 for s in ["pts", "reb", "ast", "stl", "blk",
+                                   "turnover", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta"]}
+            for pid in list(self.home_rates) + list(self.away_rates)
         }
 
         home_score = 0
         away_score = 0
-        quarter = 1
+        possession_num = 0
+        total_poss = int(np.random.poisson(self.team_pace))
 
-        total_poss = max(10, int(self._rng.poisson(self.team_pace)))
-
-        for poss_idx in range(total_poss):
-            frac = poss_idx / total_poss
-            quarter = min(int(frac * 4) + 1, 4)
+        for poss_idx in range(total_poss * 2):  # both teams possess
+            is_home = poss_idx % 2 == 0
+            poss_num = poss_idx // 2
+            quarter = min(1 + poss_num * 4 // max(total_poss, 1), 4)
             margin = home_score - away_score
 
-            # Rotation model: determine who is active
-            active = self._apply_rotation(frac, margin)
+            # Rotation: determine who is active
+            active = self._active_players(
+                poss_num, total_poss, quarter, margin, is_home
+            )
             if not active:
                 continue
 
-            # Select handler (usage-weighted)
-            handler = self._select_handler(active)
-            pts, fgm, fga, fg3m, fg3a, ftm, fta, to = self._simulate_possession(
-                handler, active
-            )
+            rates_map = self.home_rates if is_home else self.away_rates
+            active = [p for p in active if p in rates_map]
+            if not active:
+                continue
 
-            player_stats[handler]["pts"] += pts
-            player_stats[handler]["fgm"] += fgm
-            player_stats[handler]["fga"] += fga
-            player_stats[handler]["fg3m"] += fg3m
-            player_stats[handler]["fg3a"] += fg3a
-            player_stats[handler]["ftm"] += ftm
-            player_stats[handler]["fta"] += fta
-            player_stats[handler]["turnover"] += to
+            # Ball handler by usage weight
+            handler = self._weighted_choice(active, rates_map, key="usage")
+            if handler is None:
+                continue
 
-            home_score += pts + ftm  # simplified (home vs away not split per player here)
+            # Simulate possession (recursive for pass)
+            outcome, scorer = self._simulate_possession(handler, active, rates_map, depth=0)
+            primary = scorer if scorer is not None else handler
 
-            # Rebounds
-            if fga > ftm:
-                if fgm == 0:  # missed shot
-                    if self._rng.random() < WNBA_OREB_PCT:
-                        rebounder = self._select_rebounder(active, off=True)
-                    else:
-                        rebounder = self._select_rebounder(active, off=False)
-                    player_stats[rebounder]["reb"] += 1
+            # Stat updates
+            if outcome == "made_2pt":
+                player_stats[primary]["pts"] += 2
+                player_stats[primary]["fgm"] += 1
+                player_stats[primary]["fga"] += 1
+                if is_home:
+                    home_score += 2
+                else:
+                    away_score += 2
+                # Assist (40% of made shots)
+                if np.random.random() < 0.40:
+                    ast = self._weighted_choice(
+                        [p for p in active if p != primary], rates_map, key="ast_rate"
+                    )
+                    if ast:
+                        player_stats[ast]["ast"] += 1
+                # Rebound (offensive if missed — not applicable; defensive)
+                def_team = self.away_rates if is_home else self.home_rates
+                reb = self._weighted_choice(list(def_team.keys()), def_team, key="dreb_rate")
+                if reb:
+                    player_stats[reb]["reb"] += 1
 
-            # Assist on made field goal
-            if fgm > 0 and self._rng.random() < WNBA_AST_PCT:
-                assister = self._select_assister(active, handler)
-                if assister is not None:
-                    player_stats[assister]["ast"] += 1
+            elif outcome == "missed_2pt":
+                player_stats[primary]["fga"] += 1
+                self._rebound(player_stats, primary, active,
+                               rates_map, is_home, total_poss, poss_num, margin)
 
-            # Steal on turnover
-            if to > 0 and self._rng.random() < WNBA_STL_PER_TO:
-                stealer = self._rng.choice(list(active))
-                player_stats[stealer]["stl"] += 1
+            elif outcome == "made_3pt":
+                player_stats[primary]["pts"] += 3
+                player_stats[primary]["fgm"] += 1
+                player_stats[primary]["fga"] += 1
+                player_stats[primary]["fg3m"] += 1
+                player_stats[primary]["fg3a"] += 1
+                if is_home:
+                    home_score += 3
+                else:
+                    away_score += 3
+                if np.random.random() < 0.30:
+                    ast = self._weighted_choice(
+                        [p for p in active if p != primary], rates_map, key="ast_rate"
+                    )
+                    if ast:
+                        player_stats[ast]["ast"] += 1
 
-            # Block on missed shot (simplified: only 2PT misses)
-            if fga > 0 and fgm == 0 and fg3a == 0 and self._rng.random() < WNBA_BLK_PER_MISS:
-                blocker = self._rng.choice(list(active))
-                player_stats[blocker]["blk"] += 1
+            elif outcome == "missed_3pt":
+                player_stats[primary]["fga"] += 1
+                player_stats[primary]["fg3a"] += 1
+                self._rebound(player_stats, primary, active,
+                               rates_map, is_home, total_poss, poss_num, margin)
 
-        # Rough away score (symmetric pace assumption)
-        away_score = int(self._rng.poisson(max(1, home_score * 0.97)))
+            elif outcome == "turnover":
+                player_stats[primary]["turnover"] += 1
+                # Steal: 15% of turnovers
+                opp_map = self.away_rates if is_home else self.home_rates
+                if np.random.random() < 0.15:
+                    stealer = self._weighted_choice(list(opp_map.keys()), opp_map, key="stl_rate")
+                    if stealer:
+                        player_stats[stealer]["stl"] += 1
+
+            elif outcome == "foul_drawn":
+                ft_pct = rates_map[primary].ft_pct
+                ftm = int(np.random.binomial(2, ft_pct))
+                player_stats[primary]["pts"] += ftm
+                player_stats[primary]["ftm"] += ftm
+                player_stats[primary]["fta"] += 2
+                if is_home:
+                    home_score += ftm
+                else:
+                    away_score += ftm
+
+            possession_num += 1
 
         return {
             "player_stats": player_stats,
             "home_score":   home_score,
             "away_score":   away_score,
             "margin":       home_score - away_score,
-            "possessions":  total_poss,
+            "possessions":  possession_num,
         }
 
-    # ── Possession helpers ───────────────────────────────────────────────
-
     def _simulate_possession(
-        self, handler: int, active: set[int]
-    ) -> tuple[int, int, int, int, int, int, int, int]:
-        """Simulate one possession, returning (pts, fgm, fga, fg3m, fg3a, ftm, fta, turnover)."""
-        rates = self.player_rates.get(handler, {})
-        p_shoot2  = rates.get("shoot_2_rate",    0.25)
-        p_shoot3  = rates.get("shoot_3_rate",    0.20)
-        p_turnover = rates.get("turnover_rate",  0.12)
-        p_foul    = rates.get("foul_drawn_rate", 0.08)
+        self,
+        handler: int,
+        active: list[int],
+        rates_map: dict[int, PlayerRates],
+        depth: int = 0,
+    ) -> tuple[str, int | None]:
+        """Return (outcome, primary_scorer)."""
+        if depth > 3 or handler not in rates_map:
+            return "turnover", handler
 
-        # Clamp so cumulative <= 1
-        total = p_shoot2 + p_shoot3 + p_turnover + p_foul
-        if total > 1.0:
-            scale = 1.0 / total
-            p_shoot2 *= scale; p_shoot3 *= scale
-            p_turnover *= scale; p_foul *= scale
+        r = rates_map[handler]
+        rand = np.random.random()
+        cum = 0.0
 
-        r = float(self._rng.random())
-        thresh2 = p_shoot2
-        thresh3 = thresh2 + p_shoot3
-        threshTO = thresh3 + p_turnover
-        threshFoul = threshTO + p_foul
+        cum += r.shoot_2_rate
+        if rand < cum:
+            made = np.random.random() < r.fg2_pct
+            return ("made_2pt" if made else "missed_2pt"), handler
 
-        pts = fgm = fga = fg3m = fg3a = ftm = fta = to = 0
+        cum += r.shoot_3_rate
+        if rand < cum:
+            made = np.random.random() < r.fg3_pct
+            return ("made_3pt" if made else "missed_3pt"), handler
 
-        if r < thresh2:
-            fga = 1
-            fg2_pct = rates.get("fg2_pct", 0.48)
-            if self._rng.random() < fg2_pct:
-                pts = 2; fgm = 1
-        elif r < thresh3:
-            fga = 1; fg3a = 1
-            fg3_pct = rates.get("fg3_pct", 0.33)
-            if self._rng.random() < fg3_pct:
-                pts = 3; fgm = 1; fg3m = 1
-        elif r < threshTO:
-            to = 1
-        elif r < threshFoul:
-            ft_pct = rates.get("ft_pct", WNBA_AVG_FT_PCT)
-            ftm = int(self._rng.binomial(2, ft_pct))
-            fta = 2
-        else:
-            # Pass — recurse into another player (max depth 1 to avoid infinite loop)
-            others = list(active - {handler})
-            if others:
-                new_handler = self._select_handler(set(others))
-                return self._simulate_possession(new_handler, active)
-            to = 1  # no outlet → turnover
+        cum += r.turnover_rate
+        if rand < cum:
+            return "turnover", handler
 
-        return pts, fgm, fga, fg3m, fg3a, ftm, fta, to
+        cum += r.foul_drawn_rate
+        if rand < cum:
+            return "foul_drawn", handler
 
-    def _apply_rotation(self, frac: float, margin: int) -> set[int]:
-        """WNBA rotation model — returns the active player set."""
-        starters = [p for p, m in self.player_minutes.items() if m > 25]
-        bench    = [p for p, m in self.player_minutes.items() if m <= 25]
+        # Pass to teammate
+        others = [p for p in active if p != handler]
+        if others:
+            secondary = self._weighted_choice(others, rates_map, key="usage")
+            if secondary:
+                return self._simulate_possession(secondary, active, rates_map, depth + 1)
+        return "turnover", handler
 
-        if frac < 0.25:          # Q1 — starting unit
-            return set(starters[:5] or list(self.player_rates)[:5])
-        elif frac < 0.50:        # Q2 — second unit
-            return set((starters[:2] + bench[:3]) or list(self.player_rates)[:5])
-        elif frac < 0.75:        # Q3 — starting unit back
-            return set(starters[:5] or list(self.player_rates)[:5])
-        else:                    # Q4 — game-script dependent
-            if abs(margin) > 20: # Blowout: bench time
-                return set(bench[:5] or list(self.player_rates)[:5])
-            else:                # Close game: starters
-                return set(starters[:5] or list(self.player_rates)[:5])
+    def _active_players(
+        self, poss_num: int, total_poss: int, quarter: int, margin: int, is_home: bool
+    ) -> list[int]:
+        """Return active player IDs for the current game state (WNBA rotation)."""
+        minutes_map = self.home_minutes if is_home else self.away_minutes
+        rates_map   = self.home_rates   if is_home else self.away_rates
 
-    def _select_handler(self, active: set[int]) -> int:
-        usage = np.array(
-            [self.player_rates.get(p, {}).get("usage", 0.15) for p in active]
-        )
-        usage = np.clip(usage, 1e-4, None)
-        probs = usage / usage.sum()
-        return int(self._rng.choice(list(active), p=probs))
+        frac = poss_num / max(total_poss, 1)
+        starters = sorted(minutes_map, key=lambda p: -minutes_map.get(p, 0))[:5]
+        bench    = [p for p in minutes_map if p not in starters]
 
-    def _select_rebounder(self, active: set[int], off: bool = False) -> int:
-        key = "oreb_rate" if off else "dreb_rate"
-        rates = np.array(
-            [self.player_rates.get(p, {}).get(key, 0.05) for p in active]
-        )
-        rates = np.clip(rates, 1e-4, None)
-        probs = rates / rates.sum()
-        return int(self._rng.choice(list(active), p=probs))
+        if frac < 0.25:          # Q1: starting unit
+            return [p for p in starters if p in rates_map]
+        elif frac < 0.50:        # Q2: mixed unit
+            return [p for p in (starters[:2] + bench[:3]) if p in rates_map]
+        elif frac < 0.75:        # Q3: starting unit
+            return [p for p in starters if p in rates_map]
+        else:                    # Q4: game-script dependent
+            if abs(margin) > 20:  # blowout → bench unit
+                return [p for p in bench[:5] if p in rates_map] or [p for p in starters if p in rates_map]
+            return [p for p in starters if p in rates_map]
 
-    def _select_assister(self, active: set[int], handler: int) -> int | None:
-        others = list(active - {handler})
-        if not others:
+    def _rebound(
+        self,
+        player_stats: dict,
+        shooter: int,
+        active: list[int],
+        rates_map: dict[int, PlayerRates],
+        is_home: bool,
+        total_poss: int,
+        poss_num: int,
+        margin: int,
+    ) -> None:
+        """Handle rebound assignment after a miss."""
+        opp_map = self.away_rates if is_home else self.home_rates
+        opp_active = self._active_players(poss_num, total_poss,
+                                          min(1 + poss_num * 4 // max(total_poss, 1), 4),
+                                          margin, not is_home)
+        if np.random.random() < 0.70:  # Defensive rebound
+            reb = self._weighted_choice(
+                [p for p in opp_active if p in opp_map], opp_map, key="dreb_rate"
+            )
+        else:                          # Offensive rebound
+            reb = self._weighted_choice(
+                [p for p in active if p != shooter], rates_map, key="oreb_rate"
+            )
+        if reb:
+            player_stats[reb]["reb"] += 1
+
+    @staticmethod
+    def _weighted_choice(
+        players: list[int],
+        rates_map: dict[int, PlayerRates],
+        key: str,
+    ) -> int | None:
+        """Sample one player weighted by a PlayerRates attribute."""
+        if not players:
             return None
-        rates = np.array(
-            [self.player_rates.get(p, {}).get("ast_rate", 0.15) for p in others]
+        weights = np.array([getattr(rates_map.get(p, PlayerRates(p)), key, 0.1) for p in players], dtype=float)
+        weights = np.clip(weights, 1e-9, None)
+        weights /= weights.sum()
+        return int(np.random.choice(players, p=weights))
+
+    # ── Factory helpers ──────────────────────────────────────────────────────
+
+    @classmethod
+    def from_projections(
+        cls,
+        projections: list[dict],
+        n_simulations: int = 5_000,
+    ) -> "PossessionSimulator":
+        """Build a PossessionSimulator from a list of player projection dicts.
+
+        Each dict should contain at minimum:
+            player_id, team (home/away), projected_minutes, and optional
+            per-possession rates (usage, fg2_pct, fg3_pct, etc.)
+        """
+        home_rates:   dict[int, PlayerRates] = {}
+        away_rates:   dict[int, PlayerRates] = {}
+        home_minutes: dict[int, float] = {}
+        away_minutes: dict[int, float] = {}
+        pace = WNBA_AVG_POSSESSIONS_PER_GAME
+
+        for proj in projections:
+            pid  = int(proj["player_id"])
+            team = proj.get("team", "home").lower()
+            mins = float(proj.get("projected_minutes", proj.get("player_minutes_l5", 20.0)))
+            pr   = PlayerRates.from_feature_row(pid, proj)
+            if "team_pace" in proj:
+                pace = float(proj["team_pace"])
+            if team == "home":
+                home_rates[pid]   = pr
+                home_minutes[pid] = mins
+            else:
+                away_rates[pid]   = pr
+                away_minutes[pid] = mins
+
+        return cls(
+            home_rates=home_rates,
+            away_rates=away_rates,
+            home_minutes=home_minutes,
+            away_minutes=away_minutes,
+            team_pace=pace,
+            n_simulations=n_simulations,
         )
-        rates = np.clip(rates, 1e-4, None)
-        probs = rates / rates.sum()
-        return int(self._rng.choice(others, p=probs))
 
-
-# ── Convenience factory ───────────────────────────────────────────────────────
 
 def build_simulator_from_features(
-    player_features: dict[int, dict[str, float]],
-    n_simulations: int = 5_000,
-    rng_seed: int = 42,
+    player_feats:   dict[int, dict],
+    n_simulations:  int = 5_000,
+    rng_seed:       int | None = None,
 ) -> PossessionSimulator:
-    """Build a PossessionSimulator from a player_id → feature_dict mapping.
-
-    Expects keys in player_features that include the per-possession rates.
-    If keys are missing, reasonable WNBA defaults are applied.
+    """Build a PossessionSimulator from a lightweight player-feature dict.
 
     Parameters
     ----------
-    player_features : {player_id: {stat_rate_col: value}}
-        Keys expected (with WNBA defaults):
-            usage           (0.20)  — fraction of possessions used
-            shoot_2_rate    (0.25)
-            shoot_3_rate    (0.20)
-            fg2_pct         (0.48)
-            fg3_pct         (0.33)
-            ft_pct          (0.78)
-            turnover_rate   (0.12)
-            foul_drawn_rate (0.08)
-            oreb_rate       (0.04)
-            dreb_rate       (0.10)
-            ast_rate        (0.20)
-            proj_minutes    (20.0)  — for rotation logic
+    player_feats : {player_id: {usage, proj_minutes, fg2_pct, fg3_pct, ...}}
+        The first half of players (by player_id order) are assigned to "home",
+        the second half to "away" — suitable for simulating both teams.
+    n_simulations : Monte Carlo replications
+    rng_seed : optional numpy random seed for reproducibility
+
+    Returns
+    -------
+    Configured PossessionSimulator ready to call .simulate_game()
     """
-    DEFAULTS = {
-        "usage": 0.20, "shoot_2_rate": 0.25, "shoot_3_rate": 0.20,
-        "fg2_pct": 0.48, "fg3_pct": 0.33, "ft_pct": 0.78,
-        "turnover_rate": 0.12, "foul_drawn_rate": 0.08,
-        "oreb_rate": 0.04, "dreb_rate": 0.10, "ast_rate": 0.20,
-        "proj_minutes": 20.0,
-    }
+    if rng_seed is not None:
+        np.random.seed(rng_seed)
 
-    player_rates: dict[int, dict[str, float]] = {}
-    player_minutes: dict[int, float] = {}
+    projections = []
+    player_ids = sorted(player_feats.keys())
+    n_home = max(1, len(player_ids) // 2)
+    for i, pid in enumerate(player_ids):
+        team = "home" if i < n_home else "away"
+        row = dict(player_feats[pid])
+        row["player_id"] = pid
+        row["team"] = team
+        # Map 'proj_minutes' → 'projected_minutes'
+        if "proj_minutes" in row and "projected_minutes" not in row:
+            row["projected_minutes"] = row["proj_minutes"]
+        projections.append(row)
 
-    for pid, feats in player_features.items():
-        rates = {k: float(feats.get(k, v)) for k, v in DEFAULTS.items()}
-        player_rates[pid]   = rates
-        player_minutes[pid] = float(feats.get("proj_minutes", 20.0))
-
-    return PossessionSimulator(
-        player_rates=player_rates,
-        player_minutes=player_minutes,
-        n_simulations=n_simulations,
-        rng_seed=rng_seed,
-    )
+    return PossessionSimulator.from_projections(projections, n_simulations=n_simulations)

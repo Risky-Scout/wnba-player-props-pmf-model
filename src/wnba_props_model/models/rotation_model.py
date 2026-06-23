@@ -1,23 +1,31 @@
-"""WNBA Rotation Structure Model — Bimodal Minutes Distribution (Enhancement 19).
+"""WNBA Rotation Structure Model — Bimodal Minutes (Enhancement 19).
 
-WNBA-specific rotation insight:
-    - 7-8 player rotations (smaller than NBA's 9-10)
-    - Starting unit plays Q1 & Q3; second unit takes Q2; Q4 is game-script
-    - Minutes distributions are BIMODAL for starters:
-        * 65% chance of 33 min (close game)
-        * 25% chance of 28 min (comfortable win)
-        * 10% chance of 22 min (blowout garbage time)
+WNBA rosters are 11-12 players deep; rotations are 7-8 players.
+Minutes distributions for starters are distinctly BIMODAL:
+  • Close game → starters play 33-35 min
+  • Blowout     → starters play 20-25 min (bench absorbs Q4)
 
-The current quantile-regression minutes model misses this bimodality.
-This rotation model produces game-script-conditioned minute samples that
-are marginalized over scenario probabilities to form the correct bimodal
-mixture distribution.
+The current quantile HGB minutes model produces a UNIMODAL distribution
+(e.g., q10=22, q50=28, q90=34), which is systematically mis-calibrated for
+props near 25 or 32 minutes.
 
-Integration:
-    minutes_samples = RotationPattern(role="starter").sample_conditional_minutes(
-        scenario_probs={"close_game": 0.65, "comfortable_win": 0.25, "blowout": 0.10}
-    )
-    Then the PMF engine marginalizes stat production over these minutes samples.
+This module replaces the generic quantile distribution with a
+GAME-SCRIPT-CONDITIONED BIMODAL MIXTURE:
+  P(minutes) = P(close)   * TruncNormal(μ_close,   σ_close,   floor_close)
+             + P(comfort) * TruncNormal(μ_comfort, σ_comfort, floor_comfort)
+             + P(blowout) * TruncNormal(μ_blowout, σ_blowout, floor_blowout)
+
+Scenario probabilities come from pregame_win_probability, blowout_probability,
+and close_game_probability features (already in the pipeline from Enhancement 6
+game-script features).
+
+Role classification (starter / sixth_woman / rotation / bench) is derived from
+the player's historical minutes distribution.
+
+Reference
+---------
+WNBA rotation structure modelled on published team depth charts + empirical
+minute-distribution analysis.
 """
 from __future__ import annotations
 
@@ -29,223 +37,208 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# WNBA role taxonomy
-ROLES = ("starter", "sixth_woman", "rotation", "bench")
+# Maximum WNBA minutes per game (4 × 10-min quarters)
+WNBA_MAX_MINUTES = 40.0
 
-# Per-scenario, per-role minutes distribution parameters
-# Calibrated to WNBA 2022-2024 player-game logs
+# ── WNBA-calibrated scenario parameters by role ───────────────────────────────
+
 SCENARIOS: dict[str, dict[str, dict[str, float]]] = {
-    "close_game": {           # margin ≤ 5 in Q4
-        "starter":     {"mean": 33.5, "std": 2.0, "floor": 28.0, "ceil": 40.0},
-        "sixth_woman": {"mean": 24.0, "std": 3.0, "floor": 16.0, "ceil": 33.0},
-        "rotation":    {"mean": 16.0, "std": 4.0, "floor":  6.0, "ceil": 26.0},
-        "bench":       {"mean":  3.0, "std": 2.0, "floor":  0.0, "ceil":  8.0},
+    "close_game": {            # Margin < 5 in Q4 → starters stay on
+        "starter":     {"mean": 33.5, "std": 2.0, "floor": 28.0},
+        "sixth_woman": {"mean": 24.0, "std": 3.0, "floor": 18.0},
+        "rotation":    {"mean": 16.0, "std": 4.0, "floor":  8.0},
+        "bench":       {"mean":  3.0, "std": 2.0, "floor":  0.0},
     },
-    "comfortable_win": {      # margin 10-20 in Q4
-        "starter":     {"mean": 28.0, "std": 3.0, "floor": 20.0, "ceil": 36.0},
-        "sixth_woman": {"mean": 22.0, "std": 3.0, "floor": 14.0, "ceil": 30.0},
-        "rotation":    {"mean": 18.0, "std": 4.0, "floor":  8.0, "ceil": 28.0},
-        "bench":       {"mean":  8.0, "std": 4.0, "floor":  0.0, "ceil": 18.0},
+    "comfortable_win": {       # Margin 10–20 in Q4 → some starters rest
+        "starter":     {"mean": 28.0, "std": 3.0, "floor": 22.0},
+        "sixth_woman": {"mean": 22.0, "std": 3.0, "floor": 16.0},
+        "rotation":    {"mean": 18.0, "std": 4.0, "floor": 10.0},
+        "bench":       {"mean":  8.0, "std": 4.0, "floor":  0.0},
     },
-    "blowout": {              # margin > 20 in Q4
-        "starter":     {"mean": 22.0, "std": 4.0, "floor": 12.0, "ceil": 30.0},
-        "sixth_woman": {"mean": 20.0, "std": 4.0, "floor": 10.0, "ceil": 28.0},
-        "rotation":    {"mean": 22.0, "std": 5.0, "floor":  8.0, "ceil": 32.0},
-        "bench":       {"mean": 16.0, "std": 6.0, "floor":  2.0, "ceil": 30.0},
+    "blowout": {               # Margin > 20 in Q4 → bench plays 4th
+        "starter":     {"mean": 22.0, "std": 4.0, "floor": 15.0},
+        "sixth_woman": {"mean": 20.0, "std": 4.0, "floor": 12.0},
+        "rotation":    {"mean": 22.0, "std": 5.0, "floor": 10.0},
+        "bench":       {"mean": 16.0, "std": 6.0, "floor":  5.0},
     },
 }
 
-# Default scenario prior (before game-script information)
-DEFAULT_SCENARIO_PROBS: dict[str, float] = {
-    "close_game":      0.40,
+# Default scenario probability weights (when no pregame script features available)
+DEFAULT_SCENARIO_PROBS = {
+    "close_game":      0.35,
     "comfortable_win": 0.40,
-    "blowout":         0.20,
+    "blowout":         0.25,
+}
+
+# Role classification thresholds based on season average minutes
+ROLE_MINUTE_THRESHOLDS = {
+    "starter":     (28.0, WNBA_MAX_MINUTES),
+    "sixth_woman": (20.0, 28.0),
+    "rotation":    (10.0, 20.0),
+    "bench":       (0.0,  10.0),
 }
 
 
 @dataclass
 class RotationPattern:
-    """WNBA rotation template for a team-role combination.
+    """WNBA rotation template for a specific player role."""
+    role: str
+    player_id: int = 0
+    season_avg_minutes: float = 20.0
+    historical_std: float = 5.0
 
-    Parameters
-    ----------
-    role     : one of ROLES ("starter", "sixth_woman", "rotation", "bench")
-    scenarios: optional override of the SCENARIOS table for this team
-    """
-
-    role:      str
-    scenarios: dict[str, dict[str, dict[str, float]]] = field(
-        default_factory=lambda: SCENARIOS
-    )
-
-    def __post_init__(self) -> None:
-        if self.role not in ROLES:
-            logger.warning(
-                "Unknown role '%s'. Defaulting to 'rotation'.", self.role
-            )
-            self.role = "rotation"
-
-    # ── Sampling ─────────────────────────────────────────────────────────
+    def classify_role(self, avg_minutes: float) -> "RotationPattern":
+        """Re-classify role based on season average minutes."""
+        for role, (lo, hi) in ROLE_MINUTE_THRESHOLDS.items():
+            if lo <= avg_minutes < hi:
+                self.role = role
+                break
+        return self
 
     def sample_minutes(
         self,
         scenario: str,
         n_samples: int = 1_000,
-        rng: np.random.Generator | None = None,
     ) -> np.ndarray:
-        """Sample minutes from the scenario-specific distribution."""
-        rng = rng or np.random.default_rng()
-        dist = self.scenarios.get(scenario, SCENARIOS["comfortable_win"]).get(
-            self.role, SCENARIOS["comfortable_win"]["rotation"]
-        )
-        samples = rng.normal(dist["mean"], dist["std"], n_samples)
-        return np.clip(samples, dist["floor"], dist["ceil"])
+        """Sample from a truncated-normal distribution for the given scenario."""
+        if scenario not in SCENARIOS:
+            scenario = "comfortable_win"
+        dist  = SCENARIOS[scenario][self.role]
+        mean  = dist["mean"]
+        std   = dist["std"]
+        floor = dist["floor"]
+        samples = np.random.normal(mean, std, n_samples)
+        return np.clip(samples, floor, WNBA_MAX_MINUTES)
 
     def sample_conditional_minutes(
         self,
-        scenario_probs: dict[str, float] | None = None,
+        scenario_probs: dict[str, float],
         n_samples: int = 1_000,
-        rng: np.random.Generator | None = None,
     ) -> np.ndarray:
         """Sample minutes conditioned on game-script scenario probabilities.
 
-        Produces the CORRECT bimodal mixture distribution by sampling from
-        each scenario weighted by its probability.
+        Produces a BIMODAL distribution by mixing scenario-specific
+        truncated-normals weighted by their probability.
 
         Parameters
         ----------
-        scenario_probs : {scenario: probability} — defaults to DEFAULT_SCENARIO_PROBS
-        n_samples      : total Monte Carlo samples
-
-        Returns
-        -------
-        1D array of sampled minutes (length ≤ n_samples due to rounding)
+        scenario_probs : {scenario_name: probability}  (should sum ≈ 1)
+        n_samples : total Monte Carlo samples
         """
-        if scenario_probs is None:
-            scenario_probs = DEFAULT_SCENARIO_PROBS.copy()
+        total = max(sum(scenario_probs.values()), 1e-9)
+        normed = {k: v / total for k, v in scenario_probs.items()}
 
-        rng = rng or np.random.default_rng()
         all_samples: list[np.ndarray] = []
-
-        for scenario, prob in scenario_probs.items():
+        for scenario, prob in normed.items():
             n = max(1, int(round(prob * n_samples)))
-            all_samples.append(self.sample_minutes(scenario, n, rng))
+            all_samples.append(self.sample_minutes(scenario, n))
 
-        if all_samples:
-            return np.concatenate(all_samples)
-        return np.full(n_samples, self.scenarios["comfortable_win"][self.role]["mean"])
+        combined = np.concatenate(all_samples)
+        np.random.shuffle(combined)
+        return combined[:n_samples]
 
     def minutes_pmf(
         self,
-        scenario_probs: dict[str, float] | None = None,
-        n_samples: int = 10_000,
-        bin_width: float = 1.0,
-    ) -> dict[float, float]:
-        """Compute the bimodal minutes PMF as a histogram.
-
-        Returns {minutes_bin: probability} for use in stat marginalization.
-        """
-        samples = self.sample_conditional_minutes(scenario_probs, n_samples)
-        rounded = np.round(samples / bin_width) * bin_width
-        unique, counts = np.unique(rounded, return_counts=True)
-        return {float(u): float(c / len(rounded)) for u, c in zip(unique, counts)}
-
-    def percentiles(
-        self,
-        scenario_probs: dict[str, float] | None = None,
-        n_samples: int = 10_000,
-    ) -> dict[str, float]:
-        """Return key quantiles of the conditional minutes distribution."""
+        scenario_probs: dict[str, float],
+        n_samples: int = 2_000,
+    ) -> dict[str, Any]:
+        """Return the full minutes PMF summary from the bimodal distribution."""
         samples = self.sample_conditional_minutes(scenario_probs, n_samples)
         return {
-            "q10": float(np.percentile(samples, 10)),
-            "q25": float(np.percentile(samples, 25)),
-            "q50": float(np.percentile(samples, 50)),
-            "q75": float(np.percentile(samples, 75)),
-            "q90": float(np.percentile(samples, 90)),
-            "mean": float(np.mean(samples)),
-            "std":  float(np.std(samples)),
+            "mean":        float(np.mean(samples)),
+            "std":         float(np.std(samples)),
+            "q10":         float(np.percentile(samples, 10)),
+            "q25":         float(np.percentile(samples, 25)),
+            "q50":         float(np.percentile(samples, 50)),
+            "q75":         float(np.percentile(samples, 75)),
+            "q90":         float(np.percentile(samples, 90)),
+            "p_over_30":   float(np.mean(samples > 30)),
+            "p_under_25":  float(np.mean(samples < 25)),
+            "role":        self.role,
+            "bimodal":     True,
         }
 
 
-# ── Scenario probability estimation ──────────────────────────────────────────
+# ── Scenario probability inference ───────────────────────────────────────────
 
 def estimate_scenario_probs(
-    pregame_win_prob: float,
-    blowout_prob: float,
+    pregame_win_prob: float | None = None,
+    blowout_prob:     float | None = None,
+    close_game_prob:  float | None = None,
 ) -> dict[str, float]:
-    """Estimate game-script scenario probabilities from pregame model outputs.
+    """Alias for infer_scenario_probs with alternative parameter names."""
+    return infer_scenario_probs(
+        pregame_win_prob=pregame_win_prob,
+        blowout_probability=blowout_prob,
+        close_game_probability=close_game_prob,
+    )
 
-    Parameters
-    ----------
-    pregame_win_prob : P(home team wins) from game-script model
-    blowout_prob     : P(margin > 20 by Q4) from game-script model
 
-    Returns
-    -------
-    {scenario: probability} summing to 1.0
+def infer_scenario_probs(
+    pregame_win_prob:    float | None = None,
+    blowout_probability: float | None = None,
+    close_game_probability: float | None = None,
+) -> dict[str, float]:
+    """Derive game-script scenario probabilities from pregame features.
+
+    Falls back to DEFAULT_SCENARIO_PROBS when features are missing.
     """
-    # Blowout: applies to either team winning big
-    p_blowout = float(np.clip(blowout_prob, 0.0, 1.0))
-    # Close game: roughly when win prob is near 50%
-    closeness = 1.0 - 2.0 * abs(pregame_win_prob - 0.50)
-    p_close = float(np.clip(closeness * (1 - p_blowout), 0.0, 1.0))
-    p_comfortable = float(np.clip(1.0 - p_blowout - p_close, 0.0, 1.0))
-
-    total = p_blowout + p_close + p_comfortable
-    if total == 0:
+    if all(v is None for v in [pregame_win_prob, blowout_probability, close_game_probability]):
         return DEFAULT_SCENARIO_PROBS.copy()
 
+    # If blowout/close_game probabilities are directly available
+    p_blowout = float(blowout_probability)     if blowout_probability     is not None else 0.25
+    p_close   = float(close_game_probability)  if close_game_probability  is not None else 0.35
+
+    # Clamp and derive comfortable-win
+    p_blowout  = np.clip(p_blowout, 0.0, 0.80)
+    p_close    = np.clip(p_close,   0.0, 0.80)
+    p_comfort  = max(0.0, 1.0 - p_blowout - p_close)
+
+    total = p_blowout + p_close + p_comfort
     return {
-        "close_game":      round(p_close / total, 4),
-        "comfortable_win": round(p_comfortable / total, 4),
-        "blowout":         round(p_blowout / total, 4),
+        "close_game":      p_close   / total,
+        "comfortable_win": p_comfort / total,
+        "blowout":         p_blowout / total,
     }
 
 
-def classify_role(projected_minutes: float) -> str:
-    """Classify a player's role based on projected minutes."""
-    if projected_minutes >= 28:
-        return "starter"
-    elif projected_minutes >= 20:
-        return "sixth_woman"
-    elif projected_minutes >= 10:
-        return "rotation"
-    else:
-        return "bench"
+# ── Pipeline feature injection ────────────────────────────────────────────────
 
+def add_rotation_minutes_features(
+    wide: "pd.DataFrame",
+    n_samples: int = 2_000,
+) -> "pd.DataFrame":
+    """Replace unimodal minutes features with bimodal rotation features.
 
-def build_rotation_minutes_samples(
-    player_features: dict[str, Any],
-    n_samples: int = 10_000,
-) -> np.ndarray:
-    """Build minutes samples for one player using the rotation model.
-
-    Parameters
-    ----------
-    player_features : dict with:
-        projected_minutes    — base minutes projection
-        pregame_win_prob     — from game-script model (default 0.50)
-        blowout_prob         — from game-script model (default 0.15)
-        player_role          — override role classification
-
-    Returns
-    -------
-    Array of sampled minutes (length = n_samples).
+    Adds to wide:
+      rotation_minutes_mean, rotation_minutes_std,
+      rotation_minutes_q10/q25/q50/q75/q90,
+      rotation_p_over_30, rotation_p_under_25, rotation_role
     """
-    proj_min     = float(player_features.get("projected_minutes", 20.0))
-    win_prob     = float(player_features.get("pregame_win_probability", 0.50))
-    blowout_prob = float(player_features.get("blowout_probability", 0.15))
+    import pandas as pd  # noqa: PLC0415
 
-    role = player_features.get("player_role") or classify_role(proj_min)
-    scenario_probs = estimate_scenario_probs(win_prob, blowout_prob)
+    new_rows: list[dict[str, Any]] = []
 
-    pattern = RotationPattern(role=role)
-    samples = pattern.sample_conditional_minutes(scenario_probs, n_samples)
+    for _, row in wide.iterrows():
+        avg_mins = float(row.get("player_minutes_l5",
+                                 row.get("player_minutes_season", 20.0)) or 20.0)
+        pat = RotationPattern(role="rotation", player_id=int(row.get("player_id", 0)),
+                               season_avg_minutes=avg_mins)
+        pat.classify_role(avg_mins)
 
-    # Anchor samples around the model's projected minutes
-    # (blend: 70% rotation model, 30% quantile model projection)
-    anchor = proj_min
-    blend = 0.70
-    blended = blend * samples + (1 - blend) * anchor
-    return np.clip(blended, 0.0, 40.0)
+        scenario_probs = infer_scenario_probs(
+            pregame_win_prob=row.get("pregame_win_probability"),
+            blowout_probability=row.get("blowout_probability"),
+            close_game_probability=row.get("close_game_probability"),
+        )
+
+        pmf = pat.minutes_pmf(scenario_probs, n_samples=n_samples)
+        new_rows.append({f"rotation_minutes_{k}": v for k, v in pmf.items()})
+
+    if new_rows:
+        result_df = pd.DataFrame(new_rows, index=wide.index)
+        wide = pd.concat([wide, result_df], axis=1)
+        logger.info("E19: added rotation minutes features for %d players", len(wide))
+
+    return wide

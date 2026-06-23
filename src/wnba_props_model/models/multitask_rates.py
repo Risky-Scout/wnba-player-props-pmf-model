@@ -1,24 +1,36 @@
 """Multi-Task Stat Rate Model with Shared Representations (Enhancement 13).
 
-Instead of 7 independent HGB models, trains a multi-output model with:
-    - Shared HGB: chained multi-output feature transformation (stats sorted
-      by variance, each subsequent model appended predictions of prior ones)
-    - Private residual HGB per stat: captures stat-specific signal missed
-      by the shared layer
-    - Final prediction = shared + private
-    - Byproduct: residual_correlation matrix for use as a data-learned
-      replacement for the hand-coded Gaussian copula correlations
+Instead of training 7 independent HGB models (pts, reb, ast, fg3m, stl, blk,
+turnover), this module trains a multi-output chained model where each stat's
+prediction is augmented with the predictions of all higher-variance stats.
 
-Reference:
-    He & Choi (2025). Stacked ensemble model for NBA game outcome prediction.
-    Scientific Reports. https://www.nature.com/articles/s41598-025-13657-1
-    Terner & Franks (2020). Modeling Player and Team Performance in Basketball.
-    Annual Review of Statistics and Its Application.
+Architecture
+------------
+1. Shared chain: stats sorted by variance (highest → lowest).  For stat i,
+   the feature matrix is augmented with predictions from stats 0…i-1.  This
+   enables cross-stat knowledge transfer: the blk model sees the reb
+   prediction as an extra feature.
+
+2. Private residual: each stat also has its own private HGB trained on the
+   residual (actual − shared_pred).  This captures idiosyncratic patterns
+   not explained by the shared component.
+
+3. Final prediction = shared + private.
+
+4. Residual correlation matrix: computed from training residuals.  Used to
+   replace hand-coded copula correlations with empirically learned ones.
+
+References
+----------
+He & Choi (2025). Stacked ensemble model for NBA game outcome prediction.
+Scientific Reports.
+Terner & Franks (2020). Modeling Player and Team Performance in Basketball.
+Annual Review of Statistics and Its Application.
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any
 
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -30,176 +42,185 @@ STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
 
 
 class MultiTaskStatRateModel(BaseEstimator, RegressorMixin):
-    """Multi-task stat rate prediction with shared and private components.
+    """Multi-task stat rate prediction with shared + private HGB components.
 
-    Architecture
-    ------------
-    1. Shared chained HGB: for each stat (ordered by variance, descending),
-       train a HGB model where the features are augmented with predictions
-       from all already-fitted shared models.  This enables cross-stat
-       knowledge transfer: the rebound model sees predicted points, the
-       block model sees predicted rebounds and points, etc.
+    Trains a chain of shared HGB models (ordered by stat variance) augmented
+    with each other's predictions, plus private residual models per stat.
 
-    2. Private residual HGB: trained on the residual Y - shared_pred for
-       each stat.  Captures stat-specific patterns not explained by the
-       shared layer.
-
-    3. Final prediction: shared_pred + private_pred
-
-    4. Residual correlation: computed from training residuals.  Stored as
-       ``self.residual_correlation`` (7×7 numpy array, same order as STATS).
-       This replaces hand-coded copula correlations with data-learned ones.
+    Parameters
+    ----------
+    shared_depth : int   max depth for shared models (default 5)
+    shared_iter  : int   boosting iterations for shared models (default 200)
+    private_depth: int   max depth for private residual models (default 3)
+    private_iter : int   boosting iterations for private models (default 100)
+    stats        : list  target stat names (default STATS)
     """
 
     def __init__(
         self,
         shared_depth: int = 5,
-        shared_iter: int = 200,
+        shared_iter:  int = 200,
         private_depth: int = 3,
-        private_iter: int = 100,
+        private_iter:  int = 100,
         stats: list[str] | None = None,
     ):
-        self.shared_depth = shared_depth
-        self.shared_iter = shared_iter
+        self.shared_depth  = shared_depth
+        self.shared_iter   = shared_iter
         self.private_depth = private_depth
-        self.private_iter = private_iter
+        self.private_iter  = private_iter
         self.stats = stats or STATS
 
-        # (model, chain_order) tuples keyed by stat name
-        self.shared_models: dict[str, tuple[HistGradientBoostingRegressor, int]] = {}
-        self.private_models: dict[str, HistGradientBoostingRegressor] = {}
-        self.residual_correlation: Optional[np.ndarray] = None
-        self._stats_by_var: list[str] = []
+        self.shared_models:       dict[str, tuple[HistGradientBoostingRegressor, int]] = {}
+        self.private_models:      dict[str, HistGradientBoostingRegressor] = {}
+        self.residual_correlation: np.ndarray | None = None
+        self._ordered_stats:      list[str] = []
+        self._n_base_features:    int = 0
+        self._is_fitted = False
 
-    # ── Fit ──────────────────────────────────────────────────────────────
+    # ── Fit ─────────────────────────────────────────────────────────────────
 
     def fit(self, X: np.ndarray, Y_dict: dict[str, np.ndarray]) -> "MultiTaskStatRateModel":
-        """Fit shared + private models.
+        """Fit shared chain + private residual models.
 
         Parameters
         ----------
-        X      : feature matrix (n_samples, n_features)
-        Y_dict : {stat_name: target_vector} for each stat
+        X      : (n_samples, n_features) feature matrix
+        Y_dict : {stat_name: target_vector (n_samples,)}
         """
-        available_stats = [s for s in self.stats if s in Y_dict]
-        if not available_stats:
-            raise ValueError("No matching stats in Y_dict.")
+        self._n_base_features = X.shape[1]
 
-        # Sort by variance (highest first) — determines chain order
-        self._stats_by_var = sorted(
-            available_stats, key=lambda s: np.nanvar(Y_dict[s]), reverse=True
+        # Order stats by variance (highest → lowest) to maximise information
+        # flow through the shared chain
+        available = [s for s in self.stats if s in Y_dict]
+        self._ordered_stats = sorted(
+            available,
+            key=lambda s: float(np.var(Y_dict[s])),
+            reverse=True,
         )
 
+        # ── Step 1: Shared chain ─────────────────────────────────────────────
         shared_preds_train: dict[str, np.ndarray] = {}
-
-        for i, stat in enumerate(self._stats_by_var):
-            X_aug = self._augment(X, shared_preds_train, self._stats_by_var[:i])
-
+        for i, stat in enumerate(self._ordered_stats):
+            X_aug = self._augment_X(X, shared_preds_train, i)
             model = HistGradientBoostingRegressor(
                 max_iter=self.shared_iter,
                 max_depth=self.shared_depth,
                 random_state=42,
+                min_samples_leaf=10,
+                l2_regularization=0.1,
             )
-            model.fit(X_aug, Y_dict[stat])
-            shared_preds_train[stat] = model.predict(X_aug)
+            try:
+                model.fit(X_aug, Y_dict[stat])
+                shared_preds_train[stat] = model.predict(X_aug)
+            except Exception as e:
+                logger.warning("E13: shared model for %s failed: %s", stat, e)
+                shared_preds_train[stat] = np.full(len(Y_dict[stat]), np.mean(Y_dict[stat]))
+                model = None
             self.shared_models[stat] = (model, i)
-            logger.debug("Shared model fitted for stat=%s (chain_order=%d)", stat, i)
 
-        # Private residual models
+        # ── Step 2: Private residual models ──────────────────────────────────
         residuals: dict[str, np.ndarray] = {}
-        for stat in self._stats_by_var:
+        for stat in self._ordered_stats:
             res = Y_dict[stat] - shared_preds_train[stat]
             residuals[stat] = res
             priv = HistGradientBoostingRegressor(
                 max_iter=self.private_iter,
                 max_depth=self.private_depth,
                 random_state=42,
+                min_samples_leaf=10,
             )
-            priv.fit(X, res)
+            try:
+                priv.fit(X, res)
+            except Exception as e:
+                logger.warning("E13: private model for %s failed: %s", stat, e)
             self.private_models[stat] = priv
 
-        # Residual correlation matrix (learned copula replacement)
-        stat_order = [s for s in STATS if s in residuals]
-        res_matrix = np.column_stack([residuals[s] for s in stat_order])
-        self.residual_correlation = np.corrcoef(res_matrix.T)
+        # ── Step 3: Residual correlation matrix ──────────────────────────────
+        if len(self._ordered_stats) > 1:
+            res_matrix = np.column_stack([residuals[s] for s in self._ordered_stats])
+            with np.errstate(invalid="ignore"):
+                self.residual_correlation = np.nan_to_num(np.corrcoef(res_matrix.T))
+
+        self._is_fitted = True
         logger.info(
-            "MultiTaskStatRateModel fitted for %d stats. "
-            "Residual correlation range: [%.3f, %.3f]",
-            len(available_stats),
-            float(np.nanmin(np.tril(self.residual_correlation, -1))),
-            float(np.nanmax(np.tril(self.residual_correlation, -1))),
+            "E13 MultiTaskStatRateModel: fitted %d stats, residual corr shape=%s",
+            len(self._ordered_stats),
+            self.residual_correlation.shape if self.residual_correlation is not None else "N/A",
         )
         return self
 
-    # ── Predict ──────────────────────────────────────────────────────────
+    # ── Predict ──────────────────────────────────────────────────────────────
 
     def predict(
         self, X: np.ndarray, stat: str | None = None
     ) -> np.ndarray | dict[str, np.ndarray]:
-        """Predict per-minute rate.
-
-        Parameters
-        ----------
-        X    : feature matrix (n_samples, n_features)
-        stat : if given, returns only that stat's predictions (1D array);
-               otherwise returns a dict {stat: predictions}.
-        """
+        """Predict per-minute rate for one stat or all stats."""
+        if not self._is_fitted:
+            raise RuntimeError("MultiTaskStatRateModel not fitted")
         if stat is not None:
             return self._predict_single(X, stat)
-        return {s: self._predict_single(X, s) for s in self._stats_by_var}
+        return {s: self._predict_single(X, s) for s in self._ordered_stats}
 
     def _predict_single(self, X: np.ndarray, stat: str) -> np.ndarray:
         if stat not in self.shared_models:
-            raise ValueError(f"Stat '{stat}' not in trained models. "
-                             f"Available: {list(self.shared_models)}")
+            raise ValueError(f"Stat '{stat}' not in trained model; available: {self._ordered_stats}")
+
         model, order = self.shared_models[stat]
-
-        # Reproduce the same augmentation as during training
+        # Re-build predictions from lower-order stats
         prior_preds: dict[str, np.ndarray] = {}
-        for s, (_, o) in sorted(self.shared_models.items(), key=lambda x: x[1][1]):
-            if o < order:
-                prior_preds[s] = self._predict_shared_raw(X, s, prior_preds)
+        for s, (m, o) in sorted(self.shared_models.items(), key=lambda x: x[1][1]):
+            if o < order and m is not None:
+                X_aug_prior = self._augment_X(X, prior_preds, o)
+                prior_preds[s] = m.predict(X_aug_prior)
 
-        X_aug = self._augment(X, prior_preds, list(prior_preds.keys()))
-        shared_pred = model.predict(X_aug)
+        X_aug = self._augment_X(X, prior_preds, order)
+        shared_pred = model.predict(X_aug) if model is not None else np.zeros(len(X))
 
         if stat in self.private_models:
-            return shared_pred + self.private_models[stat].predict(X)
+            priv_pred = self.private_models[stat].predict(X)
+            return shared_pred + priv_pred
         return shared_pred
 
-    def _predict_shared_raw(
-        self, X: np.ndarray, stat: str, prior: dict[str, np.ndarray]
-    ) -> np.ndarray:
-        model, order = self.shared_models[stat]
-        prior_stats = [s for s, (_, o) in sorted(self.shared_models.items(), key=lambda x: x[1][1]) if o < order]
-        X_aug = self._augment(X, prior, prior_stats)
-        return model.predict(X_aug)
+    # ── Utilities ────────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _augment(
-        X: np.ndarray, preds: dict[str, np.ndarray], ordered_keys: list[str]
+    def _augment_X(
+        self,
+        X: np.ndarray,
+        prior_preds: dict[str, np.ndarray],
+        order: int,
     ) -> np.ndarray:
-        """Append already-predicted shared outputs to the feature matrix."""
-        if not ordered_keys:
+        """Concatenate base features with predictions of already-fitted stats."""
+        if order == 0 or not prior_preds:
             return X
-        aug_cols = [preds[s] for s in ordered_keys if s in preds]
-        if not aug_cols:
-            return X
-        aug = np.column_stack(aug_cols)
+        aug = np.column_stack([prior_preds[s] for s in self._ordered_stats
+                               if s in prior_preds])
         return np.column_stack([X, aug])
 
-    # ── Utilities ────────────────────────────────────────────────────────
+    def get_residual_correlation(self) -> dict[str, Any]:
+        """Return the learned residual correlation matrix as a dict."""
+        if self.residual_correlation is None:
+            return {}
+        idx = self._ordered_stats
+        return {
+            (idx[i], idx[j]): float(self.residual_correlation[i, j])
+            for i in range(len(idx))
+            for j in range(len(idx))
+        }
 
     def get_correlation_matrix(self) -> np.ndarray | None:
-        """Return the 7×7 residual correlation matrix (STATS order)."""
-        return self.residual_correlation
+        """Alias for copula_correlation_matrix (backward-compat)."""
+        return self.copula_correlation_matrix()
 
-    def get_correlation_for_pair(self, stat_a: str, stat_b: str) -> float:
-        """Return the learned correlation between two stats."""
+    def copula_correlation_matrix(self) -> np.ndarray | None:
+        """Return correlation matrix formatted for copula input (ordered by STATS)."""
         if self.residual_correlation is None:
-            return 0.0
-        stat_order = [s for s in STATS if s in self.shared_models]
-        if stat_a not in stat_order or stat_b not in stat_order:
-            return 0.0
-        i, j = stat_order.index(stat_a), stat_order.index(stat_b)
-        return float(self.residual_correlation[i, j])
+            return None
+        n = len(STATS)
+        mat = np.eye(n)
+        for i, si in enumerate(STATS):
+            for j, sj in enumerate(STATS):
+                if si in self._ordered_stats and sj in self._ordered_stats:
+                    ri = self._ordered_stats.index(si)
+                    rj = self._ordered_stats.index(sj)
+                    mat[i, j] = self.residual_correlation[ri, rj]
+        return mat

@@ -1637,6 +1637,46 @@ def build_wide_table(
         audit_notes["embedding_error"] = str(exc)
 
     # ------------------------------------------------------------------ #
+    # Enhancement 11: Causal transfer features (DR-learner per-player-pair)
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.models.causal_transfer import CausalTransferEstimator  # noqa: PLC0415
+        from wnba_props_model.models.usage_transfer import build_player_usage_map     # noqa: PLC0415
+        if len(wide) >= 150 and "player_id" in wide.columns:
+            usage_map = build_player_usage_map(wide, stats_df)
+            teammate_cols = [c for c in wide.columns if c.endswith("_is_out")]
+            teammate_ids = []
+            for col in teammate_cols:
+                try:
+                    tid_str = col.replace("teammate_", "").replace("_is_out", "")
+                    teammate_ids.append(int(tid_str))
+                except ValueError:
+                    pass
+            if teammate_ids:
+                cte = CausalTransferEstimator(n_folds=3, min_obs_treated=10)
+                cte.fit(wide, teammate_ids=teammate_ids[:10])
+                if cte._is_fitted:
+                    top_teammates = sorted(
+                        usage_map.items(), key=lambda x: -x[1]["usage_season"]
+                    )[:5]
+                    wide = cte.enrich_usage_transfer_features(wide, usage_map, top_n=5)
+            audit_notes["causal_transfer_features"] = True
+    except Exception as exc:
+        audit_notes["causal_transfer_features"] = False
+        audit_notes["causal_transfer_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 19: Rotation model — bimodal minutes features
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.models.rotation_model import add_rotation_minutes_features  # noqa: PLC0415
+        wide = add_rotation_minutes_features(wide, n_samples=500)
+        audit_notes["rotation_minutes_features"] = True
+    except Exception as exc:
+        audit_notes["rotation_minutes_features"] = False
+        audit_notes["rotation_minutes_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns
     # ------------------------------------------------------------------ #
     num_cols = wide.select_dtypes(include="number").columns
