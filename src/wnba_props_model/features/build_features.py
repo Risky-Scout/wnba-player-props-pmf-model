@@ -188,6 +188,330 @@ def assign_rotation_stability(support: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Enhancement 1: Usage Transfer Matrix features
+# ---------------------------------------------------------------------------
+
+def _build_usage_transfer_features(
+    wide: pd.DataFrame,
+    stats_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Add Usage Transfer Matrix and with-without features (Enhancement 1).
+
+    Requires player_id, fga, fta, turnover, minutes columns in stats_df.
+    """
+    try:
+        from wnba_props_model.models.usage_transfer import (  # noqa: PLC0415
+            build_player_usage_map,
+            build_wowy_splits,
+            add_usage_transfer_features,
+        )
+    except ImportError:
+        return wide
+
+    if "game_date" not in stats_df.columns:
+        return wide
+
+    cutoff = wide["game_date"].max() if "game_date" in wide.columns else None
+    usage_map = build_player_usage_map(stats_df, cutoff_date=cutoff)
+    if not usage_map:
+        return wide
+
+    wowy = build_wowy_splits(stats_df, usage_map)
+    wide = add_usage_transfer_features(wide, usage_map, wowy)
+    return wide
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 3: Extended schedule fatigue features
+# ---------------------------------------------------------------------------
+
+def _build_extended_fatigue_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> pd.DataFrame:
+    """Add is_4_in_5, is_5_in_7, cumulative_minutes_l7, altitude_flag,
+    rest_interaction_high_usage, and schedule_fatigue_index (Enhancement 3).
+    """
+    if "game_date" not in wide.columns or "player_id" not in wide.columns:
+        return wide
+
+    df = wide.copy()
+    # Game date per player history from stats_df (or use df itself)
+    src = stats_df if ("game_date" in stats_df.columns and "player_id" in stats_df.columns) else df
+
+    # ── is_4_in_5 and is_5_in_7 ────────────────────────────────────────────
+    def _density_flag(pid_dates_map: dict, threshold: int, window_days: int) -> pd.Series:
+        flags = []
+        for idx, row in df.iterrows():
+            pid = row["player_id"]
+            game_date = row["game_date"]
+            hist = pid_dates_map.get(pid, [])
+            cutoff = game_date - pd.Timedelta(days=window_days - 1)
+            count = sum(1 for d in hist if cutoff <= d < game_date)
+            flags.append(1 if count >= threshold else 0)
+        return pd.Series(flags, index=df.index)
+
+    # Build historical game dates per player from src
+    pid_dates: dict[int, list] = {}
+    if "game_date" in src.columns and "player_id" in src.columns:
+        for pid, grp in src.groupby("player_id", sort=False):
+            pid_dates[int(pid)] = sorted(grp["game_date"].dropna().tolist())
+
+    df["is_4_in_5"] = _density_flag(pid_dates, threshold=4, window_days=5)
+    df["is_5_in_7"] = _density_flag(pid_dates, threshold=5, window_days=7)
+
+    # ── cumulative_minutes_l7: sum of minutes in last 7 calendar days ───────
+    def _cum_min_7(row: pd.Series) -> float:
+        pid = row["player_id"]
+        gdate = row["game_date"]
+        cutoff = gdate - pd.Timedelta(days=7)
+        pid_src = src[(src["player_id"] == pid) &
+                      (src["game_date"] >= cutoff) &
+                      (src["game_date"] < gdate)]
+        if pid_src.empty:
+            return 0.0
+        min_col = "minutes" if "minutes" in pid_src.columns else "actual_minutes"
+        return float(pid_src[min_col].fillna(0).sum()) if min_col in pid_src.columns else 0.0
+
+    df["cumulative_minutes_l7"] = df.apply(_cum_min_7, axis=1)
+
+    # ── altitude_flag ───────────────────────────────────────────────────────
+    _ALTITUDE_CITIES = {"Denver", "Salt Lake City"}
+    if "game_city" in df.columns:
+        df["altitude_flag"] = df["game_city"].apply(
+            lambda c: 1 if isinstance(c, str) and c in _ALTITUDE_CITIES else 0
+        )
+    else:
+        df["altitude_flag"] = 0
+
+    # ── rest_interaction_high_usage ─────────────────────────────────────────
+    b2b_col    = "player_back_to_back_flag" if "player_back_to_back_flag" in df.columns else "is_back_to_back"
+    usage_col  = "player_usage_rate_l5" if "player_usage_rate_l5" in df.columns else "player_usage_proxy_l5"
+    b2b_vals   = df.get(b2b_col, pd.Series(0, index=df.index)).fillna(0)
+    usage_vals = df.get(usage_col, pd.Series(0.20, index=df.index)).fillna(0.20)
+    df["rest_interaction_high_usage"] = b2b_vals * usage_vals
+
+    # ── schedule_fatigue_index (composite) ──────────────────────────────────
+    three4   = df.get("player_3in4_flag", pd.Series(0, index=df.index)).fillna(0)
+    four5    = df["is_4_in_5"].fillna(0)
+    cum_norm = df["cumulative_minutes_l7"].clip(0, 300).fillna(0) / 200.0
+    travel   = df.get("team_timezone_diff", pd.Series(0, index=df.index)).fillna(0).clip(0, 3) / 3.0
+    alt      = df["altitude_flag"].fillna(0)
+    df["schedule_fatigue_index"] = (
+        0.30 * b2b_vals +
+        0.25 * three4 +
+        0.20 * cum_norm +
+        0.15 * travel +
+        0.10 * alt
+    )
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 4: Shot quality and efficiency regression features
+# ---------------------------------------------------------------------------
+
+def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> pd.DataFrame:
+    """Add TS%, eFG%, pts-per-scoring-attempt, shot quality proxies (Enhancement 4)."""
+    df = wide.copy()
+
+    # Aggregate rolling shooting columns expected from build_player_features
+    # (fgm_l10, fg3m_l10, fga_l10, fta_l10, pts_l10 produced as player_{stat}_* rolling)
+    needed = {
+        "pts_l10":   f"player_pts_mean_l10",
+        "fga_l10":   f"player_fga_mean_l10",   # may not exist
+        "fta_l10":   f"player_fta_mean_l10",   # may not exist
+        "fg3m_l10":  f"player_fg3m_mean_l10",
+    }
+
+    # Pull from wide columns if available
+    pts_l10  = df.get("player_pts_mean_l10",  pd.Series(np.nan, index=df.index))
+    fg3m_l10 = df.get("player_fg3m_mean_l10", pd.Series(np.nan, index=df.index))
+
+    # Estimate fga_l10 and fta_l10 from usage proxy if raw not available
+    fga_l10_raw = df.get("player_fga_mean_l10", None)
+    fta_l10_raw = df.get("player_fta_mean_l10", None)
+
+    # If raw not yet in wide, compute from stats_df
+    if fga_l10_raw is None or fta_l10_raw is None:
+        for col in ["fga", "fta"]:
+            if col in stats_df.columns:
+                roll_vals = (
+                    stats_df.sort_values(["player_id", "game_date"])
+                    .groupby("player_id", sort=False)[col]
+                    .transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean())
+                )
+                # Map back by (player_id, game_id)
+                if "game_id" in stats_df.columns and "game_id" in df.columns:
+                    tmp = stats_df[["player_id", "game_id"]].copy()
+                    tmp[f"_roll_{col}_l10"] = roll_vals.values
+                    df = df.merge(tmp, on=["player_id", "game_id"], how="left")
+                    if col == "fga":
+                        fga_l10_raw = df.pop(f"_roll_fga_l10")
+                    else:
+                        fta_l10_raw = df.pop(f"_roll_fta_l10")
+
+    fga_l10  = fga_l10_raw if fga_l10_raw is not None else pd.Series(np.nan, index=df.index)
+    fta_l10  = fta_l10_raw if fta_l10_raw is not None else pd.Series(np.nan, index=df.index)
+
+    # ── True Shooting % (TS%) ───────────────────────────────────────────────
+    tsa = fga_l10.fillna(0) + 0.44 * fta_l10.fillna(0)
+    df["player_ts_pct_l10"] = (pts_l10 / (2.0 * tsa.clip(lower=1.0))).where(tsa > 0)
+
+    # ── Effective FG% (eFG%) ────────────────────────────────────────────────
+    df["player_efg_pct_l10"] = (
+        (fga_l10.fillna(0) + 0.5 * fg3m_l10.fillna(0)) /
+        fga_l10.clip(lower=1.0)
+    ).where(fga_l10 > 0)
+
+    # ── FTA rate (FTA / FGA) ─────────────────────────────────────────────────
+    df["player_fta_rate_l10"] = (fta_l10 / fga_l10.clip(lower=1.0)).where(fga_l10 > 0)
+
+    # ── Points per scoring attempt ───────────────────────────────────────────
+    scoring_attempts = fga_l10.fillna(0) + 0.44 * fta_l10.fillna(0)
+    df["pts_per_scoring_attempt_l10"] = (
+        pts_l10 / scoring_attempts.clip(lower=1.0)
+    ).where(scoring_attempts > 0)
+
+    # ── Shot quality delta proxy (hot/cold streak signal) ───────────────────
+    # Without shot location data: use actual eFG% vs season-average eFG%
+    efg_season = (
+        (df.get("player_fga_mean_season", pd.Series(np.nan, index=df.index)).fillna(0) +
+         0.5 * df.get("player_fg3m_mean_season", pd.Series(np.nan, index=df.index)).fillna(0)) /
+        df.get("player_fga_mean_season", pd.Series(1.0, index=df.index)).clip(lower=1.0)
+    )
+    df["shot_quality_delta_l10"] = df["player_efg_pct_l10"].fillna(0) - efg_season.fillna(0)
+
+    # ── Hot/cold flags ───────────────────────────────────────────────────────
+    df["is_running_hot"]  = (df["shot_quality_delta_l10"] >  0.05).fillna(False).astype(int)
+    df["is_running_cold"] = (df["shot_quality_delta_l10"] < -0.05).fillna(False).astype(int)
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 5: Game script and conditional minutes features
+# ---------------------------------------------------------------------------
+
+def _build_game_script_features(wide: pd.DataFrame) -> pd.DataFrame:
+    """Add pregame win/blowout/close probabilities and conditional minutes (Enhancement 5)."""
+    from scipy.stats import norm  # noqa: PLC0415
+
+    df = wide.copy()
+
+    HOME_ADV    = 3.0   # WNBA home court ~3 points
+    SPREAD_SIGMA = 10.0  # WNBA game standard deviation
+
+    # Net rating proxy: team_pts_for - team_pts_allowed (rolling L5)
+    h_net = (
+        df.get("team_pts_for_mean_l5", pd.Series(0.0, index=df.index)).fillna(0) -
+        df.get("team_pts_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0)
+    )
+    o_net = (
+        df.get("opp_pts_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0) -
+        df.get("opp_total_score_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0)
+    )
+
+    is_home = df.get("is_home", pd.Series(True, index=df.index)).fillna(True).astype(bool)
+    # Spread from the player's team perspective (positive = player's team favored)
+    spread = np.where(is_home, h_net - o_net + HOME_ADV, o_net - h_net - HOME_ADV)
+
+    # P(win) from Normal CDF
+    p_win = 1.0 - norm.cdf(-spread / SPREAD_SIGMA)
+    df["pregame_win_probability"] = np.clip(p_win, 0.05, 0.95)
+
+    # P(blowout) = P(margin > 15 either direction)
+    p_blow_fav  = 1.0 - norm.cdf(15,  loc=spread, scale=SPREAD_SIGMA)
+    p_blow_dog  = norm.cdf(-15, loc=spread, scale=SPREAD_SIGMA)
+    df["blowout_probability"] = np.clip(p_blow_fav + p_blow_dog, 0.0, 1.0)
+
+    # P(close) = P(|margin| < 5)
+    p_close = norm.cdf(5, loc=spread, scale=SPREAD_SIGMA) - norm.cdf(-5, loc=spread, scale=SPREAD_SIGMA)
+    df["close_game_probability"] = np.clip(p_close, 0.0, 1.0)
+
+    # ── Conditional minutes given script ─────────────────────────────────────
+    base_min = df.get("projected_minutes_proxy", pd.Series(25.0, index=df.index)).fillna(25.0)
+    role     = df.get("role_status", pd.Series("rotation", index=df.index)).fillna("rotation")
+    is_star  = role.isin(["star", "starter", "primary_starter"])
+
+    df["expected_minutes_given_script"] = np.where(
+        is_star,
+        base_min * (1.0 + 0.05 * df["close_game_probability"] - 0.12 * df["blowout_probability"]),
+        base_min * (1.0 - 0.03 * df["close_game_probability"] + 0.15 * df["blowout_probability"]),
+    )
+    df["minutes_upside"] = np.where(
+        is_star,
+        base_min * 0.08 * df["close_game_probability"],
+        base_min * 0.20 * df["blowout_probability"],
+    )
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 9: Defensive scheme proxy features
+# ---------------------------------------------------------------------------
+
+def _build_defensive_scheme_features(wide: pd.DataFrame) -> pd.DataFrame:
+    """Approximate opponent defensive scheme from box-score stats (Enhancement 9)."""
+    df = wide.copy()
+
+    # Use opponent rolling stat totals available in wide table
+    opp_stl = df.get("opp_stl_allowed_mean_l5", pd.Series(np.nan, index=df.index)).fillna(5.0)
+    opp_blk = df.get("opp_blk_allowed_mean_l5", pd.Series(np.nan, index=df.index)).fillna(4.0)
+    opp_pf  = df.get("opp_pts_allowed_mean_l5", pd.Series(np.nan, index=df.index)).fillna(75.0)
+
+    # Normalize to per-possession proxies (assume ~75 possessions per WNBA game)
+    _POSS = 75.0
+    stl_rate = opp_stl / _POSS
+    blk_rate = opp_blk / _POSS
+    pf_rate  = opp_pf  / _POSS
+
+    # Aggression index: high steal + high foul rate = blitz/aggressive
+    df["opp_aggression_index"] = (stl_rate * 100 + pf_rate * 100 * 0.3).clip(0, 10)
+
+    # Drop indicator: high block + low steal = drop / interior-oriented
+    df["opp_drop_indicator"] = (blk_rate * 100 - stl_rate * 50).clip(-5, 10)
+
+    # Switch rate proxy: moderate on both = switch-everything
+    agg = df["opp_aggression_index"]
+    drop = df["opp_drop_indicator"]
+    denom = (agg + drop.abs()).clip(lower=0.01)
+    df["opp_switch_rate_proxy"] = ((1.0 - (agg - drop).abs() / denom)).clip(0, 1)
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 10: Season-phase categorical feature
+# ---------------------------------------------------------------------------
+
+def _build_season_phase_feature(wide: pd.DataFrame) -> pd.DataFrame:
+    """Add season_phase categorical: early / mid / late / playoff (Enhancement 10)."""
+    df = wide.copy()
+    if "game_number_in_season" not in df.columns:
+        df["season_phase"] = "mid"
+        return df
+
+    is_playoff = df.get("is_playoff_game", pd.Series(0, index=df.index)).fillna(0).astype(int)
+
+    def _phase(gn: float, playoff: int) -> str:
+        if playoff:
+            return "playoff"
+        if np.isnan(gn):
+            return "mid"
+        if gn <= 8:
+            return "early"
+        if gn <= 30:
+            return "mid"
+        return "late"
+
+    df["season_phase"] = [
+        _phase(gn, po)
+        for gn, po in zip(df["game_number_in_season"], is_playoff)
+    ]
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Team/opponent game context builder
 # ---------------------------------------------------------------------------
 
@@ -1192,6 +1516,66 @@ def build_wide_table(
             audit_notes["matchup_history_features"] = False
     else:
         audit_notes["matchup_history_features"] = False
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 1: Usage Transfer Matrix + With-Without features
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_usage_transfer_features(wide, stats_df)
+        audit_notes["usage_transfer_features"] = True
+    except Exception as exc:
+        audit_notes["usage_transfer_features"] = False
+        audit_notes["usage_transfer_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 3: Extended schedule fatigue features
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_extended_fatigue_features(wide, stats_df)
+        audit_notes["extended_fatigue_features"] = True
+    except Exception as exc:
+        audit_notes["extended_fatigue_features"] = False
+        audit_notes["extended_fatigue_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 4: Shot quality / efficiency regression features
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_shot_quality_features(wide, stats_df)
+        audit_notes["shot_quality_features"] = True
+    except Exception as exc:
+        audit_notes["shot_quality_features"] = False
+        audit_notes["shot_quality_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 5: Game script + conditional minutes features
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_game_script_features(wide)
+        audit_notes["game_script_features"] = True
+    except Exception as exc:
+        audit_notes["game_script_features"] = False
+        audit_notes["game_script_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 9: Defensive scheme proxy features
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_defensive_scheme_features(wide)
+        audit_notes["defensive_scheme_features"] = True
+    except Exception as exc:
+        audit_notes["defensive_scheme_features"] = False
+        audit_notes["defensive_scheme_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 10: Season-phase categorical feature
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_season_phase_feature(wide)
+        audit_notes["season_phase_feature"] = True
+    except Exception as exc:
+        audit_notes["season_phase_feature"] = False
+        audit_notes["season_phase_error"] = str(exc)
 
     # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns

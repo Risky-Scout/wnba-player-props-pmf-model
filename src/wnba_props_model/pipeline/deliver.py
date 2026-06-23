@@ -108,6 +108,25 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
         except (TypeError, ValueError):
             prop_line_open = None
         line_delta = (line_val - prop_line_open) if prop_line_open is not None else None
+        # Enhancement 7: market microstructure features
+        posted_at = r.get("posted_at") or r.get("opened_at")
+        try:
+            import pandas as _pd  # noqa: PLC0415
+            posted_dt = _pd.Timestamp(posted_at) if posted_at else None
+            hours_since_open = float((_pd.Timestamp.now(tz="UTC") - posted_dt.tz_localize("UTC")).total_seconds() / 3600) if posted_dt is not None and posted_dt.tzinfo is None else (float((_pd.Timestamp.now(tz="UTC") - posted_dt).total_seconds() / 3600) if posted_dt is not None else None)
+        except Exception:
+            hours_since_open = None
+
+        line_move_dir = (
+            1 if (line_delta or 0) > 0.05 else (-1 if (line_delta or 0) < -0.05 else 0)
+        ) if line_delta is not None else 0
+
+        book_count = r.get("book_count") or r.get("number_of_books_offering")
+        try:
+            book_count = int(book_count) if book_count is not None else None
+        except (TypeError, ValueError):
+            book_count = None
+
         rows.append({
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
@@ -123,8 +142,13 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
             "updated_at": r.get("updated_at"),
             "prop_line_open": prop_line_open,
             "line_delta": line_delta,
-            "line_moved_toward_over": (line_delta > 0.25) if line_delta is not None else None,
+            "line_moved_toward_over":  (line_delta > 0.25) if line_delta is not None else None,
             "line_moved_toward_under": (line_delta < -0.25) if line_delta is not None else None,
+            # Enhancement 7: market microstructure
+            "line_movement_direction":   line_move_dir,
+            "line_movement_magnitude":   abs(line_delta) if line_delta is not None else None,
+            "hours_since_line_opened":   hours_since_open,
+            "number_of_books_offering":  book_count,
         })
     return pd.DataFrame(rows)
 
@@ -171,6 +195,38 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         joined["mean_disagreement"] = (
             (joined["pmf_mean"] - joined["market_implied_mean"]).abs() > 2.0
         ).where(joined["market_implied_mean"].notna(), other=False)
+
+    # Enhancement 7: model vs opening line edge and under-bias indicator
+    if "prop_line_open" in joined.columns and "model_prob_over" in joined.columns:
+        open_line = joined["prop_line_open"].fillna(joined["line"])
+        import numpy as _np  # noqa: PLC0415
+        joined["model_vs_opening_edge"] = (
+            (joined["model_prob_over"] - joined["market_prob_over_no_vig"]).abs()
+        ).where(open_line.notna())
+
+    # under_bias_indicator: role-player props (< 25 min) have historical over-bias from books
+    if "role_bucket" in joined.columns:
+        joined["under_bias_indicator"] = (
+            joined["role_bucket"].isin(["bench", "rotation", "spot"])
+        ).astype(int)
+    elif "pmf_mean" in joined.columns:
+        joined["under_bias_indicator"] = (joined["pmf_mean"] < 15).astype(int)
+
+    # reverse_line_movement_flag: line moved opposite to model's suggested direction
+    if "line_delta" in joined.columns and "edge_over" in joined.columns:
+        # Model says over (edge_over > 0), but line moved down (delta < 0) = reverse steam to under
+        # Model says under (edge_over < 0), but line moved up (delta > 0) = reverse steam to over
+        with_delta = joined["line_delta"].notna()
+        joined["reverse_line_movement_flag"] = _np.where(
+            with_delta,
+            _np.where(
+                (joined["edge_over"] > 0.03) & (joined["line_delta"] < -0.1), 1,
+                _np.where(
+                    (joined["edge_over"] < -0.03) & (joined["line_delta"] > 0.1), 1, 0
+                )
+            ),
+            0,
+        ).astype(int)
 
     return joined
 

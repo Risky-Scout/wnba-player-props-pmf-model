@@ -291,13 +291,23 @@ def _posterior_mean(
     prior: GammaPrior,
     n_games: int,
     observed_mean: float,
+    season_phase: str = "mid",
 ) -> float:
     """Compute Gamma-Poisson posterior mean (shrinkage toward league average).
 
     E[λ | data] = (α + n*x̄) / (β + n)
                 = league_mean × β/(β+n)  +  observed_mean × n/(β+n)
+
+    Enhancement 10: season_phase multiplier adjusts shrinkage strength:
+        early   → 2.0× (first 8 games, small sample, shrink more)
+        mid     → 1.0× (games 9–30, normal)
+        late    → 0.8× (games 31+, more data, slightly less shrinkage)
+        playoff → 0.6× (postseason, minimal shrinkage)
     """
-    k     = prior.beta  # effective prior sample size
+    _PHASE_MULTIPLIER = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
+    multiplier = _PHASE_MULTIPLIER.get(season_phase, 1.0)
+    k     = prior.beta * multiplier  # effective prior sample size (adjusted)
+    k     = max(k, _MIN_K)
     w_obs = n_games / (k + n_games)       # weight on own data
     w_pri = 1.0 - w_obs                   # weight on league prior
     return float(w_pri * prior.mu + w_obs * observed_mean)
@@ -440,14 +450,23 @@ def apply_bayesian_shrinkage(
             if stat not in stat_priors:
                 stat_priors[stat] = GammaPrior(alpha=1.0, beta=float(k or _MIN_K), mu=mu, var=mu)
 
-    # Build player n_games lookup
+    # Enhancement 10: season-phase shrinkage multiplier
+    _PHASE_MULTIPLIER: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
+
+    # Build player n_games AND season_phase lookup
     player_ngames: dict[int, int] = {}
+    player_phase:  dict[int, str] = {}
     if features is not None and "player_id" in features.columns:
         for pid, grp in features.groupby("player_id"):
             n = int(grp.get("player_games_prior", pd.Series([0])).max() or 0)
             if n == 0:
                 n = len(grp.dropna(subset=["actual_pts"] if "actual_pts" in grp.columns else []))
             player_ngames[int(pid)] = n
+            if "season_phase" in grp.columns:
+                phase_val = grp["season_phase"].dropna().iloc[-1] if not grp["season_phase"].dropna().empty else "mid"
+                player_phase[int(pid)] = str(phase_val)
+            else:
+                player_phase[int(pid)] = "mid"
 
     # Stat support caps (matching pmf_engine)
     _STAT_CAPS = {"pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12}
@@ -462,6 +481,10 @@ def apply_bayesian_shrinkage(
         # Lookup per-stat prior (Gamma parameters)
         prior = stat_priors.get(stat)
         k_stat = float(k) if k is not None else (prior.beta if prior else _MIN_K)
+        # Enhancement 10: adjust k by season-phase multiplier
+        phase = player_phase.get(pid, "mid")
+        k_stat = k_stat * _PHASE_MULTIPLIER.get(phase, 1.0)
+        k_stat = max(k_stat, _MIN_K)
         alpha  = compute_shrinkage_weight(n_games, k_stat)
 
         if alpha < 0.05 or n_games >= min_games_full_confidence:
