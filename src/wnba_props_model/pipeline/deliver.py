@@ -212,6 +212,51 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     elif "pmf_mean" in joined.columns:
         joined["under_bias_indicator"] = (joined["pmf_mean"] < 15).astype(int)
 
+    # Enhancement 20: game-total coherence scale factor
+    try:
+        from wnba_props_model.models.game_total_conditioned import mc_condition_player_props  # noqa: PLC0415
+        if "market_game_total_line" in joined.columns:
+            # Build projection list for conditioning
+            proj_rows = []
+            for _, r in joined.iterrows():
+                proj_rows.append({
+                    "player_id": r["player_id"],
+                    "team":      r.get("team_id", "unknown"),
+                    "pts_projection": float(r.get("pmf_mean", 10.0)) if r.get("stat") == "pts" else 0.0,
+                    "stat": r.get("stat"),
+                    "line": float(r.get("line", 0.0)),
+                })
+            game_total = float(joined["market_game_total_line"].median())
+            if game_total > 100:
+                conditioned = mc_condition_player_props(proj_rows, game_total)
+                scale_map = {
+                    r["player_id"]: r.get("coherence_scale_factor", 1.0)
+                    for r in conditioned
+                }
+                joined["coherence_scale_factor"] = joined["player_id"].map(scale_map).fillna(1.0)
+    except Exception:
+        pass
+
+    # Enhancement 16: expected CLV via line predictor (if model artifact exists)
+    try:
+        from wnba_props_model.models.line_predictor import LinePredictor, build_line_predictor_features  # noqa: PLC0415
+        import os as _os  # noqa: PLC0415
+        lp_path = _os.environ.get("LINE_PREDICTOR_PATH", "")
+        if lp_path and _os.path.exists(lp_path + ".pkl"):
+            lp = LinePredictor.load(lp_path)
+            expected_clvs = []
+            for _, r in joined.iterrows():
+                feats = build_line_predictor_features(
+                    r.to_dict(),
+                    model_projection=float(r.get("pmf_mean", 0.0)),
+                    hours_until_game=float(r.get("hours_since_line_opened", 24.0)),
+                )
+                clv_info = lp.compute_expected_clv(float(r.get("line", 0.0)), feats)
+                expected_clvs.append(clv_info.get("expected_clv", 0.0))
+            joined["expected_clv"] = expected_clvs
+    except Exception:
+        pass
+
     # reverse_line_movement_flag: line moved opposite to model's suggested direction
     if "line_delta" in joined.columns and "edge_over" in joined.columns:
         # Model says over (edge_over > 0), but line moved down (delta < 0) = reverse steam to under

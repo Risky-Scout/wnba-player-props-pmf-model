@@ -190,6 +190,32 @@ def build_all_pmfs(
         # ---- Build PMF matrix ---------------------------------------------
         roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
 
+        # Enhancement 19: use rotation model for bimodal minutes if enabled
+        use_rotation_model = cfg.get("use_rotation_model", False)
+        if use_rotation_model and "projected_minutes" in stat_rows.columns:
+            try:
+                from wnba_props_model.models.rotation_model import build_rotation_minutes_samples  # noqa: PLC0415
+                _rotation_samples_list = []
+                for _, _pr in stat_rows.iterrows():
+                    _feats = {
+                        "projected_minutes":     float(_pr.get("projected_minutes", 20.0)),
+                        "pregame_win_probability": float(_pr.get("pregame_win_probability", 0.50)),
+                        "blowout_probability":    float(_pr.get("blowout_probability", 0.15)),
+                    }
+                    _rotation_samples_list.append(build_rotation_minutes_samples(_feats, n_samples=1000))
+                # Summarise into 5-quantile matrix matching _build_marginalized_pmf_matrix expectations
+                import numpy as _np_r  # noqa: PLC0415
+                quant_mat_rotation = _np_r.array([
+                    [_np_r.percentile(s, q) for q in [10, 25, 50, 75, 90]]
+                    for s in _rotation_samples_list
+                ])
+                # Temporarily override quant_mat below
+                _use_rotation_quants = True
+            except Exception as _rme:
+                _use_rotation_quants = False
+        else:
+            _use_rotation_quants = False
+
         use_marginalization = cfg.get("use_minutes_marginalization", False)
         if use_marginalization and hasattr(minutes_model, "_quantile_models") and minutes_model._quantile_models:
             # Retrieve per-player quantile minutes for quadrature
@@ -205,8 +231,10 @@ def build_all_pmfs(
             quad_weights = np.array(cfg.get(
                 "minutes_marginalization_weights", [0.10, 0.15, 0.50, 0.15, 0.10]
             ))
+            # Use rotation model bimodal quantiles if available (E19)
+            effective_quant = quant_mat_rotation if _use_rotation_quants else quant_mat
             pmf_mat = _build_marginalized_pmf_matrix(
-                stat, quant_mat, quad_weights, p_nz, pos_mus,
+                stat, effective_quant, quad_weights, p_nz, pos_mus,
                 stat_models, hurdle_models, cap, roles=roles
             )
         else:

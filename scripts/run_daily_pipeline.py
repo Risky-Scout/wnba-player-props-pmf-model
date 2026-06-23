@@ -130,6 +130,33 @@ def main(
         "--game-date", today,
     ], "Export betting sheets (Kalshi / Polymarket)")
 
+    # Step 8: Update calibration monitor (Enhancement 21 — PIT drift detection)
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+        _cal_mon_dir = _Path("artifacts/calibration_monitor")
+        _cal_mon_dir.mkdir(parents=True, exist_ok=True)
+        # Load or create the multi-stat monitor
+        try:
+            from wnba_props_model.models.calibration_monitor import MultiStatCalibrationMonitor
+            _mon = MultiStatCalibrationMonitor.load(_cal_mon_dir) if any(_cal_mon_dir.glob("*.json")) \
+                else MultiStatCalibrationMonitor()
+            _summary = _mon.summary()
+            _mon.save(_cal_mon_dir)
+            with open(_cal_mon_dir / "summary.json", "w") as _f:
+                _json.dump(_summary, _f, indent=2)
+            if _summary.get("n_alerts", 0) > 0:
+                typer.echo(f"[WARN] Calibration monitor: {_summary['n_alerts']} stat(s) have drift alerts!")
+                for _s, _v in _summary["stats"].items():
+                    if _v.get("status") == "alert":
+                        typer.echo(f"  → {_s}: {_v.get('direction')} (p={_v.get('p_value')})")
+            else:
+                typer.echo(f"[OK] Calibration monitor: score={_summary.get('overall_score')} — no drift.")
+        except ImportError:
+            pass
+    except Exception as _cal_exc:
+        typer.echo(f"[WARN] Calibration monitor step failed: {_cal_exc}")
+
     typer.echo(f"\n[DONE] Daily pipeline complete — {today}")
     typer.echo(f"Outputs in: {out_dir}/")
 

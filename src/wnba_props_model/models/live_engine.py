@@ -116,11 +116,14 @@ class LiveEngine:
                                    "team_id": int, "position_group": str}}
     """
 
-    def __init__(self, pregame_ratings: Dict[int, dict]):
+    def __init__(self, pregame_ratings: Dict[int, dict], hmm=None):
         self.pregame = pregame_ratings
         self.player_states: Dict[int, LivePlayerState] = {}
         self.game_state = GameState()
         self._initialized = False
+        # Optional HMM for regime-aware rate adjustment (Enhancement 22)
+        self._hmm = hmm
+        self._recent_events: List[dict] = []  # sliding window for HMM inference
 
     # ── Initialization ──────────────────────────────────────────────────────
 
@@ -228,6 +231,26 @@ class LiveEngine:
             if pid_in and int(pid_in) in self.player_states:
                 self.player_states[int(pid_in)].is_active = True
 
+        # Track recent events for HMM regime inference (Enhancement 22)
+        margin = self.game_state.home_score - self.game_state.away_score
+        elapsed = self.game_state.elapsed_minutes
+        all_pts = sum(
+            s.observed.get("pts", 0) for s in self.player_states.values()
+        )
+        recent_pts_rate = (all_pts / max(elapsed, 1.0)) / 4.0  # normalise
+        self._recent_events.append({
+            "margin":              margin,
+            "clock_remaining_secs": max(0.0, (GAME_DURATION - elapsed) * 60),
+            "cumulative_pts_rate": recent_pts_rate,
+            "cumulative_reb_rate": 0.5,
+            "possession_frac":     elapsed / GAME_DURATION,
+            "timeout_flag":        1 if event.get("event_type") == "timeout" else 0,
+            "recent_pts_rate":     recent_pts_rate,
+        })
+        # Keep only last 30 events for memory efficiency
+        if len(self._recent_events) > 30:
+            self._recent_events = self._recent_events[-30:]
+
         # Bayesian posterior update
         self._bayesian_update_all()
 
@@ -274,6 +297,15 @@ class LiveEngine:
 
         m_rem = self._estimate_remaining_minutes(s, t_rem)
         w_gs  = self._game_state_adj(s)
+
+        # Enhancement 22: regime-aware rate adjustment via HMM
+        if self._hmm is not None and self._recent_events:
+            try:
+                post_rate, _state_name, _state_prob = self._hmm.adjust_live_rate(
+                    stat, post_rate, self._recent_events, blend_weight=0.70
+                )
+            except Exception:
+                pass  # silently fall back to unadjusted rate
 
         # remaining = per-minute rate × remaining minutes
         remaining = post_rate * m_rem * w_gs

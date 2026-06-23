@@ -218,6 +218,17 @@ def _build_usage_transfer_features(
 
     wowy = build_wowy_splits(stats_df, usage_map)
     wide = add_usage_transfer_features(wide, usage_map, wowy)
+
+    # Enhancement 11: Upgrade with DR-learner causal transfer estimates
+    # when sufficient historical data is available (>= 500 rows)
+    if len(wide) >= 500:
+        try:
+            from wnba_props_model.models.causal_transfer import train_causal_transfer  # noqa: PLC0415
+            causal_est = train_causal_transfer(wide, usage_map, top_n=5)
+            wide = causal_est.apply_causal_utm(wide, usage_map, top_n=5)
+        except Exception:
+            pass  # silently fall back to positional UTM
+
     return wide
 
 
@@ -1576,6 +1587,54 @@ def build_wide_table(
     except Exception as exc:
         audit_notes["season_phase_feature"] = False
         audit_notes["season_phase_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 17: Causal DNP features (IPW-corrected injury model)
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.models.causal_injury import fit_causal_dnp_model, add_causal_dnp_features  # noqa: PLC0415
+        if len(wide) >= 100:
+            causal_models = fit_causal_dnp_model(wide)
+            wide = add_causal_dnp_features(wide, causal_models)
+            audit_notes["causal_dnp_features"] = True
+    except Exception as exc:
+        audit_notes["causal_dnp_features"] = False
+        audit_notes["causal_dnp_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 18: Duo synergy features (box-score approximation)
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.models.synergy_features import (  # noqa: PLC0415
+            compute_duo_synergy_from_boxscores,
+            add_synergy_features,
+        )
+        synergy_data = compute_duo_synergy_from_boxscores(wide, min_games=10)
+        if synergy_data:
+            wide = add_synergy_features(wide, synergy_data, top_n=3)
+            audit_notes["synergy_features"] = len(synergy_data)
+    except Exception as exc:
+        audit_notes["synergy_features"] = False
+        audit_notes["synergy_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 12: WNBA2Vec embedding features (synthetic cold-start)
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.models.wnba2vec import EmbeddingFeatureInjector, build_player_id_map  # noqa: PLC0415
+        import os  # noqa: PLC0415
+        embed_path = os.environ.get("WNBA2VEC_MODEL_PATH", "")
+        pid_map = build_player_id_map(wide["player_id"].unique().tolist())
+        injector = EmbeddingFeatureInjector(
+            model_path=embed_path if embed_path else None,
+            player_id_map=pid_map,
+            n_dims=8,
+        )
+        wide = injector.inject(wide)
+        audit_notes["embedding_features"] = True
+    except Exception as exc:
+        audit_notes["embedding_features"] = False
+        audit_notes["embedding_error"] = str(exc)
 
     # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns
