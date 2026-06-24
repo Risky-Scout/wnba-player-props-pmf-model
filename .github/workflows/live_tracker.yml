@@ -29,6 +29,9 @@ jobs:
   find-games:
     name: Find Active WNBA Games
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     timeout-minutes: 5
     outputs:
       has_games: ${{ steps.find.outputs.has_games }}
@@ -77,6 +80,9 @@ jobs:
     needs: find-games
     if: needs.find-games.outputs.has_games == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     timeout-minutes: 170
 
     steps:

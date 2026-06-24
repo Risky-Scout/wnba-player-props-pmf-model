@@ -19,6 +19,9 @@ on:
 jobs:
   daily-pipeline:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     timeout-minutes: 120
 
     steps:

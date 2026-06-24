@@ -25,6 +25,9 @@ on:
 jobs:
   live-engine:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     timeout-minutes: 8   # Shorter than 10-min schedule gap to avoid overlap
 
     steps:
