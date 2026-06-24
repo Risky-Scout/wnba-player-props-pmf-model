@@ -1,0 +1,155 @@
+# Pre-Game Final Lock Projections — blueprint §11.1
+# Runs at 22:00 UTC (6pm ET) — final lineup confirmation before tip.
+# Applies config/player_overrides.json manual adjustments.
+#
+# Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
+#               predictions/WNBA/Pre-Game-Edge/final/
+name: Pre-Game Final Lock Projections
+
+on:
+  schedule:
+    - cron: '0 22 * * *'   # 22:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: 'Target game date (YYYY-MM-DD, defaults to today)'
+        required: false
+        default: ''
+
+jobs:
+  pregame_final:
+    runs-on: ubuntu-latest
+    env:
+      BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve game date
+        run: |
+          if [ -n "${{ github.event.inputs.game_date }}" ]; then
+            echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
+          else
+            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+          fi
+
+      - name: Download injury-update artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: pregame_injury_update.yml
+          name: pregame-injury-update-${{ env.GAME_DATE }}
+          path: .
+        continue-on-error: true
+
+      - name: Regenerate if no artifact
+        run: |
+          if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
+            python scripts/predict_today.py \
+              --features-wide data/processed/wnba_player_game_features_wide.parquet \
+              --game-date "$GAME_DATE" \
+              --out-dir deliveries/tonight
+          fi
+        continue-on-error: true
+
+      - name: Apply manual overrides from config/player_overrides.json
+        run: |
+          python - << 'EOF'
+          import json
+          from pathlib import Path
+          overrides_file = Path("config/player_overrides.json")
+          if not overrides_file.exists():
+              print("No overrides file found.")
+              exit(0)
+          data = json.loads(overrides_file.read_text())
+          import os
+          game_date = os.environ["GAME_DATE"]
+          active = [o for o in data.get("overrides", []) if o.get("game_date") == game_date]
+          if not active:
+              print(f"No overrides for {game_date}.")
+              exit(0)
+          import subprocess
+          for o in active:
+              print(f"Applying override: player {o['player_id']} → {o['override_minutes']} min")
+              subprocess.run([
+                  "python", "scripts/override_minutes.py",
+                  "--player-id", str(o["player_id"]),
+                  "--game-date", o["game_date"],
+                  "--minutes", str(o["override_minutes"]),
+                  "--reason", o.get("reason", ""),
+                  "--no-apply",  # don't re-register; just apply to slate
+              ], check=False)
+          EOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: true
+
+      - name: Fetch confirmed lineups / late injury updates
+        run: |
+          python scripts/apply_injury_updates.py \
+            --game-date "$GAME_DATE" \
+            --out-dir deliveries/tonight
+        continue-on-error: true
+
+      - name: Pull final Odds API props + deep links
+        run: |
+          python scripts/pull_odds_api_props.py \
+            --out-dir data/processed
+        continue-on-error: true
+
+      - name: Build final edge report
+        run: |
+          python scripts/build_edge_report.py \
+            --pmf-parquet deliveries/tonight/full_pmfs_wide.parquet \
+            --out-dir deliveries/tonight \
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+        continue-on-error: true
+
+      - name: Format final JSON output
+        run: |
+          python scripts/format_pregame_output.py \
+            --game-date "$GAME_DATE" \
+            --pipeline-run pregame_final \
+            --pmfs deliveries/tonight/full_pmfs_wide.parquet \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game-Edge \
+            --market-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --injuries data/injuries/${GAME_DATE}.json \
+            --games data/processed/wnba_games.parquet
+
+      - name: Copy to final/ subdirectory
+        run: |
+          mkdir -p tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final
+          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json \
+             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final/latest.json
+          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json \
+             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final/${GAME_DATE}.json
+          # Also update the root latest.json to the final version
+          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json \
+             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/latest.json
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          keep_files: true
+
+      - name: Upload final artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pregame-final-${{ env.GAME_DATE }}
+          path: |
+            deliveries/tonight/
+            tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
+          retention-days: 30

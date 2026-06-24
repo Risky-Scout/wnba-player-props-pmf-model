@@ -1,0 +1,199 @@
+# Live In-Play Engine — blueprint §11.2
+# Runs every 2 minutes during WNBA game windows when WNBA_SEASON_ACTIVE=true.
+# Polls BDL PBP, updates Gamma-Poisson posteriors, publishes live JSON.
+#
+# Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
+#               predictions/WNBA/Inplay-Edge/game_{id}_latest.json
+#
+# Required vars:   WNBA_SEASON_ACTIVE (repo variable, set to "true" to enable)
+# Required secrets: BDL_API_KEY, ODDS_API_KEY, DEPLOY_TOKEN
+name: Live In-Play Engine
+
+on:
+  schedule:
+    - cron: '*/2 * * * *'   # Every 2 minutes (matches blueprint §11.2)
+  workflow_dispatch:
+    inputs:
+      game_ids:
+        description: 'Comma-separated BDL game IDs to track (leave blank for auto-detect)'
+        required: false
+        default: ''
+
+jobs:
+  live_inplay:
+    runs-on: ubuntu-latest
+    # Only run during active WNBA season and on game days (blueprint §11.2)
+    if: ${{ vars.WNBA_SEASON_ACTIVE == 'true' }}
+    env:
+      BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Detect today's date
+        run: |
+          echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+
+      - name: Find active WNBA games
+        id: find_games
+        run: |
+          python scripts/find_live_games.py \
+            --out-dir artifacts/live
+          # Check if any games found
+          if [ -f "artifacts/live/active_game_ids.txt" ]; then
+            ACTIVE_IDS=$(cat artifacts/live/active_game_ids.txt)
+            echo "ACTIVE_GAME_IDS=$ACTIVE_IDS" >> $GITHUB_ENV
+            echo "Found active games: $ACTIVE_IDS"
+          else
+            echo "ACTIVE_GAME_IDS=" >> $GITHUB_ENV
+            echo "No active games found"
+          fi
+        continue-on-error: true
+
+      # Only continue if there are active games
+      - name: Check active games
+        run: |
+          if [ -z "$ACTIVE_GAME_IDS" ] && [ -z "${{ github.event.inputs.game_ids }}" ]; then
+            echo "No active games — exiting early"
+            echo "NO_GAMES=true" >> $GITHUB_ENV
+          fi
+
+      - name: Download pre-game projections (today's final or latest)
+        if: env.NO_GAMES != 'true'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: pregame_final.yml
+          name: pregame-final-${{ env.GAME_DATE }}
+          path: deliveries/tonight
+        continue-on-error: true
+
+      - name: Fetch PBP data for active games (BDL)
+        if: env.NO_GAMES != 'true'
+        run: |
+          IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
+          if [ -n "$IDS" ]; then
+            python scripts/run_live_tracker.py \
+              --game-ids $(echo $IDS | tr ',' ' ') \
+              --duration 3 \
+              --poll-interval 30 \
+              --out-dir artifacts/live \
+              --projections deliveries/tonight/full_pmfs_wide.parquet
+          fi
+        continue-on-error: true
+
+      - name: Fetch live props from BDL
+        if: env.NO_GAMES != 'true'
+        run: |
+          python scripts/pull_live_props.py \
+            --out-dir data/live/bdl_props
+        continue-on-error: true
+
+      - name: Fetch live props + deep links from Odds API
+        if: env.NO_GAMES != 'true'
+        run: |
+          python scripts/pull_odds_api_props.py \
+            --out-dir data/live/oddsapi_props \
+            --include-links
+        continue-on-error: true
+
+      - name: Format live JSON outputs per game (blueprint §4)
+        if: env.NO_GAMES != 'true'
+        run: |
+          IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
+          if [ -n "$IDS" ]; then
+            for GID in $(echo $IDS | tr ',' ' '); do
+              echo "Formatting live output for game $GID"
+              python scripts/format_live_output.py \
+                --live-dir artifacts/live \
+                --out-dir tools/odds-scanner/predictions/WNBA/Inplay-Edge \
+                --game-id $GID
+            done
+          fi
+        continue-on-error: true
+
+      - name: Quarter-break calibration check
+        if: env.NO_GAMES != 'true'
+        run: |
+          python - << 'EOF'
+          # Live calibration health check every quarter break
+          import json
+          from pathlib import Path
+
+          summary_path = Path("artifacts/live/live_session_summary.json")
+          if not summary_path.exists():
+              print("No live session summary found — skipping cal check")
+              exit(0)
+
+          summary = json.loads(summary_path.read_text())
+          clock = summary.get("current_clock", "10:00")
+          period = summary.get("current_period", 1)
+
+          # Quarter break = clock near 0:00 or period transition
+          try:
+              mins, secs = map(int, clock.split(":"))
+              at_break = mins == 0 and secs <= 30
+          except Exception:
+              at_break = False
+
+          if at_break:
+              print(f"Quarter break detected at Q{period} {clock} — running recal check")
+              import subprocess
+              subprocess.run(["python", "scripts/live_recal_check.py",
+                              "--live-dir", "artifacts/live"], check=False)
+          else:
+              print(f"Mid-quarter at Q{period} {clock} — no recal needed")
+          EOF
+        continue-on-error: true
+
+      - name: Publish live outputs to gh-pages
+        if: env.NO_GAMES != 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          keep_files: true
+
+      - name: Post-game archive (runs when all games final)
+        if: env.NO_GAMES != 'true'
+        run: |
+          IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
+          if [ -n "$IDS" ]; then
+            for GID in $(echo $IDS | tr ',' ' '); do
+              # Check if game is final
+              GAME_FILE="tools/odds-scanner/predictions/WNBA/Inplay-Edge/game_${GID}_latest.json"
+              if [ -f "$GAME_FILE" ]; then
+                STATUS=$(python -c "import json; d=json.load(open('$GAME_FILE')); print(d.get('game_status',''))")
+                if [ "$STATUS" = "final" ]; then
+                  echo "Game $GID is final — archiving"
+                  python scripts/format_live_output.py \
+                    --live-dir artifacts/live \
+                    --out-dir tools/odds-scanner/predictions/WNBA/Inplay-Edge \
+                    --game-id $GID \
+                    --archive
+                fi
+              fi
+            done
+          fi
+        continue-on-error: true
+
+      - name: Upload live artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-inplay-${{ env.GAME_DATE }}-${{ github.run_number }}
+          path: |
+            artifacts/live/
+            tools/odds-scanner/predictions/WNBA/Inplay-Edge/
+          retention-days: 7

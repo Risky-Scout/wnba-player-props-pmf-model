@@ -1,0 +1,19 @@
+# Production dependencies for GitHub Actions workflows
+# Generated from pyproject.toml + shap
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.3
+scipy>=1.10
+joblib>=1.3
+requests>=2.31
+pyyaml>=6.0
+typer>=0.9
+rich>=13.0
+pyarrow>=12.0
+penaltyblog>=0.16
+hmmlearn>=0.3
+shap>=0.44
+# Optional — install only what's available on ubuntu-latest:
+# torch is large; skip for CI unless needed
+# torch>=2.0
+optuna>=3.0

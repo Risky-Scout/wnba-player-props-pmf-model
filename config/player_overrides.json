@@ -1,0 +1,4 @@
+{
+  "_comment": "Manual minutes overrides per blueprint §6.1. Add records here to override model-projected minutes for a specific player on a specific date. Overrides are validated (minutes in [0, 48]), expire on game_date, and trigger UTM redistribution of the delta.",
+  "overrides": []
+}

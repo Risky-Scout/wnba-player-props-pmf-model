@@ -1,0 +1,113 @@
+# Pre-Game Injury Update Projections — blueprint §11.1
+# Runs at 18:00 UTC (2pm ET) — post-injury reports, reacted projections.
+# Overwrites latest.json with injury-adjusted values.
+#
+# Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
+#               predictions/WNBA/Pre-Game-Edge/latest.json
+name: Pre-Game Injury Update Projections
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 18:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: 'Target game date (YYYY-MM-DD, defaults to today)'
+        required: false
+        default: ''
+
+jobs:
+  pregame_injury_update:
+    runs-on: ubuntu-latest
+    env:
+      BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve game date
+        run: |
+          if [ -n "${{ github.event.inputs.game_date }}" ]; then
+            echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
+          else
+            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+          fi
+
+      - name: Download latest pregame artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: pregame_initial.yml
+          name: pregame-initial-${{ env.GAME_DATE }}
+          path: .
+        continue-on-error: true
+
+      - name: Regenerate PMF projections (if no artifact)
+        run: |
+          if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
+            python scripts/predict_today.py \
+              --features-wide data/processed/wnba_player_game_features_wide.parquet \
+              --game-date "$GAME_DATE" \
+              --out-dir deliveries/tonight
+          fi
+        continue-on-error: true
+
+      - name: Fetch fresh injury report (BDL)
+        run: |
+          python scripts/apply_injury_updates.py \
+            --game-date "$GAME_DATE" \
+            --out-dir deliveries/tonight
+        continue-on-error: true
+
+      - name: Pull fresh Odds API props
+        run: |
+          python scripts/pull_odds_api_props.py \
+            --out-dir data/processed
+        continue-on-error: true
+
+      - name: Build edge report
+        run: |
+          python scripts/build_edge_report.py \
+            --pmf-parquet deliveries/tonight/full_pmfs_wide.parquet \
+            --out-dir deliveries/tonight \
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+        continue-on-error: true
+
+      - name: Format injury-updated JSON output
+        run: |
+          python scripts/format_pregame_output.py \
+            --game-date "$GAME_DATE" \
+            --pipeline-run pregame_injury_update \
+            --pmfs deliveries/tonight/full_pmfs_wide.parquet \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game-Edge \
+            --market-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --injuries data/injuries/${GAME_DATE}.json \
+            --games data/processed/wnba_games.parquet
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          keep_files: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pregame-injury-update-${{ env.GAME_DATE }}
+          path: |
+            deliveries/tonight/
+            data/injuries/
+            tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
+          retention-days: 7

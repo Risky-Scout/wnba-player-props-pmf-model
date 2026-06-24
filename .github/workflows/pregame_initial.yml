@@ -1,0 +1,146 @@
+# Pre-Game Initial Projections (T-1 day baseline) — blueprint §11.1
+# Runs at 10:00 UTC daily (6am ET) — guarantees projections are available
+# ≥13 hours before typical WNBA tip times (23:00–01:00 UTC).
+#
+# Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
+#               predictions/WNBA/Pre-Game-Edge/initial/
+name: Pre-Game Initial Projections (T-1 day)
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 10:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: 'Target game date (YYYY-MM-DD, defaults to tomorrow)'
+        required: false
+        default: ''
+
+jobs:
+  pregame_initial:
+    runs-on: ubuntu-latest
+    env:
+      BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve game date (tomorrow by default)
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.game_date }}" ]; then
+            echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
+          else
+            echo "GAME_DATE=$(date -u -d '+1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)" >> $GITHUB_ENV
+          fi
+          echo "Game date: $GAME_DATE"
+
+      - name: Fetch tomorrow's WNBA games (BDL)
+        run: |
+          python scripts/fetch_bdl_games.py \
+            --start-date "$GAME_DATE" \
+            --end-date "$GAME_DATE" \
+            --output data/schedule/tomorrow.json
+        continue-on-error: true
+
+      - name: Fetch injury report (BDL)
+        run: |
+          python scripts/apply_injury_updates.py \
+            --game-date "$GAME_DATE" \
+            --injuries-json "" \
+            --dry-run
+        continue-on-error: true
+
+      - name: Fetch latest BDL stats + features
+        run: |
+          python scripts/build_features.py \
+            --season 2026 \
+            --game-date "$GAME_DATE" \
+            --out-dir data/processed
+        continue-on-error: true
+
+      - name: Generate pre-game PMF projections
+        run: |
+          python scripts/predict_today.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --game-date "$GAME_DATE" \
+            --out-dir deliveries/tonight \
+            --model-dir artifacts/models/stage4_baseline \
+            --cal-dir artifacts/models/calibration
+
+      - name: Pull Odds API player props + deep links
+        run: |
+          python scripts/pull_odds_api_props.py \
+            --out-dir data/processed
+        continue-on-error: true
+
+      - name: Apply injury updates (UTM redistribution)
+        run: |
+          python scripts/apply_injury_updates.py \
+            --game-date "$GAME_DATE" \
+            --out-dir deliveries/tonight
+        continue-on-error: true
+
+      - name: Compute SHAP explainability
+        run: |
+          python scripts/compute_shap_explainability.py \
+            --game-date "$GAME_DATE" \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --model-dir artifacts/models/stage4_baseline \
+            --out-dir artifacts/explainability
+        continue-on-error: true
+
+      - name: Build edge report
+        run: |
+          python scripts/build_edge_report.py \
+            --pmf-parquet deliveries/tonight/full_pmfs_wide.parquet \
+            --out-dir deliveries/tonight \
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+        continue-on-error: true
+
+      - name: Format pre-game JSON output (blueprint §3)
+        run: |
+          python scripts/format_pregame_output.py \
+            --game-date "$GAME_DATE" \
+            --pipeline-run pregame_initial \
+            --pmfs deliveries/tonight/full_pmfs_wide.parquet \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game-Edge \
+            --market-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --injuries data/injuries/${GAME_DATE}.json \
+            --games data/processed/wnba_games.parquet
+
+      - name: Copy to initial/ subdirectory
+        run: |
+          mkdir -p tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial
+          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_initial.json \
+             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/latest.json
+          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_initial.json \
+             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/${GAME_DATE}.json
+
+      - name: Publish to gh-pages (wizardofodds.com)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          keep_files: true
+
+      - name: Upload deliveries artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pregame-initial-${{ env.GAME_DATE }}
+          path: |
+            deliveries/tonight/
+            tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
+          retention-days: 14
