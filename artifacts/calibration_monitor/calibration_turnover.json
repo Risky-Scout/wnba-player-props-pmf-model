@@ -1,0 +1,14 @@
+{
+  "stat_label": "turnover",
+  "window_size": 500,
+  "alert_threshold": 0.01,
+  "n_observations": 0,
+  "pit_values": [],
+  "calibration": {
+    "status": "insufficient_data",
+    "n": 0,
+    "required": 50,
+    "stat_label": "turnover"
+  },
+  "score": null
+}

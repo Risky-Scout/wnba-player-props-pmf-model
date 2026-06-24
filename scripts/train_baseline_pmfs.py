@@ -365,6 +365,12 @@ def train(
     manifest_path_out.write_text(json.dumps(model_manifest, indent=2))
     print(f"Saved model manifest: {manifest_path_out}")
 
+    # Write feature_manifest.json so predict.py can load the exact feature columns
+    # used at training time without needing the original data/processed manifest.
+    feature_manifest_out = model_dir / "feature_manifest.json"
+    feature_manifest_out.write_text(json.dumps({"model_feature_columns": model_cols}, indent=2))
+    print(f"Saved feature manifest: {feature_manifest_out} ({len(model_cols)} cols)")
+
     # ------------------------------------------------------------------
     # 6. Generate PMFs
     # ------------------------------------------------------------------

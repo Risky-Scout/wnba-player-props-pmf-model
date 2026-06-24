@@ -93,9 +93,42 @@ def _load_stage4_models(model_dir: str | Path) -> dict:
                 rate_models[stat] = StatRateModel.load(str(rate_path))
 
     # --- Feature manifest ---
+    # Priority:
+    #   1. model_dir/feature_manifest.json  (written by train_baseline_pmfs.py >= this fix)
+    #   2. data/processed/feature_schema_manifest.json  (fallback for pre-fix artifacts)
+    #   3. Empty list → causes constant-prediction bug; warn loudly
+    manifest: dict = {}
     manifest_path = model_dir / "feature_manifest.json"
-    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+    else:
+        # Fallback: look for the schema manifest produced by build_features.py
+        _schema_candidates = [
+            Path("data/processed/feature_schema_manifest.json"),
+            Path("data/processed/schema_manifest.json"),
+            model_dir.parent.parent / "data" / "processed" / "feature_schema_manifest.json",
+        ]
+        for _cand in _schema_candidates:
+            if _cand.exists():
+                manifest = json.loads(_cand.read_text())
+                logger.info(
+                    "feature_manifest.json missing in %s — using fallback: %s",
+                    model_dir, _cand,
+                )
+                # Write a copy into the model dir so future runs are self-contained
+                try:
+                    manifest_path.write_text(json.dumps(manifest, indent=2))
+                    logger.info("Wrote feature_manifest.json to %s", manifest_path)
+                except Exception as _we:
+                    logger.warning("Could not write feature_manifest.json: %s", _we)
+                break
+
     model_feature_cols = manifest.get("model_feature_columns", [])
+    if not model_feature_cols:
+        logger.warning(
+            "No model_feature_columns found — all players will receive identical "
+            "predictions (global mean). Run train_baseline_pmfs.py to rebuild artifacts."
+        )
 
     return {
         "minutes": minutes,

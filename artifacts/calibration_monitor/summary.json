@@ -1,0 +1,56 @@
+{
+  "stats": {
+    "pts": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    },
+    "reb": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    },
+    "ast": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    },
+    "fg3m": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    },
+    "stl": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    },
+    "blk": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    },
+    "turnover": {
+      "score": null,
+      "status": "insufficient_data",
+      "direction": "unknown",
+      "p_value": null,
+      "n": 0
+    }
+  },
+  "overall_score": null,
+  "n_alerts": 0,
+  "health": "ok"
+}

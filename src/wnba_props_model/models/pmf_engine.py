@@ -119,6 +119,7 @@ def build_all_pmfs(
     )
     # pos_encoder was already fitted at training time; load it from the model
     # For inference, just re-use whatever preprocessing was done.
+
     # (The train script fits the encoder and passes it in the model artifacts.)
     # If the encoder is attached to the minutes_model, use it:
     if hasattr(minutes_model, "_pos_encoder") and minutes_model._pos_encoder is not None:
