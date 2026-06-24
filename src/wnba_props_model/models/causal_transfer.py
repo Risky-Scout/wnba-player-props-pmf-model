@@ -330,3 +330,35 @@ class CausalTransferEstimator:
             "mean_transfer": float(np.mean(means)) if means else 0.0,
             "pct_dr_learner": len(means) / max(n, 1),
         }
+
+
+# ---------------------------------------------------------------------------
+# Convenience factory function (called from build_features.py)
+# ---------------------------------------------------------------------------
+
+def train_causal_transfer(
+    df: "pd.DataFrame",
+    player_usage_map: dict,
+    top_n: int = 5,
+    n_folds: int = 5,
+) -> CausalTransferEstimator:
+    """Fit a CausalTransferEstimator on the top-N highest-usage players.
+
+    Parameters
+    ----------
+    df : wide feature DataFrame (one row per player-game)
+    player_usage_map : {player_id: {usage_season, position_group, ...}}
+    top_n : number of top-usage teammates to model causal effects for
+    n_folds : DR-learner cross-fitting folds
+
+    Returns
+    -------
+    Fitted CausalTransferEstimator
+    """
+    sorted_players = sorted(
+        player_usage_map.items(), key=lambda x: -x[1].get("usage_season", 0.0)
+    )
+    teammate_ids = [int(pid) for pid, _ in sorted_players[:top_n]]
+    estimator = CausalTransferEstimator(n_folds=n_folds)
+    estimator.fit(df, teammate_ids)
+    return estimator

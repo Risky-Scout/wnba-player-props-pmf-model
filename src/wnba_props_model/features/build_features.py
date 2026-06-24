@@ -1960,3 +1960,24 @@ def build_feature_audit(
             "pace_proxy_method": audit_notes.get("pace_proxy_method"),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility alias for pipeline/train.py and pipeline/oof.py
+# ---------------------------------------------------------------------------
+
+def build_player_training_table(
+    stats_df: "pd.DataFrame",
+    games_df: "pd.DataFrame | None" = None,
+    **kwargs,
+) -> "pd.DataFrame":
+    """Backward-compat wrapper: returns only the wide DataFrame from build_wide_table.
+
+    pipeline/train.py (deprecated legacy path) calls this function.
+    Production pipelines should call build_wide_table() directly.
+    """
+    import pandas as _pd
+    if games_df is None or (hasattr(games_df, "empty") and games_df.empty):
+        games_df = _pd.DataFrame()
+    wide, _ = build_wide_table(stats_df, games_df, **kwargs)
+    return wide
