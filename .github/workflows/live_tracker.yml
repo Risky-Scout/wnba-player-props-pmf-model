@@ -173,20 +173,9 @@ jobs:
         run: |
           if [ -f "artifacts/live/live_session_summary.json" ]; then
             echo "=== Live Session Summary ==="
-            python3 -c "import json; d=json.load(open('artifacts/live/live_session_summary.json')); print('Games tracked:', d.get('game_ids',[])); print('Total polls:', d.get('n_polls',0)); print('Bettable edges found:', d.get('n_bettable_edges_total',0)); edges=d.get('bettable_edges',[])[:5]; [print(f'  player={e.get(\"player_id\")} {e.get(\"stat\")} {str(e.get(\"direction\",\"\")).upper()} edge={e.get(\"edge_pp\",0):+.1f}pp') for e in edges]"
+            python3 -c "import json; d=json.load(open('artifacts/live/live_session_summary.json')); print('Games tracked:', d.get('game_ids',[])); print('Total polls:', d.get('n_polls',0)); print('Bettable edges found:', d.get('n_bettable_edges_total',0)); edges=d.get('bettable_edges',[])[:5]; [print('  player={} {} {} edge={:+.1f}pp'.format(e.get('player_id'),e.get('stat'),str(e.get('direction','')).upper(),e.get('edge_pp',0))) for e in edges]"
           fi
           if [ -f "artifacts/live/live_scores_oddsapi.json" ]; then
             echo "=== Odds API Live Scores ==="
-            python3 -c "
-          import json
-          scores = json.load(open('artifacts/live/live_scores_oddsapi.json'))
-          live = [s for s in scores if not s.get('completed')]
-          for s in live:
-              home = s.get('home_team','?'); away = s.get('away_team','?')
-              sc = s.get('scores') or []
-              score_str = ' | '.join(f\"{x.get('name','?')}: {x.get('score','?')}\" for x in sc)
-              print(f'  {away} @ {home} — {score_str}')
-          if not live:
-              print('  No live games in Odds API scores snapshot')
-          "
+            python3 -c "import json; scores=json.load(open('artifacts/live/live_scores_oddsapi.json')); live=[s for s in scores if not s.get('completed')]; [print('  {} @ {} - {}'.format(s.get('away_team','?'),s.get('home_team','?'),' | '.join('{}: {}'.format(x.get('name','?'),x.get('score','?')) for x in (s.get('scores') or [])))) for s in live] or print('  No live games in Odds API scores snapshot')"
           fi
