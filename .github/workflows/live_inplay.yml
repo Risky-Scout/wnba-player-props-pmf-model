@@ -24,6 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     # Only run during active WNBA season and on game days (blueprint §11.2)
     if: ${{ vars.WNBA_SEASON_ACTIVE == 'true' }}
+    permissions:
+      contents: write
+      actions: read
     env:
       BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
       ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
@@ -49,11 +52,15 @@ jobs:
         run: |
           python scripts/find_live_games.py \
             --out-dir artifacts/live
-          # Check if any games found
-          if [ -f "artifacts/live/active_game_ids.txt" ]; then
-            ACTIVE_IDS=$(cat artifacts/live/active_game_ids.txt)
+          # Read game IDs from live_games.json (primary) or active_game_ids.txt (fallback)
+          if [ -f "artifacts/live/live_games.json" ]; then
+            ACTIVE_IDS=$(python -c "import json; d=json.load(open('artifacts/live/live_games.json')); print(','.join(str(g) for g in d.get('game_ids',[])) if d.get('has_games') else '')")
             echo "ACTIVE_GAME_IDS=$ACTIVE_IDS" >> $GITHUB_ENV
             echo "Found active games: $ACTIVE_IDS"
+          elif [ -f "artifacts/live/active_game_ids.txt" ]; then
+            ACTIVE_IDS=$(cat artifacts/live/active_game_ids.txt)
+            echo "ACTIVE_GAME_IDS=$ACTIVE_IDS" >> $GITHUB_ENV
+            echo "Found active games (txt): $ACTIVE_IDS"
           else
             echo "ACTIVE_GAME_IDS=" >> $GITHUB_ENV
             echo "No active games found"
@@ -70,9 +77,8 @@ jobs:
 
       - name: Download pre-game projections (today's final or latest)
         if: env.NO_GAMES != 'true'
-        uses: dawidd6/action-download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
-          workflow: pregame_final.yml
           name: pregame-final-${{ env.GAME_DATE }}
           path: deliveries/tonight
         continue-on-error: true

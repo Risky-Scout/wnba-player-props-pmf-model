@@ -19,6 +19,9 @@ on:
 jobs:
   pregame_initial:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     env:
       BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
       ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
@@ -45,28 +48,18 @@ jobs:
           fi
           echo "Game date: $GAME_DATE"
 
-      - name: Fetch tomorrow's WNBA games (BDL)
+      - name: Build next-game slate (BDL games + roster)
         run: |
-          python scripts/fetch_bdl_games.py \
-            --start-date "$GAME_DATE" \
-            --end-date "$GAME_DATE" \
-            --output data/schedule/tomorrow.json
-        continue-on-error: true
-
-      - name: Fetch injury report (BDL)
-        run: |
-          python scripts/apply_injury_updates.py \
+          mkdir -p data/schedule data/processed
+          python scripts/build_next_game_slate.py \
             --game-date "$GAME_DATE" \
-            --injuries-json "" \
-            --dry-run
+            --out-dir deliveries/tonight
         continue-on-error: true
 
-      - name: Fetch latest BDL stats + features
+      - name: Build feature matrix from canonical tables
         run: |
           python scripts/build_features.py \
-            --season 2026 \
-            --game-date "$GAME_DATE" \
-            --out-dir data/processed
+            --data-dir data/processed
         continue-on-error: true
 
       - name: Generate pre-game PMF projections

@@ -87,6 +87,7 @@ def main(
     market_df = _safe_read_parquet(market_props) if market_props else None
     injuries_df = _load_injuries(injuries)
 
+
     # ── Build envelope ─────────────────────────────────────────────────────
     envelope = build_pregame_envelope(
         pmfs_df=pmfs_df,
