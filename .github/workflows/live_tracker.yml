@@ -93,7 +93,11 @@ jobs:
         id: download_projections
         uses: actions/download-artifact@v4
         with:
-          name: daily-delivery-${{ needs.find-games.outputs.date }}
+          # daily_pipeline.yml uploads as daily-delivery-{date}-{run_id} (includes run_id).
+          # Use pattern: to match any run_id for the given date; merge-multiple: true
+          # merges all matching artifacts into the download path.
+          pattern: daily-delivery-${{ needs.find-games.outputs.date }}-*
+          merge-multiple: true
           path: deliveries/today/
         continue-on-error: true
 

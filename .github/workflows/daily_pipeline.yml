@@ -198,6 +198,17 @@ jobs:
             --api-key "${{ secrets.BDL_API_KEY }}"
         continue-on-error: true
 
+      - name: Download CLV tracking data (for drift check)
+        # post_game_scoring.yml writes drift_window.parquet into data/clv_tracking/
+        # and uploads it as clv-report-{date}-{run_id}. Without downloading this
+        # artifact, the drift check always sees "no_data" and is a no-op.
+        uses: actions/download-artifact@v4
+        with:
+          pattern: clv-report-*
+          merge-multiple: true
+          path: data/clv_tracking/
+        continue-on-error: true
+
       - name: Check calibration drift
         # Compares last 100 scored predictions per stat against ECE/mean_error thresholds.
         # Reads from data/clv_tracking/drift_window.parquet — a rolling 300-row-per-stat

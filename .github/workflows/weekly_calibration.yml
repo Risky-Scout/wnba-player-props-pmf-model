@@ -104,6 +104,17 @@ jobs:
             data/oof/oof_player_stat_pmfs_calibrated.parquet \
             --config config/model/stage6_calibration.yaml
 
+      - name: Download CLV tracking data (for backtest)
+        # backtest_strategy.py reads data/clv_tracking/results.parquet.
+        # This file is produced by post_game_scoring.yml and uploaded as clv-report-*.
+        # Without downloading it here the backtest runs on an empty/missing file.
+        uses: actions/download-artifact@v4
+        with:
+          pattern: clv-report-*
+          merge-multiple: true
+          path: data/clv_tracking/
+        continue-on-error: true
+
       - name: Run strategy backtest
         continue-on-error: true
         run: |

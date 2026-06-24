@@ -116,7 +116,7 @@ def main(
     _run([
         "scripts/build_edge_report.py",
         "--pmfs", f"{out_dir}/full_pmfs_wide.parquet",
-        "--raw-props", "data/processed/player_props.parquet",
+        "--raw-props", "data/processed/wnba_player_props.parquet",
         "--out-dir", out_dir,
         "--edge-threshold", str(edge_threshold),
         "--game-date", today,

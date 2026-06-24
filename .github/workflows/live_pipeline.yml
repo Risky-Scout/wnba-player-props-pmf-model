@@ -1,5 +1,7 @@
-name: Live In-Play Engine
-
+name: Live In-Play Engine (Legacy)
+# NOTE: This workflow is a LEGACY dev tool kept for reference only.
+# The CANONICAL live engine is live_tracker.yml → run_live_tracker.py + GammaPoissonLiveEngine.
+# This workflow calls live_stream.py which is an argparse-based standalone script.
 # Runs every 5 minutes during WNBA game windows (ET: 7pm–11pm = UTC 23:00–03:00)
 # Covers Mon–Sun during the WNBA season (May–October)
 on:
@@ -41,10 +43,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           # daily_pipeline.yml uploads as daily-delivery-{date}-{run_id}
-          # Use pattern matching; continue-on-error handles first-run of the day
+          # Download to deliveries/today/ so live_stream.py finds full_pmfs_wide.parquet
+          # at deliveries/today/full_pmfs_wide.parquet (its first search path).
           pattern: daily-delivery-*
           merge-multiple: true
-          path: artifacts/
+          path: deliveries/today/
         continue-on-error: true   # OK if daily hasn't run yet today
 
       - name: Run live engine
