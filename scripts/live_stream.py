@@ -6,10 +6,10 @@ Enhancement 6: Live Bayesian Engine orchestration script.
 Architecture
 ------------
 1. Load today's pre-game PMFs (from daily pipeline artifacts)
-2. Load any active game's current market lines from BDL
-3. Initialize LiveEngine with pre-game projections as Gamma-Poisson priors
-4. Poll BDL play-by-play API in a loop
-5. Process each PBP event → update Bayesian posteriors
+2. Discover active WNBA games from BDL API
+3. Initialize GammaPoissonLiveEngine with pre-game projections as priors
+4. Poll BDL play-by-play API via list_endpoint('plays', ...)
+5. Process each PBP event via PBPParser → update Bayesian posteriors
 6. Output live P(over) per prop to artifacts/live_predictions_<game_id>.json
 
 Usage
@@ -41,7 +41,9 @@ import pandas as pd
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from wnba_props_model.models.live_engine import LiveEngine, build_pregame_ratings_from_pmfs
+from wnba_props_model.live.pbp_parser import PBPParser  # noqa: PLC0415
+from wnba_props_model.live.bayesian_updater import GammaPoissonLiveEngine  # noqa: PLC0415
+from wnba_props_model.live.live_edge import LiveEdgeCalculator  # noqa: PLC0415
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,40 +67,33 @@ LIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 def load_pregame_pmfs(game_date: str | None = None) -> pd.DataFrame:
     """Load today's pre-game PMF predictions from artifacts."""
-    pmf_path = ARTIFACTS_DIR / "pmfs_long.parquet"
-    if not pmf_path.exists():
-        # Try CSV fallback
-        pmf_path = ARTIFACTS_DIR / "pmfs_long.csv"
-    if not pmf_path.exists():
-        logger.error("No pre-game PMF file found in %s", ARTIFACTS_DIR)
-        return pd.DataFrame()
-    logger.info("Loading pre-game PMFs from %s", pmf_path)
-    df = pd.read_parquet(pmf_path) if pmf_path.suffix == ".parquet" else pd.read_csv(pmf_path)
-    if game_date and "game_date" in df.columns:
-        df = df[df["game_date"] == game_date]
-    return df
-
-
-def load_feature_wide() -> pd.DataFrame:
-    """Load wide feature table for player metadata (position, minutes, team)."""
-    wide_path = ARTIFACTS_DIR / "wide_features.parquet"
-    if not wide_path.exists():
-        wide_path = ARTIFACTS_DIR / "wide_features.csv"
-    if not wide_path.exists():
-        return pd.DataFrame()
-    return pd.read_parquet(wide_path) if wide_path.suffix == ".parquet" else pd.read_csv(wide_path)
+    # Try deliveries/today/ first (new canonical output path)
+    for candidate in [
+        ARTIFACTS_DIR.parent / "deliveries" / "today" / "full_pmfs_wide.parquet",
+        ARTIFACTS_DIR / "pmfs_long.parquet",
+        ARTIFACTS_DIR / "pmfs_long.csv",
+    ]:
+        if candidate.exists():
+            logger.info("Loading pre-game PMFs from %s", candidate)
+            df = pd.read_parquet(candidate) if candidate.suffix == ".parquet" else pd.read_csv(candidate)
+            if game_date and "game_date" in df.columns:
+                df = df[df["game_date"] == game_date]
+            return df
+    logger.error("No pre-game PMF file found in %s", ARTIFACTS_DIR)
+    return pd.DataFrame()
 
 
 def load_active_games(bdl_client=None) -> list[dict]:
     """Load today's active WNBA games from BDL API or cached schedule."""
-    try:
-        if bdl_client is not None:
-            games = bdl_client.get_games(
-                dates=[datetime.now(timezone.utc).strftime("%Y-%m-%d")]
-            )
-            return [g for g in games if g.get("status") == "in_progress"]
-    except Exception as exc:
-        logger.warning("Could not load live games from BDL: %s", exc)
+    if bdl_client is not None:
+        try:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            # BDL fix: use list_endpoint('games', ...) NOT get_games()
+            games = bdl_client.list_endpoint("games", {"dates": [today]})
+            live_statuses = {"in_progress", "live", "halftime", "end_of_period", "scheduled", "pregame"}
+            return [g for g in games if str(g.get("status", "")).lower() in live_statuses]
+        except Exception as exc:
+            logger.warning("Could not load live games from BDL: %s", exc)
 
     # Fallback to schedule artifact
     sched_path = ARTIFACTS_DIR / "schedule.json"
@@ -110,106 +105,70 @@ def load_active_games(bdl_client=None) -> list[dict]:
     return []
 
 
-def fetch_pbp_events(game_id: int, since_event: int = 0, bdl_client=None) -> list[dict]:
-    """Fetch new play-by-play events for a game since a given event index.
+def fetch_pbp_plays(game_id: int, bdl_client=None) -> list[dict]:
+    """Fetch ALL play-by-play events for a game from BDL.
 
-    Returns list of normalised PBP event dicts with keys:
-    {event_type, period, clock, home_score, away_score,
-     primary_player_id, secondary_player_id, stat_credits, game_id}
+    Returns raw BDL play dicts; deduplication is handled by PBPParser.
+    BDL fix: use list_endpoint('plays', {'game_id': game_id}) NOT get_play_by_play().
     """
     if bdl_client is None:
         return []
-
     try:
-        raw_events = bdl_client.get_play_by_play(game_id=game_id, since=since_event)
+        return bdl_client.list_endpoint("plays", {"game_id": game_id})
     except Exception as exc:
         logger.warning("PBP fetch failed for game %s: %s", game_id, exc)
         return []
 
-    normalised = []
-    for ev in raw_events:
-        normalised.append({
-            "game_id": game_id,
-            "event_type": _map_event_type(ev),
-            "period": ev.get("period", 1),
-            "clock": ev.get("clock") or ev.get("time") or "",
-            "home_score": ev.get("home_score") or ev.get("home_team_score", 0),
-            "away_score": ev.get("away_score") or ev.get("away_team_score", 0),
-            "primary_player_id":   ev.get("player1_id") or ev.get("primary_player_id"),
-            "secondary_player_id": ev.get("player2_id") or ev.get("secondary_player_id"),
-            "stat_credits": _extract_stat_credits(ev),
-        })
-    return normalised
+
+def load_live_market_lines(game_id: int, bdl_client=None) -> pd.DataFrame:
+    """Load current market lines as a DataFrame with columns
+    [player_id, prop_type, line_value, over_odds, under_odds]."""
+    if bdl_client is not None:
+        try:
+            from wnba_props_model.data.bdl_client import BDLClient  # noqa: PLC0415
+            if hasattr(bdl_client, "list_player_props_for_game"):
+                raw = bdl_client.list_player_props_for_game(game_id=game_id)
+                if raw:
+                    return pd.DataFrame(raw)
+        except Exception as exc:
+            logger.debug("Props fetch failed: %s", exc)
+
+    # Fallback to pre-game artifact
+    for candidate in [
+        ARTIFACTS_DIR / "market_comparison.parquet",
+        ARTIFACTS_DIR / "market_comparison.csv",
+    ]:
+        if candidate.exists():
+            df = pd.read_parquet(candidate) if candidate.suffix == ".parquet" else pd.read_csv(candidate)
+            if "game_id" in df.columns:
+                df = df[df["game_id"] == game_id]
+            return df
+    return pd.DataFrame()
 
 
-def _map_event_type(ev: dict) -> str:
-    """Normalise BDL event type string."""
-    raw = str(ev.get("event_type", "") or ev.get("type", "")).lower()
-    if "sub" in raw:
-        return "substitution"
-    if "foul" in raw:
-        return "foul"
-    if "score" in raw or "2pt" in raw or "3pt" in raw or "pts" in raw:
-        return "score"
-    if "rebound" in raw or "reb" in raw:
-        return "rebound"
-    if "assist" in raw or "ast" in raw:
-        return "assist"
-    if "turnover" in raw or "tov" in raw:
-        return "turnover"
-    return raw or "unknown"
-
-
-def _extract_stat_credits(ev: dict) -> dict[int, dict[str, int]]:
-    """Extract {player_id: {stat: count}} from a PBP event."""
-    credits: dict[int, dict[str, int]] = {}
-    pid = ev.get("player1_id") or ev.get("primary_player_id")
-    if not pid:
-        return credits
-    pid = int(pid)
-    ev_type = _map_event_type(ev)
-
-    # Points
-    pts = ev.get("points") or ev.get("pts")
-    if pts and int(pts) > 0:
-        credits.setdefault(pid, {})["pts"] = int(pts)
-
-    # Map event type to stat
-    if ev_type == "rebound":
-        credits.setdefault(pid, {})["reb"] = 1
-    elif ev_type == "assist":
-        pid2 = ev.get("player2_id") or ev.get("secondary_player_id")
-        if pid2:
-            credits.setdefault(int(pid2), {})["ast"] = 1
-    elif ev_type == "turnover":
-        credits.setdefault(pid, {})["turnover"] = 1
-    elif ev_type == "steal":
-        credits.setdefault(pid, {})["stl"] = 1
-    elif ev_type == "block":
-        pid2 = ev.get("player2_id") or ev.get("secondary_player_id")
-        if pid2:
-            credits.setdefault(int(pid2), {})["blk"] = 1
-
-    return credits
-
-
-def load_live_market_lines(game_id: int, bdl_client=None) -> list[tuple[int, str, float]]:
-    """Load current market lines for a game as [(player_id, stat, line), ...]."""
-    # Fall back to pre-game lines from artifacts
-    lines_path = ARTIFACTS_DIR / "market_comparison.parquet"
-    if not lines_path.exists():
-        lines_path = ARTIFACTS_DIR / "market_comparison.csv"
-    if not lines_path.exists():
-        return []
-
-    df = pd.read_parquet(lines_path) if lines_path.suffix == ".parquet" else pd.read_csv(lines_path)
-    if "game_id" in df.columns:
-        df = df[df["game_id"] == game_id]
-    if df.empty or "line" not in df.columns:
-        return []
-
-    return [(int(r["player_id"]), str(r["stat"]), float(r["line"]))
-            for _, r in df.iterrows() if pd.notna(r.get("player_id"))]
+def _build_projections_dict(pmfs_df: pd.DataFrame) -> dict[int, dict]:
+    """Convert wide PMF DataFrame to {player_id: {stat: {mean, line, projected_minutes}}}."""
+    projections: dict[int, dict] = {}
+    stat_cols = [c for c in pmfs_df.columns if c.startswith("mean_")]
+    for _, row in pmfs_df.iterrows():
+        pid = int(row.get("player_id", 0))
+        if pid == 0:
+            continue
+        player_proj: dict = {}
+        for col in stat_cols:
+            stat = col.replace("mean_", "")
+            mean_val = float(row[col]) if pd.notna(row[col]) else 0.0
+            line_col = f"line_{stat}"
+            line_val = float(row[line_col]) if line_col in row.index and pd.notna(row[line_col]) else mean_val
+            player_proj[stat] = {"mean": mean_val, "line": line_val}
+        # Minutes projection
+        for min_col in ("projected_minutes", "mean_min", "minutes"):
+            if min_col in row.index and pd.notna(row[min_col]):
+                player_proj["projected_minutes"] = float(row[min_col])
+                break
+        if player_proj:
+            projections[pid] = player_proj
+    return projections
 
 
 # ---------------------------------------------------------------------------
@@ -218,68 +177,70 @@ def load_live_market_lines(game_id: int, bdl_client=None) -> list[tuple[int, str
 
 def stream_game(
     game_id: int,
-    pmfs_long: pd.DataFrame,
-    feature_wide: pd.DataFrame,
-    props: list[tuple[int, str, float]],
+    pre_game_projections: dict[int, dict],
+    live_props_df: pd.DataFrame,
     interval: int = 30,
     dry_run: bool = False,
     bdl_client=None,
+    min_edge: float = 0.04,
 ) -> None:
-    """Main streaming loop for a single game."""
-    game_info = {"game_id": game_id, "home_team_id": None, "away_team_id": None}
+    """Main streaming loop for a single game using new live modules."""
+    engine = GammaPoissonLiveEngine()
+    parser = PBPParser()
+    edge_calc = LiveEdgeCalculator(min_edge=min_edge)
 
-    # Build pre-game ratings dict for LiveEngine
-    pregame_ratings = build_pregame_ratings_from_pmfs(pmfs_long, feature_wide)
-    if not pregame_ratings:
-        logger.error("No pre-game ratings found for game %s", game_id)
-        return
-
-    engine = LiveEngine(pregame_ratings)
-    engine.initialize_game(game_info)
-
-    logger.info("LiveEngine initialised with %d player priors for game %s",
-                len(engine.player_states), game_id)
-
-    seen_events = 0
+    seen_play_ids: set[int] = set()
     output_path = LIVE_DIR / f"live_{game_id}.json"
 
+    logger.info("LiveStream started for game %s with %d player projections",
+                game_id, len(pre_game_projections))
+
     while True:
-        new_events = fetch_pbp_events(game_id, since_event=seen_events, bdl_client=bdl_client)
+        # Fetch all plays and process only new ones
+        all_plays = fetch_pbp_plays(game_id, bdl_client)
+        new_plays = [p for p in all_plays
+                     if (p.get("order") or p.get("id") or 0) not in seen_play_ids]
 
-        for ev in new_events:
-            engine.process_event(ev)
-            seen_events += 1
+        if new_plays:
+            roster_lookup: dict[str, dict] = {}
+            player_states, game_state = parser.process_plays(new_plays, roster_lookup)
+            for p in new_plays:
+                seen_play_ids.add(int(p.get("order") or p.get("id") or 0))
 
-        # Compute live probabilities for all props
-        live_probs = engine.get_all_live_probabilities(props)
+        # Bayesian update using pre-game projections + observed stats
+        elapsed = parser.elapsed_minutes()
+        results = engine.batch_compute(
+            pre_game_projections,
+            parser.player_stats,
+            elapsed_minutes=elapsed,
+        )
 
-        # Game total
-        game_total_proj, game_total_p_over = engine.compute_game_total_live(market_line=160.5)
+        # Compute edges against market lines
+        live_edges = edge_calc.compute_live_edges(results, live_props_df) if not live_props_df.empty else []
+        bettable = [e for e in live_edges if e["bettable"]]
+        gs = parser.game_state
 
         output = {
             "game_id": game_id,
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "elapsed_minutes": engine.game_state.elapsed_minutes,
-            "period": engine.game_state.period,
-            "home_score": engine.game_state.home_score,
-            "away_score": engine.game_state.away_score,
-            "game_total_projection": round(game_total_proj, 2),
-            "game_total_p_over": round(game_total_p_over, 4),
-            "props": live_probs,
-            "n_pbp_events_processed": seen_events,
+            "elapsed_minutes": round(elapsed, 2),
+            "period": gs.get("period", 0),
+            "home_score": gs.get("home_score", 0),
+            "away_score": gs.get("away_score", 0),
+            "n_players_tracked": len(results),
+            "n_props_with_edge": len(live_edges),
+            "n_bettable_edges": len(bettable),
+            "bettable_edges": bettable[:20],
+            "n_pbp_plays_processed": len(seen_play_ids),
         }
 
         with open(output_path, "w") as f:
             json.dump(output, f, indent=2)
 
         logger.info(
-            "Game %s | Period %d | %s min elapsed | %d props updated | "
-            "score %d-%d | game total proj %.1f",
-            game_id, engine.game_state.period,
-            round(engine.game_state.elapsed_minutes, 1),
-            len(live_probs),
-            engine.game_state.home_score, engine.game_state.away_score,
-            game_total_proj,
+            "Game %s | Period %d | %.1f min elapsed | %d players | %d bettable edges",
+            game_id, gs.get("period", 0), elapsed,
+            len(results), len(bettable),
         )
 
         if dry_run:
@@ -287,8 +248,8 @@ def stream_game(
             print(json.dumps(output, indent=2))
             return
 
-        # Check if game is over
-        if engine.game_state.elapsed_minutes >= 40.0 and not new_events:
+        # Check if game is over (40+ min elapsed + no new plays last poll)
+        if elapsed >= 40.0 and not new_plays:
             logger.info("Game %s appears complete (40+ minutes, no new events)", game_id)
             break
 
@@ -305,25 +266,27 @@ def main() -> None:
     parser.add_argument("--interval", type=int, default=30, help="Polling interval (seconds)")
     parser.add_argument("--dry-run", action="store_true", help="Single snapshot then exit")
     parser.add_argument("--game-date", default=None, help="YYYY-MM-DD date for PMF lookup")
+    parser.add_argument("--min-edge", type=float, default=0.04, help="Min edge pp to flag bettable")
     args = parser.parse_args()
 
     game_date = args.game_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # Load pre-game data
-    pmfs_long     = load_pregame_pmfs(game_date)
-    feature_wide  = load_feature_wide()
-
-    if pmfs_long.empty:
+    pmfs_df = load_pregame_pmfs(game_date)
+    if pmfs_df.empty:
         logger.error("Cannot start live engine: no pre-game PMFs available. "
                      "Run run_daily_pipeline.py first.")
         sys.exit(1)
 
-    # Optionally init BDL client
+    pre_game_projections = _build_projections_dict(pmfs_df)
+    logger.info("Loaded pre-game projections for %d players", len(pre_game_projections))
+
+    # Init BDL client
+    bdl_client = None
     try:
         from wnba_props_model.data.bdl_client import BDLClient  # noqa: PLC0415
         bdl_client = BDLClient()
     except Exception:
-        bdl_client = None
         logger.warning("BDL client unavailable — PBP events will be empty (simulation mode)")
 
     # Determine which game(s) to stream
@@ -337,25 +300,16 @@ def main() -> None:
             sys.exit(0)
 
     for gid in game_ids:
-        props = load_live_market_lines(gid, bdl_client)
-        if not props:
-            # Generate synthetic props from PMF file for testing
-            if not pmfs_long.empty:
-                props = [
-                    (int(r["player_id"]), str(r["stat"]),
-                     float(r.get("pmf_mean", r.get("mean", 5.0))))
-                    for _, r in pmfs_long.head(30).iterrows()
-                    if pd.notna(r.get("player_id"))
-                ]
-        logger.info("Streaming game %s with %d props", gid, len(props))
+        live_props_df = load_live_market_lines(gid, bdl_client)
+        logger.info("Streaming game %s with %d market props", gid, len(live_props_df))
         stream_game(
             game_id=gid,
-            pmfs_long=pmfs_long,
-            feature_wide=feature_wide,
-            props=props,
+            pre_game_projections=pre_game_projections,
+            live_props_df=live_props_df,
             interval=args.interval,
             dry_run=args.dry_run,
             bdl_client=bdl_client,
+            min_edge=args.min_edge,
         )
 
 

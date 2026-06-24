@@ -46,7 +46,9 @@ jobs:
       - name: Download yesterday's predictions
         uses: actions/download-artifact@v4
         with:
-          name: daily-delivery-${{ steps.date.outputs.game_date }}-*
+          # download-artifact@v4 requires `pattern:` (not `name:`) for wildcard matching
+          pattern: daily-delivery-${{ steps.date.outputs.game_date }}-*
+          merge-multiple: true
           path: deliveries/scored_day
         continue-on-error: true
 
@@ -55,7 +57,8 @@ jobs:
         # We need those lines here to compute true CLV (model prob vs. closing price).
         uses: actions/download-artifact@v4
         with:
-          name: drift-audit-*
+          pattern: drift-audit-*
+          merge-multiple: true
           path: artifacts/closing_lines_tmp
         continue-on-error: true
 

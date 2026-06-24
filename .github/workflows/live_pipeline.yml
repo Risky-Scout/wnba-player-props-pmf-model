@@ -40,7 +40,10 @@ jobs:
       - name: Download latest pre-game artifacts
         uses: actions/download-artifact@v4
         with:
-          name: daily-predictions
+          # daily_pipeline.yml uploads as daily-delivery-{date}-{run_id}
+          # Use pattern matching; continue-on-error handles first-run of the day
+          pattern: daily-delivery-*
+          merge-multiple: true
           path: artifacts/
         continue-on-error: true   # OK if daily hasn't run yet today
 
