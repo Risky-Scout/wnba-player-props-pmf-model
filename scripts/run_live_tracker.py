@@ -186,26 +186,42 @@ def main(
 
 
 def _build_projections_dict(pmfs_df: pd.DataFrame) -> dict[int, dict]:
-    """Convert PMF parquet (wide format) to {player_id: {stat: {mean, line}, projected_minutes}}."""
-    proj: dict[int, dict] = {}
-    stat_cols = {
-        "pts_mean": "pts", "reb_mean": "reb", "ast_mean": "ast",
-        "fg3m_mean": "fg3m", "stl_mean": "stl", "blk_mean": "blk",
-        "turnover_mean": "turnover",
-    }
-    min_col = next((c for c in ["projected_minutes", "minutes_pred", "min_mean"] if c in pmfs_df.columns), None)
+    """Convert PMF parquet (wide OR long format) to {player_id: {stat: {mean, line}, projected_minutes}}.
 
-    for _, row in pmfs_df.drop_duplicates("player_id").iterrows():
-        pid = int(row["player_id"])
-        if pid not in proj:
+    Wide format: columns pts_mean, reb_mean, ...
+    Long format: columns player_id, stat, mean (one row per player-stat combination)
+    """
+    proj: dict[int, dict] = {}
+
+    if "stat" in pmfs_df.columns and "mean" in pmfs_df.columns:
+        # Long format: player_id | stat | mean | (minutes_mean)
+        min_col_long = next((c for c in ["minutes_mean", "projected_minutes", "minutes_pred"] if c in pmfs_df.columns), None)
+        for _, row in pmfs_df.iterrows():
+            pid = int(row["player_id"])
+            stat = str(row["stat"])
+            mean_val = float(row["mean"]) if pd.notna(row.get("mean")) else 0.0
+            proj.setdefault(pid, {})[stat] = {"mean": mean_val, "line": mean_val}
+            if "projected_minutes" not in proj[pid] and min_col_long:
+                mv = row.get(min_col_long)
+                proj[pid]["projected_minutes"] = float(mv) if pd.notna(mv) else 28.0
+        # Ensure all players have projected_minutes
+        for pid in proj:
+            proj[pid].setdefault("projected_minutes", 28.0)
+    else:
+        # Wide format: pts_mean, reb_mean, etc.
+        stat_cols = {
+            "pts_mean": "pts", "reb_mean": "reb", "ast_mean": "ast",
+            "fg3m_mean": "fg3m", "stl_mean": "stl", "blk_mean": "blk",
+            "turnover_mean": "turnover",
+        }
+        min_col = next((c for c in ["projected_minutes", "minutes_pred", "min_mean"] if c in pmfs_df.columns), None)
+        for _, row in pmfs_df.drop_duplicates("player_id").iterrows():
+            pid = int(row["player_id"])
             proj[pid] = {}
-        for src_col, stat in stat_cols.items():
-            if src_col in row.index:
-                proj[pid][stat] = {"mean": float(row[src_col]), "line": float(row[src_col])}
-        if min_col:
-            proj[pid]["projected_minutes"] = float(row.get(min_col, 28.0))
-        else:
-            proj[pid]["projected_minutes"] = 28.0
+            for src_col, stat in stat_cols.items():
+                if src_col in row.index and pd.notna(row[src_col]):
+                    proj[pid][stat] = {"mean": float(row[src_col]), "line": float(row[src_col])}
+            proj[pid]["projected_minutes"] = float(row.get(min_col, 28.0)) if min_col else 28.0
     return proj
 
 

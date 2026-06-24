@@ -147,33 +147,90 @@ def load_live_market_lines(game_id: int, bdl_client=None) -> pd.DataFrame:
 
 
 def _build_projections_dict(pmfs_df: pd.DataFrame) -> dict[int, dict]:
-    """Convert wide PMF DataFrame to {player_id: {stat: {mean, line, projected_minutes}}}."""
+    """Convert PMF DataFrame (wide OR long format) to {player_id: {stat: {mean, line}, projected_minutes}}.
+
+    Long format: player_id | stat | mean | (minutes_mean)  — canonical output from predict_today.py
+    Wide format: player_id | pts_mean | reb_mean | ...  — legacy fallback
+    """
     projections: dict[int, dict] = {}
-    stat_cols = [c for c in pmfs_df.columns if c.startswith("mean_")]
-    for _, row in pmfs_df.iterrows():
-        pid = int(row.get("player_id", 0))
-        if pid == 0:
-            continue
-        player_proj: dict = {}
-        for col in stat_cols:
-            stat = col.replace("mean_", "")
-            mean_val = float(row[col]) if pd.notna(row[col]) else 0.0
-            line_col = f"line_{stat}"
-            line_val = float(row[line_col]) if line_col in row.index and pd.notna(row[line_col]) else mean_val
-            player_proj[stat] = {"mean": mean_val, "line": line_val}
-        # Minutes projection
-        for min_col in ("projected_minutes", "mean_min", "minutes"):
-            if min_col in row.index and pd.notna(row[min_col]):
-                player_proj["projected_minutes"] = float(row[min_col])
-                break
-        if player_proj:
-            projections[pid] = player_proj
+
+    if "stat" in pmfs_df.columns and "mean" in pmfs_df.columns:
+        # Long format (canonical from predict_today.py / write_delivery)
+        min_col = next((c for c in ["minutes_mean", "projected_minutes"] if c in pmfs_df.columns), None)
+        for _, row in pmfs_df.iterrows():
+            pid = int(row.get("player_id", 0))
+            if pid == 0:
+                continue
+            stat = str(row["stat"])
+            mean_val = float(row["mean"]) if pd.notna(row.get("mean")) else 0.0
+            projections.setdefault(pid, {})[stat] = {"mean": mean_val, "line": mean_val}
+            if "projected_minutes" not in projections[pid] and min_col:
+                mv = row.get(min_col)
+                projections[pid]["projected_minutes"] = float(mv) if pd.notna(mv) else 28.0
+        for pid in projections:
+            projections[pid].setdefault("projected_minutes", 28.0)
+    else:
+        # Wide format fallback
+        stat_cols = [c for c in pmfs_df.columns if c.startswith("mean_")]
+        for _, row in pmfs_df.iterrows():
+            pid = int(row.get("player_id", 0))
+            if pid == 0:
+                continue
+            player_proj: dict = {}
+            for col in stat_cols:
+                stat = col.replace("mean_", "")
+                mean_val = float(row[col]) if pd.notna(row[col]) else 0.0
+                line_col = f"line_{stat}"
+                line_val = float(row[line_col]) if line_col in row.index and pd.notna(row[line_col]) else mean_val
+                player_proj[stat] = {"mean": mean_val, "line": line_val}
+            for min_col in ("projected_minutes", "mean_min", "minutes"):
+                if min_col in row.index and pd.notna(row[min_col]):
+                    player_proj["projected_minutes"] = float(row[min_col])
+                    break
+            player_proj.setdefault("projected_minutes", 28.0)
+            if player_proj:
+                projections[pid] = player_proj
     return projections
 
 
 # ---------------------------------------------------------------------------
 # Core streaming loop
 # ---------------------------------------------------------------------------
+
+def _build_roster_lookup_from_bdl(game_id: int, bdl_client) -> dict[str, dict]:
+    """Build name→{player_id, team_id, team_side} lookup from BDL players endpoint."""
+    if bdl_client is None:
+        return {}
+    try:
+        # Get game details to find home/away team IDs
+        games = bdl_client.list_endpoint("games", params={"ids": [game_id]})
+        if not games:
+            return {}
+        game = games[0]
+        home_tid = (game.get("home_team") or {}).get("id")
+        away_tid = (game.get("visitor_team") or {}).get("id")
+        team_ids = [t for t in [home_tid, away_tid] if t]
+        if not team_ids:
+            return {}
+        players = bdl_client.list_endpoint("players", params={"team_ids": team_ids, "per_page": 100})
+        lookup: dict[str, dict] = {}
+        for p in players:
+            fn, ln = p.get("first_name", ""), p.get("last_name", "")
+            if not fn or not ln:
+                continue
+            # BDL PBP uses abbreviated format "F. Lastname" — store both forms
+            abbrev = f"{fn[0]}. {ln}"
+            full = f"{fn} {ln}"
+            team_id = (p.get("team") or {}).get("id")
+            side = "home" if team_id == home_tid else "away"
+            info = {"player_id": int(p["id"]), "team_id": team_id, "team_side": side}
+            lookup[abbrev] = info
+            lookup[full] = info
+        return lookup
+    except Exception as exc:
+        logger.warning("Roster lookup failed for game %s: %s", game_id, exc)
+        return {}
+
 
 def stream_game(
     game_id: int,
@@ -189,6 +246,10 @@ def stream_game(
     parser = PBPParser()
     edge_calc = LiveEdgeCalculator(min_edge=min_edge)
 
+    # Build roster lookup from BDL so PBP name→player_id resolution works
+    roster_lookup = _build_roster_lookup_from_bdl(game_id, bdl_client)
+    logger.info("Roster lookup for game %s: %d names loaded", game_id, len(roster_lookup))
+
     seen_play_ids: set[int] = set()
     output_path = LIVE_DIR / f"live_{game_id}.json"
 
@@ -202,7 +263,6 @@ def stream_game(
                      if (p.get("order") or p.get("id") or 0) not in seen_play_ids]
 
         if new_plays:
-            roster_lookup: dict[str, dict] = {}
             player_states, game_state = parser.process_plays(new_plays, roster_lookup)
             for p in new_plays:
                 seen_play_ids.add(int(p.get("order") or p.get("id") or 0))
@@ -211,7 +271,7 @@ def stream_game(
         elapsed = parser.elapsed_minutes()
         results = engine.batch_compute(
             pre_game_projections,
-            parser.player_stats,
+            parser.player_states,
             elapsed_minutes=elapsed,
         )
 
