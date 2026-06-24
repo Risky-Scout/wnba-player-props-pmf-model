@@ -130,6 +130,7 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
         rows.append({
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
+            "player_name": r.get("player_name"),
             "vendor": r.get("vendor"),
             "prop_type": r.get("prop_type"),
             "stat": stat,
@@ -168,9 +169,68 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
 
     # Only select columns that actually exist to avoid KeyError on optional cols.
     _must_have = ["game_id", "player_id", "stat", "pmf_json", "pmf_mean"]
-    _optional  = ["role_bucket", "model_version"]
+    _optional  = ["role_bucket", "model_version", "player_name", "game_date"]
     sel_cols   = _must_have + [c for c in _optional if c in pmfs_sel.columns]
-    joined = props.merge(pmfs_sel[sel_cols], on=["game_id", "player_id", "stat"], how="inner")
+
+    # Primary join: game_id + player_id + stat (BDL-sourced props)
+    props_with_id = props[props["player_id"].notna() & (props["player_id"] != "")]
+    joined = props_with_id.merge(pmfs_sel[sel_cols], on=["game_id", "player_id", "stat"], how="inner")
+
+    # Fallback join for Odds API props where player_id=None: join on player_name + stat.
+    # Resolve game_id from PMFs using player_name lookup so downstream audit uses BDL IDs.
+    props_no_id = props[props["player_id"].isna() | (props["player_id"] == "")]
+    if not props_no_id.empty and "player_name" in props.columns and "player_name" in pmfs_sel.columns:
+        import re as _re  # noqa: PLC0415
+
+        def _norm_name(s: str) -> str:
+            s = str(s or "").lower().strip()
+            s = _re.sub(r"[^a-z ]", "", s)
+            return _re.sub(r"\s+", " ", s)
+
+        pmfs_name = pmfs_sel.copy()
+        pmfs_name["_norm"] = pmfs_name["player_name"].map(_norm_name)
+        props_no_id = props_no_id.copy()
+        props_no_id["_norm"] = props_no_id["player_name"].map(_norm_name)
+
+        # Join on normalized name + stat; inherit player_id and game_id from PMFs
+        name_sel = [c for c in sel_cols if c not in ("player_id", "game_id")]
+        name_sel += ["_norm"]
+        fallback = props_no_id.merge(
+            pmfs_name[sel_cols + ["_norm"]],
+            on=["_norm", "stat"],
+            how="inner",
+            suffixes=("_prop", "_pmf"),
+        )
+        # Prefer PMF's game_id and player_id (BDL IDs)
+        if not fallback.empty:
+            if "game_id_pmf" in fallback.columns:
+                fallback["game_id"] = fallback["game_id_pmf"]
+                fallback = fallback.drop(columns=["game_id_pmf", "game_id_prop"], errors="ignore")
+            if "player_id_pmf" in fallback.columns:
+                fallback["player_id"] = fallback["player_id_pmf"]
+                fallback = fallback.drop(columns=["player_id_pmf", "player_id_prop"], errors="ignore")
+            fallback = fallback.drop(columns=["_norm"], errors="ignore")
+            joined = pd.concat([joined, fallback], ignore_index=True)
+
+    import json as _json, time as _time  # noqa: PLC0415
+    import logging as _logging  # noqa: PLC0415
+    _logger = _logging.getLogger(__name__)
+    _logger.info("build_market_comparison: %d props with BDL id, %d via name fallback -> %d joined rows",
+                 len(props_with_id), len(props_no_id), len(joined))
+    # #region agent log
+    try:
+        import os as _os
+        _lp = _os.path.join(_os.path.dirname(__file__), "../../../../.cursor/debug-94807e.log")
+        _entry = {"sessionId": "94807e", "hypothesisId": "H2", "timestamp": int(_time.time()*1000),
+                  "location": "deliver.py:build_market_comparison", "message": "overlap join result",
+                  "data": {"props_with_id": len(props_with_id), "props_no_id": len(props_no_id),
+                           "joined_rows": len(joined), "props_player_id_nulls": int(props["player_id"].isna().sum()),
+                           "pmfs_player_id_nulls": int(pmfs_sel["player_id"].isna().sum()) if "player_id" in pmfs_sel.columns else -1}}
+        with open(_lp, "a") as _f:
+            _f.write(_json.dumps(_entry) + "\n")
+    except Exception:
+        pass
+    # #endregion
 
     model_probs = []
     for _, r in joined.iterrows():

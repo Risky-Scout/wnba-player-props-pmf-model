@@ -196,7 +196,8 @@ jobs:
 
       - name: Generate explanations for flagged players
         run: |
-          python scripts/explain_projection.py \
+          mkdir -p artifacts/explanations
+          python scripts/explain_projection.py main \
             --game-date ${{ steps.date.outputs.target_date }} \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --out artifacts/explanations/explanations_${{ steps.date.outputs.target_date }}.json

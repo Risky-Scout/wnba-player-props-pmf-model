@@ -556,10 +556,10 @@ class WNBAWeibullCopulaScoreModel:
             missing = required - set(df.columns)
             raise ValueError(f"Missing columns for WeibullCopula fit: {missing}")
 
-        # Compute time-decay weights
+        # Compute time-decay weights (.copy() prevents read-only buffer error from numpy views)
         if "days_since" in df.columns:
             weights = penaltyblog.models.dixon_coles_weights(
-                df["days_since"].values, xi=time_decay_xi
+                df["days_since"].to_numpy(copy=True), xi=time_decay_xi
             )
         else:
             weights = None

@@ -59,7 +59,9 @@ def main(
         from wnba_props_model.data.bdl_client import BDLClient  # noqa: PLC0415
         from wnba_props_model.pipeline.deliver import normalize_player_props_snapshot
     except ImportError as exc:
+        import traceback  # noqa: PLC0415
         typer.echo(f"[ERROR] Import failed: {exc}", err=True)
+        typer.echo(f"[ERROR] Full traceback:\n{traceback.format_exc()}", err=True)
         _write_empty(out_path)
         return
 
