@@ -140,16 +140,5 @@ jobs:
         run: |
           if [ -f "artifacts/live/live_session_summary.json" ]; then
             echo "=== Live Session Summary ==="
-            cat artifacts/live/live_session_summary.json | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-print(f'Games tracked: {d.get(\"game_ids\", [])}')
-print(f'Total polls: {d.get(\"n_polls\", 0)}')
-print(f'Bettable edges found: {d.get(\"n_bettable_edges_total\", 0)}')
-edges = d.get('bettable_edges', [])[:5]
-if edges:
-    print('Top edges:')
-    for e in edges:
-        print(f'  player={e.get(\"player_id\")} {e.get(\"stat\")} {e.get(\"direction\", \"\").upper()} edge={e.get(\"edge_pp\", 0):+.1f}pp')
-"
+            python3 -c "import json; d=json.load(open('artifacts/live/live_session_summary.json')); print('Games tracked:', d.get('game_ids',[])); print('Total polls:', d.get('n_polls',0)); print('Bettable edges found:', d.get('n_bettable_edges_total',0)); edges=d.get('bettable_edges',[])[:5]; [print(f'  player={e.get(\"player_id\")} {e.get(\"stat\")} {str(e.get(\"direction\",\"\")).upper()} edge={e.get(\"edge_pp\",0):+.1f}pp') for e in edges]"
           fi
