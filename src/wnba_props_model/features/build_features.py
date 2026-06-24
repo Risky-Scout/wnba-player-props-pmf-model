@@ -710,62 +710,69 @@ def _build_player_features(
     df["used_player_minutes_prior_flag"] = (df["player_minutes_l5_support"] > 0)
 
     # ------------------------------------------------------------------ #
-    # 3. Per-stat rolling features (shifted)
+    # 3. Per-stat rolling features (shifted) — batched to avoid fragmentation
     # ------------------------------------------------------------------ #
+    _stat_rolling_cols: dict[str, pd.Series] = {}
     for stat in STATS:
         if stat not in df.columns:
             continue
         _s_grp = df.groupby("player_id", sort=False)[stat]
-        df[f"player_{stat}_last1"]         = _s_grp.shift(1)
-        df[f"player_{stat}_mean_l3"]       = _sr(_s_grp, 3)
-        df[f"player_{stat}_mean_l5"]       = _sr(_s_grp, 5)
-        df[f"player_{stat}_mean_l10"]      = _sr(_s_grp, 10)
-        df[f"player_{stat}_mean_season"]   = _sr(_s_grp, 999, agg="expanding_mean")
-        df[f"player_{stat}_std_l10"]       = _sr(_s_grp, 10, agg="std", min_periods=2)
-        df[f"player_{stat}_l3_support"]    = _sr(_s_grp, 3, agg="count")
-        df[f"player_{stat}_l5_support"]    = _sr(_s_grp, 5, agg="count")
-        df[f"player_{stat}_l10_support"]   = _sr(_s_grp, 10, agg="count")
-        df[f"player_{stat}_season_support"] = _sr(_s_grp, 999, agg="expanding_count")
+        _stat_rolling_cols[f"player_{stat}_last1"]          = _s_grp.shift(1)
+        _stat_rolling_cols[f"player_{stat}_mean_l3"]        = _sr(_s_grp, 3)
+        _stat_rolling_cols[f"player_{stat}_mean_l5"]        = _sr(_s_grp, 5)
+        _stat_rolling_cols[f"player_{stat}_mean_l10"]       = _sr(_s_grp, 10)
+        _stat_rolling_cols[f"player_{stat}_mean_season"]    = _sr(_s_grp, 999, agg="expanding_mean")
+        _stat_rolling_cols[f"player_{stat}_std_l10"]        = _sr(_s_grp, 10, agg="std", min_periods=2)
+        _stat_rolling_cols[f"player_{stat}_l3_support"]     = _sr(_s_grp, 3, agg="count")
+        _stat_rolling_cols[f"player_{stat}_l5_support"]     = _sr(_s_grp, 5, agg="count")
+        _stat_rolling_cols[f"player_{stat}_l10_support"]    = _sr(_s_grp, 10, agg="count")
+        _stat_rolling_cols[f"player_{stat}_season_support"] = _sr(_s_grp, 999, agg="expanding_count")
+    if _stat_rolling_cols:
+        df = pd.concat([df, pd.DataFrame(_stat_rolling_cols, index=df.index)], axis=1)
 
     # ------------------------------------------------------------------ #
-    # 4. Per-minute rate features (shifted sums; safe denominator)
+    # 4. Per-minute rate features (shifted sums; safe denominator) — batched
     # ------------------------------------------------------------------ #
+    _rate_cols: dict[str, pd.Series] = {}
+    _m_grp_rate = df.groupby("player_id", sort=False)["minutes"]
     for stat in STATS:
         if stat not in df.columns:
             continue
         _s_grp = df.groupby("player_id", sort=False)[stat]
-        _m_grp = df.groupby("player_id", sort=False)["minutes"]
         for w in (3, 5, 10):
             stat_sum = _sr(_s_grp, w, agg="sum")
-            min_sum  = _sr(_m_grp, w, agg="sum")
-            rate = stat_sum / min_sum.clip(lower=1.0)   # never divide by zero
-            df[f"player_{stat}_per_min_l{w}"] = rate.replace([np.inf, -np.inf], np.nan)
+            min_sum  = _sr(_m_grp_rate, w, agg="sum")
+            rate = stat_sum / min_sum.clip(lower=1.0)
+            _rate_cols[f"player_{stat}_per_min_l{w}"] = rate.replace([np.inf, -np.inf], np.nan)
         # Season rate
         stat_sum_s = _sr(_s_grp, 999, agg="expanding_sum")
-        min_sum_s  = _sr(_m_grp, 999, agg="expanding_sum")
-        df[f"player_{stat}_per_min_season"] = (
+        min_sum_s  = _sr(_m_grp_rate, 999, agg="expanding_sum")
+        _rate_cols[f"player_{stat}_per_min_season"] = (
             (stat_sum_s / min_sum_s.clip(lower=1.0)).replace([np.inf, -np.inf], np.nan)
         )
+    if _rate_cols:
+        df = pd.concat([df, pd.DataFrame(_rate_cols, index=df.index)], axis=1)
 
     # ------------------------------------------------------------------ #
-    # 4b. fg3a (three-point attempts) rolling features — fg3m model input
+    # 4b. fg3a (three-point attempts) rolling features — batched
     # ------------------------------------------------------------------ #
+    _fg3_cols: dict[str, pd.Series] = {}
     if "fg3a" in df.columns:
         _fg3a_g = df.groupby("player_id", sort=False)["fg3a"]
         _fg3m_g = df.groupby("player_id", sort=False)["fg3m"] if "fg3m" in df.columns else None
         _mg = df.groupby("player_id", sort=False)["minutes"]
-        df["player_fg3a_mean_l5"]  = _sr(_fg3a_g, 5)
-        df["player_fg3a_mean_l10"] = _sr(_fg3a_g, 10)
-        df["player_fg3a_per_min_l5"] = (
+        _fg3_cols["player_fg3a_mean_l5"]    = _sr(_fg3a_g, 5)
+        _fg3_cols["player_fg3a_mean_l10"]   = _sr(_fg3a_g, 10)
+        _fg3_cols["player_fg3a_per_min_l5"] = (
             _sr(_fg3a_g, 5, agg="sum") / _sr(_mg, 5, agg="sum").clip(lower=1.0)
         ).replace([np.inf, -np.inf], np.nan)
         if _fg3m_g is not None:
-            df["player_fg3_pct_l5"] = (
+            _fg3_cols["player_fg3_pct_l5"] = (
                 _sr(_fg3m_g, 5, agg="sum") / _sr(_fg3a_g, 5, agg="sum").clip(lower=0.5)
             ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
 
     # ------------------------------------------------------------------ #
-    # 4c. Shot profile features (P2.1) — 3pt attempt rate from fg3a/fga
+    # 4c. Shot profile features (P2.1) — 3pt attempt rate from fg3a/fga — batched
     # ------------------------------------------------------------------ #
     if "fg3a" in df.columns and "fga" in df.columns:
         _fg3a_g2 = df.groupby("player_id", sort=False)["fg3a"]
@@ -773,13 +780,15 @@ def _build_player_features(
         for w in (5, 10):
             fg3a_sum = _sr(_fg3a_g2, w, agg="sum")
             fga_sum  = _sr(_fga_g, w, agg="sum")
-            df[f"player_fg3_attempt_rate_l{w}"] = (
+            _fg3_cols[f"player_fg3_attempt_rate_l{w}"] = (
                 fg3a_sum / fga_sum.clip(lower=0.5)
             ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
-        df["player_fg3_attempt_rate_season"] = (
+        _fg3_cols["player_fg3_attempt_rate_season"] = (
             _sr(_fg3a_g2, 999, agg="expanding_sum") /
             _sr(_fga_g, 999, agg="expanding_sum").clip(lower=0.5)
         ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
+    if _fg3_cols:
+        df = pd.concat([df, pd.DataFrame(_fg3_cols, index=df.index)], axis=1)
     # Shot-zone columns from wnba_shot_locations.parquet — NaN when file unavailable
     for _zone_col in ["player_rim_freq_l5", "player_corner3_freq_l5", "player_above_break3_freq_l5"]:
         if _zone_col not in df.columns:
@@ -864,7 +873,11 @@ def _build_player_features(
 
     df["projected_minutes_bucket"] = df["projected_minutes_proxy"].map(assign_minutes_bucket)
 
+    # Derive started_proxy from minutes if not provided by BDL data
+    if "started_proxy" not in df.columns:
+        df["started_proxy"] = (df["minutes"] >= 15.0).astype(float)
     # Starter proxy (shifted): was player a starter in prior game?
+    grp = df.groupby("player_id", sort=False)  # re-bind after potential column add
     df["starter_proxy_prior"] = grp["started_proxy"].shift(1).astype(float)
     df["starter_rate_l5"]  = _sr(grp["started_proxy"], 5)
     df["starter_rate_l10"] = _sr(grp["started_proxy"], 10)
@@ -973,12 +986,15 @@ def _build_player_features(
     # log(λ) = player_rate_per_min × minutes_mean — captures Poisson exposure.
     # The interaction term lets the model reason about matchup minutes changes.
     # ------------------------------------------------------------------ #
+    _interaction_cols: dict[str, pd.Series] = {}
     for stat in STATS:
         rate_col = f"player_{stat}_per_min_l5"
         if rate_col in df.columns and "projected_minutes_proxy" in df.columns:
-            df[f"player_{stat}_per_min_l5_x_proj_min"] = (
+            _interaction_cols[f"player_{stat}_per_min_l5_x_proj_min"] = (
                 df[rate_col] * df["projected_minutes_proxy"]
             ).replace([np.inf, -np.inf], np.nan)
+    if _interaction_cols:
+        df = pd.concat([df, pd.DataFrame(_interaction_cols, index=df.index)], axis=1)
 
     # ------------------------------------------------------------------ #
     # 10. Advanced stats (shifted rolling; all optional)
