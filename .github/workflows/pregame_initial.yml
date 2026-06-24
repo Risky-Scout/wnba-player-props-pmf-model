@@ -1,6 +1,6 @@
-# Pre-Game Initial Projections (T-1 day baseline) — blueprint §11.1
-# Runs at 10:00 UTC daily (6am ET) — guarantees projections are available
-# ≥13 hours before typical WNBA tip times (23:00–01:00 UTC).
+# Pre-Game Initial Projections (T-1 day baseline) -- blueprint S11.1
+# Runs at 10:00 UTC daily (6am ET) -- guarantees projections are available
+# >=13 hours before typical WNBA tip times (23:00-01:00 UTC).
 #
 # Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
 #               predictions/WNBA/Pre-Game-Edge/initial/
@@ -101,7 +101,7 @@ jobs:
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
         continue-on-error: true
 
-      - name: Format pre-game JSON output (blueprint §3)
+      - name: Format pre-game JSON output (blueprint S3)
         run: |
           python scripts/format_pregame_output.py \
             --game-date "$GAME_DATE" \

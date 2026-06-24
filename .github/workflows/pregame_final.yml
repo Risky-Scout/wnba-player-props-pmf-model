@@ -1,5 +1,5 @@
-# Pre-Game Final Lock Projections — blueprint §11.1
-# Runs at 22:00 UTC (6pm ET) — final lineup confirmation before tip.
+# Pre-Game Final Lock Projections -- blueprint S11.1
+# Runs at 22:00 UTC (6pm ET) -- final lineup confirmation before tip.
 # Applies config/player_overrides.json manual adjustments.
 #
 # Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
@@ -81,7 +81,7 @@ jobs:
               exit(0)
           import subprocess
           for o in active:
-              print(f"Applying override: player {o['player_id']} → {o['override_minutes']} min")
+              print(f"Applying override: player {o['player_id']} -> {o['override_minutes']} min")
               subprocess.run([
                   "python", "scripts/override_minutes.py",
                   "--player-id", str(o["player_id"]),

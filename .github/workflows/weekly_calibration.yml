@@ -69,7 +69,7 @@ jobs:
 
       - name: Pre-calibration sanity gate (raw OOF)
         # Loose informational gate on raw OOF predictions.
-        # Reports ECE/PIT KS/mean_error but NEVER blocks calibrator fitting — prior_only
+        # Reports ECE/PIT KS/mean_error but NEVER blocks calibrator fitting -- prior_only
         # folds (first run, limited early-season data) legitimately fail these thresholds.
         # The strict post-calibration gate (below) is the authoritative quality gate.
         continue-on-error: true
@@ -92,7 +92,7 @@ jobs:
             --cal-dir artifacts/models/calibration \
             --out data/oof/oof_player_stat_pmfs_calibrated.parquet
 
-      - name: Verify calibration gates (calibrated OOF — strict)
+      - name: Verify calibration gates (calibrated OOF -- strict)
         # Post-calibration gate: ECE<0.03, PIT KS<0.075, |mean_error|<0.15.
         # Checked on CALIBRATED predictions so the gate is meaningful.
         # Fatal: if this fails, the new calibrators are NOT promoted to production.
@@ -135,56 +135,56 @@ jobs:
             --out artifacts/audits/feature_importance_report.json \
             --n-permutations 10
 
-      - name: Hyperparameter tuning — pts (P3.2)
+      - name: Hyperparameter tuning -- pts (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat pts --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — reb (P3.2)
+      - name: Hyperparameter tuning -- reb (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat reb --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — ast (P3.2)
+      - name: Hyperparameter tuning -- ast (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat ast --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — fg3m (P3.2)
+      - name: Hyperparameter tuning -- fg3m (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat fg3m --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — stl (P3.2)
+      - name: Hyperparameter tuning -- stl (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat stl --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — blk (P3.2)
+      - name: Hyperparameter tuning -- blk (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat blk --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — turnover (P3.2)
+      - name: Hyperparameter tuning -- turnover (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
             --stat turnover --n-trials 75 \
             --out artifacts/hyperparams/best_params_all.json
 
-      - name: Hyperparameter tuning — minutes (P3.2)
+      - name: Hyperparameter tuning -- minutes (P3.2)
         continue-on-error: true
         run: |
           python scripts/tune_hyperparams.py \
@@ -193,7 +193,7 @@ jobs:
 
       - name: Fit game totals calibrators (informational)
         # Fit isotonic calibration on game total over/under predictions.
-        # ECE gate is informational only — does NOT block promotion of player stat calibrators.
+        # ECE gate is informational only -- does NOT block promotion of player stat calibrators.
         # Outputs: artifacts/models/calibration/game_totals_cal.pkl (if OOF game totals exist)
         continue-on-error: true
         run: |
@@ -221,7 +221,7 @@ jobs:
           path: artifacts/models/calibration/
           key: calibrators-latest-${{ github.run_id }}
 
-      - name: Calibration gate failed — preserving previous calibrators
+      - name: Calibration gate failed -- preserving previous calibrators
         # When the post-cal gate fails, log the failure clearly so it is visible
         # in the Actions UI but do NOT upload the failing calibrators.
         # The daily pipeline will continue using the last passing calibrators.

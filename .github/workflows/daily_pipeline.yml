@@ -3,7 +3,7 @@ name: Daily WNBA PMF Pipeline
 on:
   schedule:
     # Run at 9 AM ET (13:00 UTC during summer, 14:00 UTC during winter)
-    # Predicts for TOMORROW's games — one day before gameday
+    # Predicts for TOMORROW's games -- one day before gameday
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
@@ -69,7 +69,7 @@ jobs:
           fi
           # Record today for data ingestion
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          # Record yesterday — this is the game date whose closing lines we snapshot
+          # Record yesterday -- this is the game date whose closing lines we snapshot
           # so that post_game_scoring.yml can download them for true CLV computation.
           echo "yesterday=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
@@ -90,16 +90,16 @@ jobs:
 
       - name: Assert feature table column count (P5.3)
         # Fails fast if feature build regressed (fewer columns than expected).
-        # Threshold is 290 — accommodates minor schema changes while catching major regressions.
+        # Threshold is 290 -- accommodates minor schema changes while catching major regressions.
         run: |
           python - <<'EOF'
           import pandas as pd, sys
           w = pd.read_parquet("data/processed/wnba_player_game_features_wide.parquet")
           n = len(w.columns)
           threshold = 290
-          print(f"Feature table: {w.shape[0]:,} rows × {n} columns (threshold: {threshold})")
+          print(f"Feature table: {w.shape[0]:,} rows x {n} columns (threshold: {threshold})")
           if n < threshold:
-              print(f"[FAIL] Feature column count {n} < {threshold} — feature build regressed!", file=sys.stderr)
+              print(f"[FAIL] Feature column count {n} < {threshold} -- feature build regressed!", file=sys.stderr)
               sys.exit(1)
           print("[PASS] Feature column count OK")
           EOF
@@ -233,7 +233,7 @@ jobs:
 
       - name: Check calibration drift
         # Compares last 100 scored predictions per stat against ECE/mean_error thresholds.
-        # Reads from data/clv_tracking/drift_window.parquet — a rolling 300-row-per-stat
+        # Reads from data/clv_tracking/drift_window.parquet -- a rolling 300-row-per-stat
         # window WITH pmf_json written by post_game_scoring.yml. ECE computation requires
         # the full PMF array so we cannot use results.parquet (which drops pmf_json).
         # Soft drift (ECE>0.06): warning logged, pipeline continues.
@@ -251,7 +251,7 @@ jobs:
         # Only triggered when drift-check exits 1 (hard drift detected).
         if: steps.drift-check.outcome == 'failure'
         run: |
-          echo "[AUTO-RECAL] Hard drift detected — refitting calibrators from OOF data"
+          echo "[AUTO-RECAL] Hard drift detected -- refitting calibrators from OOF data"
           python scripts/fit_calibrators.py \
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
             --out-dir artifacts/models/calibration

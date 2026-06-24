@@ -2,7 +2,7 @@ name: Post-Game CLV Scoring
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # 2 AM ET (UTC-4) — after final WNBA games complete
+    - cron: "0 6 * * *"   # 2 AM ET (UTC-4) -- after final WNBA games complete
   workflow_dispatch:
     inputs:
       game_date:
@@ -134,7 +134,7 @@ jobs:
         # Asserts mean_true_clv > 0 and logloss_delta < 0 per stat using UCB95 bootstrap.
         # INFORMATIONAL until 300+ samples per stat accumulate (first full WNBA season).
         # Promote to --hard after first season by removing continue-on-error and passing --hard.
-        # Reads from results.parquet — must have model_bin_logloss + market_bin_logloss cols
+        # Reads from results.parquet -- must have model_bin_logloss + market_bin_logloss cols
         # (written by score_daily_predictions.py when --market-comparison is passed).
         run: |
           python scripts/verify_gates.py market \

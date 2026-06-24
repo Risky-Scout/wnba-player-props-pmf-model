@@ -1,4 +1,4 @@
-name: Stage 5 — Walk-Forward OOF Backfill
+name: Stage 5 -- Walk-Forward OOF Backfill
 
 on:
   workflow_dispatch: {}
@@ -27,7 +27,7 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Pull BDL history (2022–2026)
+      - name: Pull BDL history (2022-2026)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |

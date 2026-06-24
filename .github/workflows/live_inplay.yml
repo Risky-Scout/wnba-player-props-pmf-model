@@ -1,4 +1,4 @@
-# Live In-Play Engine — blueprint §11.2
+# Live In-Play Engine -- blueprint S11.2
 # Runs every 2 minutes during WNBA game windows when WNBA_SEASON_ACTIVE=true.
 # Polls BDL PBP, updates Gamma-Poisson posteriors, publishes live JSON.
 #
@@ -11,7 +11,7 @@ name: Live In-Play Engine
 
 on:
   schedule:
-    - cron: '*/2 * * * *'   # Every 2 minutes (matches blueprint §11.2)
+    - cron: '*/2 * * * *'   # Every 2 minutes (matches blueprint S11.2)
   workflow_dispatch:
     inputs:
       game_ids:
@@ -22,7 +22,7 @@ on:
 jobs:
   live_inplay:
     runs-on: ubuntu-latest
-    # Only run during active WNBA season and on game days (blueprint §11.2)
+    # Only run during active WNBA season and on game days (blueprint S11.2)
     if: ${{ vars.WNBA_SEASON_ACTIVE == 'true' }}
     permissions:
       contents: write
@@ -71,7 +71,7 @@ jobs:
       - name: Check active games
         run: |
           if [ -z "$ACTIVE_GAME_IDS" ] && [ -z "${{ github.event.inputs.game_ids }}" ]; then
-            echo "No active games — exiting early"
+            echo "No active games -- exiting early"
             echo "NO_GAMES=true" >> $GITHUB_ENV
           fi
 
@@ -112,7 +112,7 @@ jobs:
             --include-links
         continue-on-error: true
 
-      - name: Format live JSON outputs per game (blueprint §4)
+      - name: Format live JSON outputs per game (blueprint S4)
         if: env.NO_GAMES != 'true'
         run: |
           IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
@@ -137,7 +137,7 @@ jobs:
 
           summary_path = Path("artifacts/live/live_session_summary.json")
           if not summary_path.exists():
-              print("No live session summary found — skipping cal check")
+              print("No live session summary found -- skipping cal check")
               exit(0)
 
           summary = json.loads(summary_path.read_text())
@@ -152,12 +152,12 @@ jobs:
               at_break = False
 
           if at_break:
-              print(f"Quarter break detected at Q{period} {clock} — running recal check")
+              print(f"Quarter break detected at Q{period} {clock} -- running recal check")
               import subprocess
               subprocess.run(["python", "scripts/live_recal_check.py",
                               "--live-dir", "artifacts/live"], check=False)
           else:
-              print(f"Mid-quarter at Q{period} {clock} — no recal needed")
+              print(f"Mid-quarter at Q{period} {clock} -- no recal needed")
           EOF
         continue-on-error: true
 
@@ -182,7 +182,7 @@ jobs:
               if [ -f "$GAME_FILE" ]; then
                 STATUS=$(python -c "import json; d=json.load(open('$GAME_FILE')); print(d.get('game_status',''))")
                 if [ "$STATUS" = "final" ]; then
-                  echo "Game $GID is final — archiving"
+                  echo "Game $GID is final -- archiving"
                   python scripts/format_live_output.py \
                     --live-dir artifacts/live \
                     --out-dir tools/odds-scanner/predictions/WNBA/Inplay-Edge \
