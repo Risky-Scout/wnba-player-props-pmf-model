@@ -66,12 +66,34 @@ jobs:
         id: closing
         run: |
           GAME_DATE="${{ steps.date.outputs.game_date }}"
-          # Try artifact download path first, then fallback to a fixed name
-          CL=$(find artifacts/closing_lines_tmp -name "closing_lines_${GAME_DATE}.parquet" 2>/dev/null | head -1)
-          if [ -z "$CL" ]; then
-            CL="artifacts/audits/closing_lines_${GAME_DATE}.parquet"
+          # Priority: 1) Odds API closing lines, 2) BDL snapshot, 3) fixed path fallback
+          CL_ODDS="artifacts/closing_lines_tmp/closing_lines_oddsapi_${GAME_DATE}.parquet"
+          CL_BDL=$(find artifacts/closing_lines_tmp -name "closing_lines_${GAME_DATE}.parquet" 2>/dev/null | grep -v oddsapi | head -1)
+          if [ -f "$CL_ODDS" ]; then
+            echo "path=$CL_ODDS" >> $GITHUB_OUTPUT
+            echo "Using Odds API closing lines: $CL_ODDS"
+          elif [ -n "$CL_BDL" ]; then
+            echo "path=$CL_BDL" >> $GITHUB_OUTPUT
+            echo "Using BDL closing lines: $CL_BDL"
+          else
+            echo "path=artifacts/audits/closing_lines_${GAME_DATE}.parquet" >> $GITHUB_OUTPUT
+            echo "Using fallback closing lines path"
           fi
-          echo "path=$CL" >> $GITHUB_OUTPUT
+
+      - name: Pull Odds API closing lines (true CLV basis)
+        # Historical Odds API snapshot at 11 PM UTC (7 PM ET + 4h) captures closing prices.
+        # Cost: ~150 credits. Falls back silently if key unavailable.
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          if [ -n "$ODDS_API_KEY" ]; then
+            python scripts/pull_odds_api_closing_lines.py \
+              --game-date "$GAME_DATE" \
+              --close-time "${GAME_DATE}T23:30:00Z" \
+              --out-dir artifacts/closing_lines_tmp
+          fi
+        continue-on-error: true
 
       - name: Pull BDL actuals
         env:

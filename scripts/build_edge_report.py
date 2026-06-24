@@ -1,8 +1,12 @@
-"""Stage 7 — Build edge report comparing model PMFs vs. BDL market odds.
+"""Stage 7 — Build edge report comparing model PMFs vs. market odds.
 
-Uses Shin's no-vig method (PenaltyBlog methodology) to extract true market
-probabilities from BDL over/under odds, then computes model edge for each
-player prop line.
+Data source priority (highest fidelity first):
+  1. The Odds API v4  (ODDS_API_KEY set) — multi-book, deep links, Shin-z
+  2. BDL player props (fallback)
+
+Uses Shin's no-vig method to extract true market probabilities, then computes
+model edge for each player prop line. Deep links to bookmaker betslips are
+included when available via The Odds API.
 
 Writes:
   {out_dir}/market_comparison.parquet  — full joined table
@@ -12,10 +16,11 @@ Writes:
 Usage:
     python scripts/build_edge_report.py \\
         --pmfs deliveries/today/full_pmfs_wide.parquet \\
-        --raw-props data/processed/player_props.parquet \\
+        --raw-props data/processed/wnba_player_props.parquet \\
         --out-dir deliveries/today \\
         --edge-threshold 0.04 \\
-        --game-date 2026-06-15
+        --game-date 2026-06-15 \\
+        [--odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet]
 """
 from __future__ import annotations
 
@@ -37,7 +42,7 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def main(
     pmfs: str = typer.Option(..., help="Calibrated PMF parquet (full_pmfs_wide.parquet)."),
-    raw_props: str = typer.Option(..., help="BDL player props parquet."),
+    raw_props: str = typer.Option(..., help="BDL player props parquet (fallback)."),
     out_dir: str = typer.Option(..., help="Output directory for edge report files."),
     edge_threshold: float = typer.Option(0.04, help="Minimum |edge| to publish (default 4pp)."),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
@@ -50,9 +55,19 @@ def main(
             "Lower z = softer market = better for retail bettor. Default 0.06."
         ),
     ),
+    odds_api_props: str = typer.Option(
+        "",
+        "--odds-api-props",
+        help=(
+            "Path to Odds API props parquet (wnba_player_props_oddsapi_latest.parquet). "
+            "When supplied and non-empty, Odds API data is PREFERRED over BDL; "
+            "deep link columns are added to publishable_edges."
+        ),
+    ),
 ) -> None:
-    """Compare model PMFs vs. BDL market lines using Shin no-vig.
+    """Compare model PMFs vs. market lines using Shin no-vig.
 
+    Data source priority: Odds API (preferred) → BDL (fallback).
     Edges are tiered by Shin-z (market sharpness proxy):
     - shin_z <= max_shin_z  → confidence_tier = 'standard'   (softer market)
     - shin_z > max_shin_z   → confidence_tier = 'high_adversity' (sharp market — flagged)
@@ -65,20 +80,15 @@ def main(
     pmfs_df = pd.read_parquet(pmfs)
     typer.echo(f"Loaded {len(pmfs_df):,} PMF rows")
 
-    if not Path(raw_props).exists():
-        typer.echo(f"[WARN] No props file at {raw_props} — writing empty edge report", err=True)
-        _write_empty(out, today, edge_threshold)
-        return
-
-    props_df = pd.read_parquet(raw_props)
-    typer.echo(f"Loaded {len(props_df):,} market prop rows")
+    # ── Data source selection ─────────────────────────────────────────────────
+    props_df, props_source = _load_props(raw_props, odds_api_props, today)
+    typer.echo(f"Loaded {len(props_df):,} market prop rows [source={props_source}]")
 
     if props_df.empty:
         typer.echo("[WARN] Props file is empty — no market lines to compare")
         _write_empty(out, today, edge_threshold)
         return
 
-    # normalize_player_props_snapshot uses shin_no_vig_two_way via no_vig_two_way
     comp = build_market_comparison(pmfs_df, props_df)
 
     if comp.empty:
@@ -115,6 +125,17 @@ def main(
     comp.to_parquet(comp_path, index=False)
     typer.echo(f"Wrote market_comparison → {comp_path} ({len(comp):,} rows)")
 
+    # Carry Odds API deep links into the comparison table
+    if props_source == "odds_api" and "deep_link" in props_df.columns:
+        link_cols = [c for c in ["deep_link", "event_link", "market_link",
+                                  "outcome_link_over", "bookmaker"] if c in props_df.columns]
+        link_keys = [c for c in ["player_name", "stat", "line", "bookmaker"] if c in props_df.columns]
+        if link_keys:
+            links_df = props_df[link_keys + link_cols].drop_duplicates(subset=link_keys)
+            merge_keys = [c for c in link_keys if c in comp.columns]
+            if merge_keys:
+                comp = comp.merge(links_df[merge_keys + link_cols], on=merge_keys, how="left")
+
     # Publishable edges: |edge| >= threshold on either side (all tiers included)
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     edges = edges.sort_values("edge_over", key=np.abs, ascending=False)
@@ -130,10 +151,15 @@ def main(
     )
 
     # Audit JSON
+    deep_link_pct = (
+        float((edges["deep_link"].notna() & (edges["deep_link"] != "")).mean())
+        if "deep_link" in edges.columns and len(edges) else None
+    )
     audit = {
         "game_date": today,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "no_vig_method": "shin",
+        "props_source": props_source,
         "edge_threshold": edge_threshold,
         "max_shin_z_threshold": max_shin_z,
         "total_market_rows": len(comp),
@@ -145,6 +171,7 @@ def main(
         "max_edge": float(edges["edge_over"].abs().max()) if len(edges) else None,
         "over_edges": int((edges["edge_over"] > 0).sum()),
         "under_edges": int((edges["edge_over"] < 0).sum()),
+        "deep_link_coverage_pct": deep_link_pct,
     }
     audit_path = out / f"edge_report_{today}.json"
     audit_path.write_text(json.dumps(audit, indent=2))
@@ -153,6 +180,40 @@ def main(
         f"\nSummary: {len(edges)} publishable edges "
         f"({audit['over_edges']} OVER / {audit['under_edges']} UNDER)"
     )
+
+
+def _load_props(
+    raw_props_path: str,
+    odds_api_props_path: str,
+    today: str,
+) -> tuple["pd.DataFrame", str]:
+    """Load market props with source priority: Odds API > BDL.
+
+    Returns (DataFrame, source_name) where source_name is 'odds_api' or 'bdl'.
+    """
+    # Try Odds API first
+    if odds_api_props_path:
+        p = Path(odds_api_props_path)
+        if p.exists():
+            try:
+                df = pd.read_parquet(p)
+                if not df.empty and "over_odds" in df.columns:
+                    typer.echo(f"[EdgeReport] Using Odds API props: {p} ({len(df):,} rows)")
+                    return df, "odds_api"
+            except Exception as exc:
+                typer.echo(f"[WARN] Odds API props unreadable ({exc}) — falling back to BDL", err=True)
+
+    # Fall back to BDL
+    p = Path(raw_props_path)
+    if not p.exists():
+        typer.echo(f"[WARN] No props at {raw_props_path}", err=True)
+        return pd.DataFrame(), "none"
+    try:
+        df = pd.read_parquet(p)
+        return df, "bdl"
+    except Exception as exc:
+        typer.echo(f"[WARN] BDL props unreadable: {exc}", err=True)
+        return pd.DataFrame(), "none"
 
 
 def _write_empty(out: Path, today: str, edge_threshold: float) -> None:

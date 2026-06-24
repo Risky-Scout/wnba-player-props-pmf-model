@@ -50,6 +50,7 @@ jobs:
         id: find
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           # If specific game_ids provided via manual trigger, use those
           if [ -n "${{ github.event.inputs.game_id }}" ]; then
@@ -110,9 +111,37 @@ jobs:
             mkdir -p deliveries/today
           fi
 
+      - name: Poll live scores from Odds API (pre-tracker)
+        # Fetch live score snapshot before the tracker starts so we have
+        # a baseline game score. Written to artifacts/live/live_scores_oddsapi.json.
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ -n "$ODDS_API_KEY" ]; then
+            python - <<'EOF'
+          import os, json, sys
+          sys.path.insert(0, "src")
+          from pathlib import Path
+          try:
+              from wnba_props_model.data.odds_api_client import OddsAPIClient
+              client = OddsAPIClient(api_key=os.environ["ODDS_API_KEY"])
+              scores = client.get_scores(days_from=1)
+              Path("artifacts/live").mkdir(parents=True, exist_ok=True)
+              Path("artifacts/live/live_scores_oddsapi.json").write_text(
+                  json.dumps(scores, indent=2)
+              )
+              live = [s for s in scores if not s.get("completed")]
+              print(f"[OddsAPI] {len(live)} live games | {len(scores)} total scores fetched")
+          except Exception as e:
+              print(f"[WARN] Odds API score poll failed: {e}")
+          EOF
+          fi
+        continue-on-error: true
+
       - name: Run live tracker
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           DURATION=${{ github.event.inputs.duration_minutes || '150' }}
           POLL=${{ github.event.inputs.poll_interval || '15' }}
@@ -145,4 +174,19 @@ jobs:
           if [ -f "artifacts/live/live_session_summary.json" ]; then
             echo "=== Live Session Summary ==="
             python3 -c "import json; d=json.load(open('artifacts/live/live_session_summary.json')); print('Games tracked:', d.get('game_ids',[])); print('Total polls:', d.get('n_polls',0)); print('Bettable edges found:', d.get('n_bettable_edges_total',0)); edges=d.get('bettable_edges',[])[:5]; [print(f'  player={e.get(\"player_id\")} {e.get(\"stat\")} {str(e.get(\"direction\",\"\")).upper()} edge={e.get(\"edge_pp\",0):+.1f}pp') for e in edges]"
+          fi
+          if [ -f "artifacts/live/live_scores_oddsapi.json" ]; then
+            echo "=== Odds API Live Scores ==="
+            python3 -c "
+          import json
+          scores = json.load(open('artifacts/live/live_scores_oddsapi.json'))
+          live = [s for s in scores if not s.get('completed')]
+          for s in live:
+              home = s.get('home_team','?'); away = s.get('away_team','?')
+              sc = s.get('scores') or []
+              score_str = ' | '.join(f\"{x.get('name','?')}: {x.get('score','?')}\" for x in sc)
+              print(f'  {away} @ {home} — {score_str}')
+          if not live:
+              print('  No live games in Odds API scores snapshot')
+          "
           fi

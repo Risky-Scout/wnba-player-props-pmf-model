@@ -151,11 +151,24 @@ jobs:
             --out-dir deliveries/next_game
         continue-on-error: true
 
+      - name: Pull Odds API player props (preferred market data)
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          python scripts/pull_odds_api_props.py \
+            --game-date ${{ steps.date.outputs.target_date }} \
+            --out-dir data/processed \
+            --region us
+        continue-on-error: true
+
       - name: Build edge report (Shin no-vig)
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           python scripts/build_edge_report.py \
             --pmfs deliveries/next_game/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --out-dir deliveries/next_game \
             --game-date ${{ steps.date.outputs.target_date }}
         continue-on-error: true
@@ -187,15 +200,24 @@ jobs:
         continue-on-error: true
 
       - name: Snapshot closing-line props (for yesterday's games)
-        # Snapshot BDL props for YESTERDAY's games at morning run time.
-        # These become the closing lines used by post_game_scoring.yml tonight
-        # when it downloads this artifact and computes true CLV.
-        # At 9 AM ET the day-of lines are the closest available proxy for closing.
+        # Prefers The Odds API historical endpoint (true closing lines).
+        # Falls back to BDL morning snapshot if ODDS_API_KEY not available.
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
+          YESTERDAY="${{ steps.date.outputs.yesterday }}"
+          # Try Odds API first (true closing lines via historical endpoint)
+          if [ -n "$ODDS_API_KEY" ]; then
+            python scripts/pull_odds_api_closing_lines.py \
+              --game-date "$YESTERDAY" \
+              --out-dir artifacts/audits
+          fi
+          # Also pull BDL morning lines as secondary reference
           python scripts/pull_closing_lines.py \
-            --game-date ${{ steps.date.outputs.yesterday }} \
+            --game-date "$YESTERDAY" \
             --out-dir artifacts/audits \
-            --api-key "${{ secrets.BDL_API_KEY }}"
+            --api-key "$BDL_API_KEY"
         continue-on-error: true
 
       - name: Download CLV tracking data (for drift check)
