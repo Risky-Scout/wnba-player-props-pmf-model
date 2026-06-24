@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import typer
 
@@ -116,6 +117,27 @@ def main(
             typer.echo("Game Total Anchoring applied.")
     except Exception as exc:
         typer.echo(f"[WARN] Game Total Anchoring failed (non-fatal): {exc}")
+
+    # Conformal Prediction Intervals (Item 5D) — flag props where model uncertainty
+    # is too high to have a meaningful edge (line inside conformal interval → no edge).
+    try:
+        import pickle as _pkl  # noqa: PLC0415
+        _conformal_path = Path(effective_cal_dir or "artifacts/models/calibration") / "conformal_predictor.pkl"
+        if _conformal_path.exists() and not pmfs.empty and "mean" in pmfs.columns:
+            with open(_conformal_path, "rb") as _f:
+                _conformal = _pkl.load(_f)
+            _stat_col = pmfs["stat"] if "stat" in pmfs.columns else pd.Series(["pts"] * len(pmfs))
+            _role_col = pmfs["role_bucket"] if "role_bucket" in pmfs.columns else pd.Series(["all"] * len(pmfs))
+            _means = pmfs["mean"].to_numpy(dtype=float)
+            _lows, _highs = np.empty(len(pmfs)), np.empty(len(pmfs))
+            for i, (stat, role, mu) in enumerate(zip(_stat_col, _role_col, _means)):
+                _lows[i], _highs[i] = _conformal.predict_interval(mu, stat=str(stat), role=str(role))
+            pmfs = pmfs.copy()
+            pmfs["conformal_lower"] = _lows
+            pmfs["conformal_upper"] = _highs
+            typer.echo(f"Conformal prediction intervals applied ({len(_conformal.quantiles)} buckets).")
+    except Exception as _exc:
+        typer.echo(f"[WARN] Conformal intervals skipped (non-fatal): {_exc}")
 
     paths = write_delivery(pmfs, out_dir, props_df, game_date=game_date)
     for k, v in paths.items():

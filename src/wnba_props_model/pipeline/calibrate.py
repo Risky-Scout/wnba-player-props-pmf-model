@@ -219,6 +219,34 @@ def fit_calibrators(
     except Exception as exc:
         logger.warning("[calibrate] Beta calibrator fitting failed: %s", exc)
 
+    # Fit Conformal Prediction Intervals (Item 5D)
+    # Uses split conformal on OOF residuals: |actual - model_mean|
+    try:
+        import pickle  # noqa: PLC0415
+        from wnba_props_model.evaluation.conformal import ConformalPropPredictor  # noqa: PLC0415
+
+        conformal = ConformalPropPredictor(alpha=0.10)
+        for (stat, role), grp in oof_eligible.groupby(["stat", "role_bucket"]):
+            if "pmf" not in grp.columns and "pmf_json" not in grp.columns:
+                continue
+            if "actual_outcome" not in grp.columns:
+                continue
+            pmf_col = grp["pmf"] if "pmf" in grp.columns else grp["pmf_json"].map(json_to_pmf)
+            support = np.arange(pmf_col.iloc[0].shape[0]) if hasattr(pmf_col.iloc[0], "shape") else np.arange(61)
+            preds = np.array([float((p * support).sum()) if hasattr(p, "__len__") else 0.0
+                              for p in pmf_col])
+            actuals = grp["actual_outcome"].to_numpy(dtype=float)
+            conformal.fit(preds, actuals, stat=str(stat), role=str(role))
+
+        conformal_path = out / "conformal_predictor.pkl"
+        with open(conformal_path, "wb") as f:
+            pickle.dump(conformal, f, protocol=5)
+        paths["conformal"] = conformal_path
+        logger.info("[calibrate] Conformal predictor fitted for %d (stat, role) buckets, saved to %s",
+                    len(conformal.quantiles), conformal_path)
+    except Exception as exc:
+        logger.warning("[calibrate] Conformal predictor fitting failed (non-fatal): %s", exc)
+
     return paths
 
 

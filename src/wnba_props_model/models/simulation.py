@@ -26,6 +26,15 @@ def pmf_to_json(pmf: np.ndarray) -> str:
 
 def json_to_pmf(payload: str | Mapping[str, float], domain_max: int | None = None) -> np.ndarray:
     d = json.loads(payload) if isinstance(payload, str) else payload
+    # Support both list format [p0, p1, ...] and sparse dict format {"0": p0, "3": p3, ...}
+    if isinstance(d, list):
+        arr = np.array(d, dtype=float)
+        if domain_max is not None:
+            if len(arr) < domain_max + 1:
+                arr = np.pad(arr, (0, domain_max + 1 - len(arr)))
+            else:
+                arr = arr[:domain_max + 1]
+        return normalize_pmf(arr)
     kmax = max([int(k) for k in d.keys()] + [domain_max or 0])
     arr = np.zeros(kmax + 1)
     for k, p in d.items():
