@@ -65,21 +65,39 @@ def main(
 
     try:
         client = BDLClient(api_key=key)
-        # Pull props for the target date (BDL endpoint: /v1/wnba/player_props?date=...)
-        props_raw = client.get_player_props(date=game_date)
+        # BDL fix: get_player_props() does not exist; must fetch games for date then
+        # iterate list_player_props_for_game() per game_id.
+        games = client.list_endpoint(
+            "games",
+            params={"dates": [game_date], "per_page": 100},
+        )
+        typer.echo(f"[closing_lines] Found {len(games)} games for {game_date}")
+        all_props: list[dict] = []
+        for game in games:
+            gid = game.get("id")
+            if not gid:
+                continue
+            try:
+                props_for_game = client.list_player_props_for_game(game_id=int(gid))
+                for p in props_for_game:
+                    p["game_id"] = gid
+                    p["game_date"] = game_date
+                all_props.extend(props_for_game)
+            except Exception as gexc:
+                typer.echo(f"[WARN] Props fetch failed for game {gid}: {gexc}")
+        props_raw = all_props
     except Exception as exc:
         typer.echo(f"[ERROR] BDL pull failed: {exc}", err=True)
         _write_empty(out_path)
         return
 
-    if props_raw is None or (hasattr(props_raw, "empty") and props_raw.empty):
+    if not props_raw:
         typer.echo(f"[WARN] No props returned for {game_date}")
         _write_empty(out_path)
         return
 
-    if isinstance(props_raw, list):
-        import pandas as _pd
-        props_raw = _pd.DataFrame(props_raw)
+    import pandas as _pd
+    props_raw = _pd.DataFrame(props_raw)
 
     # Normalize using the same pipeline as morning props
     try:
