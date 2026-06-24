@@ -146,8 +146,9 @@ class PBPParser:
             # Update game state
             if play.get("home_score") is not None:
                 self.game_state["home_score"] = play["home_score"]
-            if play.get("away_score") is not None:
-                self.game_state["away_score"] = play["away_score"]
+            away_val = play.get("away_score") if play.get("away_score") is not None else play.get("visitor_score")
+            if away_val is not None:
+                self.game_state["away_score"] = away_val
             if play.get("period") is not None:
                 self.game_state["period"] = play["period"]
             if play.get("clock") is not None:
@@ -155,7 +156,7 @@ class PBPParser:
             if play.get("team") and isinstance(play["team"], dict):
                 self.game_state["possession_team_id"] = play["team"].get("id")
 
-            text = play.get("text") or ""
+            text = play.get("text") or play.get("description") or ""
             if text:
                 self._parse_play_text(text, play.get("team") or {}, roster_lookup)
             self.game_state["n_plays_processed"] += 1

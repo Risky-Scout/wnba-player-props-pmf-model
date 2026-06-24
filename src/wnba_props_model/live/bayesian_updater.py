@@ -109,8 +109,12 @@ class GammaPoissonLiveEngine:
         alpha_post = alpha_prior + observed_count
         beta_post = beta_prior + elapsed_minutes
 
-        # Remaining minutes
-        t_remaining = max(projected_total_minutes - elapsed_minutes, 0.0)
+        # Remaining minutes — use regulation ceiling if elapsed exceeds projection (overtime)
+        effective_total = max(projected_total_minutes, elapsed_minutes)
+        # If player has already exceeded projected minutes, cap at MAX_REGULATION_MINUTES
+        if elapsed_minutes > projected_total_minutes:
+            effective_total = max(MAX_REGULATION_MINUTES, elapsed_minutes)
+        t_remaining = max(effective_total - elapsed_minutes, 0.0)
 
         if t_remaining < 0.5:
             # Player is done — degenerate PMF at observed count

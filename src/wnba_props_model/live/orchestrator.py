@@ -80,7 +80,13 @@ class LiveGameOrchestrator:
 
         # 2. Parse only new plays since last poll
         last_order = self.last_play_order.get(game_id, 0)
-        new_plays = [p for p in plays if int(p.get("order", 0)) > last_order]
+        def _play_order(p: dict) -> int:
+            v = p.get("order") or p.get("event_order") or p.get("id") or 0
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return 0
+        new_plays = [p for p in plays if _play_order(p) > last_order]
 
         if game_id not in self._parsers:
             self._parsers[game_id] = PBPParser()
@@ -88,7 +94,7 @@ class LiveGameOrchestrator:
         parser = self._parsers[game_id]
         if new_plays:
             parser.process_plays(new_plays, roster_lookup)
-            max_order = max(int(p.get("order", 0)) for p in new_plays)
+            max_order = max(_play_order(p) for p in new_plays)
             self.last_play_order[game_id] = max_order
 
         player_states = parser.player_states
