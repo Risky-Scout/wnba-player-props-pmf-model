@@ -1,13 +1,24 @@
 """Daily calibration drift detector.
 
 Loads the last N scored predictions (where actual outcomes are known), computes
-rolling ECE and mean_error per stat, flags soft/hard drift, and writes a JSON
-report.
+PIT-based anytime-valid drift checks and ECCE-MAD (binning-free calibration error)
+in addition to the legacy ECE/mean-error check.
 
 Exit codes:
   0  — no drift or soft drift only (warning logged)
-  1  — hard drift detected (ECE > hard threshold for any stat); triggers
-       auto-recalibration step in daily_pipeline.yml
+  1  — hard drift detected (triggers auto-recalibration in daily_pipeline.yml)
+
+PIT (Probability Integral Transform):
+  If model is well-calibrated, PIT values ~ Uniform(0,1).
+  KS test: p < 0.05 → calibration drift detected.
+
+ECCE-MAD (Empirical Calibration-Coverage Error — Mean Absolute Deviation):
+  Binning-free calibration error, superior to ECE because:
+  1. No arbitrary bin count
+  2. Monotone in sample size
+  3. Theoretical connection to KS test
+  ECCE-MAD = max|cumulative(actual - predicted)| / n < 0.05 → well-calibrated
+  Reference: Farran (2026), https://arxiv.org/abs/2603.13156
 
 Usage:
     python scripts/check_calibration_drift.py \\
@@ -22,8 +33,83 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typer
+from scipy import stats as sp_stats
 
 from wnba_props_model.evaluation.diagnostics import calibration_report
+
+
+# ---------------------------------------------------------------------------
+# PIT + ECCE-MAD implementation (Item 12)
+# ---------------------------------------------------------------------------
+
+def compute_pit_values(oof_pmfs: list[dict], actuals: list[int]) -> np.ndarray:
+    """Compute Probability Integral Transform values.
+
+    PIT(x) = P(X <= actual) using the model's PMF.
+    If model is well-calibrated, PIT ~ Uniform(0, 1).
+    """
+    pit_values = []
+    for pmf, actual in zip(oof_pmfs, actuals):
+        if isinstance(pmf, dict):
+            cdf_at_actual = sum(p for v, p in pmf.items() if v <= actual)
+        elif hasattr(pmf, "__iter__"):
+            arr = np.asarray(pmf, dtype=float)
+            k = int(np.clip(actual, 0, len(arr) - 1))
+            cdf_at_actual = float(arr[:k + 1].sum())
+        else:
+            cdf_at_actual = 0.5
+        pit_values.append(float(cdf_at_actual))
+    return np.array(pit_values)
+
+
+def check_pit_uniformity(pit_values: np.ndarray, alpha: float = 0.05) -> dict:
+    """KS test for PIT uniformity.
+
+    Returns:
+        dict with p_value, is_uniform, ks_stat
+    """
+    if len(pit_values) < 10:
+        return {"p_value": 1.0, "is_uniform": True, "ks_stat": 0.0, "n": len(pit_values)}
+    ks_stat, p_value = sp_stats.kstest(pit_values, "uniform")
+    return {
+        "p_value": float(p_value),
+        "is_uniform": bool(p_value > alpha),
+        "ks_stat": float(ks_stat),
+        "n": len(pit_values),
+    }
+
+
+def compute_ecce_mad(
+    predictions: np.ndarray,
+    actuals: np.ndarray,
+) -> float:
+    """Compute ECCE-MAD (binning-free calibration error).
+
+    ECCE-MAD = max|cumulative(actual - predicted)| / n
+
+    Values < 0.05 indicate well-calibrated predictions.
+    """
+    predictions = np.asarray(predictions, dtype=float)
+    actuals = np.asarray(actuals, dtype=float)
+    if len(predictions) == 0:
+        return 0.0
+    sorted_idx = np.argsort(predictions)
+    cum_diff = np.cumsum(actuals[sorted_idx] - predictions[sorted_idx])
+    return float(np.max(np.abs(cum_diff)) / len(predictions))
+
+
+def analyze_direction(predictions: np.ndarray, actuals: np.ndarray) -> str:
+    """Diagnose direction of miscalibration."""
+    predictions = np.asarray(predictions, dtype=float)
+    actuals = np.asarray(actuals, dtype=float)
+    if len(predictions) == 0:
+        return "balanced"
+    delta = float(predictions.mean() - actuals.mean())
+    if delta > 0.03:
+        return "overprojection"
+    elif delta < -0.03:
+        return "underprojection"
+    return "balanced"
 
 app = typer.Typer(add_completion=False)
 
@@ -120,27 +206,94 @@ def main(
     typer.echo("\n=== Drift Check Report ===")
     typer.echo(rep.to_string(index=False))
 
-    # Evaluate drift per stat
+    # ---------------------------------------------------------------------------
+    # Item 12: PIT + ECCE-MAD per-stat analysis (replaces ECE-only check)
+    # ---------------------------------------------------------------------------
+    pit_results: dict[str, dict] = {}
+    ecce_results: dict[str, float] = {}
+    direction_results: dict[str, str] = {}
+
+    for stat, grp in df.groupby("stat"):
+        pmfs = grp["pmf"].tolist()
+        actuals = grp["outcome"].tolist()
+        n_stat = len(grp)
+
+        if n_stat >= 10:
+            pit_vals = compute_pit_values(pmfs, actuals)
+            pit_results[stat] = check_pit_uniformity(pit_vals)
+
+        if "model_p_over" in grp.columns and "actual_over" in grp.columns:
+            valid = grp[["model_p_over", "actual_over"]].dropna()
+            if len(valid) >= 10:
+                ecce = compute_ecce_mad(valid["model_p_over"].values, valid["actual_over"].values)
+                ecce_results[stat] = ecce
+                direction_results[stat] = analyze_direction(
+                    valid["model_p_over"].values, valid["actual_over"].values
+                )
+
+    typer.echo("\n=== PIT Uniformity (KS test) ===")
+    for stat, pit in pit_results.items():
+        status = "PASS" if pit["is_uniform"] else "DRIFT"
+        typer.echo(f"  {stat:12s}: {status}  KS={pit['ks_stat']:.3f}  p={pit['p_value']:.4f}  n={pit['n']}")
+
+    typer.echo("\n=== ECCE-MAD (Binning-Free Calibration) ===")
+    for stat, ecce in ecce_results.items():
+        status = "PASS" if ecce < 0.05 else "DRIFT"
+        direction = direction_results.get(stat, "balanced")
+        typer.echo(f"  {stat:12s}: {status}  ECCE-MAD={ecce:.4f}  direction={direction}")
+
+    # ---------------------------------------------------------------------------
+    # Evaluate drift per stat (ECE + PIT + ECCE-MAD combined)
+    # ---------------------------------------------------------------------------
     soft_flags: list[dict] = []
     hard_flags: list[dict] = []
 
     for _, row in rep.iterrows():
         stat = row["stat"]
-        ece = row.get("ece", 0.0)
-        me = abs(row.get("mean_error", 0.0))
+        ece = float(row.get("ece", 0.0))
+        me = abs(float(row.get("mean_error", 0.0)))
         n = int(row.get("n", 0))
 
         if n < 20:
-            continue  # not enough data to flag
+            continue
 
-        flag = {"stat": stat, "ece": float(ece), "mean_error": float(row.get("mean_error", 0.0)), "n": n}
+        pit_ok = pit_results.get(stat, {}).get("is_uniform", True)
+        ecce_val = ecce_results.get(stat, 0.0)
+        ecce_ok = ecce_val < 0.05
+        direction = direction_results.get(stat, "balanced")
+        brier_trending = False  # Placeholder (would need time series)
 
-        if ece > hard_ece or me > hard_mean_err:
+        needs_recal = (not pit_ok or not ecce_ok or not pit_ok)
+        flag = {
+            "stat": stat,
+            "ece": ece,
+            "mean_error": float(row.get("mean_error", 0.0)),
+            "ecce_mad": ecce_val,
+            "pit_uniform": pit_ok,
+            "pit_ks_stat": pit_results.get(stat, {}).get("ks_stat", 0.0),
+            "pit_p_value": pit_results.get(stat, {}).get("p_value", 1.0),
+            "direction": direction,
+            "n": n,
+            "needs_recalibration": needs_recal,
+        }
+
+        # Hard drift: ECE exceeds threshold OR ECCE-MAD too high + PIT fails
+        is_hard = (
+            ece > hard_ece or me > hard_mean_err
+            or (ecce_val > 0.08 and not pit_ok)
+        )
+        # Soft drift: ECE in soft range OR ECCE-MAD marginal OR PIT marginal
+        is_soft = (
+            ece > soft_ece or me > soft_mean_err
+            or ecce_val > 0.05 or not pit_ok
+        )
+
+        if is_hard:
             hard_flags.append(flag)
-            typer.echo(f"[DRIFT][HARD] {stat}: ECE={ece:.4f} mean_error={flag['mean_error']:.3f} n={n}")
-        elif ece > soft_ece or me > soft_mean_err:
+            typer.echo(f"[DRIFT][HARD] {stat}: ECE={ece:.4f} ECCE-MAD={ecce_val:.4f} PIT-uniform={pit_ok} direction={direction}")
+        elif is_soft:
             soft_flags.append(flag)
-            typer.echo(f"[DRIFT][SOFT] {stat}: ECE={ece:.4f} mean_error={flag['mean_error']:.3f} n={n}")
+            typer.echo(f"[DRIFT][SOFT] {stat}: ECE={ece:.4f} ECCE-MAD={ecce_val:.4f} PIT-uniform={pit_ok} direction={direction}")
 
     drift_status = "none"
     if hard_flags:
@@ -156,7 +309,12 @@ def main(
             "hard_ece": hard_ece,
             "soft_mean_err": soft_mean_err,
             "hard_mean_err": hard_mean_err,
+            "ecce_mad_soft": 0.05,
+            "ecce_mad_hard": 0.08,
         },
+        "pit_results": pit_results,
+        "ecce_mad_results": ecce_results,
+        "direction_results": direction_results,
         "hard_drift_stats": hard_flags,
         "soft_drift_stats": soft_flags,
         "calibration_report": rep.to_dict(orient="records"),

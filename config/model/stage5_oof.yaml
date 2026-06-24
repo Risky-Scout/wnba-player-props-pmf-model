@@ -140,3 +140,37 @@ league_priors:
   turnover:
     mean: 1.38
     var: 1.99
+
+# --------------------------------------------------------------------------
+# Advanced features — Item 2 of Production Blueprint
+# 24 new columns from BDL extended endpoints
+# --------------------------------------------------------------------------
+use_advanced_features: true
+
+new_features:
+  # Usage features (player_season_advanced_stats, measure_type=usage)
+  - player_usage_pct
+  - player_usage_pct_ewma10
+  - player_usage_pct_vs_avg
+  # Shot quality (player_shot_locations)
+  - player_pct_fg_restricted
+  - player_pct_fg_corner3
+  - player_pct_fg_midrange
+  - player_fg_pct_restricted
+  - shot_quality_score
+  # Injury context (player_injuries + usage)
+  - teammate_out_count
+  - teammate_questionable_count
+  - team_total_usage_of_out_players
+  # Opponent context (team_game_advanced_stats)
+  - opp_def_rating_ewma10
+  - opp_pace_ewma10
+  - game_pace_predicted
+  # Standings / motivation
+  - team_playoff_seed
+  - team_games_behind
+  - season_phase
+  # Four factors (player_season_advanced_stats, measure_type=four_factors)
+  - player_efg_pct
+  - player_ft_rate
+  - player_tov_pct

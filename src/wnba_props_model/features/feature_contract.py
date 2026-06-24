@@ -97,6 +97,48 @@ SPARSE_EVENT_FEATURES = [
     "defender_role_code",
 ]
 
+# ---------------------------------------------------------------------------
+# Advanced features (Item 2 — 24 new columns from extended BDL endpoints)
+# ---------------------------------------------------------------------------
+
+ADVANCED_USAGE_FEATURES: list[str] = [
+    "player_usage_pct",           # Season USG% from player_season_advanced_stats
+    "player_usage_pct_ewma10",    # 10-game EWMA of game-level USG%
+    "player_usage_pct_vs_avg",    # Current USG% minus season average
+]
+
+ADVANCED_SHOT_QUALITY_FEATURES: list[str] = [
+    "player_pct_fg_restricted",   # % FGA from restricted area
+    "player_pct_fg_corner3",      # % FGA from corner 3
+    "player_pct_fg_midrange",     # % FGA from mid-range
+    "player_fg_pct_restricted",   # FG% from restricted area
+    "shot_quality_score",         # Weighted shot quality index
+]
+
+ADVANCED_INJURY_FEATURES: list[str] = [
+    "teammate_out_count",                    # # rotation teammates ruled out
+    "teammate_questionable_count",           # # teammates questionable
+    "team_total_usage_of_out_players",       # Redistributable USG%
+]
+
+ADVANCED_OPPONENT_FEATURES: list[str] = [
+    "opp_def_rating_ewma10",   # Opponent EWMA defensive rating
+    "opp_pace_ewma10",         # Opponent EWMA pace
+    "game_pace_predicted",     # Expected total possessions
+]
+
+ADVANCED_STANDINGS_FEATURES: list[str] = [
+    "team_playoff_seed",    # Playoff seeding
+    "team_games_behind",    # Games behind first
+    "season_phase",         # 0-1 position within season
+]
+
+ADVANCED_FOUR_FACTORS_FEATURES: list[str] = [
+    "player_efg_pct",   # Effective field goal percentage
+    "player_ft_rate",   # Free throw rate
+    "player_tov_pct",   # Turnover percentage
+]
+
 FEATURE_FAMILIES: dict[str, list[str]] = {
     "identity": IDENTITY_FEATURES,
     "schedule": SCHEDULE_FEATURES,
@@ -106,6 +148,13 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
     "injury_availability": INJURY_AVAILABILITY_FEATURES,
     "lineup_fallback": LINEUP_FALLBACK_FEATURES,
     "sparse_event": SPARSE_EVENT_FEATURES,
+    # Advanced features from Item 2
+    "advanced_usage": ADVANCED_USAGE_FEATURES,
+    "advanced_shot_quality": ADVANCED_SHOT_QUALITY_FEATURES,
+    "advanced_injury": ADVANCED_INJURY_FEATURES,
+    "advanced_opponent": ADVANCED_OPPONENT_FEATURES,
+    "advanced_standings": ADVANCED_STANDINGS_FEATURES,
+    "advanced_four_factors": ADVANCED_FOUR_FACTORS_FEATURES,
 }
 
 MODEL_FEATURES: list[str] = [f for family in FEATURE_FAMILIES.values() for f in family]

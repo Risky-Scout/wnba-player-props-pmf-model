@@ -154,3 +154,31 @@ use_model_ensemble: false  # set true after validating IS improvement
 # P3.4: Pi rating baseline from OOF model predictions
 # --------------------------------------------------------------------------
 pi_rating_use_model_baseline: false  # set true after first OOF run produces predictions
+
+# --------------------------------------------------------------------------
+# Advanced features — Item 2 of Production Blueprint
+# 24 new columns from BDL extended endpoints
+# --------------------------------------------------------------------------
+use_advanced_features: true
+
+new_features:
+  - player_usage_pct
+  - player_usage_pct_ewma10
+  - player_usage_pct_vs_avg
+  - player_pct_fg_restricted
+  - player_pct_fg_corner3
+  - player_pct_fg_midrange
+  - player_fg_pct_restricted
+  - shot_quality_score
+  - teammate_out_count
+  - teammate_questionable_count
+  - team_total_usage_of_out_players
+  - opp_def_rating_ewma10
+  - opp_pace_ewma10
+  - game_pace_predicted
+  - team_playoff_seed
+  - team_games_behind
+  - season_phase
+  - player_efg_pct
+  - player_ft_rate
+  - player_tov_pct

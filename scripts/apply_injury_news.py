@@ -135,6 +135,81 @@ def main(
     else:
         typer.echo(f"\nRevised slate written to: {out_dir}/full_pmfs_wide.parquet")
 
+    # Automated Usage Transfer Matrix (Item 9)
+    # When a player is marked "out", auto-redistribute their USG% and minutes
+    # to teammates using BDL season advanced stats data.
+    if status_lower == "out":
+        _apply_usage_transfer(player_id, slate)
+
+
+def _apply_usage_transfer(out_player_id: int, slate_path: str) -> None:
+    """Apply automated USG%-based redistribution via UsageTransferMatrix."""
+    try:
+        import pandas as pd  # noqa: PLC0415
+        from pathlib import Path  # noqa: PLC0415
+        from wnba_props_model.models.usage_transfer import UsageTransferMatrix  # noqa: PLC0415
+
+        # Try to load season advanced stats
+        season_adv_candidates = [
+            Path("data/processed/wnba_player_season_advanced.parquet"),
+            Path("data/raw/bdl/wnba_player_season_advanced.parquet"),
+        ]
+        season_adv_df = None
+        for cand in season_adv_candidates:
+            if cand.exists():
+                season_adv_df = pd.read_parquet(cand)
+                break
+
+        if season_adv_df is None:
+            typer.echo("[UTM] No season advanced stats found — skipping UsageTransferMatrix")
+            return
+
+        utm = UsageTransferMatrix(season_adv_df)
+
+        # Load the slate to get the roster for this game
+        slate_df = pd.read_parquet(slate_path)
+        if "projected_minutes" not in slate_df.columns:
+            typer.echo("[UTM] No projected_minutes in slate — skipping redistribution")
+            return
+
+        # Find the team of the out player
+        player_rows = slate_df[slate_df["player_id"] == out_player_id]
+        if player_rows.empty:
+            typer.echo(f"[UTM] Player {out_player_id} not in slate — skipping")
+            return
+        team_id = player_rows.iloc[0].get("team_id")
+        if team_id is None:
+            typer.echo("[UTM] No team_id — skipping redistribution")
+            return
+
+        # Build roster for this team
+        team_rows = slate_df[slate_df["team_id"] == team_id].copy()
+        roster = team_rows[["player_id", "projected_minutes"]].drop_duplicates("player_id").to_dict("records")
+        out_minutes = float(player_rows.iloc[0].get("projected_minutes", 0.0))
+
+        updated_roster, report = utm.redistribute(
+            roster,
+            out_player_ids=[out_player_id],
+            out_minutes_dict={out_player_id: out_minutes},
+        )
+
+        if report.get("transferred"):
+            typer.echo(
+                f"[UTM] Redistributed {report['total_out_minutes']:.1f} min / "
+                f"{report['total_out_usage_pct']:.1f}% USG from player {out_player_id} "
+                f"to {len(report.get('transfers', []))} teammates"
+            )
+            for t in report.get("transfers", [])[:5]:
+                typer.echo(
+                    f"  → player {t['player_id']}: "
+                    f"+{t['extra_minutes']:.1f} min, +{t['extra_usage_pct']:.1f}% USG"
+                )
+        else:
+            typer.echo(f"[UTM] No redistribution performed: {report.get('reason', 'unknown')}")
+
+    except Exception as exc:
+        typer.echo(f"[UTM] UsageTransferMatrix failed (non-fatal): {exc}")
+
 
 if __name__ == "__main__":
     app()

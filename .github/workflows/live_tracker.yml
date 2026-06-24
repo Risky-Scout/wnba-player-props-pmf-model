@@ -1,0 +1,155 @@
+name: Live In-Play Tracker
+
+on:
+  schedule:
+    # Run every 5 minutes during typical WNBA game windows (6 PM - 11 PM ET = 22:00-03:00 UTC)
+    # Saturday-Wednesday (most WNBA games)
+    - cron: '*/5 22-23,0-3 * * 6,0,1,2,3'
+    # Friday games
+    - cron: '*/5 22-23,0-3 * * 5'
+    # Thursday games (some)
+    - cron: '*/5 22-23,0-3 * * 4'
+
+  workflow_dispatch:
+    inputs:
+      game_id:
+        description: 'Specific game ID(s) to track (space-separated). Leave empty to auto-detect.'
+        required: false
+        default: ''
+      duration_minutes:
+        description: 'How long to track in minutes (default 150)'
+        required: false
+        default: '150'
+      poll_interval:
+        description: 'Seconds between polls (default 15)'
+        required: false
+        default: '15'
+
+jobs:
+  find-games:
+    name: Find Active WNBA Games
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_games: ${{ steps.find.outputs.has_games }}
+      game_ids: ${{ steps.find.outputs.game_ids }}
+      date: ${{ steps.find.outputs.date }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" --quiet
+
+      - name: Find active games
+        id: find
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          # If specific game_ids provided via manual trigger, use those
+          if [ -n "${{ github.event.inputs.game_id }}" ]; then
+            GAME_IDS="${{ github.event.inputs.game_id }}"
+            echo "has_games=true" >> $GITHUB_OUTPUT
+            echo "game_ids=$GAME_IDS" >> $GITHUB_OUTPUT
+            echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            echo "Using manually specified game IDs: $GAME_IDS"
+          else
+            mkdir -p artifacts/live
+            python scripts/find_live_games.py --out-dir artifacts/live
+          fi
+
+      - name: Upload games info
+        if: steps.find.outputs.has_games == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-games-info
+          path: artifacts/live/live_games.json
+          retention-days: 1
+
+  track-live:
+    name: Track Live Props
+    needs: find-games
+    if: needs.find-games.outputs.has_games == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" --quiet
+
+      - name: Download pre-game projections
+        id: download_projections
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-delivery-${{ needs.find-games.outputs.date }}
+          path: deliveries/today/
+        continue-on-error: true
+
+      - name: Check projections
+        run: |
+          if [ -f "deliveries/today/full_pmfs_wide.parquet" ]; then
+            echo "Pre-game projections loaded."
+          else
+            echo "[WARN] No pre-game projections found for ${{ needs.find-games.outputs.date }}"
+            mkdir -p deliveries/today
+          fi
+
+      - name: Run live tracker
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          DURATION=${{ github.event.inputs.duration_minutes || '150' }}
+          POLL=${{ github.event.inputs.poll_interval || '15' }}
+          GAME_IDS="${{ needs.find-games.outputs.game_ids }}"
+
+          # Convert space-separated IDs to --game-ids arguments
+          ARGS=""
+          for gid in $GAME_IDS; do
+            ARGS="$ARGS --game-ids $gid"
+          done
+
+          mkdir -p artifacts/live
+          python scripts/run_live_tracker.py \
+            $ARGS \
+            --duration $DURATION \
+            --poll-interval $POLL \
+            --out-dir artifacts/live/
+
+      - name: Upload live edges
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-edges-${{ github.run_number }}-${{ needs.find-games.outputs.date }}
+          path: artifacts/live/
+          retention-days: 7
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f "artifacts/live/live_session_summary.json" ]; then
+            echo "=== Live Session Summary ==="
+            cat artifacts/live/live_session_summary.json | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(f'Games tracked: {d.get(\"game_ids\", [])}')
+print(f'Total polls: {d.get(\"n_polls\", 0)}')
+print(f'Bettable edges found: {d.get(\"n_bettable_edges_total\", 0)}')
+edges = d.get('bettable_edges', [])[:5]
+if edges:
+    print('Top edges:')
+    for e in edges:
+        print(f'  player={e.get(\"player_id\")} {e.get(\"stat\")} {e.get(\"direction\", \"\").upper()} edge={e.get(\"edge_pp\", 0):+.1f}pp')
+"
+          fi

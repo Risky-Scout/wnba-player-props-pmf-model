@@ -74,6 +74,49 @@ def main(
     typer.echo(f"Calibrated: {n_cal:,}/{len(pmfs):,} rows")
 
     props_df = pd.read_parquet(raw_props) if raw_props else None
+
+    # Game Total Anchoring (Item 6) — ensure player projections are coherent
+    # with the efficiently-priced game total market before delivering.
+    try:
+        from wnba_props_model.models.game_total_anchor import GameTotalAnchoring  # noqa: PLC0415
+        odds_df: pd.DataFrame | None = None
+        odds_candidates = [
+            Path("data/processed/wnba_odds.parquet"),
+            Path("data/raw/bdl/wnba_odds.parquet"),
+        ]
+        for cand in odds_candidates:
+            if cand.exists():
+                odds_df = pd.read_parquet(cand)
+                break
+        if odds_df is not None and not pmfs.empty:
+            anchoring = GameTotalAnchoring(threshold=3.0, max_scale=1.15)
+            # Build per-game player projection list for anchoring
+            for game_id, g_rows in pmfs.groupby("game_id"):
+                pts_rows = g_rows[g_rows["stat"] == "pts"]
+                if pts_rows.empty:
+                    continue
+                game_odds = odds_df[odds_df["game_id"] == game_id] if "game_id" in odds_df.columns else pd.DataFrame()
+                market_total = anchoring.get_market_total(game_odds)
+                if market_total is None:
+                    continue
+                projs = pts_rows[["player_id", "team_id", "mean"]].copy()
+                projs = projs.rename(columns={"mean": "pts_mean"})
+                projs["team"] = projs.apply(
+                    lambda r: "home" if r.get("is_home", True) else "away", axis=1
+                )
+                anchored = anchoring.anchor(projs.to_dict("records"), market_total)
+                scale_map = {
+                    r["player_id"]: r.get("anchor_scale_factor", 1.0) for r in anchored
+                }
+                if "anchor_scale_factor" not in pmfs.columns:
+                    pmfs["anchor_scale_factor"] = 1.0
+                pmfs.loc[pmfs["game_id"] == game_id, "anchor_scale_factor"] = (
+                    pmfs.loc[pmfs["game_id"] == game_id, "player_id"].map(scale_map).fillna(1.0)
+                )
+            typer.echo("Game Total Anchoring applied.")
+    except Exception as exc:
+        typer.echo(f"[WARN] Game Total Anchoring failed (non-fatal): {exc}")
+
     paths = write_delivery(pmfs, out_dir, props_df, game_date=game_date)
     for k, v in paths.items():
         typer.echo(f"  {k}: {v}")

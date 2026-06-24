@@ -397,14 +397,118 @@ def pull_full_history(
         )
 
     # ------------------------------------------------------------------
-    # 10. Endpoints skipped — require per-game iteration not yet implemented
+    # 10. Player season advanced stats — measure_type splits (usage, four_factors, scoring)
     # ------------------------------------------------------------------
-    for ep in ("plays", "player_shot_locations"):
-        availability[ep] = _ep_record(
-            attempted=False,
-            status=EndpointStatus.SKIPPED,
-            notes="Requires per-game iteration. Use targeted pull for specific game_ids.",
+    SEASON_ADV_MEASURE_TYPES = ["usage", "four_factors", "scoring", "advanced"]
+    all_season_adv_rows: list[dict] = []
+    season_adv_err: str | None = None
+    for season in seasons_list:
+        for mt in SEASON_ADV_MEASURE_TYPES:
+            rows, err = _try_pull(
+                client,
+                "player_season_advanced_stats",
+                {"season": season, "measure_type": mt, "per_mode": "per_game"},
+            )
+            if err:
+                season_adv_err = err
+                break
+            for r in rows:
+                r["_measure_type"] = mt
+            all_season_adv_rows.extend(rows)
+        if season_adv_err:
+            break
+    if season_adv_err:
+        availability["player_season_advanced_stats"] = _ep_record(
+            attempted=True, status=classify_bdl_error(season_adv_err),
+            error_message=season_adv_err, seasons_attempted=seasons_list, fallback_required=True,
         )
+    elif all_season_adv_rows:
+        from wnba_props_model.data.normalize import normalize_season_advanced_stats
+        df_season_adv = normalize_season_advanced_stats(all_season_adv_rows)
+        p = _write(df_season_adv, "wnba_player_season_advanced")
+        paths["player_season_advanced_stats"] = p
+        availability["player_season_advanced_stats"] = _ep_record(
+            attempted=True, status=EndpointStatus.DOCUMENTED_SUCCESS,
+            row_count=len(df_season_adv), seasons_attempted=seasons_list, raw_output_path=str(p),
+        )
+    else:
+        availability["player_season_advanced_stats"] = _ep_record(
+            attempted=True, status=EndpointStatus.DOCUMENTED_EMPTY, seasons_attempted=seasons_list,
+        )
+
+    # ------------------------------------------------------------------
+    # 11. Team game advanced stats
+    # ------------------------------------------------------------------
+    all_team_adv_rows: list[dict] = []
+    team_adv_err: str | None = None
+    for season in seasons_list:
+        rows, err = _try_pull(client, "team_game_advanced_stats", {"season": season})
+        if err:
+            team_adv_err = err
+            break
+        all_team_adv_rows.extend(rows)
+    if team_adv_err:
+        availability["team_game_advanced_stats"] = _ep_record(
+            attempted=True, status=classify_bdl_error(team_adv_err),
+            error_message=team_adv_err, seasons_attempted=seasons_list, fallback_required=True,
+        )
+    elif all_team_adv_rows:
+        from wnba_props_model.data.normalize import normalize_team_advanced_stats
+        df_team_adv = normalize_team_advanced_stats(all_team_adv_rows)
+        p = _write(df_team_adv, "wnba_team_game_advanced")
+        paths["team_game_advanced_stats"] = p
+        availability["team_game_advanced_stats"] = _ep_record(
+            attempted=True, status=EndpointStatus.DOCUMENTED_SUCCESS,
+            row_count=len(df_team_adv), seasons_attempted=seasons_list, raw_output_path=str(p),
+        )
+    else:
+        availability["team_game_advanced_stats"] = _ep_record(
+            attempted=True, status=EndpointStatus.DOCUMENTED_EMPTY, seasons_attempted=seasons_list,
+        )
+
+    # ------------------------------------------------------------------
+    # 12. Player + team shot locations  (season-level, by_zone)
+    # ------------------------------------------------------------------
+    for entity_key, ep_name in [("player", "player_shot_locations"), ("team", "team_shot_locations")]:
+        all_shot_rows: list[dict] = []
+        shot_err: str | None = None
+        for season in seasons_list:
+            rows, err = _try_pull(
+                client, ep_name,
+                {"season": season, "distance_range": "by_zone", "per_mode": "per_game"},
+            )
+            if err:
+                shot_err = err
+                break
+            all_shot_rows.extend(rows)
+        ep_canon = f"{entity_key}_shot_locations"
+        if shot_err:
+            availability[ep_canon] = _ep_record(
+                attempted=True, status=classify_bdl_error(shot_err),
+                error_message=shot_err, seasons_attempted=seasons_list, fallback_required=True,
+            )
+        elif all_shot_rows:
+            df_shot = normalize_shot_locations(all_shot_rows)
+            p = _write(df_shot, f"wnba_{entity_key}_shot_locations")
+            paths[ep_canon] = p
+            availability[ep_canon] = _ep_record(
+                attempted=True, status=EndpointStatus.DOCUMENTED_SUCCESS,
+                row_count=len(df_shot), seasons_attempted=seasons_list, raw_output_path=str(p),
+            )
+        else:
+            availability[ep_canon] = _ep_record(
+                attempted=True, status=EndpointStatus.DOCUMENTED_EMPTY,
+                seasons_attempted=seasons_list,
+            )
+
+    # ------------------------------------------------------------------
+    # 13. Play-by-play — skipped in bulk pull; use pull_plays_for_game() for live
+    # ------------------------------------------------------------------
+    availability["plays"] = _ep_record(
+        attempted=False,
+        status=EndpointStatus.SKIPPED,
+        notes="PBP requires per-game pull. Use pull_plays_for_game() for live tracking.",
+    )
 
     return {
         "paths": paths,
@@ -425,6 +529,31 @@ def pull_season_history(
 ) -> dict[str, Path]:
     result = pull_full_history(seasons, out_dir=out_dir, client=client)
     return result["paths"]
+
+
+def pull_plays_for_game(
+    game_id: int,
+    out_dir: str | Path = "data/raw/bdl/plays",
+    client: BDLClient | None = None,
+) -> Path:
+    """Pull play-by-play for a single game and write to parquet."""
+    client = client or BDLClient()
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    try:
+        rows = client.list_endpoint("plays", {"game_id": game_id})
+    except BDLAPIError:
+        rows = []
+    from wnba_props_model.data.normalize import normalize_plays
+    # Inject game_id into rows that may lack it
+    for r in rows:
+        r.setdefault("game_id", game_id)
+    df = normalize_plays(rows)
+    df["source"] = "bdl"
+    df["pull_timestamp_utc"] = datetime.now(timezone.utc).isoformat()
+    p = out / f"plays_{game_id}.parquet"
+    df.to_parquet(p, index=False)
+    return p
 
 
 def pull_live_market_snapshot(

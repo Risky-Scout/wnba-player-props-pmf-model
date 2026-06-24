@@ -356,5 +356,137 @@ def main(
         typer.echo(f"Updated drift window → {drift_path} ({len(drift_df):,} rows with pmf_json)")
 
 
+# ---------------------------------------------------------------------------
+# Item 11: CLV closing-line comparison utility functions
+# ---------------------------------------------------------------------------
+
+def compute_closing_line_value(
+    predictions_df: pd.DataFrame,
+    closing_odds_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Compute Closing Line Value (CLV) for each prediction.
+
+    CLV = model_price - closing_price
+    A positive CLV means the model identified value before the market adjusted.
+
+    Targets:
+      - CLV% (fraction of bets with positive CLV) > 60%
+      - Mean CLV > 2pp (percentage points)
+
+    Args:
+        predictions_df: DataFrame with model_p_over, bet_direction, game_id, player_id, prop_type
+        closing_odds_df: DataFrame from /wnba/v1/odds with latest odds (closing odds)
+
+    Returns:
+        DataFrame with added: closing_p_over, clv, clv_positive, clv_pp
+    """
+    # Get closing odds (latest update before game start per player/prop)
+    if "updated_at" in closing_odds_df.columns:
+        closing = (
+            closing_odds_df
+            .sort_values("updated_at")
+            .groupby(["game_id", "player_id", "prop_type"])
+            .last()
+            .reset_index()
+        )
+    else:
+        closing = closing_odds_df.copy()
+
+    # Merge closing odds onto predictions
+    merge_cols = ["game_id", "player_id", "prop_type"]
+    available_merge = [c for c in merge_cols if c in predictions_df.columns and c in closing.columns]
+    if not available_merge:
+        return predictions_df
+
+    odds_cols = [c for c in ["over_odds", "under_odds"] if c in closing.columns]
+    merged = predictions_df.merge(
+        closing[available_merge + odds_cols],
+        on=available_merge,
+        how="left",
+        suffixes=("", "_closing"),
+    )
+
+    # Compute closing implied probability (American odds → prob)
+    def _american_to_prob(odds_series: pd.Series) -> pd.Series:
+        def _convert(odds):
+            try:
+                o = int(float(odds))
+                if o > 0:
+                    return 100.0 / (100.0 + o)
+                elif o < 0:
+                    return abs(o) / (100.0 + abs(o))
+            except (TypeError, ValueError):
+                pass
+            return float("nan")
+        return odds_series.apply(_convert)
+
+    over_col = "over_odds_closing" if "over_odds_closing" in merged.columns else "over_odds"
+    under_col = "under_odds_closing" if "under_odds_closing" in merged.columns else "under_odds"
+
+    if over_col in merged.columns and under_col in merged.columns:
+        imp_over = _american_to_prob(merged[over_col])
+        imp_under = _american_to_prob(merged[under_col])
+        total = (imp_over + imp_under).clip(lower=1e-6)
+        merged["closing_p_over"] = imp_over / total
+    else:
+        merged["closing_p_over"] = float("nan")
+
+    # CLV = model - closing (positive = model found value before market moved)
+    if "model_p_over" in merged.columns:
+        merged["clv"] = merged["model_p_over"] - merged["closing_p_over"]
+        merged["clv_positive"] = (merged["clv"] > 0).astype(int)
+        merged["clv_pp"] = merged["clv"] * 100
+    else:
+        merged["clv"] = float("nan")
+        merged["clv_positive"] = 0
+        merged["clv_pp"] = float("nan")
+
+    return merged
+
+
+def generate_clv_report(results_parquet: str, lookback: int = 100) -> dict:
+    """Generate rolling CLV report with key performance metrics.
+
+    Key metrics:
+      - CLV% (fraction of bets with positive CLV): Target > 60%
+      - mean_true_clv (average CLV in pp): Target > 2pp
+      - CLV by stat: Which stats does the model beat the close on?
+      - CLV by role: Starters vs bench
+    """
+    try:
+        df = pd.read_parquet(results_parquet)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+    recent = df.tail(lookback)
+    if recent.empty:
+        return {"n_bets": 0, "clv_pct": 0.0, "mean_clv_pp": 0.0}
+
+    clv_col = "clv" if "clv" in recent.columns else "true_clv" if "true_clv" in recent.columns else None
+    if clv_col is None:
+        return {"n_bets": len(recent), "clv_pct": float("nan"), "mean_clv_pp": float("nan")}
+
+    clv_valid = recent[clv_col].dropna()
+    report = {
+        "n_bets": len(recent),
+        "n_with_clv": len(clv_valid),
+        "clv_pct": float((clv_valid > 0).mean() * 100),
+        "mean_clv_pp": float(clv_valid.mean() * 100),
+        "median_clv_pp": float(clv_valid.median() * 100),
+    }
+    if "stat" in recent.columns and clv_col in recent.columns:
+        report["clv_by_stat"] = (
+            recent.groupby("stat")[clv_col].mean().multiply(100).round(2).to_dict()
+        )
+        report["clv_positive_by_stat"] = (
+            recent.groupby("stat")[clv_col].apply(lambda x: (x > 0).mean() * 100).round(1).to_dict()
+        )
+    if "role_bucket" in recent.columns and clv_col in recent.columns:
+        report["clv_by_role"] = (
+            recent.groupby("role_bucket")[clv_col].mean().multiply(100).round(2).to_dict()
+        )
+    return report
+
+
 if __name__ == "__main__":
     app()

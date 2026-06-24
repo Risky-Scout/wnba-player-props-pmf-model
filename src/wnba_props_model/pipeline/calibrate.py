@@ -88,6 +88,69 @@ def _build_oof_combo_pmfs(oof_base: pd.DataFrame) -> pd.DataFrame:
     return combo_rows
 
 
+def fit_beta_calibrators(
+    oof_pmfs_path: str | Path,
+    out_dir: str | Path = "artifacts/models/calibration",
+    line_col: str = "line",
+) -> dict[str, Path]:
+    """Fit Beta calibrators for P(over) on top of per-stat isotonic calibrators.
+
+    Saved alongside the isotonic calibrators as beta_cal_{stat}.pkl.
+    The beta calibrator operates on P(over) outputs and is the preferred
+    method when n_oof >= 50 (Manokhin & Grønhaug, 2026).
+    """
+    import joblib  # noqa: PLC0415
+    from wnba_props_model.evaluation.beta_calibration import fit_best_calibrator  # noqa: PLC0415
+
+    oof = pd.read_parquet(oof_pmfs_path).copy()
+    if "outcome" not in oof.columns and "actual_outcome" in oof.columns:
+        oof["outcome"] = oof["actual_outcome"]
+    if "pmf" not in oof.columns and "pmf_json" in oof.columns:
+        oof["pmf"] = oof["pmf_json"].map(json_to_pmf)
+    if "calibration_eligible" in oof.columns:
+        oof = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+
+    for stat in sorted(set(oof["stat"].dropna()) & set(SUPPORTED_STATS)):
+        stat_rows = oof[oof["stat"] == stat]
+        if line_col not in stat_rows.columns or stat_rows[line_col].isna().all():
+            continue
+
+        rows = stat_rows.dropna(subset=[line_col, "outcome"])
+        if len(rows) < 20:
+            continue
+
+        # P(over) from raw PMF at each line
+        def _p_over(row: pd.Series) -> float:
+            pmf = row.get("pmf")
+            if pmf is None:
+                return float("nan")
+            line = float(row[line_col])
+            if isinstance(pmf, dict):
+                return sum(p for k, p in pmf.items() if k > line)
+            arr = np.asarray(pmf, dtype=float)
+            k_int = int(line)
+            return float(arr[k_int + 1:].sum()) if k_int + 1 < len(arr) else 0.0
+
+        scores = rows.apply(_p_over, axis=1).values
+        labels = (rows["outcome"].values > rows[line_col].values).astype(float)
+
+        mask = ~np.isnan(scores)
+        if mask.sum() < 20:
+            continue
+
+        cal = fit_best_calibrator(scores[mask], labels[mask])
+        path = out / f"beta_cal_{stat}.pkl"
+        joblib.dump(cal, path)
+        paths[stat] = path
+        logger.info("[calibrate] Beta calibrator saved for %s → %s", stat, path)
+
+    return paths
+
+
 def fit_calibrators(
     oof_pmfs_path: str | Path,
     out_dir: str | Path = "artifacts/models/calibration",
@@ -148,6 +211,14 @@ def fit_calibrators(
         path = out / f"pmf_cal_role_{stat}.pkl"
         cal.save(str(path))
         paths[stat] = path
+
+    # Also fit Beta calibrators for P(over) (Item 5A)
+    try:
+        beta_paths = fit_beta_calibrators(oof_pmfs_path, out_dir)
+        paths.update({f"beta_{k}": v for k, v in beta_paths.items()})
+    except Exception as exc:
+        logger.warning("[calibrate] Beta calibrator fitting failed: %s", exc)
+
     return paths
 
 

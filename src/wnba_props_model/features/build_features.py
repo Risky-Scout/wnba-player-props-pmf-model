@@ -1677,6 +1677,19 @@ def build_wide_table(
         audit_notes["rotation_minutes_error"] = str(exc)
 
     # ------------------------------------------------------------------ #
+    # Advanced features — 24 new columns from extended BDL endpoints
+    # (Item 2 of production blueprint)
+    # ------------------------------------------------------------------ #
+    try:
+        from wnba_props_model.features.advanced_features import build_all_advanced_features  # noqa: PLC0415
+        processed_dir = Path(data_dir) / ".." / "processed" if data_dir else None
+        wide = build_all_advanced_features(wide, processed_dir=processed_dir)
+        audit_notes["advanced_features_applied"] = True
+    except Exception as exc:
+        audit_notes["advanced_features_applied"] = False
+        audit_notes["advanced_features_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns
     # ------------------------------------------------------------------ #
     num_cols = wide.select_dtypes(include="number").columns

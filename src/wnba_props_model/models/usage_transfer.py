@@ -333,3 +333,115 @@ def compute_team_usage_maps(
             team_maps[tid] = {}
         team_maps[tid][pid] = info
     return team_maps
+
+
+# ===========================================================================
+# Item 9: Automated Usage Transfer Matrix (blueprint specification)
+# Replaces manual overrides in apply_injury_news.py with data-driven
+# USG%-based redistribution from BDL player_season_advanced_stats.
+# ===========================================================================
+
+class UsageTransferMatrix:
+    """Automatic usage redistribution using BDL USG% data.
+
+    When a player is ruled out (or leaves mid-game), their USG% and
+    minutes must be redistributed to remaining teammates proportionally
+    to each available player's baseline USG%.
+
+    Redistribution rule:
+      1. Sum the out player's USG% (from BDL season advanced stats)
+      2. Redistribute proportionally to remaining players' USG%
+      3. Scale minutes: out player's minutes distributed by each
+         teammate's share of remaining total USG%
+
+    Example:
+      Player A (USG% = 25%) is OUT
+      Remaining: B(20%), C(18%), D(12%), E(8%), F(5%) → total = 63%
+      B gets: 25% * (20/63) = 7.94% additional USG%
+      B's minutes boost = A_minutes * (20/63) = ~9.5 extra min
+    """
+
+    def __init__(self, season_usage_df: pd.DataFrame) -> None:
+        """
+        Args:
+            season_usage_df: DataFrame from player_season_adv_usage.parquet
+                Required columns: player_id, usg_pct_season (or usage_USG_PCT)
+        """
+        usg_col = next(
+            (c for c in ["usg_pct_season", "usage_USG_PCT", "usage_pct", "usage_percentage"]
+             if c in season_usage_df.columns),
+            None,
+        )
+        if usg_col:
+            self.usage_lookup: dict[int, float] = dict(
+                zip(season_usage_df["player_id"],
+                    season_usage_df[usg_col].fillna(0.20))
+            )
+        else:
+            logger.warning("UsageTransferMatrix: no USG% column found — using uniform 0.20")
+            self.usage_lookup = {}
+
+    def get_usage(self, player_id: int) -> float:
+        return float(self.usage_lookup.get(player_id, 0.20))
+
+    def redistribute(
+        self,
+        roster: list[dict],
+        out_player_ids: list[int],
+        out_minutes_dict: dict[int, float] | None = None,
+    ) -> tuple[list[dict], dict]:
+        """Redistribute usage and minutes for out players.
+
+        Args:
+            roster: list of dicts with keys: player_id, projected_minutes
+            out_player_ids: list of player_ids who are OUT
+            out_minutes_dict: {player_id: projected_minutes} for out players
+                (if None, uses roster's projected_minutes for out players)
+
+        Returns:
+            (updated_roster, transfer_report)
+        """
+        out_ids_set = set(out_player_ids)
+        available = [p for p in roster if p["player_id"] not in out_ids_set]
+        out_players = [p for p in roster if p["player_id"] in out_ids_set]
+
+        if not available or not out_players:
+            return roster, {"transferred": False, "reason": "no_available_or_no_out"}
+
+        # Sum USG% of available players
+        available_usg = {p["player_id"]: self.get_usage(p["player_id"]) for p in available}
+        total_available_usg = max(sum(available_usg.values()), 1e-6)
+
+        # Sum USG% and minutes of out players
+        total_out_usg = sum(self.get_usage(p["player_id"]) for p in out_players)
+        total_out_minutes = sum(
+            (out_minutes_dict or {}).get(p["player_id"], p.get("projected_minutes", 0.0))
+            for p in out_players
+        )
+
+        transfers = []
+        for p in roster:
+            if p["player_id"] in out_ids_set:
+                p["projected_minutes"] = 0.0
+                p["status"] = "out"
+                continue
+            share = available_usg.get(p["player_id"], 0.10) / total_available_usg
+            extra_min = total_out_minutes * share
+            extra_usg = total_out_usg * share
+            p["projected_minutes_original"] = p.get("projected_minutes", 0.0)
+            p["projected_minutes"] = p.get("projected_minutes", 0.0) + extra_min
+            p["usage_pct_adjusted"] = available_usg.get(p["player_id"], 0.10) + extra_usg
+            transfers.append({
+                "player_id": p["player_id"],
+                "extra_minutes": round(extra_min, 1),
+                "extra_usage_pct": round(extra_usg * 100, 2),
+            })
+
+        return roster, {
+            "transferred": True,
+            "n_out": len(out_players),
+            "n_available": len(available),
+            "total_out_usage_pct": round(total_out_usg * 100, 2),
+            "total_out_minutes": round(total_out_minutes, 1),
+            "transfers": transfers,
+        }

@@ -657,6 +657,70 @@ def normalize_standings(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # Utilities
 # ---------------------------------------------------------------------------
 
+def normalize_season_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Normalize player_season_advanced_stats rows (multiple measure_types) into a flat table."""
+    flat = []
+    for r in rows:
+        player = r.get("player") or {}
+        team = r.get("team") or {}
+        mt = r.get("_measure_type", "advanced")
+        stats = r.get("stats") or {}
+        base = {
+            "season": r.get("season"),
+            "player_id": player.get("id") or r.get("player_id"),
+            "player_name": " ".join(
+                x for x in [player.get("first_name"), player.get("last_name")] if x
+            ),
+            "team_id": team.get("id") or r.get("team_id"),
+            "measure_type": mt,
+        }
+        for k, v in stats.items():
+            base[f"{mt}_{k}"] = _to_numeric(v) if isinstance(v, (int, float, str)) else v
+        flat.append(base)
+    df = pd.DataFrame(flat)
+    if df.empty:
+        return df
+    # Pivot: one row per (player_id, season) with all measure_type stats
+    key_cols = ["season", "player_id", "player_name", "team_id"]
+    non_key = [c for c in df.columns if c not in key_cols and c != "measure_type"]
+    df = df.groupby(key_cols, as_index=False)[non_key].first()
+    return df.reset_index(drop=True)
+
+
+def normalize_team_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Normalize team_game_advanced_stats rows."""
+    flat = []
+    for r in rows:
+        team = r.get("team") or {}
+        game = r.get("game") or {}
+        stats = r.get("stats") or {}
+        base = {
+            "game_id": game.get("id") or r.get("game_id"),
+            "game_date": pd.to_datetime(
+                game.get("date") or r.get("date"), utc=True, errors="coerce"
+            ),
+            "season": game.get("season") or r.get("season"),
+            "team_id": team.get("id") or r.get("team_id"),
+            "defensive_rating": _to_numeric(
+                stats.get("DEF_RATING") or r.get("defensive_rating")
+            ),
+            "offensive_rating": _to_numeric(
+                stats.get("OFF_RATING") or r.get("offensive_rating")
+            ),
+            "net_rating": _to_numeric(stats.get("NET_RATING") or r.get("net_rating")),
+            "pace": _to_numeric(stats.get("PACE") or r.get("pace")),
+            "pie": _to_numeric(stats.get("PIE") or r.get("pie")),
+            "efg_pct": _to_numeric(stats.get("EFG_PCT") or r.get("efg_pct")),
+            "ts_pct": _to_numeric(stats.get("TS_PCT") or r.get("ts_pct")),
+        }
+        flat.append(base)
+    df = pd.DataFrame(flat)
+    if df.empty:
+        return df
+    df["game_date"] = pd.to_datetime(df["game_date"])
+    return df.sort_values(["game_date", "game_id", "team_id"]).reset_index(drop=True)
+
+
 def safe_rate(numer: pd.Series, denom: pd.Series, floor: float = 1e-6) -> pd.Series:
     return numer.astype(float) / np.maximum(denom.astype(float), floor)
 

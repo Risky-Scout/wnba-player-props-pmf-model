@@ -200,6 +200,10 @@ def main(
     stats_raw = _read_raw(raw, "wnba_player_game_stats")
     odds_raw = _read_raw(raw, "wnba_odds")
     adv_raw = _read_raw(raw, "wnba_player_advanced_stats")
+    season_adv_raw = _read_raw(raw, "wnba_player_season_advanced")
+    team_adv_raw = _read_raw(raw, "wnba_team_game_advanced")
+    player_shot_raw = _read_raw(raw, "wnba_player_shot_locations")
+    team_shot_raw = _read_raw(raw, "wnba_team_shot_locations")
     inj_raw = _read_raw(raw, "wnba_injuries")
     standings_raw = _read_raw(raw, "wnba_standings")
 
@@ -313,6 +317,34 @@ def main(
         validation_results.append(
             validate_table(props_raw, ALL_SCHEMAS["wnba_player_props"], str(p))
         )
+
+    # -- Player season advanced stats (optional) --
+    if season_adv_raw is not None:
+        p = out / "wnba_player_season_advanced.parquet"
+        season_adv_raw.to_parquet(p, index=False)
+        written["wnba_player_season_advanced"] = p
+        typer.echo(f"  wnba_player_season_advanced: {len(season_adv_raw):,} rows")
+
+    # -- Team game advanced stats (optional) --
+    if team_adv_raw is not None:
+        p = out / "wnba_team_game_advanced.parquet"
+        team_adv_raw.to_parquet(p, index=False)
+        written["wnba_team_game_advanced"] = p
+        typer.echo(f"  wnba_team_game_advanced: {len(team_adv_raw):,} rows")
+
+    # -- Player shot locations (optional) --
+    if player_shot_raw is not None:
+        p = out / "wnba_player_shot_locations.parquet"
+        player_shot_raw.to_parquet(p, index=False)
+        written["wnba_player_shot_locations"] = p
+        typer.echo(f"  wnba_player_shot_locations: {len(player_shot_raw):,} rows")
+
+    # -- Team shot locations (optional) --
+    if team_shot_raw is not None:
+        p = out / "wnba_team_shot_locations.parquet"
+        team_shot_raw.to_parquet(p, index=False)
+        written["wnba_team_shot_locations"] = p
+        typer.echo(f"  wnba_team_shot_locations: {len(team_shot_raw):,} rows")
 
     # -- Standings (optional) --
     if standings_raw is not None:
