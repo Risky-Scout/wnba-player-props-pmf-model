@@ -106,7 +106,9 @@ WNBA_ENDPOINTS: dict[str, Endpoint] = {
         "wnba", "/wnba/v1/odds/player_props", paginated=False, requires_goat=True,
         notes="Must always be called with game_id. Live only; BDL does not store historical props.",
     ),
-    "plays": Endpoint("wnba", "/wnba/v1/plays", paginated=False),
+    # plays: paginated=True so long games (200+ events) are fully retrieved.
+    # BDL returns up to 100 plays per page; without pagination, games >100 plays truncate.
+    "plays": Endpoint("wnba", "/wnba/v1/plays", paginated=True),
 }
 
 NBA_PARITY_ENDPOINTS: dict[str, Endpoint] = {
