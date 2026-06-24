@@ -56,7 +56,7 @@ def main(
         return
 
     try:
-        from wnba_props_model.data.client import BDLClient  # type: ignore[import]
+        from wnba_props_model.data.bdl_client import BDLClient  # noqa: PLC0415
         from wnba_props_model.pipeline.deliver import normalize_player_props_snapshot
     except ImportError as exc:
         typer.echo(f"[ERROR] Import failed: {exc}", err=True)
