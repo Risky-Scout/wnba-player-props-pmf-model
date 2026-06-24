@@ -169,10 +169,19 @@ class PBPParser:
         team_info: dict,
         roster_lookup: dict[str, dict],
     ) -> None:
-        """Extract player actions from play text."""
-        team_id = team_info.get("id") if team_info else None
+        """Extract ALL player actions from a single play text.
 
-        # Scoring plays (process first since they're most common)
+        BDL compound plays like "A. Wilson made 2-point layup. K. Collier assist."
+        contain multiple credits in one string. The old implementation had an early
+        `return` inside the scoring branch, preventing assist/rebound/steal credits
+        from being parsed on the same play.
+
+        This version collects ALL credits from the full text before returning.
+        """
+        team_id = team_info.get("id") if team_info else None
+        matched_any = False
+
+        # Scoring plays — credit all matches across the full text
         for pattern, stat_type in self.SCORING_PATTERNS:
             m = re.search(pattern, text, re.IGNORECASE)
             if m:
@@ -193,7 +202,19 @@ class PBPParser:
                     ps.fga += 1
                 elif stat_type == "ftmiss":
                     ps.fta += 1
-                return
+                matched_any = True
+                # Do NOT return — continue scanning for assists/rebounds on same play
+
+        # Assists — always scan the full play text regardless of scoring
+        m = re.search(self.ASSIST_PATTERN, text, re.IGNORECASE)
+        if m:
+            player_name = m.group(1).strip()
+            info = self._lookup_player(player_name, roster_lookup)
+            if info:
+                pid = info["player_id"]
+                self._ensure_player(pid, player_name, team_id, info)
+                self.player_states[pid].ast += 1
+                matched_any = True
 
         # Rebounds
         m = re.search(self.REBOUND_PATTERN, text, re.IGNORECASE)
@@ -204,19 +225,12 @@ class PBPParser:
                 pid = info["player_id"]
                 self._ensure_player(pid, player_name, team_id, info)
                 self.player_states[pid].reb += 1
+                matched_any = True
+
+        if matched_any:
             return
 
-        # Assists
-        m = re.search(self.ASSIST_PATTERN, text, re.IGNORECASE)
-        if m:
-            player_name = m.group(1).strip()
-            info = self._lookup_player(player_name, roster_lookup)
-            if info:
-                pid = info["player_id"]
-                self._ensure_player(pid, player_name, team_id, info)
-                self.player_states[pid].ast += 1
-            return
-
+        # Non-scoring non-rebound events (mutually exclusive — keep early return here)
         # Steals
         m = re.search(self.STEAL_PATTERN, text, re.IGNORECASE)
         if m:

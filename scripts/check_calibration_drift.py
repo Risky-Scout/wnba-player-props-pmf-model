@@ -35,31 +35,39 @@ import pandas as pd
 import typer
 from scipy import stats as sp_stats
 
-from wnba_props_model.evaluation.diagnostics import calibration_report
+from wnba_props_model.evaluation.diagnostics import calibration_report, randomized_pit_values
 
 
 # ---------------------------------------------------------------------------
 # PIT + ECCE-MAD implementation (Item 12)
 # ---------------------------------------------------------------------------
 
-def compute_pit_values(oof_pmfs: list[dict], actuals: list[int]) -> np.ndarray:
-    """Compute Probability Integral Transform values.
+def compute_pit_values(oof_pmfs: list, actuals: list[int]) -> np.ndarray:
+    """Compute randomized Probability Integral Transform values.
 
-    PIT(x) = P(X <= actual) using the model's PMF.
-    If model is well-calibrated, PIT ~ Uniform(0, 1).
+    Uses randomized PIT (ties broken uniformly) so that discrete PMFs produce
+    PIT values that are Uniform(0,1) under correct calibration. This is consistent
+    with the PIT convention used in calibration fitting (diagnostics.randomized_pit_values).
+
+    Deterministic PIT (CDF at actual) produces discrete artifacts that cause KS tests
+    to over-reject — randomized PIT is the correct choice for discrete count data.
     """
-    pit_values = []
-    for pmf, actual in zip(oof_pmfs, actuals):
+    # Normalize PMFs to ndarray format for randomized_pit_values
+    pmf_arrays: list[np.ndarray] = []
+    for pmf in oof_pmfs:
         if isinstance(pmf, dict):
-            cdf_at_actual = sum(p for v, p in pmf.items() if v <= actual)
-        elif hasattr(pmf, "__iter__"):
-            arr = np.asarray(pmf, dtype=float)
-            k = int(np.clip(actual, 0, len(arr) - 1))
-            cdf_at_actual = float(arr[:k + 1].sum())
+            kmax = max(int(k) for k in pmf.keys()) if pmf else 0
+            arr = np.zeros(kmax + 1)
+            for k, p in pmf.items():
+                arr[int(k)] = float(p)
+            pmf_arrays.append(arr)
+        elif hasattr(pmf, "__len__"):
+            pmf_arrays.append(np.asarray(pmf, dtype=float))
         else:
-            cdf_at_actual = 0.5
-        pit_values.append(float(cdf_at_actual))
-    return np.array(pit_values)
+            pmf_arrays.append(np.array([1.0]))
+
+    actuals_int = [int(a) for a in actuals]
+    return randomized_pit_values(pmf_arrays, actuals_int)
 
 
 def check_pit_uniformity(pit_values: np.ndarray, alpha: float = 0.05) -> dict:

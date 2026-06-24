@@ -136,7 +136,11 @@ def fit_beta_calibrators(
             return float(arr[k_int + 1:].sum()) if k_int + 1 < len(arr) else 0.0
 
         scores = rows.apply(_p_over, axis=1).values
-        labels = (rows["outcome"].values > rows[line_col].values).astype(float)
+        # Exclude integer push rows (actual == line) — they are neither over nor under.
+        # Including them as "under" biases calibration toward over-confidence on the under.
+        push_mask = (rows["outcome"].values != rows[line_col].values)
+        labels = (rows["outcome"].values[push_mask] > rows[line_col].values[push_mask]).astype(float)
+        scores = scores[push_mask]
 
         mask = ~np.isnan(scores)
         if mask.sum() < 20:
@@ -149,6 +153,31 @@ def fit_beta_calibrators(
         logger.info("[calibrate] Beta calibrator saved for %s → %s", stat, path)
 
     return paths
+
+
+def apply_beta_calibrators(
+    p_over_series: "pd.Series",
+    stat: str,
+    cal_dir: "str | Path" = "artifacts/models/calibration",
+) -> "pd.Series":
+    """Apply a fitted Beta calibrator to a series of P(over) scalars.
+
+    Returns recalibrated P(over) values in [0, 1]. Falls back to the
+    original series if no Beta calibrator is found for the stat.
+    """
+    import joblib as _jl  # noqa: PLC0415
+
+    cal_path = Path(cal_dir) / f"beta_cal_{stat}.pkl"
+    if not cal_path.exists():
+        return p_over_series
+    try:
+        cal = _jl.load(cal_path)
+        vals = p_over_series.fillna(0.5).clip(1e-6, 1 - 1e-6).values.reshape(-1, 1)
+        cal_probs = cal.predict(vals)
+        return pd.Series(cal_probs, index=p_over_series.index)
+    except Exception as exc:
+        logger.warning("[calibrate] apply_beta_calibrators(%s) failed: %s", stat, exc)
+        return p_over_series
 
 
 def fit_calibrators(
@@ -226,15 +255,26 @@ def fit_calibrators(
         from wnba_props_model.evaluation.conformal import ConformalPropPredictor  # noqa: PLC0415
 
         conformal = ConformalPropPredictor(alpha=0.10)
+        def _safe_pmf_mean(raw_pmf, domain_max: int = 80) -> float:
+            """Compute mean of a PMF that may be ndarray, list, JSON string, or dict."""
+            if isinstance(raw_pmf, (str, dict)):
+                arr = json_to_pmf(raw_pmf, domain_max=domain_max)
+            elif hasattr(raw_pmf, "__len__"):
+                arr = np.asarray(raw_pmf, dtype=float)
+            else:
+                return 0.0
+            if arr.sum() == 0:
+                return 0.0
+            arr = arr / arr.sum()
+            return float((np.arange(len(arr)) * arr).sum())
+
         for (stat, role), grp in oof_eligible.groupby(["stat", "role_bucket"]):
             if "pmf" not in grp.columns and "pmf_json" not in grp.columns:
                 continue
             if "actual_outcome" not in grp.columns:
                 continue
             pmf_col = grp["pmf"] if "pmf" in grp.columns else grp["pmf_json"].map(json_to_pmf)
-            support = np.arange(pmf_col.iloc[0].shape[0]) if hasattr(pmf_col.iloc[0], "shape") else np.arange(61)
-            preds = np.array([float((p * support).sum()) if hasattr(p, "__len__") else 0.0
-                              for p in pmf_col])
+            preds = np.array([_safe_pmf_mean(p) for p in pmf_col])
             actuals = grp["actual_outcome"].to_numpy(dtype=float)
             conformal.fit(preds, actuals, stat=str(stat), role=str(role))
 

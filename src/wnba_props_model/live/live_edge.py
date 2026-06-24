@@ -6,7 +6,8 @@ Compares live model P(over) against live prop lines from BDL
 Edge = model_p_over - vig_free_implied_p_over
 If |edge| >= min_edge (default 4pp = 0.04): bettable edge exists.
 
-Uses Shin's no-vig method for implied probability extraction.
+Uses Shin's no-vig method for implied probability extraction (consistent with
+the pre-game edge calculator in market.py).
 """
 from __future__ import annotations
 
@@ -14,6 +15,8 @@ import logging
 from typing import Optional
 
 import pandas as pd
+
+from wnba_props_model.models.market import shin_no_vig_two_way  # noqa: PLC0415
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +61,60 @@ class LiveEdgeCalculator:
     def __init__(self, min_edge: float = 0.04) -> None:
         self.min_edge = min_edge
 
+    # Combo stat components for live projection aggregation
+    LIVE_COMBO_STATS: dict[str, list[str]] = {
+        "pra": ["pts", "reb", "ast"],
+        "pa": ["pts", "ast"],
+        "pr": ["pts", "reb"],
+        "ra": ["reb", "ast"],
+        "stocks": ["stl", "blk"],
+    }
+
+    def _get_combo_p_over(
+        self,
+        live_predictions: dict[int, dict[str, dict]],
+        player_id,
+        combo_stat: str,
+        line: float,
+    ) -> Optional[float]:
+        """Estimate P(over line) for a combo stat by summing component projected means.
+
+        Uses Poisson convolution approximation: sum of independent Poisson means is
+        Poisson with μ = Σμᵢ. P(sum > line) is then computed from the Poisson CDF.
+        """
+        import math  # noqa: PLC0415
+        components = self.LIVE_COMBO_STATS.get(combo_stat, [])
+        if not components:
+            return None
+        player_data = live_predictions.get(player_id, {})
+        if not all(c in player_data for c in components):
+            return None
+        # Sum projected totals (Bayesian posterior means)
+        combo_mean = sum(
+            float(player_data[c].get("projected_total", player_data[c].get("mean", 0.0)))
+            for c in components
+        )
+        if combo_mean <= 0:
+            return None
+        # Poisson CDF P(X > line) = 1 - P(X <= floor(line))
+        k_floor = int(math.floor(line))
+        # Use scipy if available, else Poisson approximation via log-gamma
+        try:
+            from scipy.stats import poisson  # noqa: PLC0415
+            return float(1.0 - poisson.cdf(k_floor, combo_mean))
+        except ImportError:
+            # Manual Poisson CDF
+            log_lam = math.log(combo_mean)
+            log_p = 0.0
+            cum = 0.0
+            for k in range(k_floor + 1):
+                if k > 0:
+                    log_p += log_lam - math.log(k)
+                else:
+                    log_p = -combo_mean
+                cum += math.exp(log_p - combo_mean + log_lam * k) if k == 0 else math.exp(log_p)
+            return float(max(0.0, 1.0 - cum))
+
     def compute_live_edges(
         self,
         live_predictions: dict[int, dict[str, dict]],
@@ -84,30 +141,45 @@ class LiveEdgeCalculator:
             stat = PROP_TYPE_TO_STAT.get(prop_type.lower(), prop_type.lower())
             line_raw = prop.get("line_value")
 
-            if pid not in live_predictions or stat not in live_predictions[pid]:
-                continue
             if line_raw is None:
                 continue
-
             line = float(line_raw)
-            model_result = live_predictions[pid][stat]
-            model_p_over = float(model_result.get("p_over", 0.5))
+
+            if pid not in live_predictions:
+                continue
+
+            if stat in live_predictions[pid]:
+                model_result = live_predictions[pid][stat]
+                model_p_over = float(model_result.get("p_over", 0.5))
+            elif stat in self.LIVE_COMBO_STATS:
+                # Compute combo P(over) from component stats
+                combo_p_over = self._get_combo_p_over(live_predictions, pid, stat, line)
+                if combo_p_over is None:
+                    continue
+                model_result = {"p_over": combo_p_over, "projected_total": None,
+                                "observed_count": None, "elapsed_minutes": None}
+                model_p_over = combo_p_over
+            else:
+                continue
 
             over_odds = prop.get("over_odds")
             under_odds = prop.get("under_odds")
             if over_odds is None or under_odds is None:
                 continue
 
-            # Convert American odds to implied probability
-            imp_over = self._american_to_implied(over_odds)
-            imp_under = self._american_to_implied(under_odds)
-
-            # Vig-free (Shin's method)
-            total_imp = imp_over + imp_under
-            if total_imp > 0:
-                vig_free_over = imp_over / total_imp
+            # Vig-free using Shin (1993) — consistent with pre-game edge calculator.
+            # shin_no_vig_two_way takes raw American odds and applies the Shin
+            # informed-bettor model; falls back to multiplicative if penaltyblog
+            # is unavailable.
+            shin_over, shin_under = shin_no_vig_two_way(over_odds, under_odds)
+            if shin_over is not None:
+                vig_free_over = shin_over
             else:
-                vig_free_over = 0.5
+                # Last-resort fallback: raw implied / sum
+                imp_over = self._american_to_implied(over_odds)
+                imp_under = self._american_to_implied(under_odds)
+                total_imp = imp_over + imp_under
+                vig_free_over = imp_over / total_imp if total_imp > 0 else 0.5
 
             edge = model_p_over - vig_free_over
 
