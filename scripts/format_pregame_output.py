@@ -76,8 +76,12 @@ def main(
     # ── Load PMFs ─────────────────────────────────────────────────────────
     pmf_path = _resolve_pmfs(pmfs, game_date)
     if pmf_path is None or not pmf_path.exists():
-        typer.echo(f"[ERROR] No PMF file found for {game_date}. Run predict_today.py first.", err=True)
-        raise typer.Exit(1)
+        typer.echo(
+            f"[INFO] No PMF file found for {game_date} — no WNBA games scheduled for this date. "
+            "Skipping JSON output.",
+            err=True,
+        )
+        raise typer.Exit(0)
 
     pmfs_df = pd.read_parquet(pmf_path)
     typer.echo(f"Loaded {len(pmfs_df):,} PMF rows from {pmf_path}")
