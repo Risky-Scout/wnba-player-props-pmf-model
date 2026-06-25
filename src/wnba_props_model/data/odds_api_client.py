@@ -214,13 +214,16 @@ class OddsAPIClient:
         return self._get(f"/v4/sports/{SPORT_KEY}/events", params)
 
     def list_events_for_date(self, date_str: str) -> list[dict]:
-        """Return all WNBA events on a given date (YYYY-MM-DD).
+        """Return all WNBA events on a given date (YYYY-MM-DD, Eastern).
 
-        Uses commenceTimeFrom/To to bracket the calendar day (UTC noon–noon
-        to capture all ET game times).
+        Window: 9 AM UTC on the target date through 4 AM UTC the NEXT day.
+        This captures every possible tip-off in the Eastern timezone, including
+        10 PM EDT games (= 2 AM UTC next day) that the old 23:59:59Z cutoff missed.
         """
-        from_dt = f"{date_str}T09:00:00Z"  # 5 AM ET = 9 AM UTC
-        to_dt   = f"{date_str}T23:59:59Z"  # end of day UTC
+        from datetime import datetime, timedelta  # noqa: PLC0415
+        next_day = (datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        from_dt = f"{date_str}T09:00:00Z"   # 5 AM ET = 9 AM UTC
+        to_dt   = f"{next_day}T04:00:00Z"   # midnight ET = 4 AM UTC next day
         return self.list_events(commence_time_from=from_dt, commence_time_to=to_dt)
 
     # -----------------------------------------------------------------------

@@ -2,9 +2,12 @@ name: Daily WNBA PMF Pipeline
 
 on:
   schedule:
-    # Run at 9 AM ET (13:00 UTC during summer, 14:00 UTC during winter)
-    # Predicts for TOMORROW's games -- one day before gameday
+    # Morning run: 9 AM ET (13:00 UTC) -- trains models, builds slate for TODAY
     - cron: "0 13 * * *"
+    # Afternoon run: 2 PM ET (18:00 UTC) -- re-pulls props after books post WNBA lines
+    # WNBA player props typically go live 2-6 hours before tip-off (7-10 PM ET games).
+    # This run skips retraining (uses cached models) and only refreshes props + edge report.
+    - cron: "0 18 * * *"
   workflow_dispatch:
     inputs:
       game_date:
@@ -61,15 +64,18 @@ jobs:
           path: artifacts/models/calibration
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set game date (tomorrow by default)
+      - name: Set game date (today by default)
         id: date
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
             # Manual override: predict for specified date
             echo "target_date=${{ github.event.inputs.game_date }}" >> $GITHUB_OUTPUT
           else
-            # Default: predict for tomorrow (D+1)
-            echo "target_date=$(date -u -d 'tomorrow' +%Y-%m-%d 2>/dev/null || date -v+1d -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            # Default: predict for TODAY.
+            # WNBA games tip off 7-10 PM ET. Both the 9 AM and 2 PM scheduled runs
+            # should target the same calendar date so the afternoon run refreshes
+            # props for today's games without rebuilding the whole slate.
+            echo "target_date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
           fi
           # Record today for data ingestion
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
