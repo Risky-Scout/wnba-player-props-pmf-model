@@ -123,6 +123,21 @@ jobs:
           PYEOF
         continue-on-error: true
 
+      - name: Pull BDL current-season data
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/pull_bdl_history.py \
+            --start-season $YEAR --end-season $YEAR \
+            --out-dir data/raw/bdl
+        continue-on-error: true
+
+      - name: Build canonical tables
+        run: |
+          python scripts/build_canonical_tables.py \
+            --raw-dir data/raw/bdl \
+            --out-dir data/processed
+        continue-on-error: true
+
       - name: Build feature matrix from canonical tables
         run: |
           python scripts/build_features.py \
