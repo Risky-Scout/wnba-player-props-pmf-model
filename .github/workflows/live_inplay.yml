@@ -108,8 +108,8 @@ jobs:
         if: env.NO_GAMES != 'true'
         run: |
           python scripts/pull_odds_api_props.py \
-            --out-dir data/live/oddsapi_props \
-            --include-links
+            --game-date "$GAME_DATE" \
+            --out-dir data/live/oddsapi_props
         continue-on-error: true
 
       - name: Format live JSON outputs per game (blueprint S4)

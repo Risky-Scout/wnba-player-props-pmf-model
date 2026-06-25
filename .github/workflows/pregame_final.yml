@@ -38,6 +38,23 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Restore calibrators from cache
+        id: cal-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: artifacts/models/calibration/
+          key: calibrators-latest-${{ github.run_id }}
+          restore-keys: calibrators-latest-
+
+      - name: Download calibrators (fallback)
+        if: steps.cal-cache.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: calibrators-latest
+          path: artifacts/models/calibration/
+
       - name: Resolve game date
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
@@ -128,14 +145,17 @@ jobs:
       - name: Pull final Odds API props + deep links
         run: |
           python scripts/pull_odds_api_props.py \
+            --game-date "$GAME_DATE" \
             --out-dir data/processed
         continue-on-error: true
 
       - name: Build final edge report
         run: |
           python scripts/build_edge_report.py \
-            --pmf-parquet deliveries/tonight/full_pmfs_wide.parquet \
+            --pmfs deliveries/tonight/full_pmfs_wide.parquet \
+            --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
+            --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
         continue-on-error: true
 
