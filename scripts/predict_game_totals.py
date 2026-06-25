@@ -94,7 +94,7 @@ def _blend_grids(
         away_team=nb_grid.away_team,
         home_score_pmf=home_pmf,
         away_score_pmf=away_pmf,
-        game_total_pmf=total_pmf,
+        total_score_pmf=total_pmf,
         home_lambda=float(np.dot(ks_h, home_pmf)),
         away_lambda=float(np.dot(ks_a, away_pmf)),
         game_id=nb_grid.game_id,

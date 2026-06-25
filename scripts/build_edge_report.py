@@ -127,11 +127,15 @@ def main(
 
     # Carry Odds API deep links into the comparison table
     if props_source == "odds_api" and "deep_link" in props_df.columns:
-        link_cols = [c for c in ["deep_link", "event_link", "market_link",
-                                  "outcome_link_over", "bookmaker"] if c in props_df.columns]
+        # link_cols must NOT include any column that is also in link_keys
+        # (bookmaker is both a join key and was mistakenly in link_cols, causing
+        # duplicate column names in Arrow/parquet).
         link_keys = [c for c in ["player_name", "stat", "line", "bookmaker"] if c in props_df.columns]
-        if link_keys:
-            links_df = props_df[link_keys + link_cols].drop_duplicates(subset=link_keys)
+        link_cols = [c for c in ["deep_link", "event_link", "market_link",
+                                  "outcome_link_over"] if c in props_df.columns]
+        if link_keys and link_cols:
+            all_link_cols = list(dict.fromkeys(link_keys + link_cols))  # dedup preserving order
+            links_df = props_df[all_link_cols].drop_duplicates(subset=link_keys)
             merge_keys = [c for c in link_keys if c in comp.columns]
             if merge_keys:
                 comp = comp.merge(links_df[merge_keys + link_cols], on=merge_keys, how="left")

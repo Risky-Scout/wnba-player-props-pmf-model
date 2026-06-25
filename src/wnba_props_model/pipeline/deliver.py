@@ -182,8 +182,10 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         pmfs_sel["pmf_mean"] = pmfs_sel["mean"]
 
     # Only select columns that actually exist to avoid KeyError on optional cols.
+    # player_name is intentionally excluded from PMF sel_cols — it comes from the
+    # props side of the join to avoid _x/_y duplicate column collisions.
     _must_have = ["game_id", "player_id", "stat", "pmf_json", "pmf_mean"]
-    _optional  = ["role_bucket", "model_version", "player_name", "game_date"]
+    _optional  = ["role_bucket", "model_version", "game_date"]
     sel_cols   = _must_have + [c for c in _optional if c in pmfs_sel.columns]
 
     # Primary join: game_id + player_id + stat (BDL-sourced props)
@@ -215,7 +217,7 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
             how="inner",
             suffixes=("_prop", "_pmf"),
         )
-        # Prefer PMF's game_id and player_id (BDL IDs)
+        # Prefer PMF's game_id and player_id (BDL IDs); keep one player_name from props side
         if not fallback.empty:
             if "game_id_pmf" in fallback.columns:
                 fallback["game_id"] = fallback["game_id_pmf"]
@@ -223,6 +225,10 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
             if "player_id_pmf" in fallback.columns:
                 fallback["player_id"] = fallback["player_id_pmf"]
                 fallback = fallback.drop(columns=["player_id_pmf", "player_id_prop"], errors="ignore")
+            # Unify player_name: prefer props-side spelling (as bookmaker knows it)
+            if "player_name_prop" in fallback.columns:
+                fallback["player_name"] = fallback["player_name_prop"]
+                fallback = fallback.drop(columns=["player_name_prop", "player_name_pmf"], errors="ignore")
             fallback = fallback.drop(columns=["_norm"], errors="ignore")
             joined = pd.concat([joined, fallback], ignore_index=True)
 
