@@ -53,13 +53,6 @@ def main(
         if "game_date" in features_df.columns:
             filtered = features_df[features_df["game_date"].astype(str) == game_date].copy()
             typer.echo(f"Filtered to game_date={game_date}: {len(filtered):,} rows")
-            # #region agent log
-            import json as _json, time as _time
-            _log_path = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-            _unique_dates = sorted(features_df["game_date"].astype(str).unique().tolist())
-            _log_entry = _json.dumps({"sessionId":"3f8dcc","runId":"run1","hypothesisId":"H1","location":"predict_today.py:54","message":"game_date_filter","data":{"game_date":game_date,"input_rows":len(features_df),"filtered_rows":len(filtered),"is_fallback":filtered.empty,"unique_dates_count":len(_unique_dates),"date_range":[_unique_dates[0] if _unique_dates else None,_unique_dates[-1] if _unique_dates else None]},"timestamp":int(_time.time()*1000)})
-            open(_log_path,"a").write(_log_entry+"\n")
-            # #endregion
             if not filtered.empty:
                 features_df = filtered
             else:
