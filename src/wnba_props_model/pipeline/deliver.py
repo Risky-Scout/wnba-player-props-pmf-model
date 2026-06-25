@@ -92,9 +92,23 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
                 market = json.loads(market)
             except Exception:
                 market = {}
-        stat = BDL_PROP_TO_STAT.get(r.get("prop_type"))
-        if stat is None:
+        # Try BDL prop_type map first; fall back to the pre-mapped 'stat' column
+        # (Odds API compat rows already carry stat="pts"/"reb" etc. but have
+        # prop_type="player_points" which BDL_PROP_TO_STAT doesn't know).
+        stat = BDL_PROP_TO_STAT.get(r.get("prop_type")) or r.get("stat")
+        if not stat:
             continue
+        # #region agent log
+        import json as _j, time as _t, os as _o
+        _lp = _o.path.join(_o.path.dirname(__file__), "../../../../.cursor/debug-94807e.log")
+        try:
+            with open(_lp, "a") as _f:
+                _f.write(_j.dumps({"sessionId":"94807e","hypothesisId":"H1","location":"deliver.py:95",
+                    "message":"prop_type->stat resolution","timestamp":int(_t.time()*1000),
+                    "data":{"prop_type":str(r.get("prop_type")),"stat_resolved":str(stat),"bdl_hit":bool(BDL_PROP_TO_STAT.get(r.get("prop_type")))}}) + "\n")
+        except Exception:
+            pass
+        # #endregion
         from wnba_props_model.models.market import (  # noqa: PLC0415
             shin_no_vig_two_way_with_z, get_no_vig_prob,
         )

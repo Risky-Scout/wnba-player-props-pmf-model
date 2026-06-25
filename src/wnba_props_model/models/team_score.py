@@ -631,7 +631,7 @@ class WNBAWeibullCopulaScoreModel:
             away_team=away_team,
             home_score_pmf=home_pmf,
             away_score_pmf=away_pmf,
-            game_total_pmf=game_total_pmf,
+            total_score_pmf=game_total_pmf,
             home_lambda=home_lambda,
             away_lambda=away_lambda,
             game_id=game_id,
