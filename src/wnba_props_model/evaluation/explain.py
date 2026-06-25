@@ -309,7 +309,8 @@ def build_explanations(
             league_means[col] = float(features[col].mean(skipna=True))
 
     # Filter to unique players (latest row per player)
-    feat_idx = features.sort_values("game_date", errors="ignore").groupby("player_id").last().reset_index()
+    sort_col = "game_date" if "game_date" in features.columns else features.columns[0]
+    feat_idx = features.sort_values(sort_col).groupby("player_id").last().reset_index()
 
     game_date = str(features["game_date"].max()) if "game_date" in features.columns else ""
 
