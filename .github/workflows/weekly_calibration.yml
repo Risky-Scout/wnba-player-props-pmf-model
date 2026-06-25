@@ -116,6 +116,7 @@ jobs:
           pattern: clv-report-*
           merge-multiple: true
           path: data/clv_tracking/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Run strategy backtest

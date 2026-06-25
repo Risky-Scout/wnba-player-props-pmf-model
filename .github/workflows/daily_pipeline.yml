@@ -59,6 +59,7 @@ jobs:
         with:
           name: calibrators-latest
           path: artifacts/models/calibration
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set game date (tomorrow by default)
         id: date

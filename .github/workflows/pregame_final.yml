@@ -54,6 +54,7 @@ jobs:
         with:
           name: calibrators-latest
           path: artifacts/models/calibration/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download stage4 model
         uses: actions/download-artifact@v4
@@ -61,6 +62,7 @@ jobs:
         with:
           name: model-stage4-latest
           path: artifacts/models/stage4_baseline/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve game date
         run: |
