@@ -66,7 +66,7 @@ _LEAGUE_PRIORS: dict[str, float] = {
 }
 
 # Minimum games before shrinkage is bypassed entirely
-_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 40
+_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 25  # was 40; WNBA season = 40 games, starters play 32-36
 
 # Minimum effective k to avoid explosive shrinkage in low-variance stats
 _MIN_K: float = 3.0

@@ -1797,42 +1797,80 @@ def build_long_table(wide_df: pd.DataFrame) -> pd.DataFrame:
 def _derive_model_feature_columns(wide_df: pd.DataFrame) -> list[str]:
     """Return the authoritative list of model feature columns.
 
-    Rules:
-    - Must exist in wide_df
-    - Must NOT be in FORBIDDEN_MODEL_FEATURES
-    - Must NOT be identity, target, or metadata columns
+    ALLOWLIST MODE (R1.2): columns must satisfy ALL of the following:
+      1. Exist in wide_df
+      2. Not be identity, target, or metadata columns
+      3. Not be in FORBIDDEN_MODEL_FEATURES
+      4. Match an explicit FEATURE_FAMILIES entry OR a safe naming-convention prefix
+      5. Pass cross-row variance gate: numeric std >= 0.05 (catches constant features)
 
-    Note: is_home, season, and position are listed as identity columns for
-    auditing purposes but are also valid model features (pre-game knowledge).
+    This prevents any future column added to the wide table from automatically
+    becoming a model feature without explicit review.
     """
-    # Pure identifiers never used as features
-    _pure_identity = {
+    import logging as _log
+    from wnba_props_model.features.feature_contract import (
+        FEATURE_FAMILIES,
+        FORBIDDEN_MODEL_FEATURES as _FORBIDDEN,
+        assert_no_forbidden_features,
+    )
+
+    # --- 1. Build explicit allowlist from FEATURE_FAMILIES -----------------
+    allowed: set[str] = set()
+    for _features in FEATURE_FAMILIES.values():
+        allowed.update(_features)
+
+    # --- 2. Extend via safe naming-convention prefixes ---------------------
+    #   Any column whose name starts with a known safe prefix is permitted
+    #   provided it is not forbidden.  This captures the rolling/EWMA stats
+    #   (player_pts_mean_l5, team_pts_roll5, opp_pts_allowed_mean_l5, …)
+    #   that are generated dynamically by build_features.py.
+    _SAFE_PREFIXES = (
+        "player_", "team_", "opp_", "is_home",
+        "position", "game_number", "season_completion", "is_playoff",
+    )
+    _excluded_meta = {
         "game_id", "game_date", "player_id", "player_name",
         "team_id", "team_abbreviation",
         "opponent_team_id", "opponent_team_abbreviation",
-        "home_away",  # string version of is_home; use is_home instead
-    }
-    excluded = _pure_identity | set(TARGET_COLS) | set(ROLE_BUCKET_COLS) | FORBIDDEN_MODEL_FEATURES
-    excluded.update({
+        "home_away",
         "feature_build_timestamp_utc", "feature_cutoff_policy",
         "source", "pull_timestamp_utc",
-        # raw audit flags from ingestion
         "minutes_raw", "minutes_flag", "non_playing_flag", "zero_minute_flag",
         "stat_line_all_zero_flag", "missing_team_flag", "missing_opponent_flag",
-        "missing_game_date_flag", "started_proxy",  # raw, not rolled
-        "pts_ast", "pts_reb", "pts_reb_ast", "reb_ast", "stocks",  # combo raw stats
-        "oreb", "dreb", "pf", "fga", "fg3a", "fta", "fg3m", "plus_minus",  # raw per-game stats
-    })
-    model_cols = [
-        c for c in wide_df.columns
-        if c not in excluded
-        and c not in ROLE_BUCKET_COLS
-        and not c.startswith("actual_")
-        and c != "stat"
-        and c != "actual_outcome"
-    ]
-    # Final leakage check
-    from wnba_props_model.features.feature_contract import assert_no_forbidden_features
+        "missing_game_date_flag", "started_proxy",
+        "pts_ast", "pts_reb", "pts_reb_ast", "reb_ast", "stocks",
+        "oreb", "dreb", "pf", "fga", "fg3a", "fta", "fg3m", "plus_minus",
+    }
+    for col in wide_df.columns:
+        if col in _excluded_meta or col in _FORBIDDEN:
+            continue
+        if col.startswith("actual_") or col in set(TARGET_COLS) or col in set(ROLE_BUCKET_COLS):
+            continue
+        if col in ("stat", "actual_outcome"):
+            continue
+        if any(col.startswith(p) for p in _SAFE_PREFIXES):
+            allowed.add(col)
+
+    # --- 3. Intersect with columns that actually exist in wide_df ----------
+    model_cols = sorted(c for c in allowed if c in wide_df.columns and c not in _FORBIDDEN)
+
+    # --- 4. Variance gate: drop numeric features with cross-row std < 0.05 -
+    #   Constant or near-constant features provide no signal but corrupt HGB
+    #   tree splits (the model allocates splits to them, wasting capacity and
+    #   creating spurious interactions with informative features).
+    low_var: list[str] = []
+    for c in model_cols:
+        if pd.api.types.is_numeric_dtype(wide_df[c]):
+            if wide_df[c].std(skipna=True) < 0.05:
+                low_var.append(c)
+    if low_var:
+        _log.getLogger(__name__).warning(
+            "Variance gate: dropping %d near-zero-variance features (std < 0.05): %s",
+            len(low_var), low_var,
+        )
+        model_cols = [c for c in model_cols if c not in low_var]
+
+    # --- 5. Final leakage check --------------------------------------------
     assert_no_forbidden_features(model_cols)
     return sorted(model_cols)
 

@@ -274,3 +274,70 @@ def assert_no_market_columns(columns: list[str]) -> None:
         raise ValueError(
             f"Market-only (evaluation) columns found in model feature list: {overlap}"
         )
+
+
+def audit_feature_variance(
+    features_path: str,
+    manifest_path: str,
+    min_std: float = 0.05,
+) -> list[str]:
+    """Return list of model features whose cross-row std is below min_std.
+
+    Used as a CI gate to catch constant/near-constant features before they
+    corrupt HGB tree splits (e.g. rotation_minutes_p_over_30 std=0.004).
+
+    Args:
+        features_path: Path to the wide features parquet file.
+        manifest_path: Path to the feature_schema_manifest.json file.
+        min_std: Minimum acceptable standard deviation (default 0.05).
+
+    Returns:
+        List of violation strings in the format "feature_name (std=X.XXXX)".
+        Empty list means all features pass.
+    """
+    import json
+    from pathlib import Path
+    import pandas as pd
+
+    wide = pd.read_parquet(features_path)
+    manifest = json.loads(Path(manifest_path).read_text())
+    cols: list[str] = manifest.get("model_feature_columns", [])
+
+    violations: list[str] = []
+    for c in cols:
+        if c not in wide.columns:
+            continue
+        if not pd.api.types.is_numeric_dtype(wide[c]):
+            continue
+        std = float(wide[c].std(skipna=True))
+        if std < min_std:
+            violations.append(f"{c} (std={std:.4f})")
+
+    if violations:
+        print(f"FAIL: {len(violations)} features with std < {min_std}:")
+        for v in violations:
+            print(f"  - {v}")
+    else:
+        print(f"PASS: All {len(cols)} model features have std >= {min_std}")
+    return violations
+
+
+if __name__ == "__main__":
+    import argparse as _ap
+    import sys as _sys
+
+    _p = _ap.ArgumentParser(description="Audit model feature variance")
+    _sub = _p.add_subparsers(dest="cmd")
+    _va = _sub.add_parser("audit-variance")
+    _va.add_argument("--features-path", required=True)
+    _va.add_argument("--manifest-path", required=True)
+    _va.add_argument("--min-std", type=float, default=0.05)
+    _va.add_argument("--fail-on-violation", action="store_true")
+    _args = _p.parse_args()
+
+    if _args.cmd == "audit-variance":
+        _violations = audit_feature_variance(
+            _args.features_path, _args.manifest_path, _args.min_std
+        )
+        if _args.fail_on_violation and _violations:
+            _sys.exit(1)
