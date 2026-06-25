@@ -166,8 +166,16 @@ jobs:
 
       - name: Generate pre-game PMF projections
         run: |
+          SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
+          if [ -f "$SLATE" ]; then
+            FEATURES_SRC="$SLATE"
+            echo "Using slate: $FEATURES_SRC"
+          else
+            FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
+            echo "Slate not found, falling back to historical features: $FEATURES_SRC"
+          fi
           python scripts/predict_today.py \
-            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-wide "$FEATURES_SRC" \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --model-dir artifacts/models/stage4_baseline \

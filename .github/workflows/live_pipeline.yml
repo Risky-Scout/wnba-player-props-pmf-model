@@ -1,17 +1,9 @@
 name: Live In-Play Engine (Legacy)
 # NOTE: This workflow is a LEGACY dev tool kept for reference only.
+# Scheduled runs are DISABLED — use live_tracker.yml (canonical) instead.
 # The CANONICAL live engine is live_tracker.yml -> run_live_tracker.py + GammaPoissonLiveEngine.
 # This workflow calls live_stream.py which is an argparse-based standalone script.
-# Runs every 5 minutes during WNBA game windows (ET: 7pm-11pm = UTC 23:00-03:00)
-# Covers Mon-Sun during the WNBA season (May-October)
 on:
-  schedule:
-    # Every 5 minutes: 23:00-03:00 UTC  (7pm-11pm ET)
-    - cron: "*/5 23 * * *"
-    - cron: "*/5 0 * * *"
-    - cron: "*/5 1 * * *"
-    - cron: "*/5 2 * * *"
-    - cron: "*/5 3 * * *"
   workflow_dispatch:
     inputs:
       game_id:

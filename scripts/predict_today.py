@@ -53,14 +53,32 @@ def main(
         if "game_date" in features_df.columns:
             filtered = features_df[features_df["game_date"].astype(str) == game_date].copy()
             typer.echo(f"Filtered to game_date={game_date}: {len(filtered):,} rows")
+            # #region agent log
+            import json as _json, time as _time
+            _log_path = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+            _unique_dates = sorted(features_df["game_date"].astype(str).unique().tolist())
+            _log_entry = _json.dumps({"sessionId":"3f8dcc","runId":"run1","hypothesisId":"H1","location":"predict_today.py:54","message":"game_date_filter","data":{"game_date":game_date,"input_rows":len(features_df),"filtered_rows":len(filtered),"is_fallback":filtered.empty,"unique_dates_count":len(_unique_dates),"date_range":[_unique_dates[0] if _unique_dates else None,_unique_dates[-1] if _unique_dates else None]},"timestamp":int(_time.time()*1000)})
+            open(_log_path,"a").write(_log_entry+"\n")
+            # #endregion
             if not filtered.empty:
                 features_df = filtered
             else:
-                typer.echo(
-                    f"[WARN] 0 rows for game_date={game_date}. "
-                    "Using all rows from input (slate forward-dated features)."
-                )
-                # Slate files have game_date already set to the target date so no filter needed
+                _unique_input_dates = features_df["game_date"].astype(str).unique()
+                if len(_unique_input_dates) > 1:
+                    # Multi-date historical table: this date has no scheduled games.
+                    # Do NOT fall back to all historical rows — that produces nonsense output.
+                    typer.echo(
+                        f"[INFO] 0 rows for game_date={game_date} in historical feature table "
+                        f"({len(_unique_input_dates)} dates, last={sorted(_unique_input_dates)[-1]}). "
+                        "No WNBA games scheduled for this date. Exiting cleanly."
+                    )
+                    raise typer.Exit(0)
+                else:
+                    # Single-date slate: all rows belong to the target date already.
+                    typer.echo(
+                        f"[WARN] 0 rows for game_date={game_date} in slate. "
+                        "Using all rows from single-date slate input."
+                    )
 
     if features_df.empty:
         typer.echo(f"[WARN] No player rows to predict — no games on {game_date}. Exiting.")
