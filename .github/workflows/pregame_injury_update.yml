@@ -55,6 +55,13 @@ jobs:
           name: calibrators-latest
           path: artifacts/models/calibration/
 
+      - name: Download stage4 model
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: model-stage4-latest
+          path: artifacts/models/stage4_baseline/
+
       - name: Resolve game date
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
