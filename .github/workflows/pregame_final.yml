@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      pages: write
     env:
       BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
       ODDS_API_KEY:  ${{ secrets.ODDS_API_KEY }}
@@ -203,7 +204,7 @@ jobs:
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.DEPLOY_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
           publish_branch: gh-pages
           destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
