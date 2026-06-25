@@ -128,9 +128,12 @@ ADVANCED_OPPONENT_FEATURES: list[str] = [
 ]
 
 ADVANCED_STANDINGS_FEATURES: list[str] = [
-    "team_playoff_seed",    # Playoff seeding
-    "team_games_behind",    # Games behind first
-    "season_phase",         # 0-1 position within season
+    "team_playoff_seed",    # Playoff seeding (numeric)
+    "team_games_behind",    # Games behind first (numeric)
+    # season_phase is a categorical string ('early'/'mid'/'late'/'playoff')
+    # stored in ROLE_BUCKET_COLS in build_features.py and one-hot encoded
+    # separately.  It must NOT appear here or it will pass the FEATURE_FAMILIES
+    # allowlist and crash HGBR with 'could not convert string to float: early'.
 ]
 
 ADVANCED_FOUR_FACTORS_FEATURES: list[str] = [

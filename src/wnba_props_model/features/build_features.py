@@ -1852,7 +1852,30 @@ def _derive_model_feature_columns(wide_df: pd.DataFrame) -> list[str]:
             allowed.add(col)
 
     # --- 3. Intersect with columns that actually exist in wide_df ----------
-    model_cols = sorted(c for c in allowed if c in wide_df.columns and c not in _FORBIDDEN)
+    #   Also exclude ROLE_BUCKET_COLS: these are categorical string labels
+    #   (season_phase='early', role_status='starter', etc.) handled separately
+    #   by one-hot encoding.  They must NEVER enter HGB directly even if they
+    #   appear in FEATURE_FAMILIES.
+    #   Also exclude non-numeric columns entirely — HGBR requires numeric input.
+    _role_bucket_set = set(ROLE_BUCKET_COLS)
+    model_cols = sorted(
+        c for c in allowed
+        if c in wide_df.columns
+        and c not in _FORBIDDEN
+        and c not in _role_bucket_set
+        and (
+            pd.api.types.is_numeric_dtype(wide_df[c])
+            or pd.api.types.is_bool_dtype(wide_df[c])
+        )
+    )
+    # #region agent log
+    import json as _json, time as _time
+    _string_blocked = [c for c in allowed if c in wide_df.columns and not pd.api.types.is_numeric_dtype(wide_df[c]) and not pd.api.types.is_bool_dtype(wide_df[c])]
+    try:
+        open('/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log','a').write(_json.dumps({"sessionId":"94807e","runId":"post-fix","hypothesisId":"H-A","location":"build_features.py:1855","message":"model_cols after dtype+rolebucket filter","data":{"n_model_cols":len(model_cols),"string_cols_blocked":_string_blocked,"season_phase_in_cols":"season_phase" in model_cols},"timestamp":int(_time.time()*1000)})+"\n")
+    except Exception:
+        pass
+    # #endregion agent log
 
     # --- 4. Variance gate: drop numeric features with cross-row std < 0.05 -
     #   Constant or near-constant features provide no signal but corrupt HGB
