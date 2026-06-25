@@ -17,10 +17,13 @@ training:
   market_bootstrap_seed: 20260512
 
 calibration_gates:
-  pit_ks_max: 0.075
-  ece_max: 0.025
-  mean_error_abs_max: 0.15
+  pit_ks_max: 0.050            # blueprint §9.1: PIT KS ≤ 0.050
+  ece_max: 0.015               # blueprint §9.1: ECE ≤ 0.015
+  ecce_mad_max: 0.030          # blueprint §9.1: Calibration Error (ECCE-MAD) < 0.03
+  mean_error_abs_max: 0.10     # tightened from 0.15
   variance_error_abs_max: 0.20
+  conformal_coverage_lo: 0.88  # blueprint §9.1: 88-92% conformal coverage
+  conformal_coverage_hi: 0.92
   ucb95_logloss_max: -0.0025
   ucb95_brier_max: -0.0010
   min_rows_ucb95: 100

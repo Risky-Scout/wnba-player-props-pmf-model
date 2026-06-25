@@ -87,6 +87,8 @@ def main(
     market_df = _safe_read_parquet(market_props) if market_props else None
     injuries_df = _load_injuries(injuries)
 
+    # Load UTM transfer log and GTD scenarios from injury_report_{date}.json
+    utm_log_df, gtd_log_rows = _load_utm_and_gtd(game_date)
 
     # ── Build envelope ─────────────────────────────────────────────────────
     envelope = build_pregame_envelope(
@@ -96,6 +98,8 @@ def main(
         games_df=games_df,
         market_df=market_df,
         injuries_df=injuries_df,
+        utm_log_df=utm_log_df,
+        gtd_log_rows=gtd_log_rows,
     )
 
     n_games = len(envelope.get("games", []))
@@ -153,6 +157,59 @@ def _safe_read_parquet(path_str: str) -> pd.DataFrame | None:
         return pd.read_parquet(p)
     except Exception:
         return None
+
+
+def _load_utm_and_gtd(game_date: str) -> tuple[pd.DataFrame | None, list[dict] | None]:
+    """Load UTM transfer log and GTD dual-scenario records from injury_report_{date}.json.
+
+    apply_injury_updates.py writes `deliveries/tonight/injury_report_{date}.json`
+    with:
+      - `adjustments`: list with UTM transfer details per affected player
+      - `gtd_scenarios_detail`: list of GTD dual-scenario records (blueprint §5.3)
+
+    Returns (utm_log_df, gtd_log_rows).
+    """
+    candidates = [
+        Path(f"deliveries/tonight/injury_report_{game_date}.json"),
+        Path(f"deliveries/next_game/injury_report_{game_date}.json"),
+    ]
+    for p in candidates:
+        if not p.exists():
+            continue
+        try:
+            raw = json.loads(p.read_text())
+
+            # GTD scenarios
+            gtd_log_rows = raw.get("gtd_scenarios_detail") or []
+
+            # UTM transfer rows
+            adjustments = raw.get("adjustments", [])
+            rows = []
+            for adj in adjustments:
+                injured_pid = adj.get("player_id")
+                injured_name = adj.get("player_name", "")
+                status = adj.get("status", "")
+                utm_transfers = adj.get("utm_transfers") or {}
+                transfers = utm_transfers.get("transfers", []) if isinstance(utm_transfers, dict) else []
+                if not transfers:
+                    continue
+                for t in transfers:
+                    rows.append({
+                        "injured_player_id": injured_pid,
+                        "injured_player_name": injured_name,
+                        "status": status,
+                        "beneficiary_player_id": t.get("player_id"),
+                        "beneficiary_player_name": t.get("player_name", ""),
+                        "minutes_transfer": float(t.get("extra_minutes", 0.0)),
+                        "usage_transfer": float(t.get("extra_usage_pct", 0.0)),
+                        "points_boost": 0.0,
+                    })
+
+            utm_df = pd.DataFrame(rows) if rows else None
+            return utm_df, gtd_log_rows or None
+        except Exception:
+            pass
+    return None, None
 
 
 def _load_injuries(injuries_arg: str) -> pd.DataFrame | None:

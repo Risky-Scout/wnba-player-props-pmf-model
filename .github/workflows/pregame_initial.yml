@@ -56,6 +56,56 @@ jobs:
             --out-dir deliveries/tonight
         continue-on-error: true
 
+      - name: Fetch and cache injury report (blueprint §5.1)
+        run: |
+          mkdir -p data/injuries
+          python - <<'PYEOF'
+          import json, os, sys, requests
+          from pathlib import Path
+
+          api_key = os.environ.get("BDL_API_KEY", "")
+          game_date = os.environ.get("GAME_DATE", "")
+          out_path = Path(f"data/injuries/{game_date}.json")
+
+          if out_path.exists():
+              print(f"Injury file already exists: {out_path}")
+              sys.exit(0)
+
+          if not api_key:
+              print("[WARN] BDL_API_KEY not set — writing empty injury file")
+              out_path.write_text("[]")
+              sys.exit(0)
+
+          params = {"per_page": 100}
+          headers = {"Authorization": api_key}
+          try:
+              resp = requests.get(
+                  "https://api.balldontlie.io/wnba/v1/player_injuries",
+                  params=params, headers=headers, timeout=20,
+              )
+              resp.raise_for_status()
+              data = resp.json()
+              injuries = data.get("data", data) if isinstance(data, dict) else data
+              normalized = []
+              for r in injuries:
+                  player = r.get("player") or {}
+                  pid = r.get("player_id") or player.get("id") or 0
+                  name = r.get("player_name") or f"{player.get('first_name','')} {player.get('last_name','')}".strip()
+                  normalized.append({
+                      "player_id": int(pid),
+                      "player_name": name,
+                      "status": str(r.get("status") or "available").lower(),
+                      "return_date": r.get("return_date"),
+                      "comment": r.get("comment"),
+                  })
+              out_path.write_text(json.dumps(normalized, indent=2))
+              print(f"Saved {len(normalized)} injury records → {out_path}")
+          except Exception as exc:
+              print(f"[WARN] BDL injury fetch failed: {exc} — writing empty file")
+              out_path.write_text("[]")
+          PYEOF
+        continue-on-error: true
+
       - name: Build feature matrix from canonical tables
         run: |
           python scripts/build_features.py \
@@ -69,7 +119,8 @@ jobs:
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --model-dir artifacts/models/stage4_baseline \
-            --cal-dir artifacts/models/calibration
+            --cal-dir artifacts/models/calibration \
+            --overrides config/player_overrides.json
 
       - name: Pull Odds API player props + deep links
         run: |
@@ -81,7 +132,8 @@ jobs:
         run: |
           python scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
-            --out-dir deliveries/tonight
+            --out-dir deliveries/tonight \
+            --injuries-json "data/injuries/${GAME_DATE}.json"
         continue-on-error: true
 
       - name: Compute SHAP explainability

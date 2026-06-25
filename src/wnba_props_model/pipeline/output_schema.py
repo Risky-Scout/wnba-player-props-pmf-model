@@ -169,6 +169,192 @@ def compute_sanity_status(
     }
 
 
+def _build_sanity_checks_from_market(
+    game_id: int,
+    game_pmfs: pd.DataFrame,
+    market_df: pd.DataFrame,
+    yellow_threshold: float = 0.03,
+    red_threshold: float = 0.05,
+) -> dict:
+    """Build a real sanity check block (blueprint §3.6) using Pinnacle/sharpest lines.
+
+    Extracts Pinnacle rows from market_df, deviggs them with Shin's method,
+    then compares model p(over) against the sharpest-book fair probability.
+    Falls back to GREEN/no_market_data when market data is unavailable.
+    """
+    try:
+        from wnba_props_model.models.market import shin_no_vig_two_way_with_z  # noqa: PLC0415
+    except ImportError:
+        return {"sanity_status": "GREEN", "note": "market_module_unavailable"}
+
+    if market_df is None or market_df.empty:
+        return {"sanity_status": "GREEN", "note": "no_market_data"}
+
+    # Filter to this game
+    game_mkt = market_df[market_df.get("game_id", pd.Series(dtype=object)) == game_id] \
+        if "game_id" in market_df.columns else market_df
+
+    # Identify sharpest book rows — prefer pinnacle, fall back to all books
+    vendor_col = next((c for c in ("vendor", "bookmaker", "book") if c in game_mkt.columns), None)
+    if vendor_col:
+        pinnacle = game_mkt[game_mkt[vendor_col].astype(str).str.lower().str.contains("pinnacle")]
+        sharpest = pinnacle if not pinnacle.empty else game_mkt
+    else:
+        sharpest = game_mkt
+
+    # Build sharpest_lines: stat → fair p(over) via Shin devig
+    sharpest_lines: dict[str, float] = {}
+    sharpest_vig: dict[str, float] = {}
+    devigged_fair: dict[str, float] = {}
+    stat_col = next((c for c in ("stat", "prop_type", "market_key") if c in sharpest.columns), None)
+    if stat_col:
+        for _, row in sharpest.iterrows():
+            raw_stat = str(row.get(stat_col, ""))
+            stat = raw_stat.replace("player_", "")
+            display = _STAT_DISPLAY.get(stat, stat)
+            o_odds = row.get("over_odds") or row.get("market_over_odds")
+            u_odds = row.get("under_odds") or row.get("market_under_odds")
+            if o_odds is None or u_odds is None:
+                continue
+            try:
+                p_over, p_under, _z = shin_no_vig_two_way_with_z(float(o_odds), float(u_odds))
+            except Exception:
+                continue
+            if p_over is None or p_under is None:
+                continue
+            sharpest_lines[stat] = p_over
+            line_val = float(row.get("line") or row.get("line_value") or 0.5)
+            devigged_fair[f"{display}_line"] = round(line_val, 1)
+            # vig = overround = (raw_over_prob + raw_under_prob) - 1
+            try:
+                from wnba_props_model.models.market import american_to_prob  # noqa: PLC0415
+                raw_o = american_to_prob(float(o_odds))
+                raw_u = american_to_prob(float(u_odds))
+                if raw_o and raw_u:
+                    sharpest_vig[display] = round(raw_o + raw_u - 1.0, 4)
+            except Exception:
+                pass
+
+    # Build model_means: stat → model p(over) at the sharpest line
+    model_means: dict[str, float] = {}
+    stat_proj_col = "stat" if "stat" in game_pmfs.columns else None
+    if stat_proj_col:
+        for stat, p_market in sharpest_lines.items():
+            stat_rows = game_pmfs[game_pmfs[stat_proj_col] == stat]
+            if stat_rows.empty:
+                continue
+            # Average model p(over) across all players for this stat
+            # Use pmf_mean as a proxy: p(over market_line) from mean/variance normal approx
+            model_probs = []
+            for _, sr in stat_rows.iterrows():
+                pmf_raw = sr.get("pmf_json")
+                if pmf_raw is None:
+                    continue
+                try:
+                    import json as _json  # noqa: PLC0415
+                    if isinstance(pmf_raw, str):
+                        pmf_dict = _json.loads(pmf_raw)
+                        pmf_arr = np.array(
+                            [pmf_dict.get(str(k), 0.0) for k in range(len(pmf_dict))],
+                            dtype=float,
+                        )
+                    else:
+                        pmf_arr = np.array(pmf_raw, dtype=float)
+                    if pmf_arr.sum() > 0:
+                        pmf_arr /= pmf_arr.sum()
+                    line_val = float(sr.get("line") or 0.5)
+                    p_over = float(pmf_arr[math.ceil(line_val):].sum())
+                    model_probs.append(p_over)
+                except Exception:
+                    continue
+            if model_probs:
+                model_means[stat] = float(np.mean(model_probs))
+
+    # Compute gaps
+    gaps: dict[str, float] = {}
+    for stat, model_p in model_means.items():
+        mkt_p = sharpest_lines.get(stat)
+        if mkt_p is not None:
+            display = _STAT_DISPLAY.get(stat, stat)
+            gaps[f"{display}_gap_pp"] = round(model_p - mkt_p, 4)
+
+    max_gap = max((abs(v) for v in gaps.values()), default=0.0)
+    status = "GREEN"
+    if max_gap > red_threshold:
+        status = "RED"
+    elif max_gap > yellow_threshold:
+        status = "YELLOW"
+
+    result: dict = {"sanity_status": status, "model_vs_sharpest": gaps}
+    if devigged_fair:
+        result["pinnacle"] = {"devigged_fair": devigged_fair, "vig": sharpest_vig}
+    return result
+
+
+# ---------------------------------------------------------------------------
+# GTD dual-scenario builder (blueprint §5.3)
+# ---------------------------------------------------------------------------
+
+_GTD_STATUSES = frozenset({"gtd", "game-time decision", "game_time_decision"})
+
+
+def build_gtd_scenarios(
+    player_id: int,
+    player_name: str,
+    injury_status: str,
+    scenario_in_record: dict,
+    gtd_log_rows: "list[dict] | None" = None,
+) -> dict:
+    """Build a GTD dual-scenario block per blueprint §5.3.
+
+    scenario_in_record: the normal player projection (player plays).
+    gtd_log_rows: pre-computed GTD scenarios from apply_injury_updates.py
+        injury_report_{date}.json → gtd_scenarios_detail list.
+        Each entry has: player_id, scenario_in, scenario_out, teammate_impact.
+
+    When gtd_log_rows is not available, scenario_out is synthesised as
+    zero-minutes / zero-stats with empty teammate_impact.
+    """
+    # Try to find pre-computed GTD record from injury engine
+    precomputed: dict | None = None
+    if gtd_log_rows:
+        for row in gtd_log_rows:
+            if int(row.get("player_id", -1)) == player_id:
+                precomputed = row
+                break
+
+    if precomputed is not None:
+        scenario_out = precomputed.get("scenario_out", {})
+        teammate_impact = scenario_out.get("teammate_impact") or precomputed.get("teammate_impact") or {}
+    else:
+        # Synthesise: player sits → zero projections, no teammate impact data
+        scenario_out = {
+            "projected_minutes": {"mean": 0.0},
+            "stat_projections": {
+                stat: {"mean": 0.0} for stat in scenario_in_record.get("stat_projections", {})
+            },
+            "teammate_impact": {},
+        }
+        teammate_impact = {}
+
+    return {
+        "player_id": player_id,
+        "player_name": player_name,
+        "injury_status": "GTD",
+        "scenario_in": {
+            "projected_minutes": scenario_in_record.get("projected_minutes", {}),
+            "stat_projections": scenario_in_record.get("stat_projections", {}),
+            "teammate_impact": None,
+        },
+        "scenario_out": {
+            "projected_minutes": {"mean": 0.0},
+            "stat_projections": scenario_out.get("stat_projections", {}),
+            "teammate_impact": teammate_impact,
+        },
+        "official_status_pending": True,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Player projection record builder (blueprint §3.3)
 # ---------------------------------------------------------------------------
@@ -180,6 +366,8 @@ def build_player_record(
     injury_status: str | None = None,
     is_starter: bool | None = None,
     shap_rows: pd.DataFrame | None = None,
+    utm_impact_rows: list[dict] | None = None,
+    gtd_log_rows: list[dict] | None = None,
 ) -> dict:
     """Build a single player projection record per blueprint §3.3.
 
@@ -189,6 +377,8 @@ def build_player_record(
     injury_status: from BDL injuries endpoint (None, 'out', 'questionable', etc.)
     is_starter: bool or None (None = unknown)
     shap_rows: from SHAP explainability (optional)
+    utm_impact_rows: UTM transfer log rows for this player's beneficiary impact
+    gtd_log_rows: pre-computed GTD scenarios from apply_injury_updates.py (optional)
     """
     if player_rows.empty:
         return {}
@@ -300,7 +490,7 @@ def build_player_record(
                 stat_proj["deep_links"] = stat_links
 
     # Build explainability block (§7)
-    explainability = _build_explainability(tmpl, shap_rows, injury_status)
+    explainability = _build_explainability(tmpl, shap_rows, injury_status, utm_impact_rows)
 
     record: dict = {
         "player_id": player_id,
@@ -316,6 +506,17 @@ def build_player_record(
         "dnp_risk": float(tmpl.get("dnp_risk") or 0.0),
         "high_uncertainty": bool(tmpl.get("high_uncertainty") or False),
     }
+
+    # Attach GTD dual-scenario block (blueprint §5.3)
+    if injury_status is not None and injury_status.lower() in _GTD_STATUSES:
+        record["gtd_scenarios"] = build_gtd_scenarios(
+            player_id=player_id,
+            player_name=player_name,
+            injury_status=injury_status,
+            scenario_in_record=record,
+            gtd_log_rows=gtd_log_rows,
+        )
+
     return record
 
 
@@ -323,8 +524,15 @@ def _build_explainability(
     row: "pd.Series",
     shap_rows: "pd.DataFrame | None" = None,
     injury_status: str | None = None,
+    utm_impact_rows: "list[dict] | None" = None,
 ) -> dict:
-    """Build explainability block per blueprint §7."""
+    """Build explainability block per blueprint §7.
+
+    utm_impact_rows: list of dicts from apply_injury_updates.py impact_report,
+        each with keys: injured_player_id, injured_player_name, status,
+        beneficiary_player_id, beneficiary_player_name, usage_transfer,
+        minutes_transfer, points_boost.
+    """
     override = str(row.get("override_source") or "") if row.get("override_applied") else None
     major_change = False
     major_reason = None
@@ -344,6 +552,25 @@ def _build_explainability(
                 "shap_value": round(float(sr.get("shap_value", 0)), 4),
             })
 
+    # Populate injury_impact_on_teammates from UTM log (blueprint §7.1)
+    injury_impact: list[dict] = []
+    if utm_impact_rows:
+        player_id_val = int(row.get("player_id", 0))
+        for impact in utm_impact_rows:
+            # Include this player as beneficiary (received minutes/usage transfer)
+            beneficiary_id = impact.get("beneficiary_player_id") or impact.get("player_id")
+            if beneficiary_id is not None and int(beneficiary_id) == player_id_val:
+                injury_impact.append({
+                    "injured_player_id": impact.get("injured_player_id"),
+                    "injured_player_name": impact.get("injured_player_name", ""),
+                    "status": impact.get("status", ""),
+                    "beneficiary_player_id": player_id_val,
+                    "beneficiary_player_name": str(row.get("player_name", "")),
+                    "usage_transfer": round(float(impact.get("usage_transfer", 0.0)), 2),
+                    "minutes_transfer": round(float(impact.get("minutes_transfer", 0.0)), 1),
+                    "points_boost": round(float(impact.get("points_boost", 0.0)), 1),
+                })
+
     return {
         "projected_minutes": {
             "major_change_flag": major_change,
@@ -351,7 +578,7 @@ def _build_explainability(
             "override_applied": override,
         },
         "stat_drivers": {"primary_drivers": shap_drivers} if shap_drivers else {},
-        "injury_impact_on_teammates": [],
+        "injury_impact_on_teammates": injury_impact,
     }
 
 
@@ -367,8 +594,18 @@ def build_game_record(
     odds_api_rows: list[dict] | None = None,
     injuries_df: pd.DataFrame | None = None,
     odds_api_event_id: str | None = None,
+    utm_log_df: pd.DataFrame | None = None,
+    gtd_log_rows: list[dict] | None = None,
 ) -> dict:
-    """Build a full game-level projection record per blueprint §3.2."""
+    """Build a full game-level projection record per blueprint §3.2.
+
+    utm_log_df: DataFrame with UTM transfer log from apply_injury_updates.py,
+        columns: injured_player_id, injured_player_name, status,
+                 beneficiary_player_id, beneficiary_player_name,
+                 usage_transfer, minutes_transfer, points_boost.
+    gtd_log_rows: pre-computed GTD scenarios list from injury_report_{date}.json
+        → gtd_scenarios_detail, for use in build_gtd_scenarios().
+    """
     game_rows = pmfs_df[pmfs_df["game_id"] == game_id]
     if game_rows.empty:
         return {}
@@ -414,18 +651,29 @@ def build_game_record(
             pname = str(p_rows.iloc[0].get("player_name", ""))
             p_odds_rows = [r for r in odds_api_rows if r.get("player_name", "").strip() == pname.strip()]
 
+        # Extract UTM impact rows for this player as beneficiary
+        p_utm_rows: list[dict] | None = None
+        if utm_log_df is not None and not utm_log_df.empty:
+            ben_col = next(
+                (c for c in ("beneficiary_player_id", "player_id") if c in utm_log_df.columns), None
+            )
+            if ben_col:
+                p_utm_slice = utm_log_df[utm_log_df[ben_col] == pid]
+                if not p_utm_slice.empty:
+                    p_utm_rows = p_utm_slice.to_dict("records")
+
         rec = build_player_record(
             p_rows, market_rows=p_mkt,
             odds_api_rows=p_odds_rows,
             injury_status=inj_status,
+            utm_impact_rows=p_utm_rows,
+            gtd_log_rows=gtd_log_rows,
         )
         if rec:
             players.append(rec)
 
-    # Sanity check block
-    sanity = {"sanity_status": "GREEN", "note": "no_market_data"}
-    if market_df is not None and not market_df.empty:
-        sanity = compute_sanity_status({}, {})
+    # Sanity check block (blueprint §3.6) — real Pinnacle devig comparison
+    sanity = _build_sanity_checks_from_market(game_id, game_rows, market_df)
 
     return {
         "game_id": game_id,
@@ -455,6 +703,8 @@ def build_pregame_envelope(
     odds_api_rows: list[dict] | None = None,
     injuries_df: pd.DataFrame | None = None,
     odds_api_event_map: dict[int, str] | None = None,
+    utm_log_df: pd.DataFrame | None = None,
+    gtd_log_rows: list[dict] | None = None,
 ) -> dict:
     """Build the full pre-game JSON envelope per blueprint §3.1."""
     game_ids = pmfs_df["game_id"].unique().tolist()
@@ -469,6 +719,8 @@ def build_pregame_envelope(
             odds_api_rows=odds_api_rows,
             injuries_df=injuries_df,
             odds_api_event_id=event_id,
+            utm_log_df=utm_log_df,
+            gtd_log_rows=gtd_log_rows,
         )
         if g_rec:
             games_list.append(g_rec)

@@ -212,25 +212,10 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
             fallback = fallback.drop(columns=["_norm"], errors="ignore")
             joined = pd.concat([joined, fallback], ignore_index=True)
 
-    import json as _json, time as _time  # noqa: PLC0415
     import logging as _logging  # noqa: PLC0415
     _logger = _logging.getLogger(__name__)
     _logger.info("build_market_comparison: %d props with BDL id, %d via name fallback -> %d joined rows",
                  len(props_with_id), len(props_no_id), len(joined))
-    # #region agent log
-    try:
-        import os as _os
-        _lp = _os.path.join(_os.path.dirname(__file__), "../../../../.cursor/debug-94807e.log")
-        _entry = {"sessionId": "94807e", "hypothesisId": "H2", "timestamp": int(_time.time()*1000),
-                  "location": "deliver.py:build_market_comparison", "message": "overlap join result",
-                  "data": {"props_with_id": len(props_with_id), "props_no_id": len(props_no_id),
-                           "joined_rows": len(joined), "props_player_id_nulls": int(props["player_id"].isna().sum()),
-                           "pmfs_player_id_nulls": int(pmfs_sel["player_id"].isna().sum()) if "player_id" in pmfs_sel.columns else -1}}
-        with open(_lp, "a") as _f:
-            _f.write(_json.dumps(_entry) + "\n")
-    except Exception:
-        pass
-    # #endregion
 
     model_probs = []
     for _, r in joined.iterrows():

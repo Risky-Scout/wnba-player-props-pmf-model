@@ -7,11 +7,13 @@ Usage:
         --features-wide data/processed/wnba_player_game_features_wide.parquet \\
         --model-dir artifacts/models/stage4_baseline \\
         --cal-dir artifacts/models/calibration \\
+        --overrides config/player_overrides.json \\
         --raw-props data/processed/player_props.parquet \\
         --out-dir deliveries/today
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +22,7 @@ import typer
 
 from wnba_props_model.models.pmf_grid import pmfs_df_to_grids
 from wnba_props_model.pipeline.deliver import write_delivery
+from wnba_props_model.pipeline.overrides import apply_overrides, override_summary
 from wnba_props_model.pipeline.predict import predict_player_pmfs
 
 app = typer.Typer(add_completion=False)
@@ -35,6 +38,11 @@ def main(
     raw_props: str | None = typer.Option(None, help="BDL player props parquet for edge calculation."),
     out_dir: str = typer.Option("deliveries/today", help="Delivery output directory."),
     game_date: str | None = typer.Option(None, help="ISO date filter (YYYY-MM-DD); predicts only this date."),
+    overrides: str | None = typer.Option(
+        None, "--overrides",
+        help="Path to player_overrides.json (blueprint §6.1). "
+             "Reads active overrides for game_date and applies UTM redistribution.",
+    ),
     export_grids_json: bool = typer.Option(False, "--export-grids-json",
         help="Also write a full WNBAPMFGrid JSON sidecar with all markets at 0.5-step lines."),
 ) -> None:
@@ -57,6 +65,10 @@ def main(
     if features_df.empty:
         typer.echo(f"[WARN] No player rows to predict — no games on {game_date}. Exiting.")
         raise typer.Exit(0)
+
+    # ── Apply manual overrides from config/player_overrides.json (blueprint §6.1) ──
+    if overrides:
+        features_df = _apply_json_overrides(features_df, overrides, game_date, out_dir)
 
     typer.echo(f"Generating PMFs for {len(features_df):,} player-game rows...")
 
@@ -185,6 +197,93 @@ def main(
         with open(out_path, "w") as f:
             _json.dump([g.to_dict() for g in grids], f, default=str, indent=2)
         typer.echo(f"  pmf_grids_json: {out_path} ({len(grids)} grids)")
+
+
+def _apply_json_overrides(
+    features_df: pd.DataFrame,
+    overrides_path: str,
+    game_date: str | None,
+    out_dir: str,
+) -> pd.DataFrame:
+    """Read config/player_overrides.json, apply active overrides, log changes.
+
+    Blueprint §6.1: overrides expire after game_date; multiple overrides for
+    the same player on the same date are rejected (last-write-wins with a warning).
+    """
+    p = Path(overrides_path)
+    if not p.exists():
+        typer.echo(f"[OVERRIDES] File not found: {overrides_path} — skipping")
+        return features_df
+
+    try:
+        payload = json.loads(p.read_text())
+    except Exception as exc:
+        typer.echo(f"[OVERRIDES] Could not parse {overrides_path}: {exc} — skipping")
+        return features_df
+
+    entries = payload if isinstance(payload, list) else payload.get("overrides", [])
+    if not entries:
+        return features_df
+
+    # Filter to active entries for this game_date; de-duplicate (last wins)
+    seen: dict[int, dict] = {}
+    for entry in entries:
+        entry_date = str(entry.get("game_date") or "")
+        if game_date and entry_date and entry_date != game_date:
+            continue  # expired or different day
+        pid = int(entry.get("player_id", 0))
+        if pid in seen:
+            typer.echo(f"[OVERRIDES] Duplicate for player_id={pid} on {entry_date} — last-write-wins")
+        seen[pid] = entry
+
+    if not seen:
+        typer.echo("[OVERRIDES] No active overrides for this game date")
+        return features_df
+
+    # Separate DNP (minutes=0) vs minutes overrides
+    dnp_ids: list[int] = []
+    minutes_map: dict[int, float] = {}
+    for pid, entry in seen.items():
+        override_mins = entry.get("override_minutes")
+        if override_mins is not None:
+            mins_val = float(override_mins)
+            if mins_val < 1.0:
+                dnp_ids.append(pid)
+            else:
+                minutes_map[pid] = mins_val
+        else:
+            dnp_ids.append(pid)
+
+    original = features_df.copy()
+    features_df = apply_overrides(features_df, dnp_player_ids=dnp_ids or None, minutes_overrides=minutes_map or None)
+    summary = override_summary(original, features_df)
+
+    typer.echo(f"[OVERRIDES] Applied {summary['n_players_changed']} player override(s)")
+    for ch in summary.get("changes", []):
+        reason = seen.get(ch["player_id"], {}).get("reason", "")
+        typer.echo(
+            f"  player_id={ch['player_id']} {ch.get('player_name','')} "
+            f"{ch['original_minutes']:.1f}→{ch['overridden_minutes']:.1f} min "
+            f"({reason})"
+        )
+
+    # Write override log next to delivery outputs
+    log_path = Path(out_dir) / "override_log.json"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    import datetime as _dt
+    log_payload = {
+        "generated_at": _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "game_date": game_date,
+        "overrides_file": overrides_path,
+        "changes": summary.get("changes", []),
+        "entries_applied": [
+            {k: v for k, v in e.items()}
+            for e in seen.values()
+        ],
+    }
+    log_path.write_text(json.dumps(log_payload, indent=2, default=str))
+    typer.echo(f"[OVERRIDES] Log written → {log_path}")
+    return features_df
 
 
 if __name__ == "__main__":

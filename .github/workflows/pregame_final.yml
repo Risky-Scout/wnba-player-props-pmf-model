@@ -59,47 +59,70 @@ jobs:
             python scripts/predict_today.py \
               --features-wide data/processed/wnba_player_game_features_wide.parquet \
               --game-date "$GAME_DATE" \
-              --out-dir deliveries/tonight
+              --out-dir deliveries/tonight \
+              --overrides config/player_overrides.json
           fi
         continue-on-error: true
 
-      - name: Apply manual overrides from config/player_overrides.json
+      - name: Apply manual overrides from config/player_overrides.json (blueprint §6.1)
         run: |
-          python - << 'EOF'
-          import json
-          from pathlib import Path
-          overrides_file = Path("config/player_overrides.json")
-          if not overrides_file.exists():
-              print("No overrides file found.")
-              exit(0)
-          data = json.loads(overrides_file.read_text())
-          import os
-          game_date = os.environ["GAME_DATE"]
-          active = [o for o in data.get("overrides", []) if o.get("game_date") == game_date]
-          if not active:
-              print(f"No overrides for {game_date}.")
-              exit(0)
-          import subprocess
-          for o in active:
-              print(f"Applying override: player {o['player_id']} -> {o['override_minutes']} min")
-              subprocess.run([
-                  "python", "scripts/override_minutes.py",
-                  "--player-id", str(o["player_id"]),
-                  "--game-date", o["game_date"],
-                  "--minutes", str(o["override_minutes"]),
-                  "--reason", o.get("reason", ""),
-                  "--no-apply",  # don't re-register; just apply to slate
-              ], check=False)
-          EOF
-        env:
-          GAME_DATE: ${{ env.GAME_DATE }}
+          python scripts/predict_today.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --game-date "$GAME_DATE" \
+            --out-dir deliveries/tonight \
+            --model-dir artifacts/models/stage4_baseline \
+            --cal-dir artifacts/models/calibration \
+            --overrides config/player_overrides.json
         continue-on-error: true
 
-      - name: Fetch confirmed lineups / late injury updates
+      - name: Fetch and cache injury report (BDL — final update)
+        run: |
+          mkdir -p data/injuries
+          python - <<'PYEOF'
+          import json, os, sys, requests
+          from pathlib import Path
+
+          api_key = os.environ.get("BDL_API_KEY", "")
+          game_date = os.environ.get("GAME_DATE", "")
+          out_path = Path(f"data/injuries/{game_date}.json")
+
+          if not api_key:
+              print("[WARN] BDL_API_KEY not set — keeping existing injury file")
+              sys.exit(0)
+
+          params = {"per_page": 100}
+          headers = {"Authorization": api_key}
+          try:
+              resp = requests.get(
+                  "https://api.balldontlie.io/wnba/v1/player_injuries",
+                  params=params, headers=headers, timeout=20,
+              )
+              resp.raise_for_status()
+              data = resp.json()
+              injuries = data.get("data", data) if isinstance(data, dict) else data
+              normalized = []
+              for r in injuries:
+                  player = r.get("player") or {}
+                  pid = r.get("player_id") or player.get("id") or 0
+                  name = r.get("player_name") or f"{player.get('first_name','')} {player.get('last_name','')}".strip()
+                  normalized.append({
+                      "player_id": int(pid), "player_name": name,
+                      "status": str(r.get("status") or "available").lower(),
+                      "return_date": r.get("return_date"), "comment": r.get("comment"),
+                  })
+              out_path.write_text(json.dumps(normalized, indent=2))
+              print(f"Final injury update: {len(normalized)} records → {out_path}")
+          except Exception as exc:
+              print(f"[WARN] BDL injury fetch failed: {exc}")
+          PYEOF
+        continue-on-error: true
+
+      - name: Apply confirmed lineups / late injury updates (UTM)
         run: |
           python scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
-            --out-dir deliveries/tonight
+            --out-dir deliveries/tonight \
+            --injuries-json "data/injuries/${GAME_DATE}.json"
         continue-on-error: true
 
       - name: Pull final Odds API props + deep links
