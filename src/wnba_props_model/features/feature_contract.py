@@ -191,10 +191,58 @@ _CONSTANT_DEGENERATE_FEATURES = frozenset({
     # scaling.  opp_switch_rate_proxy is derived from it and is equally useless.
     "opp_aggression_index",
     "opp_switch_rate_proxy",
+    # All rotation_minutes_* distribution features are near-constant across
+    # players because the rotation model outputs population-level distributions
+    # rather than player-specific ones (all players get ~22-min league average,
+    # std < 0.6 minutes vs actual range of 0-40).  They add noise and actively
+    # push elite starters' predictions toward bench-player averages.
+    "rotation_minutes_mean",
+    "rotation_minutes_p_over_30",
+    "rotation_minutes_p_under_25",
+    "rotation_minutes_q10",
+    "rotation_minutes_q25",
+    "rotation_minutes_q50",
+    "rotation_minutes_q75",
+    "rotation_minutes_q90",
+    "rotation_minutes_std",
+})
+
+# Position-level opponent defensive stats (e.g. how many pts does this team
+# allow to Centers per game) use the WRONG granularity for individual player
+# prediction.  They measure performance across all opposing players at a
+# position, which systematically underestimates elite starters (who score far
+# above position average) and overestimates bench players.  Player-vs-opponent
+# career features (player_pts_vs_opp_*) capture the correct individual signal.
+_WRONG_GRANULARITY_FEATURES = frozenset({
+    "opp_ast_vs_C_allowed_l5",
+    "opp_ast_vs_F_allowed_l5",
+    "opp_ast_vs_G_allowed_l5",
+    "opp_blk_vs_C_allowed_l5",
+    "opp_blk_vs_F_allowed_l5",
+    "opp_blk_vs_G_allowed_l5",
+    "opp_fg3m_vs_C_allowed_l5",
+    "opp_fg3m_vs_F_allowed_l5",
+    "opp_fg3m_vs_G_allowed_l5",
+    "opp_pts_vs_C_allowed_l5",
+    "opp_pts_vs_F_allowed_l5",
+    "opp_pts_vs_G_allowed_l5",
+    "opp_reb_vs_C_allowed_l5",
+    "opp_reb_vs_F_allowed_l5",
+    "opp_reb_vs_G_allowed_l5",
+    "opp_stl_vs_C_allowed_l5",
+    "opp_stl_vs_F_allowed_l5",
+    "opp_stl_vs_G_allowed_l5",
+    "opp_turnover_vs_C_allowed_l5",
+    "opp_turnover_vs_F_allowed_l5",
+    "opp_turnover_vs_G_allowed_l5",
 })
 
 FORBIDDEN_MODEL_FEATURES: frozenset[str] = (
-    _BOX_SCORE_LEAKAGE | _MARKET_LEAKAGE | _OUTCOME_LEAKAGE | _CONSTANT_DEGENERATE_FEATURES
+    _BOX_SCORE_LEAKAGE
+    | _MARKET_LEAKAGE
+    | _OUTCOME_LEAKAGE
+    | _CONSTANT_DEGENERATE_FEATURES
+    | _WRONG_GRANULARITY_FEATURES
 )
 
 
