@@ -448,6 +448,14 @@ def generate_fold_pmfs(
             )
             low_min_applied = low_min_count > 0
 
+        from wnba_props_model.models.pmf_utils import sanitize_pmf_matrix  # noqa: PLC0415
+        pmf_mat, _n_sanitized = sanitize_pmf_matrix(pmf_mat)
+        if _n_sanitized:
+            import logging as _log  # noqa: PLC0415
+            _log.getLogger(__name__).warning(
+                "sanitize_pmf_matrix fixed %d non-finite rows (fold likely hit numerical boundary)",
+                _n_sanitized,
+            )
         validate_pmf_matrix(pmf_mat)
 
         # ---- Summary stats -----------------------------------------------

@@ -133,17 +133,6 @@ def _prepare_X(
     if obj_cols:
         print(f"  [WARN] Dropping {len(obj_cols)} non-numeric model cols from X: {obj_cols}")
         X = X.drop(columns=obj_cols)
-        # #region agent log
-        import json as _j, time as _t, os as _o
-        _lp = _o.path.join(_o.path.dirname(__file__), "../.cursor/debug-94807e.log")
-        try:
-            with open(_lp, "a") as _f:
-                _f.write(_j.dumps({"sessionId": "94807e", "hypothesisId": "H-string-leak",
-                    "timestamp": int(_t.time()*1000), "location": "train_baseline_pmfs.py:_prepare_X",
-                    "message": "dropped string cols from X", "data": {"cols": obj_cols}}) + "\n")
-        except Exception:
-            pass
-        # #endregion
 
     return X, pos_encoder
 

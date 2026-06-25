@@ -190,6 +190,31 @@ def validate_pmf(pmf: dict[int, float], tol: float = 1e-6) -> None:
         raise ValueError(f"PMF sum = {total:.8f} (expected 1.0 ± {tol})")
 
 
+def sanitize_pmf_matrix(pmf_mat: np.ndarray) -> tuple[np.ndarray, int]:
+    """Replace non-finite / negative values with a uniform fallback and renormalize.
+
+    Returns (sanitized_matrix, n_rows_fixed).  Rows that are entirely non-finite
+    or zero are replaced with a uniform distribution so they still sum to 1.
+    This prevents downstream ``validate_pmf_matrix`` from raising on edge-case
+    model outputs (e.g. a fold that hits a numerical boundary in the NegBin fit).
+    """
+    mat = pmf_mat.copy()
+    n_fixed = 0
+    bad_mask = ~np.isfinite(mat)
+    if bad_mask.any():
+        mat = np.where(bad_mask, 0.0, mat)
+        n_fixed = int(bad_mask.any(axis=1).sum())
+    mat = np.clip(mat, 0.0, None)
+    row_sums = mat.sum(axis=1, keepdims=True)
+    zero_rows = (row_sums == 0).ravel()
+    if zero_rows.any():
+        mat[zero_rows] = 1.0 / mat.shape[1]
+        n_fixed = max(n_fixed, int(zero_rows.sum()))
+    else:
+        mat = mat / row_sums
+    return mat, n_fixed
+
+
 def validate_pmf_matrix(pmf_mat: np.ndarray, tol: float = 1e-6) -> None:
     """Validate a batch of PMFs (shape n × support). Raise on any failure."""
     if not np.isfinite(pmf_mat).all():

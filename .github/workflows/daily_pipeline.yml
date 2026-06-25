@@ -2,12 +2,12 @@ name: Daily WNBA PMF Pipeline
 
 on:
   schedule:
-    # Morning run: 9 AM ET (13:00 UTC) -- trains models, builds slate for TODAY
-    - cron: "0 13 * * *"
-    # Afternoon run: 2 PM ET (18:00 UTC) -- re-pulls props after books post WNBA lines
-    # WNBA player props typically go live 2-6 hours before tip-off (7-10 PM ET games).
-    # This run skips retraining (uses cached models) and only refreshes props + edge report.
-    - cron: "0 18 * * *"
+    # Morning run: 7 AM ET (11:00 UTC) -- trains models, builds slate for TODAY
+    # Runs early enough that projections are ready before books open WNBA lines.
+    - cron: "0 11 * * *"
+    # Mid-morning run: 10 AM ET (14:00 UTC) -- re-pulls props after books post WNBA lines
+    # Bookmakers typically post WNBA player props by 2 PM ET; this run captures early movers.
+    - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
       game_date:

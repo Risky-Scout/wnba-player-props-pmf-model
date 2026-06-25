@@ -98,22 +98,32 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
         stat = BDL_PROP_TO_STAT.get(r.get("prop_type")) or r.get("stat")
         if not stat:
             continue
-        # #region agent log
-        import json as _j, time as _t, os as _o
-        _lp = _o.path.join(_o.path.dirname(__file__), "../../../../.cursor/debug-94807e.log")
-        try:
-            with open(_lp, "a") as _f:
-                _f.write(_j.dumps({"sessionId":"94807e","hypothesisId":"H1","location":"deliver.py:95",
-                    "message":"prop_type->stat resolution","timestamp":int(_t.time()*1000),
-                    "data":{"prop_type":str(r.get("prop_type")),"stat_resolved":str(stat),"bdl_hit":bool(BDL_PROP_TO_STAT.get(r.get("prop_type")))}}) + "\n")
-        except Exception:
-            pass
-        # #endregion
+        # Resolve odds: market dict takes precedence (BDL format); fall back
+        # to top-level columns for Odds API original format where over_odds /
+        # under_odds are stored as plain columns, not in a nested market dict.
+        over_odds_val  = market.get("over_odds")  if market else None
+        under_odds_val = market.get("under_odds") if market else None
+        if over_odds_val is None:
+            over_odds_val  = r.get("over_odds")
+        if under_odds_val is None:
+            under_odds_val = r.get("under_odds")
+
         from wnba_props_model.models.market import (  # noqa: PLC0415
             shin_no_vig_two_way_with_z, get_no_vig_prob,
         )
-        po, pu, z = shin_no_vig_two_way_with_z(market.get("over_odds"), market.get("under_odds"))
-        po_power, _ = get_no_vig_prob(market.get("over_odds"), market.get("under_odds"), method="power")
+        # Prefer pre-computed Shin values from the Odds API pull (already computed
+        # accurately during data ingestion); recompute only when absent.
+        if r.get("market_prob_over_no_vig") is not None and not (
+            isinstance(r.get("market_prob_over_no_vig"), float)
+            and r.get("market_prob_over_no_vig") != r.get("market_prob_over_no_vig")  # NaN check
+        ):
+            po  = float(r["market_prob_over_no_vig"])
+            pu  = 1.0 - po
+            z   = r.get("shin_z")
+            po_power = po  # already de-vigged; use as power approximation
+        else:
+            po, pu, z = shin_no_vig_two_way_with_z(over_odds_val, under_odds_val)
+            po_power, _ = get_no_vig_prob(over_odds_val, under_odds_val, method="power")
         line_val = float(r.get("line_value") or r.get("line") or 0.0)
         # P4.1: opening line and line movement features
         prop_line_open = r.get("prop_line_open")
@@ -149,8 +159,8 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
             "prop_type": r.get("prop_type"),
             "stat": stat,
             "line": line_val,
-            "over_odds": market.get("over_odds"),
-            "under_odds": market.get("under_odds"),
+            "over_odds": over_odds_val,
+            "under_odds": under_odds_val,
             "market_prob_over_no_vig": po,
             "market_prob_over_power": po_power,
             "shin_z": z,
