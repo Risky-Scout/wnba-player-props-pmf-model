@@ -180,8 +180,21 @@ _OUTCOME_LEAKAGE = frozenset({
     "over_hit", "under_hit", "push",
 })
 
+# Constant/degenerate features: always the same value across all players/games,
+# providing zero predictive signal and potentially harming model training.
+_CONSTANT_DEGENERATE_FEATURES = frozenset({
+    # rotation_minutes_bimodal is always True (the rotation model always uses
+    # bimodal distributions); a constant feature carries no information.
+    "rotation_minutes_bimodal",
+    # opp_aggression_index saturates at its clip ceiling (10.0) for all WNBA
+    # matchups because WNBA team TOV/steal rates exceed the formula's per-poss
+    # scaling.  opp_switch_rate_proxy is derived from it and is equally useless.
+    "opp_aggression_index",
+    "opp_switch_rate_proxy",
+})
+
 FORBIDDEN_MODEL_FEATURES: frozenset[str] = (
-    _BOX_SCORE_LEAKAGE | _MARKET_LEAKAGE | _OUTCOME_LEAKAGE
+    _BOX_SCORE_LEAKAGE | _MARKET_LEAKAGE | _OUTCOME_LEAKAGE | _CONSTANT_DEGENERATE_FEATURES
 )
 
 

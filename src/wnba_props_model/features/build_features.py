@@ -365,27 +365,50 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
     fga_l10  = fga_l10_raw if fga_l10_raw is not None else pd.Series(np.nan, index=df.index)
     fta_l10  = fta_l10_raw if fta_l10_raw is not None else pd.Series(np.nan, index=df.index)
 
-    # ── True Shooting % (TS%) ───────────────────────────────────────────────
-    tsa = fga_l10.fillna(0) + 0.44 * fta_l10.fillna(0)
-    df["player_ts_pct_l10"] = (pts_l10 / (2.0 * tsa.clip(lower=1.0))).where(tsa > 0)
+    # Coerce index alignment (merge can produce a new index)
+    fga_l10 = fga_l10.reset_index(drop=True) if hasattr(fga_l10, "reset_index") else fga_l10
+    fta_l10 = fta_l10.reset_index(drop=True) if hasattr(fta_l10, "reset_index") else fta_l10
+    df = df.reset_index(drop=True)
 
-    # ── Effective FG% (eFG%) ────────────────────────────────────────────────
+    # Guard: only compute shooting-efficiency features when FGA data is valid.
+    # When fga_l10 is missing (e.g. game_id type mismatch in the merge), all
+    # three features would produce nonsensical values (pts_mean/2, etc.).
+    has_fga = fga_l10.fillna(0) > 0
+
+    tsa = fga_l10.fillna(0) + 0.44 * fta_l10.fillna(0)
+
+    # #region agent log
+    import json as _json, time as _time
+    _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
+    try:
+        _fga_ok = int(has_fga.sum())
+        _fga_zero = int((~has_fga).sum())
+        with open(_log_path, "a") as _lf:
+            _lf.write(_json.dumps({"sessionId":"94807e","runId":"fix-v1","hypothesisId":"shot-qual","location":"build_features.py:370","message":"shot quality fga validity","data":{"fga_nonzero":_fga_ok,"fga_zero":_fga_zero,"tsa_max":float(tsa.max()) if len(tsa)>0 else 0},"timestamp":int(_time.time()*1000)}) + "\n")
+    except Exception:
+        pass
+    # #endregion agent log
+
+    # ── True Shooting % (TS%) — only valid when FGA data exists ─────────────
+    df["player_ts_pct_l10"] = (pts_l10 / (2.0 * tsa.clip(lower=1.0))).where(has_fga)
+
+    # ── Effective FG% (eFG%) — only valid when FGA data exists ─────────────
     df["player_efg_pct_l10"] = (
         (fga_l10.fillna(0) + 0.5 * fg3m_l10.fillna(0)) /
         fga_l10.clip(lower=1.0)
-    ).where(fga_l10 > 0)
+    ).where(has_fga)
 
-    # ── FTA rate (FTA / FGA) ─────────────────────────────────────────────────
-    df["player_fta_rate_l10"] = (fta_l10 / fga_l10.clip(lower=1.0)).where(fga_l10 > 0)
+    # ── FTA rate (FTA / FGA) — only valid when FGA data exists ─────────────
+    df["player_fta_rate_l10"] = (fta_l10 / fga_l10.clip(lower=1.0)).where(has_fga)
 
-    # ── Points per scoring attempt ───────────────────────────────────────────
+    # ── Points per scoring attempt — only valid when FGA data exists ─────────
     scoring_attempts = fga_l10.fillna(0) + 0.44 * fta_l10.fillna(0)
     df["pts_per_scoring_attempt_l10"] = (
         pts_l10 / scoring_attempts.clip(lower=1.0)
-    ).where(scoring_attempts > 0)
+    ).where(has_fga)
 
     # ── Shot quality delta proxy (hot/cold streak signal) ───────────────────
-    # Without shot location data: use actual eFG% vs season-average eFG%
+    # Only meaningful when we have valid eFG%; falls back to 0 (neutral) otherwise.
     efg_season = (
         (df.get("player_fga_mean_season", pd.Series(np.nan, index=df.index)).fillna(0) +
          0.5 * df.get("player_fg3m_mean_season", pd.Series(np.nan, index=df.index)).fillna(0)) /
@@ -414,14 +437,30 @@ def _build_game_script_features(wide: pd.DataFrame) -> pd.DataFrame:
     SPREAD_SIGMA = 10.0  # WNBA game standard deviation
 
     # Net rating proxy: team_pts_for - team_pts_allowed (rolling L5)
+    # h_net: player's own team net rating (positive = team scoring more than they allow)
     h_net = (
         df.get("team_pts_for_mean_l5", pd.Series(0.0, index=df.index)).fillna(0) -
         df.get("team_pts_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0)
     )
-    o_net = (
-        df.get("opp_pts_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0) -
-        df.get("opp_total_score_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0)
-    )
+    # o_net: opponent team net rating.
+    # opp_total_score_allowed_mean_l5 = total game score (both teams) in opponent's games.
+    # opp_pts_allowed_mean_l5         = points the opponent allows (opponent defense).
+    # Opponent offense = total_game_score - opp_defense.
+    # Opponent net = opponent_offense - opponent_defense.
+    opp_total = df.get("opp_total_score_allowed_mean_l5", pd.Series(0.0, index=df.index)).fillna(0)
+    opp_def   = df.get("opp_pts_allowed_mean_l5",          pd.Series(0.0, index=df.index)).fillna(0)
+    opp_off   = (opp_total - opp_def).clip(lower=0)   # opponent's scoring rate
+    o_net     = opp_off - opp_def                      # opponent's net rating
+
+    # #region agent log
+    import json as _json2, time as _time2
+    _log_path2 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
+    try:
+        with open(_log_path2, "a") as _lf2:
+            _lf2.write(_json2.dumps({"sessionId":"94807e","runId":"fix-v1","hypothesisId":"blowout","location":"build_features.py:430","message":"blowout spread calc","data":{"h_net_mean":float(h_net.mean()),"opp_off_mean":float(opp_off.mean()),"o_net_mean":float(o_net.mean()),"opp_total_mean":float(opp_total.mean())},"timestamp":int(_time2.time()*1000)}) + "\n")
+    except Exception:
+        pass
+    # #endregion agent log
 
     is_home = df.get("is_home", pd.Series(True, index=df.index)).fillna(True).astype(bool)
     # Spread from the player's team perspective (positive = player's team favored)
@@ -470,16 +509,18 @@ def _build_defensive_scheme_features(wide: pd.DataFrame) -> pd.DataFrame:
     # Use opponent rolling stat totals available in wide table
     opp_stl = df.get("opp_stl_allowed_mean_l5", pd.Series(np.nan, index=df.index)).fillna(5.0)
     opp_blk = df.get("opp_blk_allowed_mean_l5", pd.Series(np.nan, index=df.index)).fillna(4.0)
-    opp_pf  = df.get("opp_pts_allowed_mean_l5", pd.Series(np.nan, index=df.index)).fillna(75.0)
+    # Use opponent turnovers FORCED as proxy for defensive aggression pressure.
+    # The correct column is opp_turnover_forced_mean_l5 (turnovers the opponent forces).
+    opp_tov = df.get("opp_turnover_forced_mean_l5", pd.Series(np.nan, index=df.index)).fillna(14.0)
 
     # Normalize to per-possession proxies (assume ~75 possessions per WNBA game)
     _POSS = 75.0
     stl_rate = opp_stl / _POSS
     blk_rate = opp_blk / _POSS
-    pf_rate  = opp_pf  / _POSS
+    tov_rate = opp_tov / _POSS
 
-    # Aggression index: high steal + high foul rate = blitz/aggressive
-    df["opp_aggression_index"] = (stl_rate * 100 + pf_rate * 100 * 0.3).clip(0, 10)
+    # Aggression index: high steal + high forced-turnover rate = blitz/aggressive
+    df["opp_aggression_index"] = (stl_rate * 100 + tov_rate * 100 * 0.5).clip(0, 10)
 
     # Drop indicator: high block + low steal = drop / interior-oriented
     df["opp_drop_indicator"] = (blk_rate * 100 - stl_rate * 50).clip(-5, 10)
