@@ -302,10 +302,10 @@ def build_explanations(
     # Load importances
     importances = _load_feature_importances(model_dir)
 
-    # League means from features (all historical rows)
+    # League means from features (all historical rows) — numeric columns only
     league_means: dict[str, float] = {}
     for col in feature_cols:
-        if col in features.columns:
+        if col in features.columns and pd.api.types.is_numeric_dtype(features[col]):
             league_means[col] = float(features[col].mean(skipna=True))
 
     # Filter to unique players (latest row per player)
