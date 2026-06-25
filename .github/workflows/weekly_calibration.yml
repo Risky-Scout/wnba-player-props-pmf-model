@@ -82,6 +82,38 @@ jobs:
             --config config/model/stage6_calibration.yaml \
             --pre-cal
 
+      # R2.2 — Invalidate any stale calibrators before fitting new ones.
+      # Calibrators fitted on a polluted model's OOF learn incorrect curves
+      # (e.g. "star players' raw predictions are 50% too high, downscale by -3 pts").
+      # Deleting them forces a clean refit from the current OOF PMFs.
+      - name: Invalidate old calibrators (R2.2)
+        run: |
+          rm -f artifacts/models/calibration/pmf_cal_role_*.pkl
+          rm -f artifacts/models/calibration/beta_cal_*.pkl
+          rm -f artifacts/models/calibration/conformal_predictor.pkl
+          echo "Old calibrators invalidated — fresh fit will run below"
+
+      # R2.3 — Calibration bias diagnostic: model_mean vs actual_mean per stat.
+      # Expected: |bias| < 0.5. If bias < -1.0, feature pollution persists; fix upstream.
+      - name: Calibration bias diagnostic (R2.3)
+        continue-on-error: true
+        run: |
+          python - << 'EOF'
+          import pandas as pd
+          oof = pd.read_parquet("data/oof/oof_player_stat_pmfs.parquet")
+          print("=== Calibration bias diagnostic (R2.3) ===")
+          print("Expected: |bias| < 0.5 per stat. If bias < -1.0, feature pollution persists.")
+          for stat in ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]:
+              subset = oof[oof["stat"] == stat]
+              if subset.empty:
+                  continue
+              model_mean  = subset["pmf_mean"].mean()
+              actual_mean = subset["actual_outcome"].mean()
+              bias = model_mean - actual_mean
+              flag = "WARN" if abs(bias) > 0.5 else "OK  "
+              print(f"  {flag}  {stat}: model_mean={model_mean:.2f}, actual_mean={actual_mean:.2f}, bias={bias:+.2f}")
+          EOF
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
