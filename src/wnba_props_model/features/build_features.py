@@ -60,6 +60,7 @@ ROLE_BUCKET_COLS: list[str] = [
     "minutes_volatility_bucket",
     "rotation_stability_bucket",
     "rotation_minutes_role",   # string label — never feed raw to HGB
+    "season_phase",            # categorical string (early/mid/late/playoff)
 ]
 
 FEATURE_CUTOFF_POLICY = "strict_pregame_shifted"

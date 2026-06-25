@@ -556,19 +556,21 @@ class WNBAWeibullCopulaScoreModel:
             missing = required - set(df.columns)
             raise ValueError(f"Missing columns for WeibullCopula fit: {missing}")
 
-        # Compute time-decay weights (.copy() prevents read-only buffer error from numpy views)
+        # Compute time-decay weights. Explicit .copy() on both input and output prevents
+        # "buffer source array is read-only" when penaltyblog operates on numpy views.
         if "days_since" in df.columns:
             weights = penaltyblog.models.dixon_coles_weights(
                 df["days_since"].to_numpy(copy=True), xi=time_decay_xi
-            )
+            ).copy()
         else:
             weights = None
 
+        import numpy as _np  # noqa: PLC0415
         self._inner = penaltyblog.models.WeibullCopulaGoalsModel(
-            goals_home=df["home_score"].astype(int),
-            goals_away=df["away_score"].astype(int),
-            teams_home=df["home_team"].astype(str),
-            teams_away=df["away_team"].astype(str),
+            goals_home=_np.array(df["home_score"].values, dtype=int, copy=True),
+            goals_away=_np.array(df["away_score"].values, dtype=int, copy=True),
+            teams_home=_np.array(df["home_team"].values, dtype=str, copy=True),
+            teams_away=_np.array(df["away_team"].values, dtype=str, copy=True),
             weights=weights,
         )
         self._inner.fit()
