@@ -56,7 +56,17 @@ jobs:
           path: artifacts/models/calibration/
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download stage4 model
+      - name: Restore stage4 model from cache
+        id: model-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: artifacts/models/stage4_baseline/
+          key: model-stage4-latest-${{ github.run_id }}
+          restore-keys: model-stage4-latest-
+
+      - name: Download stage4 model (fallback)
+        if: steps.model-cache.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
