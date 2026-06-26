@@ -11,9 +11,10 @@ name: Live In-Play Engine
 
 on:
   schedule:
-    # Only run during WNBA season months (May–September, months 5-9).
-    # This saves ~10,800 Actions minutes/year vs the original */2 * * * *.
-    - cron: '*/2 * * 5,6,7,8,9 *'
+    # Only run during WNBA season months (May–October, months 5-10).
+    # October covers playoff extension. Saves ~9,500 Actions minutes/year
+    # vs the original */2 * * * *.
+    - cron: '*/2 * * 5,6,7,8,9,10 *'
   workflow_dispatch:
     inputs:
       game_ids:
