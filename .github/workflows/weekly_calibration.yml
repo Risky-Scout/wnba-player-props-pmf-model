@@ -6,11 +6,16 @@ on:
   workflow_dispatch:
     inputs:
       skip_oof_build:
-        description: 'Skip OOF rebuild and reuse existing oof-latest artifact (for gate-only reruns)'
+        description: 'Skip OOF rebuild and reuse existing OOF artifact (for gate-only reruns)'
         required: false
         default: 'false'
         type: choice
         options: ['false', 'true']
+      oof_run_id:
+        description: 'Run ID of weekly-cal-audit artifact to reuse (leave blank to use oof-latest)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   weekly-calibration:
@@ -39,8 +44,17 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Download existing OOF (skip_oof_build mode)
-        if: github.event.inputs.skip_oof_build == 'true'
+      - name: Download existing OOF from audit artifact (skip_oof_build + oof_run_id)
+        if: github.event.inputs.skip_oof_build == 'true' && github.event.inputs.oof_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: weekly-cal-audit-${{ github.event.inputs.oof_run_id }}
+          path: .
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.inputs.oof_run_id }}
+
+      - name: Download existing OOF from oof-latest (skip_oof_build, no oof_run_id)
+        if: github.event.inputs.skip_oof_build == 'true' && github.event.inputs.oof_run_id == ''
         uses: actions/download-artifact@v4
         with:
           name: oof-latest
