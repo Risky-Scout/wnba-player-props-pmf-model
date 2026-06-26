@@ -93,7 +93,20 @@ def build(
     print(f"Loading manifest: {manifest_path}")
     manifest = json.loads(manifest_path.read_text())
     model_cols: list[str] = manifest["model_feature_columns"]
-    print(f"  {len(model_cols)} model feature columns")
+
+    # OOF temporal leakage guard: SVD embeddings are computed on the full wide
+    # table (all games in one pass) so they encode future-game information for
+    # any given OOF fold.  Exclude them from Stage 5 training to prevent
+    # calibrator bias from leakage.  They remain in Stage 4 (live) predictions.
+    _OOF_EXCLUDED_PREFIXES = ("player_svd_dim_",)
+    _n_before = len(model_cols)
+    model_cols = [c for c in model_cols
+                  if not any(c.startswith(p) for p in _OOF_EXCLUDED_PREFIXES)]
+    _n_excluded = _n_before - len(model_cols)
+    if _n_excluded:
+        print(f"  OOF leakage guard: excluded {_n_excluded} SVD embedding columns "
+              f"(fold-unsafe; used only in live Stage 4 predictions)")
+    print(f"  {len(model_cols)} model feature columns (OOF-safe)")
 
     # Leakage guard
     assert_no_forbidden_features(model_cols)

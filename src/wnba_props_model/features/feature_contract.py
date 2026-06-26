@@ -196,11 +196,8 @@ GAME_SCRIPT_FEATURES: list[str] = [
     "game_number_in_season",         # Ordinal game number (1-40 regular season)
     "season_completion_pct",         # Games played / 40 (0→1 over season)
     "is_playoff_game",               # 1 if playoff, 0 otherwise
-    # Schedule/travel
-    "rest_days",                     # Days since last game (tempo/fatigue)
-    "is_b2b",                        # Back-to-back game flag
-    "is_3in4",                       # Three games in four days flag
-    "travel_proxy",                  # Rough timezone-distance travel cost
+    # Schedule/travel (rest_days, is_b2b, is_3in4, travel_proxy omitted here —
+    # they are already in SCHEDULE_FEATURES; duplicating inflates MODEL_FEATURES count)
     "team_timezone_diff",            # |home_tz - away_tz| proxy for travel fatigue
     "team_3in4_flag",                # Player's team on 3-in-4 schedule
     "opp_3in4_flag",                 # Opponent on 3-in-4 schedule
