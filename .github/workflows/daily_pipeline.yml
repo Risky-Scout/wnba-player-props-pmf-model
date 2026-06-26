@@ -258,6 +258,17 @@ jobs:
             --thresholds-hard-ece 0.12 \
             --out artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
 
+      - name: Download OOF PMFs for drift auto-refit
+        # Only runs when drift-check triggers hard-refit. Downloads the latest
+        # OOF parquet published by weekly_calibration.yml so fit_calibrators.py
+        # has the data it needs without knowing the weekly-cal run ID.
+        if: steps.drift-check.outcome == 'failure'
+        uses: actions/download-artifact@v4
+        with:
+          name: oof-latest
+          path: data/oof
+        continue-on-error: true
+
       - name: Auto-refit calibrators on hard drift
         # Only triggered when drift-check exits 1 (hard drift detected).
         if: steps.drift-check.outcome == 'failure'

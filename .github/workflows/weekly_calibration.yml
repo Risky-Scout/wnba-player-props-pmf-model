@@ -275,3 +275,15 @@ jobs:
             data/oof/
             artifacts/audits/stage5_*
           retention-days: 30
+
+      - name: Publish OOF PMFs as stable artifact (for daily auto-refit)
+        # Upload as a fixed name so the daily pipeline can always download the
+        # latest OOF parquet for calibration drift auto-refit without needing
+        # to know the weekly-cal run ID.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oof-latest
+          path: data/oof/oof_player_stat_pmfs.parquet
+          retention-days: 90
+          overwrite: true
