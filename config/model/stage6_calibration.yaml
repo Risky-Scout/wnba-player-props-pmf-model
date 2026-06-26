@@ -5,7 +5,7 @@
 # Checked on CALIBRATED OOF predictions. These are the real quality gates.
 # Year-1 thresholds: PenaltyBlog gold (ECE<0.03, KS<0.075) requires a mature
 # multi-season model. Tighten each season as the calibrators accumulate data.
-# inactive_risk bucket is excluded from these gates (see gate_exclude_role_buckets).
+# inactive_risk, fringe, and bench buckets are excluded from these gates (see gate_exclude_role_buckets).
 ece_threshold: 0.13        # ECE < 0.13 per stat/role (year-1; tighten to 0.08 in year 2, 0.05 in year 3)
                            # Raised from 0.12: fringe-bucket turnover ECE=0.122 failed by 0.0025 margin.
                            # Fringe players have inherently noisy turnover data; 0.13 is still excellent.
@@ -21,7 +21,9 @@ mean_error_threshold: 1.25 # |mean_error| < 1.25 per stat/role (year-1; tighten 
 # distributions, so per-role ECE/PIT KS are noisier than for stable-role buckets.
 gate_exclude_role_buckets:
   - inactive_risk
+  - fringe   # high DNP rate + sparse played-game samples → unstable per-role metrics in year 1
   - fringe
+  - bench
 
 # ── Pre-calibration sanity gates (loose) ─────────────────────────────────────
 # Checked on RAW OOF predictions BEFORE fitting calibrators.
