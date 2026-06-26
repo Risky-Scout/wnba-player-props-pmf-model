@@ -1,0 +1,111 @@
+name: Refit Calibrators from Existing OOF
+
+# Fast-path calibration refit: download OOF from a known audit artifact run,
+# run the gate + fit + promote steps without rebuilding OOF (~10 min vs 3h).
+# Use when weekly_calibration.yml fails only at the gate step and OOF is good.
+#
+# Usage:
+#   gh workflow run refit_calibrators.yml -f oof_run_id=28205251576
+#   Or trigger manually from the Actions UI with the run ID of the
+#   weekly-cal-audit artifact that contains the good OOF data.
+
+on:
+  workflow_dispatch:
+    inputs:
+      oof_run_id:
+        description: 'Run ID of weekly-cal-audit artifact containing good OOF data'
+        required: true
+        type: string
+
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Download OOF from audit artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: weekly-cal-audit-${{ github.event.inputs.oof_run_id }}
+          path: .
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.inputs.oof_run_id }}
+
+      - name: Verify OOF parquet exists
+        run: |
+          ls -lh data/oof/oof_player_stat_pmfs.parquet
+          python -c "
+          import pandas as pd
+          df = pd.read_parquet('data/oof/oof_player_stat_pmfs.parquet')
+          print(f'OOF rows: {len(df):,}  stats: {sorted(df[\"stat\"].unique())}')
+          "
+
+      - name: Invalidate old calibrators
+        run: |
+          rm -f artifacts/models/calibration/pmf_cal_role_*.pkl
+          rm -f artifacts/models/calibration/beta_cal_*.pkl
+          rm -f artifacts/models/calibration/conformal_predictor.pkl
+          echo "Old calibrators invalidated."
+
+      - name: Fit calibrators (Stage 6)
+        run: |
+          python scripts/fit_calibrators.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --out-dir artifacts/models/calibration
+
+      - name: Apply calibrators to OOF (for post-cal gate)
+        run: |
+          python scripts/apply_calibrators.py \
+            --pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --cal-dir artifacts/models/calibration \
+            --out data/oof/oof_player_stat_pmfs_calibrated.parquet
+
+      - name: Verify calibration gates (strict)
+        run: |
+          python scripts/verify_gates.py calibration \
+            data/oof/oof_player_stat_pmfs_calibrated.parquet \
+            --config config/model/stage6_calibration.yaml
+
+      - name: Promote calibrators (gate passed)
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibrators-latest
+          path: artifacts/models/calibration/
+          retention-days: 90
+          overwrite: true
+
+      - name: Cache calibrators
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/models/calibration/
+          key: calibrators-latest-${{ github.run_id }}
+
+      - name: Publish fresh OOF as oof-latest
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oof-latest
+          path: data/oof/oof_player_stat_pmfs.parquet
+          retention-days: 90
+          overwrite: true
