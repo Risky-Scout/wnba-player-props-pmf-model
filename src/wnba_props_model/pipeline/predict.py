@@ -419,25 +419,8 @@ def predict_player_pmfs(
     if apply_calibration and cal_dir is not None:
         cal_dir = Path(cal_dir)
         if cal_dir.exists() and any(cal_dir.glob("pmf_cal_role_*.pkl")):
-            # #region agent log
-            _pre_cal_sample = pmfs_long[pmfs_long["stat"] == "pts"]["pmf_mean"].mean() if "pmf_mean" in pmfs_long.columns else float("nan")
-            logger.info("[predict][debug] PRE-calibration pts pmf_mean avg: %.3f", _pre_cal_sample)
-            # #endregion
             logger.info("Applying role-aware isotonic calibrators from %s", cal_dir)
             pmfs_long = apply_calibrators(pmfs_long, cal_dir=cal_dir)
-            # #region agent log
-            _post_cal_sample = pmfs_long[pmfs_long["stat"] == "pts"]["mean"].mean() if "mean" in pmfs_long.columns else float("nan")
-            logger.info("[predict][debug] POST-calibration pts mean avg: %.3f", _post_cal_sample)
-            import json as _json, time as _time
-            try:
-                import os as _os
-                _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-                _payload = _json.dumps({"sessionId": "94807e", "location": "predict.py:calibrate_first", "message": "calibrate_before_shrink", "data": {"pre_cal_pts_mean": round(_pre_cal_sample, 3), "post_cal_pts_mean": round(_post_cal_sample, 3)}, "timestamp": int(_time.time() * 1000)}) + "\n"
-                with open(_log_path, "a") as _lf:
-                    _lf.write(_payload)
-            except Exception:
-                pass
-            # #endregion
         else:
             logger.warning(
                 "Calibration requested but no calibrators found in %s; "
@@ -451,27 +434,11 @@ def predict_player_pmfs(
     # (hierarchical Bayes); k=None is now the default so the data drives shrinkage
     # strength instead of a fixed value that ignores inter-stat variance differences.
     if apply_shrinkage:
-        # #region agent log
-        _pre_sh_sample = pmfs_long[pmfs_long["stat"] == "pts"]["mean"].mean() if "mean" in pmfs_long.columns else float("nan")
-        logger.info("[predict][debug] PRE-shrinkage pts mean avg: %.3f", _pre_sh_sample)
-        # #endregion
         pmfs_long = apply_bayesian_shrinkage(
             pmfs_long,
             features=feature_df,
             k=shrinkage_k,  # None → use per-stat Gamma prior.beta
         )
-        # #region agent log
-        _post_sh_sample = pmfs_long[pmfs_long["stat"] == "pts"]["mean"].mean() if "mean" in pmfs_long.columns else float("nan")
-        logger.info("[predict][debug] POST-shrinkage pts mean avg: %.3f", _post_sh_sample)
-        try:
-            import os as _os
-            _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-            _payload = _json.dumps({"sessionId": "94807e", "location": "predict.py:shrink_after", "message": "shrink_after_calibrate", "data": {"pre_shrink_pts_mean": round(_pre_sh_sample, 3), "post_shrink_pts_mean": round(_post_sh_sample, 3)}, "timestamp": int(_time.time() * 1000)}) + "\n"
-            with open(_log_path, "a") as _lf:
-                _lf.write(_payload)
-        except Exception:
-            pass
-        # #endregion
 
     return pmfs_long
 
