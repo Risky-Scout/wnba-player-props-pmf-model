@@ -51,17 +51,36 @@ def pmf_long() -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def test_aja_wilson_pts_projection(pmf_long: pd.DataFrame) -> None:
-    """A'ja Wilson must project >= 20 pts — lower values indicate feature pollution."""
+    """A'ja Wilson must project >= 20 pts in seasons where she's elite (2024+).
+
+    Uses "A'ja" to avoid matching other Wilsons (e.g. Alex Wilson), filters
+    to did_play=True to exclude DNP/garbage-time rows, and restricts to
+    seasons >= 2024 where she averages 22-27 ppg — making a sub-20 projection
+    a reliable signal of feature pollution or calibration regression.
+    """
     aja = pmf_long[
-        pmf_long["player_name"].str.contains("Wilson", case=False, na=False)
+        pmf_long["player_name"].str.contains("A'ja", case=False, na=False)
         & (pmf_long["stat"] == "pts")
     ]
     if aja.empty:
         pytest.skip("A'ja Wilson not in current dataset")
 
+    # Exclude DNP games — zero-minute appearances produce near-zero PMF means
+    # and are not calibration-relevant predictions.
+    if "did_play" in aja.columns:
+        aja = aja[aja["did_play"] == True]  # noqa: E712
+
+    # Restrict to elite-era seasons (2024+) where she averages 22-27 ppg.
+    # Including 2019-2023 early career (14-22 ppg) dilutes the gate signal.
+    if "season" in aja.columns:
+        aja = aja[aja["season"] >= 2024]
+
+    if aja.empty:
+        pytest.skip("A'ja Wilson has no 2024+ played rows in current dataset")
+
     mean_proj = float(aja["pmf_mean"].mean())
     assert mean_proj >= 20.0, (
-        f"A'ja Wilson pts projection {mean_proj:.1f} < 20.0 — "
+        f"A'ja Wilson pts projection {mean_proj:.1f} < 20.0 (2024+ seasons, played only) — "
         f"feature pollution likely persists (check manifest for rotation_minutes_* "
         f"or opp_*_vs_*_allowed_l5)"
     )
