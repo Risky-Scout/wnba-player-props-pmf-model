@@ -189,6 +189,18 @@ def build_all_pmfs(
             pos_mus = None
 
         # ---- Build PMF matrix ---------------------------------------------
+        # If role_bucket is missing from stat_rows but dispersion_r_by_role config
+        # is present, derive role_bucket from predicted minutes_mean so the role-aware
+        # dispersion path in _build_pmf_matrix can fire.  Without this, roles=None
+        # and the global r is used — causing calibrators to over-correct by ~40%.
+        if "role_bucket" not in stat_rows.columns and "minutes_mean" in stat_rows.columns:
+            _disp_cfg_local = cfg.get("dispersion_r_by_role", {})
+            if _disp_cfg_local:
+                try:
+                    from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket as _add_rb  # noqa: PLC0415
+                    stat_rows = _add_rb(stat_rows, minutes_col="minutes_mean")
+                except Exception:
+                    pass
         roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
 
         # Enhancement 19: use rotation model for bimodal minutes if enabled

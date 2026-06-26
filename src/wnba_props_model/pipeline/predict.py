@@ -340,7 +340,7 @@ def predict_player_pmfs(
     if _disp_cfg:
         for _stat_name, _disp_by_role in _disp_cfg.items():
             _model = artifacts.get("rate_models", {}).get(_stat_name)
-            if _model is not None and not getattr(_model, "_role_dispersion", None):
+            if _model is not None:
                 _base = getattr(_model, "_base_model", _model)
                 try:
                     _base._role_dispersion = _disp_by_role
