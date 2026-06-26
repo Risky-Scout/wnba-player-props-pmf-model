@@ -102,6 +102,7 @@ def fit_beta_calibrators(
     import joblib  # noqa: PLC0415
     from wnba_props_model.evaluation.beta_calibration import fit_best_calibrator  # noqa: PLC0415
 
+    _BETA_MIN_CAL_MINUTES = 10
     oof = pd.read_parquet(oof_pmfs_path).copy()
     if "outcome" not in oof.columns and "actual_outcome" in oof.columns:
         oof["outcome"] = oof["actual_outcome"]
@@ -109,6 +110,11 @@ def fit_beta_calibrators(
         oof["pmf"] = oof["pmf_json"].map(json_to_pmf)
     if "calibration_eligible" in oof.columns:
         oof = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
+    # Apply same DNP + low-minutes filter as fit_calibrators
+    if "did_play" in oof.columns:
+        oof = oof[oof["did_play"] == True].copy()  # noqa: E712
+    if "actual_minutes" in oof.columns:
+        oof = oof[oof["actual_minutes"].fillna(0) >= _BETA_MIN_CAL_MINUTES].copy()
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -213,11 +219,58 @@ def fit_calibrators(
     if "pmf" not in oof.columns and "pmf_json" in oof.columns:
         oof["pmf"] = oof["pmf_json"].map(json_to_pmf)
 
-    # Only calibrate on eligible rows (excludes prior_only, low-minute games)
+    # Only calibrate on eligible rows (excludes prior_only rows).
+    # CRITICAL: also exclude DNP games (did_play=False) and garbage-time
+    # appearances (actual_minutes < 10).  Including DNPs contaminates PIT
+    # distributions: a player predicted at 14 pts who DNPs scores 0, giving
+    # PIT ≈ 0.05.  The isotonic calibrator interprets this as systematic
+    # over-prediction and learns to compress every distribution by ~2×,
+    # causing severe under-prediction vs the market in live delivery.
+    _MIN_CAL_MINUTES = 10  # require at least 10 meaningful minutes to be calibration-eligible
     if "calibration_eligible" in oof.columns:
         oof_eligible = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
     else:
         oof_eligible = oof.copy()
+
+    # Apply DNP + low-minutes filter (only for rows that have these columns)
+    _pre_dnp_n = len(oof_eligible)
+    if "did_play" in oof_eligible.columns:
+        oof_eligible = oof_eligible[oof_eligible["did_play"] == True].copy()  # noqa: E712
+    if "actual_minutes" in oof_eligible.columns:
+        oof_eligible = oof_eligible[
+            oof_eligible["actual_minutes"].fillna(0) >= _MIN_CAL_MINUTES
+        ].copy()
+    _post_dnp_n = len(oof_eligible)
+    logger.info(
+        "[calibrate] DNP/low-min filter: %d → %d rows "
+        "(removed %d DNP/low-minute games from calibration training set)",
+        _pre_dnp_n, _post_dnp_n, _pre_dnp_n - _post_dnp_n,
+    )
+
+    # region agent log — hypothesis: DNP rows corrupt calibration (H-DNP)
+    import json as _json, time as _time
+    try:
+        _pts = oof_eligible[oof_eligible["stat"] == "pts"] if "stat" in oof_eligible.columns else pd.DataFrame()
+        _log_data = {
+            "sessionId": "94807e", "runId": "pre-fix", "hypothesisId": "H-DNP",
+            "location": "calibrate.py:fit_calibrators",
+            "message": "DNP filter applied — calibration training set stats",
+            "data": {
+                "pre_filter_n": int(_pre_dnp_n),
+                "post_filter_n": int(_post_dnp_n),
+                "removed_n": int(_pre_dnp_n - _post_dnp_n),
+                "pts_rows": int(len(_pts)),
+                "pts_actual_mean": float(_pts["actual_outcome"].mean()) if len(_pts) > 0 else None,
+                "pts_pmf_mean": float(_pts["pmf_mean"].mean()) if len(_pts) > 0 and "pmf_mean" in _pts.columns else None,
+                "min_cal_minutes": _MIN_CAL_MINUTES,
+            },
+            "timestamp": int(_time.time() * 1000),
+        }
+        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
+            _lf.write(_json.dumps(_log_data) + "\n")
+    except Exception:
+        pass
+    # endregion
 
     # Append combo OOF PMFs if not already present
     existing_stats = set(oof_eligible["stat"].unique())
