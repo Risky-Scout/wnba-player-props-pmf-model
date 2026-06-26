@@ -855,6 +855,83 @@ def _build_player_features(
         df = pd.concat([df, pd.DataFrame(_ewma_cols, index=df.index)], axis=1)
 
     # ------------------------------------------------------------------ #
+    # 4e. Form delta + momentum features (P2.4b)                         #
+    # Explicit breakout indicators: encode how far a player's CURRENT     #
+    # form deviates from their historical baseline. The HGB model at      #
+    # max_leaf_nodes=31 cannot reliably learn "ewma5 > season_mean →      #
+    # project higher" from two separate features. With form_delta as one  #
+    # pre-computed feature, a single tree split captures this signal,     #
+    # freeing tree capacity for matchup and usage interactions.           #
+    # All source features (ewma, mean_l5, etc.) are already shift(1) so  #
+    # these derived features are also leak-free.                          #
+    # ------------------------------------------------------------------ #
+    _form_delta_cols: dict[str, pd.Series] = {}
+    for _stat in list(STATS) + ["minutes"]:
+        if _stat not in df.columns:
+            continue
+        _ewma3_col   = f"player_{_stat}_ewma_halflife3"
+        _ewma5_col   = f"player_{_stat}_ewma_halflife5"
+        _mean_l5_col = f"player_{_stat}_mean_l5"
+        _mean_l10_col = f"player_{_stat}_mean_l10"
+        _mean_season_col = f"player_{_stat}_mean_season"
+
+        # EWMA vs season average: captures hot/cold relative to season norm
+        if _ewma5_col in df.columns and _mean_season_col in df.columns:
+            _form_delta_cols[f"player_{_stat}_form_delta_ewma5_vs_season"] = (
+                df[_ewma5_col] - df[_mean_season_col]
+            )
+        if _ewma3_col in df.columns and _mean_season_col in df.columns:
+            _form_delta_cols[f"player_{_stat}_form_delta_ewma3_vs_season"] = (
+                df[_ewma3_col] - df[_mean_season_col]
+            )
+        # L5 vs L10 breakout signal: recent 5-game vs medium 10-game trend
+        if _mean_l5_col in df.columns and _mean_l10_col in df.columns:
+            _form_delta_cols[f"player_{_stat}_form_delta_l5_vs_l10"] = (
+                df[_mean_l5_col] - df[_mean_l10_col]
+            )
+        # Momentum (acceleration): is form improving or declining?
+        if _ewma3_col in df.columns and _ewma5_col in df.columns:
+            _form_delta_cols[f"player_{_stat}_momentum_ewma3_vs_ewma5"] = (
+                df[_ewma3_col] - df[_ewma5_col]
+            )
+    if _form_delta_cols:
+        df = pd.concat([df, pd.DataFrame(_form_delta_cols, index=df.index)], axis=1)
+
+    # ------------------------------------------------------------------ #
+    # 4f. Player quality anchor features (P2.4c)                          #
+    # Give the HGBR a direct "how elite is this player vs the league"     #
+    # signal. Without this, HGBR must infer quality purely from rolling   #
+    # windows, which converge to similar ranges for all starters due to   #
+    # regression to mean. A z-score breaks that degeneracy.              #
+    # Uses game_date × season groupby so the z-score is computed from    #
+    # players in the same game window — preserving temporal causality.    #
+    # ------------------------------------------------------------------ #
+    _quality_anchor_cols: dict[str, pd.Series] = {}
+    _qa_group_cols = [c for c in ("season", "game_date") if c in df.columns]
+    for _stat in list(STATS) + ["minutes"]:
+        _mean_season_col = f"player_{_stat}_mean_season"
+        if _mean_season_col not in df.columns:
+            continue
+        # Z-score within the same season × game_date snapshot
+        if _qa_group_cols:
+            _gs_mean = df.groupby(_qa_group_cols)[_mean_season_col].transform("mean")
+            _gs_std  = df.groupby(_qa_group_cols)[_mean_season_col].transform("std").clip(lower=0.01)
+        else:
+            _gs_mean = df[_mean_season_col].mean()
+            _gs_std  = max(float(df[_mean_season_col].std()), 0.01)
+        _quality_anchor_cols[f"player_{_stat}_season_zscore"] = (
+            (df[_mean_season_col] - _gs_mean) / _gs_std
+        )
+        # Ratio of recent EWMA to season average (> 1 = trending up, < 1 = slumping)
+        _ewma5_col = f"player_{_stat}_ewma_halflife5"
+        if _ewma5_col in df.columns:
+            _quality_anchor_cols[f"player_{_stat}_form_vs_season_ratio"] = (
+                df[_ewma5_col] / df[_mean_season_col].clip(lower=0.1)
+            )
+    if _quality_anchor_cols:
+        df = pd.concat([df, pd.DataFrame(_quality_anchor_cols, index=df.index)], axis=1)
+
+    # ------------------------------------------------------------------ #
     # 5. Usage proxy features (shifted)
     # ------------------------------------------------------------------ #
     # BDL provides: fga, fta, turnover  → Oliver usage proxy

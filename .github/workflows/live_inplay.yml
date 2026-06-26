@@ -184,6 +184,22 @@ jobs:
           EOF
         continue-on-error: true
 
+      - name: Score predictions for CLV tracking
+        if: env.NO_GAMES != 'true'
+        run: |
+          python scripts/score_predictions.py \
+            --delivery-dir deliveries/ \
+            --out data/clv_tracking/drift_window.parquet
+        continue-on-error: true
+
+      - name: Capture closing odds for CLV
+        if: env.NO_GAMES != 'true'
+        run: |
+          python scripts/pull_closing_lines.py \
+            --game-date "$GAME_DATE" \
+            --out-dir data/live/closing_odds
+        continue-on-error: true
+
       - name: Publish live outputs to gh-pages
         if: env.NO_GAMES != 'true'
         uses: peaceiris/actions-gh-pages@v4

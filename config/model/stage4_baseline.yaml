@@ -123,20 +123,26 @@ pmf_source: stage4_baseline_uncalibrated_model_only
 # Exponential decay sample weighting: games from halflife days ago have weight 0.5.
 # Reduces systematic mean_error bias caused by scoring trend shifts across seasons.
 # Set to null to disable.
-sample_weight_halflife_days: 180
+sample_weight_halflife_days: 45
 
-# HistGradientBoosting model hyperparameters (modest for speed + reproducibility)
+# HistGradientBoosting model hyperparameters
+# max_leaf_nodes 31→63: allows form_delta × matchup interaction splits without
+#   exhausting tree capacity on basic rolling-average splits.
+# learning_rate 0.1→0.08: slower learning compensates for increased capacity
+#   (reduces overfitting on older down-weighted data).
+# min_samples_leaf 20→10: allows finer splits on elite-player sub-populations.
+# max_iter 200→300: more iterations with lower LR gives better convergence.
 hgb_regressor:
-  max_iter: 200
-  max_leaf_nodes: 31
-  learning_rate: 0.1
-  min_samples_leaf: 20
+  max_iter: 300
+  max_leaf_nodes: 63
+  learning_rate: 0.08
+  min_samples_leaf: 10
 
 hgb_classifier:
-  max_iter: 200
-  max_leaf_nodes: 31
-  learning_rate: 0.1
-  min_samples_leaf: 20
+  max_iter: 300
+  max_leaf_nodes: 63
+  learning_rate: 0.08
+  min_samples_leaf: 10
 
 # --------------------------------------------------------------------------
 # F1: Minutes distribution marginalization
@@ -203,7 +209,7 @@ use_matchup_features: true
 # --------------------------------------------------------------------------
 # P3.1: Mean-dependent NegBinom dispersion r(mu)
 # --------------------------------------------------------------------------
-use_mean_dependent_dispersion: false  # set true after validating IS improvement
+use_mean_dependent_dispersion: true
 
 # --------------------------------------------------------------------------
 # P3.2: Hyperparameter tuning via Optuna

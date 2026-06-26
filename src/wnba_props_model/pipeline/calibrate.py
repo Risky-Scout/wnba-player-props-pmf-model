@@ -247,31 +247,6 @@ def fit_calibrators(
         _pre_dnp_n, _post_dnp_n, _pre_dnp_n - _post_dnp_n,
     )
 
-    # region agent log — hypothesis: DNP rows corrupt calibration (H-DNP)
-    import json as _json, time as _time
-    try:
-        _pts = oof_eligible[oof_eligible["stat"] == "pts"] if "stat" in oof_eligible.columns else pd.DataFrame()
-        _log_data = {
-            "sessionId": "94807e", "runId": "pre-fix", "hypothesisId": "H-DNP",
-            "location": "calibrate.py:fit_calibrators",
-            "message": "DNP filter applied — calibration training set stats",
-            "data": {
-                "pre_filter_n": int(_pre_dnp_n),
-                "post_filter_n": int(_post_dnp_n),
-                "removed_n": int(_pre_dnp_n - _post_dnp_n),
-                "pts_rows": int(len(_pts)),
-                "pts_actual_mean": float(_pts["actual_outcome"].mean()) if len(_pts) > 0 else None,
-                "pts_pmf_mean": float(_pts["pmf_mean"].mean()) if len(_pts) > 0 and "pmf_mean" in _pts.columns else None,
-                "min_cal_minutes": _MIN_CAL_MINUTES,
-            },
-            "timestamp": int(_time.time() * 1000),
-        }
-        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _lf:
-            _lf.write(_json.dumps(_log_data) + "\n")
-    except Exception:
-        pass
-    # endregion
-
     # Append combo OOF PMFs if not already present
     existing_stats = set(oof_eligible["stat"].unique())
     missing_combos = _COMBO_STATS_SET - existing_stats

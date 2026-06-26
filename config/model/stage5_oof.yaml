@@ -45,23 +45,26 @@ calibration_eligible_prediction_types:
 # Stage identifier
 pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
 
-# Exponential decay sample weighting (same halflife as Stage 4)
-sample_weight_halflife_days: 180
+# Exponential decay sample weighting — must match stage4_baseline.yaml so
+# the OOF training distribution aligns with production predictions.
+sample_weight_halflife_days: 45
 
-# HistGradientBoosting — 100 iterations balances fold-training speed with
-# matching production model bias closely enough that OOF-fitted calibrators
-# transfer correctly to Stage 4 predictions (Stage 4 uses 200 iterations).
+# HistGradientBoosting — fewer iterations than stage4 (150 vs 300) to keep
+# per-fold training tractable, while still matching the capacity increase
+# (max_leaf_nodes 63) so that form_delta splits mirror production splits.
+# Calibrators fitted on this OOF will transfer correctly to stage4 predictions
+# because both models use the same feature set and similar tree structure.
 hgb_regressor:
-  max_iter: 100
-  max_leaf_nodes: 31
-  learning_rate: 0.1
-  min_samples_leaf: 20
+  max_iter: 150
+  max_leaf_nodes: 63
+  learning_rate: 0.08
+  min_samples_leaf: 10
 
 hgb_classifier:
-  max_iter: 100
-  max_leaf_nodes: 31
-  learning_rate: 0.1
-  min_samples_leaf: 20
+  max_iter: 150
+  max_leaf_nodes: 63
+  learning_rate: 0.08
+  min_samples_leaf: 10
 
 # --------------------------------------------------------------------------
 # F1: Minutes distribution marginalization (must match stage4_baseline.yaml)
@@ -104,7 +107,7 @@ stat_overrides:
 use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true
-use_mean_dependent_dispersion: false
+use_mean_dependent_dispersion: true
 use_tuned_hyperparams: false
 hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
 use_model_ensemble: false
