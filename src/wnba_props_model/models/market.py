@@ -45,6 +45,11 @@ def shin_no_vig_two_way_with_z(
     if over_odds is None or under_odds is None:
         return None, None, None
     try:
+        if math.isnan(float(over_odds)) or math.isnan(float(under_odds)):
+            return None, None, None
+    except (TypeError, ValueError):
+        return None, None, None
+    try:
         from penaltyblog.implied import calculate_implied  # type: ignore[import]
         from penaltyblog.implied.models import ImpliedMethod, OddsFormat  # type: ignore[import]
 
@@ -77,6 +82,11 @@ def shin_no_vig_two_way(
     Falls back to multiplicative if penaltyblog is unavailable or odds are None.
     """
     if over_odds is None or under_odds is None:
+        return None, None
+    try:
+        if math.isnan(float(over_odds)) or math.isnan(float(under_odds)):
+            return None, None
+    except (TypeError, ValueError):
         return None, None
     try:
         from penaltyblog.implied import calculate_implied  # type: ignore[import]

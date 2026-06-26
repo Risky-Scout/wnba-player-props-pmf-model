@@ -21,6 +21,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 _QUANTILES = [0.10, 0.25, 0.50, 0.75, 0.90]
 
@@ -100,7 +101,8 @@ class MinutesModel:
             if len(np.unique(dnp_y)) >= 2:
                 self._dnp_model = Pipeline([
                     ("imp", SimpleImputer(strategy="median")),
-                    ("clf", LogisticRegression(max_iter=1000, class_weight="balanced",
+                    ("scaler", StandardScaler()),
+                    ("clf", LogisticRegression(max_iter=2000, class_weight="balanced",
                                                random_state=seed)),
                 ])
                 self._dnp_model.fit(X, dnp_y)

@@ -99,7 +99,7 @@ class PlattCalibrator:
         from sklearn.linear_model import LogisticRegression  # noqa: PLC0415
         scores = np.asarray(scores, dtype=float).reshape(-1, 1)
         labels = np.asarray(labels, dtype=float)
-        lr = LogisticRegression(C=1e6, solver="lbfgs", max_iter=1000)
+        lr = LogisticRegression(C=1e6, solver="lbfgs", max_iter=2000)
         lr.fit(scores, labels)
         self.a = float(lr.coef_[0, 0])
         self.b = float(lr.intercept_[0])

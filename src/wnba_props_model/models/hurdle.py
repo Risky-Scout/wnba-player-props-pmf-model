@@ -42,7 +42,7 @@ class SparseHurdleModel:
         self.features = features
         self.zero_model = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
-            ("clf", LogisticRegression(max_iter=1000, class_weight="balanced")),
+            ("clf", LogisticRegression(max_iter=2000, class_weight="balanced")),
         ])
         self.pos_model = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
@@ -154,7 +154,7 @@ class ZINBStatModel:
         if len(np.unique(is_zero)) >= 2:
             self._pi_model = Pipeline([
                 ("imp", SimpleImputer(strategy="median")),
-                ("clf", LogisticRegression(max_iter=1000, class_weight="balanced",
+                ("clf", LogisticRegression(max_iter=2000, class_weight="balanced",
                                            random_state=seed)),
             ])
             self._pi_model.fit(X, is_zero, **{"clf__sample_weight": sample_weight}
