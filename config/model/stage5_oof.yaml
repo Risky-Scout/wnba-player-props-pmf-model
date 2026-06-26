@@ -169,7 +169,8 @@ new_features:
   # Standings / motivation
   - team_playoff_seed
   - team_games_behind
-  - season_phase
+  # season_phase removed: categorical string (early/mid/late) — lives in
+  # ROLE_BUCKET_COLS, one-hot encoded separately, excluded from FEATURE_FAMILIES
   # Four factors (player_season_advanced_stats, measure_type=four_factors)
   - player_efg_pct
   - player_ft_rate

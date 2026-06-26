@@ -178,7 +178,7 @@ new_features:
   - game_pace_predicted
   - team_playoff_seed
   - team_games_behind
-  - season_phase
+  # season_phase removed: categorical string — excluded from FEATURE_FAMILIES
   - player_efg_pct
   - player_ft_rate
   - player_tov_pct
