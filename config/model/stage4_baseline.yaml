@@ -21,6 +21,72 @@ stats:
 sparse_stats:
   - blk
 
+# Role-aware NegBinom dispersion r override (calibration-aligned).
+# The stage4 model was trained with global r=1.6265, but the calibrators
+# were fitted on OOF PMFs that used higher r values for starters/core
+# (because the OOF model learned role-aware dispersion during training).
+# Injecting these OOF-inferred r values ensures the daily PMF shapes match
+# the calibrator's training distribution, eliminating the ~40% over-correction
+# that caused 98% UNDER bias on the betting sheet.
+# Values derived from: r = pmf_mean² / (pmf_variance − pmf_mean) per OOF bucket.
+dispersion_r_by_role:
+  pts:
+    starter: 2.84
+    core: 2.36
+    rotation: 1.92
+    bench: 1.69
+    fringe: 1.50
+    inactive_risk: 1.17
+  reb:
+    starter: 2.73
+    core: 2.53
+    rotation: 2.16
+    bench: 1.90
+    fringe: 1.72
+    inactive_risk: 1.45
+  ast:
+    starter: 2.11
+    core: 1.79
+    rotation: 1.48
+    bench: 1.30
+    fringe: 0.93
+    inactive_risk: 0.55
+  fg3m:
+    starter: 1.23
+    core: 1.04
+    rotation: 0.92
+    bench: 0.81
+    fringe: 0.73
+    inactive_risk: 0.64
+  stl:
+    starter: 2.96
+    core: 2.62
+    rotation: 2.37
+    bench: 2.19
+    fringe: 1.98
+    inactive_risk: 1.75
+  blk:
+    starter: 1.61
+    core: 1.32
+    rotation: 0.88
+    bench: 0.63
+    fringe: 0.39
+    inactive_risk: 0.21
+  turnover:
+    starter: 5.78
+    core: 4.90
+    rotation: 4.09
+    bench: 3.57
+    fringe: 2.67
+    inactive_risk: 1.57
+  stocks:
+    starter: 2.50
+    core: 2.20
+    rotation: 1.90
+    bench: 1.70
+    fringe: 1.50
+    inactive_risk: 1.20
+
 # Maximum integer k included in atom PMF support
 pmf_support_caps:
   pts: 60

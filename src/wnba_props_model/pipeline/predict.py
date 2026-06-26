@@ -329,6 +329,28 @@ def predict_player_pmfs(
     artifacts = _load_stage4_models(model_dir)
     model_dir = Path(model_dir)
 
+    # Inject OOF-calibrated role-aware dispersion r into rate models when the config
+    # supplies `dispersion_r_by_role`.  The stage4 model is trained with a single
+    # global r (≈1.63) but the calibrators were fitted on OOF PMFs that reflected
+    # higher r for starters/core (r≈2.84/2.36).  Without this patch, the stage4
+    # model produces higher-variance PMFs that the calibrators over-correct by ~40%,
+    # causing 98% UNDER on the betting sheet.  The patch is non-destructive: it only
+    # sets `_role_dispersion` when the model doesn't already have one.
+    _disp_cfg: dict = cfg.get("dispersion_r_by_role", {})
+    if _disp_cfg:
+        for _stat_name, _disp_by_role in _disp_cfg.items():
+            _model = artifacts.get("rate_models", {}).get(_stat_name)
+            if _model is not None and not getattr(_model, "_role_dispersion", None):
+                _base = getattr(_model, "_base_model", _model)
+                try:
+                    _base._role_dispersion = _disp_by_role
+                    logger.info(
+                        "[predict] Applied OOF dispersion override for %s: %s",
+                        _stat_name, _disp_by_role,
+                    )
+                except AttributeError:
+                    pass
+
     # Build a synthetic long_df for inference: one row per (player, game, stat).
     # The engine uses long_df to define which (player_id, game_id) pairs exist
     # for each stat; we replicate every wide row for each target stat.
