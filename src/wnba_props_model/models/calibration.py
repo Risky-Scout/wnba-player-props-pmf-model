@@ -129,18 +129,6 @@ class RoleAwarePMFCalibrator:
         return "mid"
 
     def apply(self, pmf: np.ndarray, role_bucket: str) -> np.ndarray:
-        # #region agent log — H2: backward-compat check for quality_tier_calibrators
-        import json as _jc, time as _tc
-        try:
-            open('/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log','a').write(
-                _jc.dumps({"sessionId":"94807e","runId":"bug-check-v1","hypothesisId":"H2",
-                    "location":"calibration.py:apply","message":"apply called",
-                    "data":{"role_bucket":role_bucket,"stat":self.stat,
-                            "has_quality_tier_calibrators":hasattr(self,"quality_tier_calibrators"),
-                            "n_tiers":len(getattr(self,"quality_tier_calibrators",{}).get(role_bucket,{}))},"timestamp":int(_tc.time()*1000)})+"\n")
-        except Exception:
-            pass
-        # #endregion agent log
         g = self.global_calibrator.apply(pmf)
         if role_bucket in ROLE_GLOBAL_ONLY_BUCKETS or role_bucket not in self.bucket_calibrators:
             return g

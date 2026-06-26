@@ -377,18 +377,6 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
 
     tsa = fga_l10.fillna(0) + 0.44 * fta_l10.fillna(0)
 
-    # #region agent log
-    import json as _json, time as _time
-    _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-    try:
-        _fga_ok = int(has_fga.sum())
-        _fga_zero = int((~has_fga).sum())
-        with open(_log_path, "a") as _lf:
-            _lf.write(_json.dumps({"sessionId":"94807e","runId":"fix-v1","hypothesisId":"shot-qual","location":"build_features.py:370","message":"shot quality fga validity","data":{"fga_nonzero":_fga_ok,"fga_zero":_fga_zero,"tsa_max":float(tsa.max()) if len(tsa)>0 else 0},"timestamp":int(_time.time()*1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
-
     # ── True Shooting % (TS%) — only valid when FGA data exists ─────────────
     df["player_ts_pct_l10"] = (pts_l10 / (2.0 * tsa.clip(lower=1.0))).where(has_fga)
 
@@ -451,16 +439,6 @@ def _build_game_script_features(wide: pd.DataFrame) -> pd.DataFrame:
     opp_def   = df.get("opp_pts_allowed_mean_l5",          pd.Series(0.0, index=df.index)).fillna(0)
     opp_off   = (opp_total - opp_def).clip(lower=0)   # opponent's scoring rate
     o_net     = opp_off - opp_def                      # opponent's net rating
-
-    # #region agent log
-    import json as _json2, time as _time2
-    _log_path2 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-    try:
-        with open(_log_path2, "a") as _lf2:
-            _lf2.write(_json2.dumps({"sessionId":"94807e","runId":"fix-v1","hypothesisId":"blowout","location":"build_features.py:430","message":"blowout spread calc","data":{"h_net_mean":float(h_net.mean()),"opp_off_mean":float(opp_off.mean()),"o_net_mean":float(o_net.mean()),"opp_total_mean":float(opp_total.mean())},"timestamp":int(_time2.time()*1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
 
     is_home = df.get("is_home", pd.Series(True, index=df.index)).fillna(True).astype(bool)
     # Spread from the player's team perspective (positive = player's team favored)
@@ -930,26 +908,6 @@ def _build_player_features(
             )
     if _quality_anchor_cols:
         df = pd.concat([df, pd.DataFrame(_quality_anchor_cols, index=df.index)], axis=1)
-
-    # #region agent log — H4: verify new form_delta/quality_anchor cols have variance
-    import json as _json4e, time as _time4e
-    try:
-        _fd_cols = [c for c in df.columns if "form_delta" in c or "momentum_ewma" in c]
-        _qa_cols = [c for c in df.columns if "season_zscore" in c or "form_vs_season_ratio" in c]
-        _fd_stds = {c: round(float(df[c].std(skipna=True)), 4) for c in _fd_cols[:5]}
-        _qa_stds = {c: round(float(df[c].std(skipna=True)), 4) for c in _qa_cols[:5]}
-        _fd_low_var = [c for c in _fd_cols if df[c].std(skipna=True) < 0.05]
-        _qa_low_var = [c for c in _qa_cols if df[c].std(skipna=True) < 0.05]
-        open('/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log','a').write(
-            _json4e.dumps({"sessionId":"94807e","runId":"bug-check-v1","hypothesisId":"H4",
-                "location":"build_features.py:932","message":"4e/4f feature variance check",
-                "data":{"n_form_delta":len(_fd_cols),"n_quality_anchor":len(_qa_cols),
-                        "fd_sample_stds":_fd_stds,"qa_sample_stds":_qa_stds,
-                        "fd_low_var_count":len(_fd_low_var),"qa_low_var_count":len(_qa_low_var),
-                        "fd_low_var_cols":_fd_low_var[:5],"qa_low_var_cols":_qa_low_var[:5]},"timestamp":int(_time4e.time()*1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
 
     # ------------------------------------------------------------------ #
     # 5. Usage proxy features (shifted)
@@ -1965,14 +1923,6 @@ def _derive_model_feature_columns(wide_df: pd.DataFrame) -> list[str]:
             or pd.api.types.is_bool_dtype(wide_df[c])
         )
     )
-    # #region agent log
-    import json as _json, time as _time
-    _string_blocked = [c for c in allowed if c in wide_df.columns and not pd.api.types.is_numeric_dtype(wide_df[c]) and not pd.api.types.is_bool_dtype(wide_df[c])]
-    try:
-        open('/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log','a').write(_json.dumps({"sessionId":"94807e","runId":"post-fix","hypothesisId":"H-A","location":"build_features.py:1855","message":"model_cols after dtype+rolebucket filter","data":{"n_model_cols":len(model_cols),"string_cols_blocked":_string_blocked,"season_phase_in_cols":"season_phase" in model_cols},"timestamp":int(_time.time()*1000)})+"\n")
-    except Exception:
-        pass
-    # #endregion agent log
 
     # --- 4. Variance gate: drop numeric features with cross-row std < 0.05 -
     #   Constant or near-constant features provide no signal but corrupt HGB
