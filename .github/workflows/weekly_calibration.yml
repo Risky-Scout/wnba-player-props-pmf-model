@@ -3,7 +3,14 @@ name: Weekly OOF Refresh & Calibration
 on:
   schedule:
     - cron: "0 10 * * 1"   # Monday 6 AM ET (UTC-4)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_oof_build:
+        description: 'Skip OOF rebuild and reuse existing oof-latest artifact (for gate-only reruns)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 jobs:
   weekly-calibration:
@@ -32,7 +39,15 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
+      - name: Download existing OOF (skip_oof_build mode)
+        if: github.event.inputs.skip_oof_build == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: oof-latest
+          path: data/oof
+
       - name: Pull BDL history (all seasons for OOF training)
+        if: github.event.inputs.skip_oof_build != 'true'
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
@@ -43,12 +58,15 @@ jobs:
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
+        if: github.event.inputs.skip_oof_build != 'true'
         run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
 
       - name: Build features
+        if: github.event.inputs.skip_oof_build != 'true'
         run: python scripts/build_features.py --data-dir data/processed
 
       - name: Build OOF PMFs (Stage 5)
+        if: github.event.inputs.skip_oof_build != 'true'
         run: |
           python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
@@ -59,6 +77,7 @@ jobs:
             --audit-out artifacts/audits/stage5_oof_audit.json
 
       - name: Validate OOF PMFs
+        if: github.event.inputs.skip_oof_build != 'true'
         run: |
           python scripts/validate_oof_pmfs.py \
             --pmfs data/oof/oof_player_stat_pmfs.parquet \
