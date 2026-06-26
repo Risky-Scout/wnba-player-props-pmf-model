@@ -140,6 +140,32 @@ def main(
             if merge_keys:
                 comp = comp.merge(links_df[merge_keys + link_cols], on=merge_keys, how="left")
 
+    # ── Extreme model-vs-market disagreement guard ─────────────────────────
+    # When the model's pmf_mean is < 35% OR > 300% of the market_implied_mean
+    # the pick is almost certainly from a grossly mis-predicted player (e.g.,
+    # a recent hot/cold streak not yet in rolling features).  These produce
+    # artificial 50-cent "edges" that have zero predictive value and completely
+    # overwhelm the betting sheet.  Flag them and exclude from publishable picks.
+    _EXTREME_LOW_RATIO  = 0.35   # model_mean < 35% of market → suppressed
+    _EXTREME_HIGH_RATIO = 3.00   # model_mean > 300% of market → suppressed
+    if "pmf_mean" in comp.columns and "market_implied_mean" in comp.columns:
+        _ratio = comp["pmf_mean"] / comp["market_implied_mean"].replace(0, np.nan)
+        comp["model_market_ratio"] = _ratio.round(4)
+        # #region agent log
+        _n_before = len(comp)
+        _extreme_mask = (
+            (_ratio < _EXTREME_LOW_RATIO) | (_ratio > _EXTREME_HIGH_RATIO)
+        ) & comp["market_implied_mean"].notna()
+        _n_extreme = int(_extreme_mask.sum())
+        typer.echo(
+            f"[extreme-guard] {_n_extreme}/{_n_before} rows removed "
+            f"(model/market ratio outside [{_EXTREME_LOW_RATIO:.0%}, {_EXTREME_HIGH_RATIO:.0%}])"
+        )
+        comp = comp[~_extreme_mask].copy()
+        # #endregion
+    else:
+        comp["model_market_ratio"] = np.nan
+
     # Publishable edges: |edge| >= threshold on either side (all tiers included)
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     edges = edges.sort_values("edge_over", key=np.abs, ascending=False)
