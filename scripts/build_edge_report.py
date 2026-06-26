@@ -147,34 +147,62 @@ def main(
                 comp = comp.merge(links_df[merge_keys + link_cols], on=merge_keys, how="left")
 
     # ── Extreme model-vs-market disagreement guard ─────────────────────────
-    # When the model's pmf_mean is < 35% OR > 300% of the market_implied_mean
+    # When the model's pmf_mean is < 50% OR > 250% of the market_implied_mean
     # the pick is almost certainly from a grossly mis-predicted player (e.g.,
-    # a recent hot/cold streak not yet in rolling features).  These produce
-    # artificial 50-cent "edges" that have zero predictive value and completely
-    # overwhelm the betting sheet.  Flag them and exclude from publishable picks.
-    _EXTREME_LOW_RATIO  = 0.35   # model_mean < 35% of market → suppressed
-    _EXTREME_HIGH_RATIO = 3.00   # model_mean > 300% of market → suppressed
+    # a recent hot/cold streak not yet in rolling features, DNP-contaminated
+    # rolling stats, or a player who recently changed roles).  These produce
+    # artificial edges with zero predictive value and overwhelm the sheet.
+    #
+    # Sanity tiers (added as projection_sanity_flag):
+    #   0 = clean (ratio in [0.65, 2.00]) — full confidence
+    #   1 = caution (ratio in [0.50, 0.65] or [2.00, 2.50]) — show but warn
+    #   2 = suppressed (ratio < 0.50 or > 2.50) — removed from publishable picks
+    _EXTREME_LOW_RATIO   = 0.50   # model_mean < 50% of market → suppressed
+    _EXTREME_HIGH_RATIO  = 2.50   # model_mean > 250% of market → suppressed
+    _CAUTION_LOW_RATIO   = 0.65   # model_mean < 65% of market → caution
+    _CAUTION_HIGH_RATIO  = 2.00   # model_mean > 200% of market → caution
     if "pmf_mean" in comp.columns and "market_implied_mean" in comp.columns:
         _ratio = comp["pmf_mean"] / comp["market_implied_mean"].replace(0, np.nan)
         comp["model_market_ratio"] = _ratio.round(4)
-        # #region agent log
-        _n_before = len(comp)
         _extreme_mask = (
             (_ratio < _EXTREME_LOW_RATIO) | (_ratio > _EXTREME_HIGH_RATIO)
         ) & comp["market_implied_mean"].notna()
+        _caution_mask = (
+            ~_extreme_mask
+            & ((_ratio < _CAUTION_LOW_RATIO) | (_ratio > _CAUTION_HIGH_RATIO))
+            & comp["market_implied_mean"].notna()
+        )
+        comp["projection_sanity_flag"] = np.where(
+            _extreme_mask, 2,
+            np.where(_caution_mask, 1, 0)
+        ).astype(int)
+        _n_before = len(comp)
         _n_extreme = int(_extreme_mask.sum())
+        _n_caution = int(_caution_mask.sum())
         typer.echo(
-            f"[extreme-guard] {_n_extreme}/{_n_before} rows removed "
-            f"(model/market ratio outside [{_EXTREME_LOW_RATIO:.0%}, {_EXTREME_HIGH_RATIO:.0%}])"
+            f"[sanity-guard] {_n_extreme}/{_n_before} rows suppressed "
+            f"(ratio outside [{_EXTREME_LOW_RATIO:.0%}, {_EXTREME_HIGH_RATIO:.0%}]); "
+            f"{_n_caution} rows flagged as caution"
         )
         comp = comp[~_extreme_mask].copy()
-        # #endregion
     else:
         comp["model_market_ratio"] = np.nan
+        comp["projection_sanity_flag"] = 0
 
-    # Publishable edges: |edge| >= threshold on either side (all tiers included)
+    # Publishable edges: |edge| >= threshold; exclude sanity_flag=2 (already gone),
+    # keep sanity_flag=1 (caution) but sort them to the bottom.
+    # Primary sort: by CLV-decay-adjusted edge (time-corrected signal);
+    # fall back to raw edge if decay column is absent.
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
-    edges = edges.sort_values("edge_over", key=np.abs, ascending=False)
+    _sort_col = "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns else "edge_over"
+    if "projection_sanity_flag" in edges.columns:
+        edges = edges.sort_values(
+            ["projection_sanity_flag", _sort_col],
+            key=lambda s: s.abs() if s.name == _sort_col else s,
+            ascending=[True, False],
+        )
+    else:
+        edges = edges.sort_values(_sort_col, key=np.abs, ascending=False)
     edges_path = out / "publishable_edges.parquet"
     edges.to_parquet(edges_path, index=False)
 
@@ -191,6 +219,8 @@ def main(
         float((edges["deep_link"].notna() & (edges["deep_link"] != "")).mean())
         if "deep_link" in edges.columns and len(edges) else None
     )
+    _caution_edges = int((edges.get("projection_sanity_flag", pd.Series(0, dtype=int)) == 1).sum()) if "projection_sanity_flag" in edges.columns else 0
+    _clean_edges   = len(edges) - _caution_edges
     audit = {
         "game_date": today,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -200,6 +230,8 @@ def main(
         "max_shin_z_threshold": max_shin_z,
         "total_market_rows": len(comp),
         "publishable_edge_rows": len(edges),
+        "clean_edge_rows": _clean_edges,
+        "caution_edge_rows": _caution_edges,
         "standard_edge_rows": standard_edges,
         "high_adversity_edge_rows": high_adv_edges,
         "stats_with_edges": sorted(edges["stat"].unique().tolist()) if len(edges) else [],
@@ -208,6 +240,9 @@ def main(
         "over_edges": int((edges["edge_over"] > 0).sum()),
         "under_edges": int((edges["edge_over"] < 0).sum()),
         "deep_link_coverage_pct": deep_link_pct,
+        "mean_kelly_fraction": float(edges["kelly_fraction"].mean()) if "kelly_fraction" in edges.columns and len(edges) else None,
+        "max_kelly_fraction": float(edges["kelly_fraction"].max()) if "kelly_fraction" in edges.columns and len(edges) else None,
+        "mean_clv_decay_edge": float(edges["clv_decay_adjusted_edge"].mean()) if "clv_decay_adjusted_edge" in edges.columns and len(edges) else None,
     }
     audit_path = out / f"edge_report_{today}.json"
     audit_path.write_text(json.dumps(audit, indent=2))

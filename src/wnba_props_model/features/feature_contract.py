@@ -142,6 +142,70 @@ ADVANCED_FOUR_FACTORS_FEATURES: list[str] = [
     "player_tov_pct",   # Turnover percentage
 ]
 
+# SVD player quality embeddings (Enhancement 12a — self-supervised)
+# 8 latent dimensions from TruncatedSVD on player × season-avg rolling stats.
+# Column names player_svd_dim_{0..7} — captured by "player_" safe prefix.
+PLAYER_EMBEDDING_FEATURES: list[str] = [
+    f"player_svd_dim_{i}" for i in range(8)
+]
+
+# ---------------------------------------------------------------------------
+# Usage Transfer Matrix features (Enhancement 1)
+# Dynamic teammate-specific columns (teammate_{pid}_is_out etc.) are matched
+# by the "teammate_" and "without_" safe prefixes in build_features.py.
+# ---------------------------------------------------------------------------
+USAGE_TRANSFER_FEATURES: list[str] = [
+    "player_usage_rate_l5",           # Player's last-5-game usage rate
+    "player_usage_rate_season",        # Player's season-average usage rate
+    "usage_shift",                     # l5 - season (detects role changes)
+    "usage_shift_abs",                 # |usage_shift| (magnitude of role change)
+    "projected_usage_given_absences",  # UTM-projected usage with absences
+    "usage_transfer_delta",            # Projected - base usage (pure lineup effect)
+]
+
+# Extended schedule fatigue features (Enhancement 3)
+FATIGUE_FEATURES: list[str] = [
+    "is_4_in_5",                # 4 games in 5 days
+    "is_5_in_7",                # 5 games in 7 days
+    "cumulative_minutes_l7",    # Total minutes played in last 7 days
+    "altitude_flag",            # Playing at altitude (Denver/Salt Lake)
+    "schedule_fatigue_index",   # Composite fatigue score
+    "rest_interaction_high_usage",  # Fatigue × high usage interaction
+]
+
+# Shot quality / efficiency regression features (Enhancement 4)
+SHOT_QUALITY_FEATURES: list[str] = [
+    "shot_quality_delta_l10",   # eFG% l10 vs season (running hot/cold proxy)
+    "is_running_hot",           # shot_quality_delta > 0.05
+    "is_running_cold",          # shot_quality_delta < -0.05
+]
+
+# ---------------------------------------------------------------------------
+# Game script / blowout probability features (Enhancement 5)
+# Built by _build_game_script_features() in build_features.py.
+# Names do NOT start with safe prefixes (player_/team_/opp_) so they must
+# be registered here explicitly to pass the FEATURE_FAMILIES allowlist check.
+# ---------------------------------------------------------------------------
+GAME_SCRIPT_FEATURES: list[str] = [
+    "pregame_win_probability",       # P(player's team wins) — Normal CDF from net rating spread
+    "blowout_probability",           # P(margin > 15 either way) — reduces starters' minutes
+    "close_game_probability",        # P(|margin| < 5) — increases starters' minutes
+    "expected_minutes_given_script", # Base minutes adjusted for game script
+    "minutes_upside",                # Additional minute potential (e.g. in close games for stars)
+    # Season stage
+    "game_number_in_season",         # Ordinal game number (1-40 regular season)
+    "season_completion_pct",         # Games played / 40 (0→1 over season)
+    "is_playoff_game",               # 1 if playoff, 0 otherwise
+    # Schedule/travel
+    "rest_days",                     # Days since last game (tempo/fatigue)
+    "is_b2b",                        # Back-to-back game flag
+    "is_3in4",                       # Three games in four days flag
+    "travel_proxy",                  # Rough timezone-distance travel cost
+    "team_timezone_diff",            # |home_tz - away_tz| proxy for travel fatigue
+    "team_3in4_flag",                # Player's team on 3-in-4 schedule
+    "opp_3in4_flag",                 # Opponent on 3-in-4 schedule
+]
+
 FEATURE_FAMILIES: dict[str, list[str]] = {
     "identity": IDENTITY_FEATURES,
     "schedule": SCHEDULE_FEATURES,
@@ -158,6 +222,16 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
     "advanced_opponent": ADVANCED_OPPONENT_FEATURES,
     "advanced_standings": ADVANCED_STANDINGS_FEATURES,
     "advanced_four_factors": ADVANCED_FOUR_FACTORS_FEATURES,
+    # SVD player quality embeddings (Enhancement 12a — latent skill-mix profile)
+    "player_embeddings": PLAYER_EMBEDDING_FEATURES,
+    # Usage Transfer Matrix (Enhancement 1 — previously excluded by prefix gate)
+    "usage_transfer": USAGE_TRANSFER_FEATURES,
+    # Schedule fatigue (Enhancement 3 — previously excluded by prefix gate)
+    "fatigue": FATIGUE_FEATURES,
+    # Shot quality (Enhancement 4 — previously excluded by prefix gate)
+    "shot_quality": SHOT_QUALITY_FEATURES,
+    # Game script / blowout probability (Enhancement 5 — previously excluded)
+    "game_script": GAME_SCRIPT_FEATURES,
 }
 
 MODEL_FEATURES: list[str] = [f for family in FEATURE_FAMILIES.values() for f in family]

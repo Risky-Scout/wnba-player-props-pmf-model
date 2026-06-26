@@ -1243,6 +1243,85 @@ def _build_injury_features(
 
 
 # ---------------------------------------------------------------------------
+# Enhancement 12a: SVD player quality embeddings
+# ---------------------------------------------------------------------------
+
+def _build_svd_player_embeddings(
+    wide: pd.DataFrame,
+    n_dims: int = 8,
+    min_seasons_data: int = 20,
+) -> pd.DataFrame:
+    """Compute per-player latent quality embeddings via truncated SVD.
+
+    Builds a player × feature matrix from each player's season-average
+    rolling stats (pts, reb, ast, fg3m, stl, blk, turnover per minute,
+    plus minutes mean), decomposes it with TruncatedSVD, and attaches
+    the resulting 8 latent dimensions as `player_svd_dim_{0..7}` features.
+
+    Properties:
+    - Fully shift-1 safe: uses season-mean columns (which are themselves
+      computed from shifted rolling windows).
+    - No external model: learned from available training data each run.
+    - Dimension 0 typically captures overall volume/role (minutes × rate).
+    - Dimensions 1-3 capture skill-mix profile (shooter vs facilitator vs rebounder).
+    - Dimensions 4-7 capture residual variance unexplained by volume.
+    """
+    from sklearn.decomposition import TruncatedSVD  # noqa: PLC0415
+    from sklearn.preprocessing import StandardScaler  # noqa: PLC0415
+
+    df = wide.copy()
+
+    # Candidate embedding features: season-average rates per minute
+    _EMBED_STAT_COLS = [
+        f"player_{s}_per_min_season" for s in STATS
+        if f"player_{s}_per_min_season" in df.columns
+    ] + [
+        f"player_{s}_mean_season" for s in STATS
+        if f"player_{s}_mean_season" in df.columns
+        and f"player_{s}_per_min_season" not in df.columns
+    ]
+
+    for mcol in ("player_minutes_mean_season", "minutes_mean_season", "pred_minutes_mean"):
+        if mcol in df.columns:
+            _EMBED_STAT_COLS = [mcol] + _EMBED_STAT_COLS
+            break
+
+    embed_cols = [c for c in _EMBED_STAT_COLS if c in df.columns]
+    if not embed_cols or "player_id" not in df.columns:
+        return df
+
+    if df["player_id"].nunique() < min_seasons_data:
+        return df
+
+    # Build player-level feature matrix (one row per player, averaged across games)
+    player_matrix = (
+        df.groupby("player_id")[embed_cols]
+        .mean()
+        .dropna(how="all")
+    )
+    player_matrix = player_matrix.fillna(player_matrix.median())
+
+    if player_matrix.shape[0] < n_dims + 1 or player_matrix.shape[1] < n_dims:
+        return df
+
+    # Scale and decompose
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(player_matrix.values)
+
+    svd = TruncatedSVD(n_components=min(n_dims, X_scaled.shape[1] - 1), random_state=42)
+    X_embed = svd.fit_transform(X_scaled)
+
+    # Map embeddings back to each game row via player_id
+    embed_df = pd.DataFrame(
+        X_embed,
+        index=player_matrix.index,
+        columns=[f"player_svd_dim_{i}" for i in range(X_embed.shape[1])],
+    )
+    df = df.merge(embed_df.reset_index(), on="player_id", how="left")
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Wide feature table builder
 # ---------------------------------------------------------------------------
 
@@ -1732,7 +1811,22 @@ def build_wide_table(
         audit_notes["synergy_error"] = str(exc)
 
     # ------------------------------------------------------------------ #
-    # Enhancement 12: WNBA2Vec embedding features (synthetic cold-start)
+    # Enhancement 12a: SVD player quality embeddings (self-supervised)
+    # Computes 8 latent dimensions from the player's season rolling stats
+    # via truncated SVD on the player × feature matrix.  No external model
+    # needed — learned fresh each training run from available data.
+    # Column names: player_svd_dim_{0..7}
+    # ------------------------------------------------------------------ #
+    try:
+        wide = _build_svd_player_embeddings(wide, n_dims=8)
+        audit_notes["svd_embedding_features"] = True
+    except Exception as exc:
+        audit_notes["svd_embedding_features"] = False
+        audit_notes["svd_embedding_error"] = str(exc)
+
+    # ------------------------------------------------------------------ #
+    # Enhancement 12b: WNBA2Vec embedding features (pre-trained cold-start)
+    # Falls back to random embeddings when no model path is set.
     # ------------------------------------------------------------------ #
     try:
         from wnba_props_model.models.wnba2vec import EmbeddingFeatureInjector, build_player_id_map  # noqa: PLC0415
@@ -1878,10 +1972,40 @@ def _derive_model_feature_columns(wide_df: pd.DataFrame) -> list[str]:
     #   Any column whose name starts with a known safe prefix is permitted
     #   provided it is not forbidden.  This captures the rolling/EWMA stats
     #   (player_pts_mean_l5, team_pts_roll5, opp_pts_allowed_mean_l5, …)
-    #   that are generated dynamically by build_features.py.
+    #   and all the enhancement features whose names don't start with
+    #   player_/team_/opp_ (UTM, fatigue, game script, WoWY, synergy, etc.).
     _SAFE_PREFIXES = (
+        # Core rolling stats
         "player_", "team_", "opp_", "is_home",
         "position", "game_number", "season_completion", "is_playoff",
+        # Usage Transfer Matrix (Enhancement 1)
+        "usage_",             # usage_shift, usage_shift_abs, usage_transfer_delta
+        "teammate_",          # teammate_{pid}_is_out, teammate_{pid}_usage_rate
+        "without_",           # without_{tid}_{stat}_delta (WoWY splits)
+        "projected_",         # projected_usage_given_absences
+        # Schedule fatigue (Enhancement 3)
+        "cumulative_",        # cumulative_minutes_l7
+        "schedule_",          # schedule_fatigue_index
+        "altitude_",          # altitude_flag
+        "is_4_",              # is_4_in_5
+        "is_5_",              # is_5_in_7
+        # Game script (Enhancement 5 — explicit names also in FEATURE_FAMILIES
+        # but safe prefix ensures future additions are auto-included)
+        "pregame_",           # pregame_win_probability
+        "blowout_",           # blowout_probability
+        "close_",             # close_game_probability
+        "expected_",          # expected_minutes_given_script
+        "minutes_upside",     # minutes_upside (exact prefix match)
+        # Synergy / duo features (Enhancement 18)
+        "duo_",               # duo_synergy_{a}_{b}
+        # Causal features (Enhancements 11/17)
+        "causal_",            # causal_dnp_*, causal_transfer_*
+        "ipw_",               # ipw_corrected_*
+        # Defensive scheme proxies (Enhancement 9)
+        "shot_quality_",      # shot_quality_delta_l10
+        "is_running_",        # is_running_hot, is_running_cold
+        # Shot profile (Enhancement 4)
+        "player_ts_",         # player_ts_pct_l10
     )
     _excluded_meta = {
         "game_id", "game_date", "player_id", "player_name",

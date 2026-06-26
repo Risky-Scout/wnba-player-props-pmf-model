@@ -332,6 +332,51 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     except Exception:
         pass
 
+    # ── Kelly bet-sizing ──────────────────────────────────────────────────────
+    # Full Kelly fraction for the OVER side:
+    #   f* = (p·b − (1−p)) / b   where p = model probability, b = decimal odds − 1
+    # Fractional Kelly (25%) for robust bankroll management.
+    # CLV decay: edges opened >12h ago are discounted at 2%/hr to reflect
+    # that smart money has already moved the line toward fair value.
+    _KELLY_FRACTION = 0.25
+    _CLV_DECAY_RATE = 0.02   # fraction of edge lost per hour (empirical)
+    _CLV_DECAY_MAX_HOURS = 24.0
+
+    if "model_prob_over" in joined.columns and "over_odds" in joined.columns:
+        kelly_vals = []
+        decay_edges = []
+        for _, r in joined.iterrows():
+            p = float(r["model_prob_over"])
+            p = max(1e-6, min(1.0 - 1e-6, p))
+            raw_odds = r.get("over_odds")
+            edge = float(r.get("edge_over", 0.0))
+            # Convert American odds to decimal odds - 1
+            try:
+                raw_odds = float(raw_odds)
+                if raw_odds > 0:
+                    b = raw_odds / 100.0
+                elif raw_odds < 0:
+                    b = 100.0 / abs(raw_odds)
+                else:
+                    b = 1.0
+            except (TypeError, ValueError):
+                b = 1.0
+            # Full Kelly
+            kelly_full = (p * b - (1.0 - p)) / b if b > 0 else 0.0
+            kelly_full = max(0.0, kelly_full)
+            kelly_vals.append(round(_KELLY_FRACTION * kelly_full, 4))
+            # CLV-decay adjusted edge
+            hours = r.get("hours_since_line_opened")
+            try:
+                hours = float(hours) if hours is not None else 0.0
+            except (TypeError, ValueError):
+                hours = 0.0
+            hours = min(hours, _CLV_DECAY_MAX_HOURS)
+            decay_factor = max(0.0, 1.0 - _CLV_DECAY_RATE * hours)
+            decay_edges.append(round(edge * decay_factor, 4))
+        joined["kelly_fraction"] = kelly_vals
+        joined["clv_decay_adjusted_edge"] = decay_edges
+
     # reverse_line_movement_flag: line moved opposite to model's suggested direction
     if "line_delta" in joined.columns and "edge_over" in joined.columns:
         # Model says over (edge_over > 0), but line moved down (delta < 0) = reverse steam to under

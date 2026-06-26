@@ -1,27 +1,27 @@
 # Stage 6 Calibration Configuration
 # Per PenaltyBlog methodology: isotonic regression per stat/role on OOF PIT values.
 
-# ── Post-calibration gates (year-1 appropriate) ───────────────────────────────
+# ── Post-calibration gates (updated to reflect actual calibrator quality) ────
 # Checked on CALIBRATED OOF predictions. These are the real quality gates.
-# Year-1 thresholds: PenaltyBlog gold (ECE<0.03, KS<0.075) requires a mature
-# multi-season model. Tighten each season as the calibrators accumulate data.
-# inactive_risk, fringe, and bench buckets are excluded from these gates (see gate_exclude_role_buckets).
-ece_threshold: 0.13        # ECE < 0.13 per stat/role (year-1; tighten to 0.08 in year 2, 0.05 in year 3)
-                           # Raised from 0.12: fringe-bucket turnover ECE=0.122 failed by 0.0025 margin.
-                           # Fringe players have inherently noisy turnover data; 0.13 is still excellent.
-pit_ks_threshold: 0.15     # PIT KS < 0.15 (year-1; tighten to 0.10 in year 2)
-mean_error_threshold: 1.25 # |mean_error| < 1.25 per stat/role (year-1; tighten to 0.75 in year 2)
+# Observed calibrated OOF performance with DNP-clean calibrators (Jun 2026):
+#   ast core ECE=0.010, PIT KS=0.016
+#   ast bench ECE=0.032, PIT KS=0.042
+#   ast fringe ECE=0.124, PIT KS=0.091
+# Starters/core/rotation are comfortably below 0.08 / 0.10 — tightening now.
+# inactive_risk and fringe remain excluded (selection-bias / DNP sparsity).
+# bench remains excluded: inconsistent minute distributions inflate ECE.
+ece_threshold: 0.08        # ECE < 0.08 per stat/role (tightened from 0.13)
+pit_ks_threshold: 0.10     # PIT KS < 0.10 (tightened from 0.15)
+mean_error_threshold: 1.00 # |mean_error| < 1.00 per stat/role (tightened from 1.25)
 
 # Role buckets excluded from the strict post-cal gate.
-# inactive_risk uses global-only calibration (ROLE_GLOBAL_ONLY_BUCKETS) — per-role
-# metrics are inherently unstable for this bucket (DNP-risk players who play are
-# selection-biased). Gate failure here does NOT indicate a broken model.
-# fringe: highly inconsistent playing time; calibration training (did_play=True,
-# actual_minutes>=5) still cannot fully represent fringe players' volatile minute
-# distributions, so per-role ECE/PIT KS are noisier than for stable-role buckets.
+# inactive_risk: DNP-risk players who play are selection-biased — per-role ECE
+#   is inherently unstable; gate failure here does NOT indicate a broken model.
+# fringe: sparse played-game samples + high DNP rate → ECE/PIT KS are noisy.
+# bench: inconsistent minute distributions make per-role ECE higher but this
+#   reflects true model uncertainty, not a calibration bug.
 gate_exclude_role_buckets:
   - inactive_risk
-  - fringe   # high DNP rate + sparse played-game samples → unstable per-role metrics in year 1
   - fringe
   - bench
 
