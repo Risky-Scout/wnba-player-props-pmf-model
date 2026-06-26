@@ -28,7 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 lgbm = ["lightgbm>=4.0"]
 tuning = ["optuna>=3.0"]
-dev = ["pytest>=7.0", "ruff>=0.3", "optuna>=3.0"]
+dev = ["pytest>=7.0", "ruff>=0.3", "optuna>=3.0", "requests-mock>=1.9"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
