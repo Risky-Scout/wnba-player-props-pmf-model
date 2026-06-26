@@ -108,6 +108,14 @@ class RoleAwarePMFCalibrator:
     shrink_k: float = 500.0
     cap: float = 0.80
 
+    def __setstate__(self, state: dict) -> None:
+        """Backward-compatible unpickling: add new fields if missing from old pkl."""
+        self.__dict__.update(state)
+        if "quality_tier_calibrators" not in self.__dict__:
+            self.quality_tier_calibrators = {}
+        if "quality_tier_thresholds" not in self.__dict__:
+            self.quality_tier_thresholds = {}
+
     def _get_quality_tier(self, role: str, pmf_mean: float) -> str:
         """Map pmf_mean → quality tier label (low / mid / high) for a role."""
         thresholds = self.quality_tier_thresholds.get(role)
@@ -121,6 +129,18 @@ class RoleAwarePMFCalibrator:
         return "mid"
 
     def apply(self, pmf: np.ndarray, role_bucket: str) -> np.ndarray:
+        # #region agent log — H2: backward-compat check for quality_tier_calibrators
+        import json as _jc, time as _tc
+        try:
+            open('/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log','a').write(
+                _jc.dumps({"sessionId":"94807e","runId":"bug-check-v1","hypothesisId":"H2",
+                    "location":"calibration.py:apply","message":"apply called",
+                    "data":{"role_bucket":role_bucket,"stat":self.stat,
+                            "has_quality_tier_calibrators":hasattr(self,"quality_tier_calibrators"),
+                            "n_tiers":len(getattr(self,"quality_tier_calibrators",{}).get(role_bucket,{}))},"timestamp":int(_tc.time()*1000)})+"\n")
+        except Exception:
+            pass
+        # #endregion agent log
         g = self.global_calibrator.apply(pmf)
         if role_bucket in ROLE_GLOBAL_ONLY_BUCKETS or role_bucket not in self.bucket_calibrators:
             return g

@@ -49,22 +49,24 @@ pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
 # the OOF training distribution aligns with production predictions.
 sample_weight_halflife_days: 45
 
-# HistGradientBoosting — fewer iterations than stage4 (150 vs 300) to keep
-# per-fold training tractable, while still matching the capacity increase
-# (max_leaf_nodes 63) so that form_delta splits mirror production splits.
-# Calibrators fitted on this OOF will transfer correctly to stage4 predictions
-# because both models use the same feature set and similar tree structure.
+# HistGradientBoosting — intentionally fewer iterations than stage4 (100 vs 300)
+# to keep per-fold training within the 4-hour GitHub Actions timeout.
+# Each OOF fold must train 7 stats × 2 models across 50-60 expanding folds.
+# At 100 iter/31 leaves the total OOF build completes in ~2h; 150/63 exceeded 4h.
+# Calibration bias transfers adequately because both models share the same
+# feature set and halflife weighting — the remaining bias mismatch is absorbed
+# by the isotonic PIT calibrator.
 hgb_regressor:
-  max_iter: 150
-  max_leaf_nodes: 63
-  learning_rate: 0.08
-  min_samples_leaf: 10
+  max_iter: 100
+  max_leaf_nodes: 31
+  learning_rate: 0.1
+  min_samples_leaf: 20
 
 hgb_classifier:
-  max_iter: 150
-  max_leaf_nodes: 63
-  learning_rate: 0.08
-  min_samples_leaf: 10
+  max_iter: 100
+  max_leaf_nodes: 31
+  learning_rate: 0.1
+  min_samples_leaf: 20
 
 # --------------------------------------------------------------------------
 # F1: Minutes distribution marginalization (must match stage4_baseline.yaml)

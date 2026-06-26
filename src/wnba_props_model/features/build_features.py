@@ -931,6 +931,26 @@ def _build_player_features(
     if _quality_anchor_cols:
         df = pd.concat([df, pd.DataFrame(_quality_anchor_cols, index=df.index)], axis=1)
 
+    # #region agent log — H4: verify new form_delta/quality_anchor cols have variance
+    import json as _json4e, time as _time4e
+    try:
+        _fd_cols = [c for c in df.columns if "form_delta" in c or "momentum_ewma" in c]
+        _qa_cols = [c for c in df.columns if "season_zscore" in c or "form_vs_season_ratio" in c]
+        _fd_stds = {c: round(float(df[c].std(skipna=True)), 4) for c in _fd_cols[:5]}
+        _qa_stds = {c: round(float(df[c].std(skipna=True)), 4) for c in _qa_cols[:5]}
+        _fd_low_var = [c for c in _fd_cols if df[c].std(skipna=True) < 0.05]
+        _qa_low_var = [c for c in _qa_cols if df[c].std(skipna=True) < 0.05]
+        open('/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log','a').write(
+            _json4e.dumps({"sessionId":"94807e","runId":"bug-check-v1","hypothesisId":"H4",
+                "location":"build_features.py:932","message":"4e/4f feature variance check",
+                "data":{"n_form_delta":len(_fd_cols),"n_quality_anchor":len(_qa_cols),
+                        "fd_sample_stds":_fd_stds,"qa_sample_stds":_qa_stds,
+                        "fd_low_var_count":len(_fd_low_var),"qa_low_var_count":len(_qa_low_var),
+                        "fd_low_var_cols":_fd_low_var[:5],"qa_low_var_cols":_qa_low_var[:5]},"timestamp":int(_time4e.time()*1000)}) + "\n")
+    except Exception:
+        pass
+    # #endregion agent log
+
     # ------------------------------------------------------------------ #
     # 5. Usage proxy features (shifted)
     # ------------------------------------------------------------------ #
