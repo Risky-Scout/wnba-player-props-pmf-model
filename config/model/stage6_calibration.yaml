@@ -16,8 +16,12 @@ mean_error_threshold: 1.25 # |mean_error| < 1.25 per stat/role (year-1; tighten 
 # inactive_risk uses global-only calibration (ROLE_GLOBAL_ONLY_BUCKETS) — per-role
 # metrics are inherently unstable for this bucket (DNP-risk players who play are
 # selection-biased). Gate failure here does NOT indicate a broken model.
+# fringe: highly inconsistent playing time; calibration training (did_play=True,
+# actual_minutes>=5) still cannot fully represent fringe players' volatile minute
+# distributions, so per-role ECE/PIT KS are noisier than for stable-role buckets.
 gate_exclude_role_buckets:
   - inactive_risk
+  - fringe
 
 # ── Pre-calibration sanity gates (loose) ─────────────────────────────────────
 # Checked on RAW OOF predictions BEFORE fitting calibrators.

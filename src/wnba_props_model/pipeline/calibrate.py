@@ -102,7 +102,7 @@ def fit_beta_calibrators(
     import joblib  # noqa: PLC0415
     from wnba_props_model.evaluation.beta_calibration import fit_best_calibrator  # noqa: PLC0415
 
-    _BETA_MIN_CAL_MINUTES = 10
+    _BETA_MIN_CAL_MINUTES = 5
     oof = pd.read_parquet(oof_pmfs_path).copy()
     if "outcome" not in oof.columns and "actual_outcome" in oof.columns:
         oof["outcome"] = oof["actual_outcome"]
@@ -226,7 +226,7 @@ def fit_calibrators(
     # PIT ≈ 0.05.  The isotonic calibrator interprets this as systematic
     # over-prediction and learns to compress every distribution by ~2×,
     # causing severe under-prediction vs the market in live delivery.
-    _MIN_CAL_MINUTES = 10  # require at least 10 meaningful minutes to be calibration-eligible
+    _MIN_CAL_MINUTES = 5   # exclude pure garbage-time (< 5 min) while keeping fringe/bench games
     if "calibration_eligible" in oof.columns:
         oof_eligible = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
     else:
