@@ -77,6 +77,12 @@ def main(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    # Exit cleanly when no predictions were generated (no games scheduled).
+    pmfs_path = Path(pmfs)
+    if not pmfs_path.exists():
+        typer.echo(f"[INFO] No PMF file found at {pmfs} — no games scheduled for {today}. Exiting cleanly.")
+        raise typer.Exit(0)
+
     pmfs_df = pd.read_parquet(pmfs)
     typer.echo(f"Loaded {len(pmfs_df):,} PMF rows")
 
