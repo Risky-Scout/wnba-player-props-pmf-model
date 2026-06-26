@@ -142,6 +142,17 @@ def calibration(
     skip_elig = pre_cal
     df = _load_pmf_df(oof_scored, skip_eligibility_filter=skip_elig)
 
+    # Post-cal gate: apply the same DNP + low-minutes filter used during calibration
+    # training so evaluation and training distributions are aligned.  DNP rows
+    # (actual=0) cause fringe/bench metrics to look terrible even when the
+    # calibrators are correct for played-game predictions.
+    if not pre_cal:
+        _eval_min_minutes = 10
+        if "did_play" in df.columns:
+            df = df[df["did_play"] == True].copy()  # noqa: E712
+        if "actual_minutes" in df.columns:
+            df = df[df["actual_minutes"].fillna(0) >= _eval_min_minutes].copy()
+
     if df.empty:
         typer.echo(
             f"\n[{mode_label}] OOF data has 0 scoreable rows after loading — "
