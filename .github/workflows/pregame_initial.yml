@@ -117,9 +117,30 @@ jobs:
           fi
           echo "Game date set to: $GAME_DATE"
 
+      - name: Pull BDL current-season data
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/pull_bdl_history.py \
+            --start-season $YEAR --end-season $YEAR \
+            --out-dir data/raw/bdl
+        continue-on-error: true
+
+      - name: Build canonical tables
+        run: |
+          python scripts/build_canonical_tables.py \
+            --raw-dir data/raw/bdl \
+            --out-dir data/processed
+        continue-on-error: true
+
+      - name: Build feature matrix from canonical tables
+        run: |
+          python scripts/build_features.py \
+            --data-dir data/processed
+        continue-on-error: true
+
       - name: Build next-game slate (BDL games + roster)
         run: |
-          mkdir -p data/schedule data/processed
+          mkdir -p data/schedule data/processed deliveries/tonight
           python scripts/build_next_game_slate.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight
@@ -173,27 +194,6 @@ jobs:
               print(f"[WARN] BDL injury fetch failed: {exc} — writing empty file")
               out_path.write_text("[]")
           PYEOF
-        continue-on-error: true
-
-      - name: Pull BDL current-season data
-        run: |
-          YEAR=$(date -u +%Y)
-          python scripts/pull_bdl_history.py \
-            --start-season $YEAR --end-season $YEAR \
-            --out-dir data/raw/bdl
-        continue-on-error: true
-
-      - name: Build canonical tables
-        run: |
-          python scripts/build_canonical_tables.py \
-            --raw-dir data/raw/bdl \
-            --out-dir data/processed
-        continue-on-error: true
-
-      - name: Build feature matrix from canonical tables
-        run: |
-          python scripts/build_features.py \
-            --data-dir data/processed
         continue-on-error: true
 
       - name: Generate pre-game PMF projections

@@ -234,9 +234,11 @@ def fit_calibrators(
 
     # Apply DNP + low-minutes filter (only for rows that have these columns)
     _pre_dnp_n = len(oof_eligible)
-    if "did_play" in oof_eligible.columns:
+    _has_did_play = "did_play" in oof_eligible.columns
+    _has_actual_minutes = "actual_minutes" in oof_eligible.columns
+    if _has_did_play:
         oof_eligible = oof_eligible[oof_eligible["did_play"] == True].copy()  # noqa: E712
-    if "actual_minutes" in oof_eligible.columns:
+    if _has_actual_minutes:
         oof_eligible = oof_eligible[
             oof_eligible["actual_minutes"].fillna(0) >= _MIN_CAL_MINUTES
         ].copy()
@@ -246,6 +248,23 @@ def fit_calibrators(
         "(removed %d DNP/low-minute games from calibration training set)",
         _pre_dnp_n, _post_dnp_n, _pre_dnp_n - _post_dnp_n,
     )
+    # #region agent log
+    print(f"[calibrate] Total eligible rows before DNP filter: {_pre_dnp_n:,}")
+    print(f"[calibrate] has_did_play={_has_did_play} has_actual_minutes={_has_actual_minutes}")
+    print(f"[calibrate] After DNP/low-min filter: {_post_dnp_n:,} rows (removed {_pre_dnp_n - _post_dnp_n:,})")
+    if _has_actual_minutes and _post_dnp_n > 0:
+        for _stat in ["pts", "reb", "ast"]:
+            _sub = oof_eligible[oof_eligible["stat"] == _stat] if "stat" in oof_eligible.columns else oof_eligible
+            if len(_sub) > 0 and "actual_outcome" in _sub.columns and "pmf_mean" in _sub.columns:
+                _bias = _sub["pmf_mean"].mean() - _sub["actual_outcome"].mean()
+                print(f"[calibrate] Post-DNP-filter stat={_stat}: model_mean={_sub['pmf_mean'].mean():.2f} actual_mean={_sub['actual_outcome'].mean():.2f} bias={_bias:+.2f} n={len(_sub):,}")
+    import json as _jh, time as _th
+    try:
+        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
+            _f.write(_jh.dumps({"sessionId": "94807e", "hypothesisId": "H2", "location": "calibrate.py:fit_calibrators", "message": "dnp_filter_result", "data": {"pre_dnp_n": _pre_dnp_n, "post_dnp_n": _post_dnp_n, "removed": _pre_dnp_n - _post_dnp_n, "has_did_play": _has_did_play, "has_actual_minutes": _has_actual_minutes}, "timestamp": int(_th.time() * 1000)}) + "\n")
+    except Exception:
+        pass
+    # #endregion agent log
 
     # Append combo OOF PMFs if not already present
     existing_stats = set(oof_eligible["stat"].unique())
@@ -260,6 +279,14 @@ def fit_calibrators(
         except Exception as exc:
             logger.warning("[calibrate] Combo OOF generation failed: %s — skipping combo calibration", exc)
 
+    # #region agent log
+    print(
+        f"[calibrate] OOF eligible stats: {sorted(oof_eligible['stat'].unique().tolist())} "
+        f"roles: {sorted(oof_eligible['role_bucket'].unique().tolist())} "
+        f"rows: {len(oof_eligible):,}"
+    )
+    # #endregion agent log
+
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     paths = {}
@@ -268,6 +295,14 @@ def fit_calibrators(
         path = out / f"pmf_cal_role_{stat}.pkl"
         cal.save(str(path))
         paths[stat] = path
+        # #region agent log
+        print(
+            f"[calibrate] Fitted role-aware calibrator stat={stat} "
+            f"bucket_count={cal.bucket_counts} "
+            f"quality_tiers={list(cal.quality_tier_calibrators.keys())} "
+            f"thresholds={cal.quality_tier_thresholds}"
+        )
+        # #endregion agent log
 
     # Also fit Beta calibrators for P(over) (Item 5A)
     try:

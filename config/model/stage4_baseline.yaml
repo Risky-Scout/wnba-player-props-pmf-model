@@ -123,7 +123,7 @@ pmf_source: stage4_baseline_uncalibrated_model_only
 # Exponential decay sample weighting: games from halflife days ago have weight 0.5.
 # Reduces systematic mean_error bias caused by scoring trend shifts across seasons.
 # Set to null to disable.
-sample_weight_halflife_days: 45
+sample_weight_halflife_days: 42
 
 # HistGradientBoosting model hyperparameters
 # max_leaf_nodes 31→63: allows form_delta × matchup interaction splits without

@@ -58,40 +58,67 @@ _QUALITY_ELIGIBLE_ROLES: frozenset[str] = frozenset({"starter", "core"})
 # Calibrators need at least this many PIT samples for stable isotonic fitting.
 _QUALITY_MIN_ROWS: int = 50
 
-# PMF-mean thresholds that partition starter/core OOF rows into three tiers.
-# Derived from empirical OOF distributions (see diagnostics below).
-#
-# For pts starter:
-#   pmf_mean  mean=24.2, std=3.3
-#   "low"  tier (pmf_mean < 20): actual avg ≈ 7 pts  — never prop-eligible
-#   "mid"  tier (20 ≤ pmf < 25): actual avg ≈ 13 pts — average starter
-#   "high" tier (pmf_mean ≥ 25): actual avg ≈ 17-22  — prop-eligible elite
-#
-# Without quality stratification the single-role calibrator is dominated by
-# "mid" rows and over-compresses elite starters by ≈3.5 pts per game.
-_QUALITY_TIER_PMF_THRESHOLDS: dict[str, dict[str, float]] = {
-    "pts":      {"low": 20.0, "high": 25.0},
-    "reb":      {"low": 7.0,  "high": 11.0},
-    "ast":      {"low": 4.0,  "high": 7.0},
-    "fg3m":     {"low": 1.0,  "high": 2.0},
-    "stl":      {"low": 1.0,  "high": 1.8},
-    "blk":      {"low": 0.5,  "high": 1.2},
-    "turnover": {"low": 2.0,  "high": 3.5},
+# PMF-mean thresholds set to "auto": computed at fit-time from OOF p33/p67
+# quantiles of prop-eligible rows. This ensures thresholds stay in sync with
+# the actual model output range across retraining cycles, preventing the
+# previous bug where hardcoded thresholds (pts: 20/25) were unreachable by
+# the model (actual model_mean ≈ 14 for pts starters) causing all predictions
+# to fall into the "low" tier and receive over-compressed calibration.
+_QUALITY_TIER_PMF_THRESHOLDS: dict[str, str] = {
+    "pts":      "auto",
+    "reb":      "auto",
+    "ast":      "auto",
+    "fg3m":     "auto",
+    "stl":      "auto",
+    "blk":      "auto",
+    "turnover": "auto",
+}
+
+# Fallback thresholds used when OOF data is insufficient for auto-computation.
+_FALLBACK_QUALITY_THRESHOLDS: dict[str, dict[str, float]] = {
+    "pts":      {"low": 10.0, "high": 15.0},
+    "reb":      {"low": 3.5,  "high": 6.0},
+    "ast":      {"low": 1.5,  "high": 3.0},
+    "fg3m":     {"low": 0.5,  "high": 1.2},
+    "stl":      {"low": 0.4,  "high": 1.0},
+    "blk":      {"low": 0.3,  "high": 0.7},
+    "turnover": {"low": 1.5,  "high": 2.5},
 }
 
 # Prop-slice filter: minimum pmf_mean for a starter/core row to participate
 # in quality-tier calibration training.  Rows below this threshold belong to
 # low-quality "starters" who are never prop-eligible; including them dilutes
 # the elite calibration curve and causes systematic UNDER for market props.
+# Lowered from previous values (pts: 14→7) because the model's output range
+# for prop-eligible players spans ~7-15 pts (not 14-25 as previously assumed).
 _PROP_SLICE_PMF_MIN: dict[str, float] = {
-    "pts":      14.0,
-    "reb":      4.0,
-    "ast":      2.0,
-    "fg3m":     0.5,
-    "stl":      0.5,
-    "blk":      0.3,
-    "turnover": 1.0,
+    "pts":      7.0,
+    "reb":      2.0,
+    "ast":      1.0,
+    "fg3m":     0.3,
+    "stl":      0.3,
+    "blk":      0.2,
+    "turnover": 0.8,
 }
+
+
+def _compute_auto_thresholds(
+    pmf_means: np.ndarray, min_rows: int = 100,
+) -> dict[str, float] | None:
+    """Compute quality-tier thresholds from OOF pmf_mean distribution.
+
+    Returns {"low": p33, "high": p67} or None if insufficient data.
+    Uses the 33rd and 67th percentiles of the prop-eligible distribution,
+    ensuring each tier captures roughly one-third of the data for stable
+    isotonic fitting.
+    """
+    valid = pmf_means[~np.isnan(pmf_means)]
+    if len(valid) < min_rows:
+        return None
+    return {
+        "low": float(np.percentile(valid, 33)),
+        "high": float(np.percentile(valid, 67)),
+    }
 
 
 @dataclass
@@ -142,12 +169,45 @@ class RoleAwarePMFCalibrator:
             arr = normalize_pmf(pmf)
             pmf_mean_val = float(np.dot(np.arange(len(arr)), arr))
             tier = self._get_quality_tier(role_bucket, pmf_mean_val)
+            # #region agent log
+            import json as _jc, time as _tc
+            _raw_m = pmf_mean_val
+            _thresh = self.quality_tier_thresholds.get(role_bucket, ())
+            try:
+                with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
+                    _f.write(_jc.dumps({"sessionId": "94807e", "hypothesisId": "H1", "location": "calibration.py:apply", "message": "quality_tier_selected", "data": {"stat": self.stat, "role": role_bucket, "raw_pmf_mean": round(_raw_m, 3), "tier_selected": tier, "tier_exists_in_cal": tier in tier_cals, "thresholds": list(_thresh), "available_tiers": list(tier_cals.keys())}, "timestamp": int(_tc.time() * 1000)}) + "\n")
+            except Exception:
+                pass
+            # #endregion agent log
             if tier in tier_cals:
                 b = tier_cals[tier].apply(pmf)
+                # #region agent log
+                try:
+                    _cal_arr = normalize_pmf(w * b + (1.0 - w) * g)
+                    _ks = np.arange(len(_cal_arr))
+                    _cal_m = float(_ks @ _cal_arr)
+                    with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
+                        _f.write(_jc.dumps({"sessionId": "94807e", "hypothesisId": "H1", "location": "calibration.py:apply_tier", "message": "tier_calibration_applied", "data": {"stat": self.stat, "role": role_bucket, "tier": tier, "raw_mean": round(_raw_m, 3), "cal_mean": round(_cal_m, 3), "compression_ratio": round(_cal_m / max(_raw_m, 0.01), 3)}, "timestamp": int(_tc.time() * 1000)}) + "\n")
+                except Exception:
+                    pass
+                # #endregion agent log
                 return normalize_pmf(w * b + (1.0 - w) * g)
 
         # Default: per-role-bucket calibrator.
         b = self.bucket_calibrators[role_bucket].apply(pmf)
+        # #region agent log
+        try:
+            import json as _jd, time as _td
+            _arr = normalize_pmf(pmf)
+            _ks2 = np.arange(len(_arr))
+            _raw_m2 = float(_ks2 @ _arr)
+            _cal_arr2 = normalize_pmf(w * b + (1.0 - w) * g)
+            _cal_m2 = float(_ks2 @ _cal_arr2)
+            with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
+                _f.write(_jd.dumps({"sessionId": "94807e", "hypothesisId": "H1", "location": "calibration.py:apply_bucket", "message": "bucket_calibration_applied", "data": {"stat": self.stat, "role": role_bucket, "raw_mean": round(_raw_m2, 3), "cal_mean": round(_cal_m2, 3), "compression_ratio": round(_cal_m2 / max(_raw_m2, 0.01), 3), "weight_w": round(w, 3)}, "timestamp": int(_td.time() * 1000)}) + "\n")
+        except Exception:
+            pass
+        # #endregion agent log
         return normalize_pmf(w * b + (1.0 - w) * g)
 
     def save(self, path: str) -> None:
@@ -192,6 +252,7 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
         # Quality-tier sub-calibrators for starter / core only.
         if (bucket_str in _QUALITY_ELIGIBLE_ROLES
                 and stat_thresholds is not None
+                and stat_thresholds != ""
                 and has_pmf_mean):
             # Prop-slice filter: remove very-low-quality starters from tier
             # calibration so the correction curve reflects prop-eligible players.
@@ -203,8 +264,35 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
             if tier_data.empty:
                 continue
 
-            low_thresh = stat_thresholds["low"]
-            high_thresh = stat_thresholds["high"]
+            # Auto-compute thresholds from OOF data if configured
+            if isinstance(stat_thresholds, str) and stat_thresholds == "auto":
+                auto = _compute_auto_thresholds(tier_data["pmf_mean"].values)
+                if auto is not None:
+                    low_thresh = auto["low"]
+                    high_thresh = auto["high"]
+                    print(
+                        f"[calibration] Auto thresholds stat={stat} role={bucket} "
+                        f"low={low_thresh:.2f} high={high_thresh:.2f} "
+                        f"(from {len(tier_data)} prop-eligible rows, "
+                        f"p33={low_thresh:.2f} p67={high_thresh:.2f})"
+                    )
+                else:
+                    fallback = _FALLBACK_QUALITY_THRESHOLDS.get(stat, {"low": 10.0, "high": 15.0})
+                    low_thresh = fallback["low"]
+                    high_thresh = fallback["high"]
+                    print(
+                        f"[calibration] Fallback thresholds stat={stat} role={bucket} "
+                        f"low={low_thresh:.2f} high={high_thresh:.2f} "
+                        f"(insufficient OOF data for auto)"
+                    )
+            elif isinstance(stat_thresholds, dict):
+                low_thresh = stat_thresholds["low"]
+                high_thresh = stat_thresholds["high"]
+            else:
+                fallback = _FALLBACK_QUALITY_THRESHOLDS.get(stat, {"low": 10.0, "high": 15.0})
+                low_thresh = fallback["low"]
+                high_thresh = fallback["high"]
+
             quality_tier_thresholds[bucket_str] = (low_thresh, high_thresh)
 
             tier_cals: dict[str, PMFCDFCalibrator] = {}
@@ -220,6 +308,12 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
                         for p, y in zip(tier_df["pmf"], tier_df["outcome"])
                     ])
                     tier_cals[tier_name] = PMFCDFCalibrator().fit_from_pit(tp)
+                    print(
+                        f"[calibration] Quality sub-calibrator stat={stat} role={bucket} "
+                        f"tier={tier_name} n={len(tier_df)} "
+                        f"pmf_range=[{tier_df['pmf_mean'].min():.1f}, {tier_df['pmf_mean'].max():.1f}] "
+                        f"actual_range=[{tier_df['outcome'].min():.1f}, {tier_df['outcome'].max():.1f}]"
+                    )
                     logger.info(
                         "[calibration] Quality sub-calibrator stat=%s role=%s tier=%s n=%d "
                         "(pmf_range=[%.1f,%.1f] actual_range=[%.1f,%.1f])",
