@@ -91,6 +91,12 @@ def main(
     market_df = _safe_read_parquet(market_props) if market_props else None
     injuries_df = _load_injuries(injuries)
 
+    if market_df is not None and not market_df.empty:
+        n_mkt_players = market_df["player_name"].nunique() if "player_name" in market_df.columns else 0
+        typer.echo(f"Market data: {len(market_df):,} rows, {n_mkt_players} unique players from Odds API")
+    else:
+        typer.echo("[WARN] No market data available — edges and Kelly will not be computed")
+
     # Load UTM transfer log and GTD scenarios from injury_report_{date}.json
     utm_log_df, gtd_log_rows = _load_utm_and_gtd(game_date)
 
@@ -108,7 +114,15 @@ def main(
 
     n_games = len(envelope.get("games", []))
     n_players = sum(len(g.get("players", [])) for g in envelope.get("games", []))
-    typer.echo(f"Built envelope: {n_games} games, {n_players} player records")
+    n_with_market = sum(
+        1
+        for g in envelope.get("games", [])
+        for p in g.get("players", [])
+        for sp in p.get("stat_projections", {}).values()
+        if sp.get("calibrated_p_over") is not None
+    )
+    typer.echo(f"Built envelope: {n_games} games, {n_players} player records, "
+               f"{n_with_market} stat-lines with market edges")
 
     # ── Write files ────────────────────────────────────────────────────────
     out = Path(out_dir)
