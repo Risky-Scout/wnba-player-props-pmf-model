@@ -7,18 +7,19 @@
 name: Pre-Game Initial Projections (T-1 day)
 
 on:
-  # Run automatically after the daily pipeline succeeds (ensures model + calibrators are available)
+  # Run automatically after the daily pipeline completes (ensures model + calibrators are available).
+  # IMPORTANT: Do NOT add a branches filter here — schedule-triggered workflows do not populate
+  # github.event.workflow_run.head_branch, so the branches filter silently prevents firing.
   workflow_run:
     workflows: ["Daily WNBA PMF Pipeline"]
     types: [completed]
-    branches: [main]
   # Keep cron as a safety fallback (6 AM ET = 10:00 UTC)
   schedule:
     - cron: '0 10 * * *'
   workflow_dispatch:
     inputs:
       game_date:
-        description: 'Target game date (YYYY-MM-DD, defaults to tomorrow)'
+        description: 'Target game date (YYYY-MM-DD, defaults to today)'
         required: false
         default: ''
 
@@ -101,15 +102,20 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Resolve game date (tomorrow by default)
+      - name: Resolve game date
         id: date
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
+            # Manual override
             echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Triggered after daily_pipeline — target TODAY (same games the pipeline just predicted)
+            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           else
+            # Cron at 10:00 UTC (6 AM ET) — predict for TOMORROW's games so bettors have early data
             echo "GAME_DATE=$(date -u -d '+1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)" >> $GITHUB_ENV
           fi
-          echo "Game date: $GAME_DATE"
+          echo "Game date set to: $GAME_DATE"
 
       - name: Build next-game slate (BDL games + roster)
         run: |
@@ -256,10 +262,15 @@ jobs:
       - name: Copy to initial/ subdirectory
         run: |
           mkdir -p tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial
-          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_initial.json \
-             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/latest.json
-          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_initial.json \
-             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/${GAME_DATE}.json
+          SRC="tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_initial.json"
+          if [ -f "$SRC" ]; then
+            cp "$SRC" tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/latest.json
+            cp "$SRC" tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/${GAME_DATE}.json
+            echo "Copied predictions for ${GAME_DATE}"
+          else
+            echo "[WARN] No predictions file for ${GAME_DATE} (no games scheduled) — skipping copy"
+          fi
+        continue-on-error: true
 
       - name: Publish predictions to gh-pages
         uses: peaceiris/actions-gh-pages@v4
