@@ -69,16 +69,6 @@ def main(
     ),
 ) -> None:
     """Format pre-game PMFs into the blueprint JSON schema."""
-    # #region agent log
-    import json as _json, time as _time, os as _os
-    _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-    try:
-        with open(_log_path, "a") as _f:
-            _f.write(_json.dumps({"sessionId": "94807e", "hypothesisId": "H-entry", "location": "format_pregame_output.py:format_pregame", "message": "format_pregame called", "data": {"game_date": game_date, "pipeline_run": pipeline_run, "pmfs": pmfs, "cwd": _os.getcwd()}, "timestamp": int(_time.time() * 1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
-
     if pipeline_run not in VALID_RUN_TYPES:
         typer.echo(f"[WARN] Unknown pipeline_run '{pipeline_run}'. Using pregame_initial.", err=True)
         pipeline_run = "pregame_initial"
@@ -147,23 +137,6 @@ def main(
 
 
 def _resolve_pmfs(pmfs_arg: str, game_date: str) -> Path | None:
-    # #region agent log
-    import json as _json, time as _time
-    _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-    _candidates = [pmfs_arg] if pmfs_arg else [
-        "deliveries/tonight/full_pmfs_wide.parquet",
-        "deliveries/next_game/full_pmfs_wide.parquet",
-        "deliveries/today/full_pmfs_wide.parquet",
-        f"deliveries/tonight/player_projections_{game_date}.parquet",
-    ]
-    _exists = {c: Path(c).exists() for c in _candidates}
-    try:
-        with open(_log_path, "a") as _f:
-            _f.write(_json.dumps({"sessionId": "94807e", "hypothesisId": "H-date-resolve", "location": "format_pregame_output.py:_resolve_pmfs", "message": "PMF resolution attempt", "data": {"game_date": game_date, "pmfs_arg": pmfs_arg, "candidates_exist": _exists}, "timestamp": int(_time.time() * 1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
-
     if pmfs_arg:
         return Path(pmfs_arg)
     for candidate in [
