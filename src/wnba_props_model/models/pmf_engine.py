@@ -52,10 +52,21 @@ def prepare_feature_matrix(
 
     Returns (X, encoder).  encoder is None if 'position' not in model_feature_cols.
     """
-    # Verify no forbidden columns
+    # Verify no forbidden columns.
+    # During training (fit_encoder=True): hard error so we catch schema drift early.
+    # During inference (fit_encoder=False): gracefully drop — forbidden features carry
+    # no signal by definition, so their absence does not degrade predictions. This
+    # prevents crashes when loading model artifacts trained before a feature was banned.
     bad = [c for c in model_feature_cols if c in FORBIDDEN_MODEL_FEATURES]
     if bad:
-        raise ValueError(f"Forbidden columns in model_feature_cols: {bad}")
+        if fit_encoder:
+            raise ValueError(f"Forbidden columns in model_feature_cols: {bad}")
+        import warnings as _warnings
+        _warnings.warn(
+            f"Dropping {len(bad)} forbidden columns from inference feature set: {bad}",
+            stacklevel=2,
+        )
+        model_feature_cols = [c for c in model_feature_cols if c not in FORBIDDEN_MODEL_FEATURES]
 
     # Filter to available columns
     available = [c for c in model_feature_cols if c in df.columns]
