@@ -477,16 +477,24 @@ def build_player_record(
                 mkt_p = float(m.get("market_prob_over_no_vig") or 0.5)
                 edge = round(p_over - mkt_p, 4)
 
-                # Fractional Kelly bet sizing (half-Kelly, capped at 25% bankroll)
-                kelly_full = edge / max(mkt_p, 1e-6) if edge > 0 else 0.0
-                kelly_frac = round(min(kelly_full * 0.5, 0.25), 4)
+                # Fractional Kelly bet sizing (half-Kelly, capped at 25% bankroll).
+                # Over bet Kelly  = edge_over  / (1 - mkt_p)  [edge > 0]
+                # Under bet Kelly = edge_under / mkt_p        [edge < 0]
+                if edge > 0:
+                    kelly_raw = edge / max(1.0 - mkt_p, 1e-6)
+                    kelly_frac: float | None = round(min(kelly_raw * 0.5, 0.25), 4)
+                elif edge < 0:
+                    kelly_raw = (-edge) / max(mkt_p, 1e-6)
+                    kelly_frac = round(min(kelly_raw * 0.5, 0.25), 4)
+                else:
+                    kelly_frac = None
 
                 stat_proj["calibrated_p_over"] = {
                     "market_line": round(line, 1),
                     "p_over": round(p_over, 4),
                     "p_under": round(p_under, 4),
                     "edge_vs_market": edge,
-                    "kelly_fraction": kelly_frac if edge > 0 else None,
+                    "kelly_fraction": kelly_frac,
                     "market_source": str(m.get("source") or "odds_api"),
                     "market_vendor": str(m.get("vendor") or m.get("bookmaker") or ""),
                     "market_over_odds": int(m.get("over_odds") or 0) if m.get("over_odds") else None,
