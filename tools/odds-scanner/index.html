@@ -454,9 +454,9 @@
       <div class="ctl-group">
         <span class="ctl-label">Show</span>
         <select id="pg-show">
-          <option value="edges">Edges Only</option>
           <option value="starters">Starters Only</option>
           <option value="all">All Players</option>
+          <option value="edges">Edges Only</option>
         </select>
       </div>
       <div class="ctl-group">
@@ -516,7 +516,7 @@ const PMF_COLORS = {
 };
 const DEFAULT_COLORS = ['#1e3a5f','#1a5c99','#2082ce','#5ba3db','#93c5e4','#c5dff0','#e0eef7','#f0f5fa'];
 
-let pgSort = 'edge';
+let pgSort = 'proj';
 let pgData = null;
 let pgCards = [];
 let activeGameId = null;
@@ -653,7 +653,7 @@ function applyPGFilters() {
   let cards = [...pgCards];
   if (statF) cards = cards.filter(c => c.statKey === statF || c.stat.toLowerCase() === statF);
   if (showF === 'edges') cards = cards.filter(c => c.edge != null);
-  if (showF === 'starters') cards = cards.filter(c => c.isStarter);
+  if (showF === 'starters') cards = cards.filter(c => c.isStarter || c.minutes >= 24);
 
   cards.sort((a, b) => {
     if (pgSort === 'edge')  return Math.abs(b.edge||0) - Math.abs(a.edge||0);
