@@ -115,6 +115,25 @@ jobs:
           print("[PASS] Feature column count OK")
           EOF
 
+      - name: Download stage4 model (skip_train fallback via GitHub CLI)
+        # When skip_train=true, training is skipped so we must download the latest
+        # model artifact to ensure predict_today.py can find the model directory.
+        if: github.event.inputs.skip_train == 'true'
+        run: |
+          mkdir -p artifacts/models/stage4_baseline
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=model-stage4-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/model_stage4.zip
+            unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
+            echo "Stage4 model downloaded OK (id=$AID)"
+          else
+            echo "[WARN] model-stage4-latest artifact not found — training will be required"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Train baseline PMFs (Stage 4)
         if: github.event.inputs.skip_train != 'true'
         run: |
@@ -355,9 +374,9 @@ jobs:
 
       - name: Trigger pregame dashboard publish (explicit dispatch)
         # workflow_run events are unreliable for schedule-triggered parent workflows.
-        # Explicitly dispatch pregame_initial after daily_pipeline succeeds so the
-        # dashboard always reflects today's model output.
-        if: success()
+        # Explicitly dispatch pregame_initial after daily_pipeline runs so the
+        # dashboard always reflects today's model output. Fires unless cancelled.
+        if: ${{ !cancelled() }}
         run: |
           gh workflow run pregame_initial.yml \
             --ref main \
