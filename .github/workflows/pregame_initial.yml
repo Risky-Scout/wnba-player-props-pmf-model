@@ -7,8 +7,14 @@
 name: Pre-Game Initial Projections (T-1 day)
 
 on:
+  # Run automatically after the daily pipeline succeeds (ensures model + calibrators are available)
+  workflow_run:
+    workflows: ["Daily WNBA PMF Pipeline"]
+    types: [completed]
+    branches: [main]
+  # Keep cron as a safety fallback (6 AM ET = 10:00 UTC)
   schedule:
-    - cron: '0 10 * * *'   # 10:00 UTC daily
+    - cron: '0 10 * * *'
   workflow_dispatch:
     inputs:
       game_date:
@@ -74,6 +80,25 @@ jobs:
           name: model-stage4-latest
           path: artifacts/models/stage4_baseline/
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Self-contained model train (if no model available from daily pipeline)
+        # Runs if neither the cache nor the artifact provided model files.
+        # Makes pregame_initial fully self-contained — no dependency on daily_pipeline.
+        run: |
+          if [ ! -f "artifacts/models/stage4_baseline/manifest.json" ] && \
+             [ ! -f "artifacts/models/stage4_baseline/model_manifest.json" ]; then
+            echo "[FALLBACK] No stage4 model found — training self-contained baseline"
+            python scripts/pull_bdl_history.py \
+              --start-season $(date -u +%Y) --end-season $(date -u +%Y) \
+              --out-dir data/raw/bdl
+            python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
+            python scripts/build_features.py --data-dir data/processed
+            python scripts/train_baseline_pmfs.py --time-decay-xi 0.003
+            echo "[FALLBACK] Self-contained training complete"
+          else
+            echo "[OK] Stage4 model found — skipping self-contained training"
+          fi
+        continue-on-error: true
 
       - name: Resolve game date (tomorrow by default)
         id: date

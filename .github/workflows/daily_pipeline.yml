@@ -300,6 +300,18 @@ jobs:
           name: model-stage4-latest
           path: artifacts/models/stage4_baseline/
           retention-days: 90
+          overwrite: true
+
+      - name: Re-upload calibrators artifact (keeps it alive daily)
+        # Ensures calibrators-latest artifact is always fresh even if weekly_calibration
+        # hasn't run recently. Downloads from cache then re-uploads.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: calibrators-latest
+          path: artifacts/models/calibration/
+          retention-days: 90
+          overwrite: true
 
       - name: Upload daily delivery (primary artifact)
         uses: actions/upload-artifact@v4
