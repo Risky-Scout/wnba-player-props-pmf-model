@@ -108,11 +108,17 @@ jobs:
               --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
             if [ -n "$AID" ] && [ "$AID" != "null" ]; then
               gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/pregame.zip
-              unzip -o /tmp/pregame.zip -d deliveries/tonight
+              # Unzip to repo root so paths like deliveries/tonight/full_pmfs_wide.parquet
+              # land at the correct relative location (not double-nested).
+              unzip -o /tmp/pregame.zip -d .
               echo "Pre-game artifact downloaded: ${ARTIFACT_NAME} (id=$AID)"
               break
             fi
           done
+          # Verify the parquet is reachable; warn if not
+          if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
+            echo "[WARN] full_pmfs_wide.parquet not found after artifact download — live tracker will run without pregame priors"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true

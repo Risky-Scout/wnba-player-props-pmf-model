@@ -8,7 +8,8 @@ name: Pre-Game Final Lock Projections
 
 on:
   schedule:
-    - cron: '0 22 * * *'   # 22:00 UTC daily
+    - cron: '30 21 * * *'  # 5:30 PM ET — catches early 7 PM ET tip-offs
+    - cron: '0 22 * * *'   # 6:00 PM ET — standard primetime
   workflow_dispatch:
     inputs:
       game_date:
@@ -205,13 +206,17 @@ jobs:
       - name: Copy to final/ subdirectory
         run: |
           mkdir -p tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final
-          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json \
-             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final/latest.json
-          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json \
-             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final/${GAME_DATE}.json
-          # Also update the root latest.json to the final version
-          cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json \
-             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/latest.json
+          SRC="tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_final.json"
+          if [ -f "$SRC" ]; then
+            cp "$SRC" tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final/latest.json
+            cp "$SRC" tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/final/${GAME_DATE}.json
+            # Also update the root latest.json to the final version
+            cp "$SRC" tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/latest.json
+            echo "Copied final predictions for ${GAME_DATE}"
+          else
+            echo "[WARN] No final predictions file for ${GAME_DATE} — skipping copy"
+          fi
+        continue-on-error: true
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4

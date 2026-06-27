@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -31,6 +32,16 @@ import pandas as pd
 SCHEMA_VERSION = "1.0.0"
 MODEL_VERSION = "hgb_v2.3.1_idr_beta_conformal"
 CALIBRATION_VERSION = "idr_v12_beta_v12_conformal_v12"
+
+
+def _norm_name(name: str) -> str:
+    """Normalize a player name for fuzzy matching: lowercase, letters only.
+
+    Handles apostrophes (A'ja), hyphens (Laney-Hamilton), accents, and
+    spacing differences between BDL and Odds API name formats.
+    """
+    return re.sub(r"[^a-z]", "", name.lower())
+
 
 # ---------------------------------------------------------------------------
 # PMF bin definitions (blueprint §3.4)
@@ -458,18 +469,24 @@ def build_player_record(
             mkt = market_rows[market_rows["stat"] == stat]
             if not mkt.empty:
                 m = mkt.iloc[0]
-                line = float(m.get("line") or m.get("line_value") or 0.5)
+                line_raw = m.get("line") if m.get("line") is not None else m.get("line_value")
+                line = float(line_raw) if line_raw is not None else 0.5
                 # P(over line) from PMF
                 p_over = float(np.sum(pmf_arr[math.ceil(line):]))
                 p_under = 1.0 - p_over
                 mkt_p = float(m.get("market_prob_over_no_vig") or 0.5)
                 edge = round(p_over - mkt_p, 4)
 
+                # Fractional Kelly bet sizing (half-Kelly, capped at 25% bankroll)
+                kelly_full = edge / max(mkt_p, 1e-6) if edge > 0 else 0.0
+                kelly_frac = round(min(kelly_full * 0.5, 0.25), 4)
+
                 stat_proj["calibrated_p_over"] = {
                     "market_line": round(line, 1),
                     "p_over": round(p_over, 4),
                     "p_under": round(p_under, 4),
                     "edge_vs_market": edge,
+                    "kelly_fraction": kelly_frac if edge > 0 else None,
                     "market_source": str(m.get("source") or "odds_api"),
                     "market_vendor": str(m.get("vendor") or m.get("bookmaker") or ""),
                     "market_over_odds": int(m.get("over_odds") or 0) if m.get("over_odds") else None,
@@ -631,14 +648,22 @@ def build_game_record(
     players = []
     for pid in player_ids:
         p_rows = game_rows[game_rows["player_id"] == pid]
+        pname = str(p_rows.iloc[0].get("player_name", ""))
+        pname_norm = _norm_name(pname)
+
         p_mkt = None
         if market_df is not None and not market_df.empty:
-            p_mkt = market_df[market_df.get("player_id", pd.Series(dtype=int)) == pid] if "player_id" in market_df.columns else pd.DataFrame()
-            if p_mkt is not None and p_mkt.empty:
-                # Fall back to name-based matching
-                pname = str(p_rows.iloc[0].get("player_name", ""))
-                if "player_name" in market_df.columns:
-                    p_mkt = market_df[market_df["player_name"] == pname]
+            # Try player_id match first (fast path)
+            if "player_id" in market_df.columns:
+                id_match = market_df[market_df["player_id"] == pid]
+                p_mkt = id_match if not id_match.empty else None
+
+            # Fuzzy name match fallback: normalize both sides (strips apostrophes,
+            # hyphens, spaces, case) so "A'ja Wilson" matches "Aja Wilson", etc.
+            if (p_mkt is None or (hasattr(p_mkt, "empty") and p_mkt.empty)) and "player_name" in market_df.columns:
+                p_mkt = market_df[
+                    market_df["player_name"].apply(lambda n: _norm_name(str(n))) == pname_norm
+                ]
 
         inj_status = None
         if injuries_df is not None and not injuries_df.empty and "player_id" in injuries_df.columns:
@@ -648,8 +673,10 @@ def build_game_record(
 
         p_odds_rows = []
         if odds_api_rows:
-            pname = str(p_rows.iloc[0].get("player_name", ""))
-            p_odds_rows = [r for r in odds_api_rows if r.get("player_name", "").strip() == pname.strip()]
+            p_odds_rows = [
+                r for r in odds_api_rows
+                if _norm_name(str(r.get("player_name", ""))) == pname_norm
+            ]
 
         # Extract UTM impact rows for this player as beneficiary
         p_utm_rows: list[dict] | None = None
