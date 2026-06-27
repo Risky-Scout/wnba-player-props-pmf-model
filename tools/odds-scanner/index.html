@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WNBA Edge Scanner — WizardOfOdds</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: #1e2d45;
+      --accent: #3b82f6;
+      --accent2: #10b981;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --green: #10b981;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+    .logo span { color: var(--text); }
+    .badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      letter-spacing: 0.5px;
+    }
+    .badge.live { background: var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .meta { margin-left: auto; font-size: 13px; color: var(--muted); }
+    .meta strong { color: var(--text); }
+
+    main { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .controls label { font-size: 13px; color: var(--muted); margin-right: 4px; }
+    select, input[type=range] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .sort-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .sort-btn.active { border-color: var(--accent); color: var(--accent); }
+    .sort-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .game-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .matchup { font-size: 18px; font-weight: 700; }
+    .game-meta { font-size: 13px; color: var(--muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      transition: border-color .15s, transform .1s;
+      cursor: default;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .card.edge-pos { border-left: 3px solid var(--green); }
+    .card.edge-neg { border-left: 3px solid var(--red); }
+    .card.no-edge  { border-left: 3px solid var(--border); }
+
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .player-name { font-size: 15px; font-weight: 600; }
+    .player-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .stat-badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+
+    .proj-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .proj-val { font-size: 26px; font-weight: 700; color: var(--accent); }
+    .proj-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+    .market-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 8px; }
+    .market-row .label { color: var(--muted); }
+    .market-row .val { font-weight: 600; }
+
+    .edge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .edge-pill.pos { background: rgba(16,185,129,.15); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+    .edge-pill.neg { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+    .edge-pill.none { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+    .pmf-bar { margin-top: 10px; }
+    .pmf-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .pmf-segments { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; }
+    .pmf-seg { border-radius: 1px; transition: opacity .2s; }
+    .pmf-seg:hover { opacity: .7; }
+
+    .ci-row { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+    .kelly-chip {
+      background: rgba(59,130,246,.1);
+      color: var(--accent);
+      border: 1px solid rgba(59,130,246,.2);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .no-data {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 60px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .summary-bar {
+      display: flex;
+      gap: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 24px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .stat-box { text-align: center; }
+    .stat-box .num { font-size: 24px; font-weight: 700; }
+    .stat-box .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .stat-box .num.green { color: var(--green); }
+    .stat-box .num.red { color: var(--red); }
+    .stat-box .num.blue { color: var(--accent); }
+
+    .error-banner {
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.3);
+      color: var(--red);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: flex; justify-content: center; align-items: center;
+      height: 200px; flex-direction: column; gap: 16px; color: var(--muted);
+    }
+    .spin {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+
+    @media (max-width: 640px) {
+      main { padding: 16px; }
+      header { padding: 12px 16px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">Wizard<span>OfOdds</span></div>
+  </div>
+  <span class="badge">WNBA</span>
+  <span class="badge live" id="status-badge">LOADING</span>
+  <div class="meta" id="meta-info">Fetching latest predictions…</div>
+</header>
+
+<main>
+  <div id="error-container"></div>
+
+  <div class="controls">
+    <div>
+      <label>Stat</label>
+      <select id="stat-filter">
+        <option value="all">All Stats</option>
+        <option value="points">Points</option>
+        <option value="rebounds">Rebounds</option>
+        <option value="assists">Assists</option>
+        <option value="threes">3-Pointers</option>
+        <option value="steals">Steals</option>
+        <option value="blocks">Blocks</option>
+        <option value="turnovers">Turnovers</option>
+      </select>
+    </div>
+    <div>
+      <label>Show</label>
+      <select id="show-filter">
+        <option value="edges">Edges Only</option>
+        <option value="all">All Players</option>
+        <option value="starters">Starters Only</option>
+      </select>
+    </div>
+    <div>
+      <label>Sort</label>
+      <button class="sort-btn active" data-sort="edge">Edge %</button>
+      <button class="sort-btn" data-sort="proj">Projection</button>
+      <button class="sort-btn" data-sort="kelly">Kelly</button>
+      <button class="sort-btn" data-sort="name">Name</button>
+    </div>
+  </div>
+
+  <div class="summary-bar" id="summary-bar" style="display:none">
+    <div class="stat-box"><div class="num blue" id="s-total">0</div><div class="lbl">Props Analyzed</div></div>
+    <div class="stat-box"><div class="num green" id="s-over">0</div><div class="lbl">Over Edges</div></div>
+    <div class="stat-box"><div class="num red" id="s-under">0</div><div class="lbl">Under Edges</div></div>
+    <div class="stat-box"><div class="num" id="s-mean-proj">—</div><div class="lbl">Avg Projection</div></div>
+    <div class="stat-box"><div class="num" id="s-date">—</div><div class="lbl">Game Date</div></div>
+  </div>
+
+  <div id="content">
+    <div class="spinner"><div class="spin"></div><div>Loading model predictions…</div></div>
+  </div>
+</main>
+
+<footer>
+  WNBA PMF Model · <span id="model-ver"></span> · Data refreshes daily at game time ·
+  <a href="predictions/WNBA/Pre-Game-Edge/latest.json" style="color:var(--accent)">Raw JSON</a>
+</footer>
+
+<script>
+const DATA_URL = 'predictions/WNBA/Pre-Game-Edge/latest.json';
+const STAT_COLORS = {
+  points:    ['#1d4ed8','#2563eb','#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#dbeafe','#eff6ff'],
+  rebounds:  ['#065f46','#047857','#059669','#10b981','#34d399','#6ee7b7','#a7f3d0','#d1fae5'],
+  assists:   ['#7c3aed','#7c3aed','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff'],
+  threes:    ['#b45309','#d97706','#f59e0b','#fbbf24','#fcd34d','#fde68a','#fef3c7','#fffbeb'],
+  steals:    ['#be123c','#e11d48','#f43f5e','#fb7185','#fda4af','#fecdd3','#ffe4e6','#fff1f2'],
+  blocks:    ['#0e7490','#0891b2','#06b6d4','#22d3ee','#67e8f9','#a5f3fc','#cffafe','#ecfeff'],
+  turnovers: ['#9f1239','#be123c','#e11d48','#f43f5e','#fb7185','#fda4af','#fecdd3','#fff1f2'],
+};
+const DEFAULT_COLORS = ['#1e3a5f','#1e4976','#1a5c99','#1d6fb5','#2082ce','#5ba3db','#93c5e4','#c5dff0'];
+
+let allCards = [];
+let sortKey = 'edge';
+
+function pmfColor(stat) { return STAT_COLORS[stat] || DEFAULT_COLORS; }
+
+function edgeStr(e) {
+  if (e == null) return null;
+  const pct = (e * 100).toFixed(1);
+  return e >= 0 ? `+${pct}%` : `${pct}%`;
+}
+
+function renderPMF(pmfObj, stat) {
+  if (!pmfObj) return '';
+  const entries = Object.entries(pmfObj);
+  const max = Math.max(...entries.map(([,v]) => v));
+  const colors = pmfColor(stat);
+  const segs = entries.map(([label, val], i) => {
+    const w = Math.round((val / max) * 100);
+    const bg = colors[Math.min(i, colors.length - 1)];
+    return `<div class="pmf-seg" title="${label}: ${(val*100).toFixed(1)}%" style="flex:${w};background:${bg}"></div>`;
+  }).join('');
+  const labels = `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px">
+    <span>${entries[0][0]}</span><span>${entries[Math.floor(entries.length/2)][0]}</span><span>${entries[entries.length-1][0]}</span>
+  </div>`;
+  return `<div class="pmf-bar"><div class="pmf-label">PMF distribution</div><div class="pmf-segments">${segs}</div>${labels}</div>`;
+}
+
+function renderCard(c) {
+  const e = c.edge;
+  const hasEdge = e != null;
+  const edgeClass = !hasEdge ? 'no-edge' : e > 0 ? 'edge-pos' : 'edge-neg';
+  const pillClass = !hasEdge ? 'none' : e > 0 ? 'pos' : 'neg';
+  const edgeLabel = !hasEdge ? 'No market data' : (e > 0 ? `▲ OVER ${edgeStr(e)}` : `▼ UNDER ${edgeStr(e)}`);
+
+  const ci = c.ci ? `90% CI: ${c.ci[0]}–${c.ci[1]}` : '';
+  const kelly = c.kelly != null ? `<span class="kelly-chip">Kelly ${(c.kelly*100).toFixed(1)}%</span>` : '';
+  const market = c.line != null ? `
+    <div class="market-row"><span class="label">Market Line</span><span class="val">${c.line}</span></div>
+    <div class="market-row"><span class="label">Market Prob</span><span class="val">${c.mktProb != null ? (c.mktProb*100).toFixed(1)+'%' : '—'}</span></div>
+  ` : '';
+
+  return `<div class="card ${edgeClass}">
+    <div class="card-top">
+      <div>
+        <div class="player-name">${c.player}</div>
+        <div class="player-meta">${c.team} · ${c.pos || '—'} · ${c.minutes != null ? c.minutes.toFixed(0)+'min proj' : ''}</div>
+      </div>
+      <div class="stat-badge">${c.stat}</div>
+    </div>
+    <div class="proj-row">
+      <div><div class="proj-val">${c.mean != null ? c.mean.toFixed(1) : '—'}</div><div class="proj-label">Model Projection</div></div>
+      <div style="text-align:right">
+        <span class="edge-pill ${pillClass}">${edgeLabel}</span>
+        <div style="margin-top:6px">${kelly}</div>
+      </div>
+    </div>
+    ${market}
+    ${renderPMF(c.pmf, c.statKey)}
+    ${ci ? `<div class="ci-row">${ci}</div>` : ''}
+  </div>`;
+}
+
+function buildCards(data) {
+  const cards = [];
+  for (const game of data.games || []) {
+    for (const player of game.players || []) {
+      const sp = player.stat_projections || {};
+      for (const [statKey, proj] of Object.entries(sp)) {
+        const statName = {
+          points:'Points', rebounds:'Rebounds', assists:'Assists',
+          threes:'3PM', steals:'Steals', blocks:'Blocks', turnovers:'Turnovers',
+          points_rebounds:'Pts+Reb', points_assists:'Pts+Ast',
+          points_rebounds_assists:'Pts+Reb+Ast',
+        }[statKey] || statKey;
+
+        cards.push({
+          player: player.player_name,
+          team: player.team_name || '',
+          pos: player.position || '',
+          isStarter: player.is_starter,
+          minutes: player.projected_minutes?.mean,
+          statKey,
+          stat: statName,
+          mean: proj.mean,
+          median: proj.median,
+          pmf: proj.pmf,
+          ci: proj.conformal_90_ci,
+          edge: proj.edge_over,
+          line: proj.market_line,
+          mktProb: proj.market_prob_over,
+          kelly: proj.kelly_fraction,
+        });
+      }
+    }
+  }
+  return cards;
+}
+
+function applyFilters() {
+  const statF = document.getElementById('stat-filter').value;
+  const showF = document.getElementById('show-filter').value;
+
+  let filtered = [...allCards];
+
+  if (statF !== 'all') filtered = filtered.filter(c => c.statKey === statF || c.stat.toLowerCase().includes(statF.replace('threes','3')));
+  if (showF === 'edges') filtered = filtered.filter(c => c.edge != null);
+  if (showF === 'starters') filtered = filtered.filter(c => c.isStarter);
+
+  // Sort
+  filtered.sort((a, b) => {
+    if (sortKey === 'edge') {
+      const ae = a.edge ?? 0, be = b.edge ?? 0;
+      return Math.abs(be) - Math.abs(ae);
+    }
+    if (sortKey === 'proj') return (b.mean ?? 0) - (a.mean ?? 0);
+    if (sortKey === 'kelly') return (b.kelly ?? 0) - (a.kelly ?? 0);
+    if (sortKey === 'name') return a.player.localeCompare(b.player);
+    return 0;
+  });
+
+  // Summary
+  const sumBar = document.getElementById('summary-bar');
+  sumBar.style.display = 'flex';
+  document.getElementById('s-total').textContent = filtered.length;
+  const overE = filtered.filter(c => c.edge > 0).length;
+  const underE = filtered.filter(c => c.edge < 0).length;
+  document.getElementById('s-over').textContent = overE;
+  document.getElementById('s-under').textContent = underE;
+  const means = filtered.filter(c => c.mean != null).map(c => c.mean);
+  document.getElementById('s-mean-proj').textContent = means.length ? (means.reduce((a,b)=>a+b,0)/means.length).toFixed(1) : '—';
+
+  const content = document.getElementById('content');
+  if (!filtered.length) {
+    content.innerHTML = '<div class="no-data">No projections match the current filters.</div>';
+    return;
+  }
+
+  content.innerHTML = `<div class="grid">${filtered.map(renderCard).join('')}</div>`;
+}
+
+async function load() {
+  try {
+    const res = await fetch(DATA_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    document.getElementById('status-badge').textContent = 'LIVE';
+    document.getElementById('meta-info').innerHTML =
+      `Game Date: <strong>${data.game_date || '—'}</strong> · Generated: <strong>${data.generated_at ? data.generated_at.replace('T',' ').replace('Z',' UTC') : '—'}</strong>`;
+    document.getElementById('s-date').textContent = data.game_date || '—';
+    document.getElementById('model-ver').textContent = data.model_version || '';
+
+    allCards = buildCards(data);
+    applyFilters();
+  } catch (e) {
+    document.getElementById('status-badge').textContent = 'ERROR';
+    document.getElementById('status-badge').style.background = 'var(--red)';
+    document.getElementById('error-container').innerHTML =
+      `<div class="error-banner">Failed to load predictions: ${e.message}. <a href="${DATA_URL}" style="color:inherit;text-decoration:underline">Check raw JSON</a>.</div>`;
+    document.getElementById('content').innerHTML =
+      `<div class="no-data">Could not fetch model data. The pipeline may not have run yet for today's slate.</div>`;
+  }
+}
+
+// Event listeners
+document.getElementById('stat-filter').addEventListener('change', applyFilters);
+document.getElementById('show-filter').addEventListener('change', applyFilters);
+document.querySelectorAll('.sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sortKey = btn.dataset.sort;
+    applyFilters();
+  });
+});
+
+load();
+// Auto-refresh every 5 min
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>
