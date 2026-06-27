@@ -82,20 +82,25 @@ jobs:
       - name: Download latest pregame artifact (cross-run via GitHub CLI)
         run: |
           mkdir -p deliveries/tonight
-          # Try pregame-injury-update first, then initial — both from cross-run
-          for ARTIFACT_NAME in "pregame-injury-update-${{ env.GAME_DATE }}" "pregame-initial-${{ env.GAME_DATE }}"; do
+          # Try pregame-initial first (always has valid PMF), then pregame-injury-update.
+          # Only accept an artifact if it actually contains full_pmfs_wide.parquet.
+          for ARTIFACT_NAME in "pregame-initial-${{ env.GAME_DATE }}" "pregame-injury-update-${{ env.GAME_DATE }}"; do
             AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}" \
               --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
             if [ -n "$AID" ] && [ "$AID" != "null" ]; then
               gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/pregame.zip
               # Unzip to repo root so deliveries/tonight/full_pmfs_wide.parquet lands correctly
               unzip -o /tmp/pregame.zip -d .
-              echo "Pre-game artifact downloaded: ${ARTIFACT_NAME} (id=$AID)"
-              break
+              if [ -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
+                echo "Pre-game artifact downloaded with valid PMF: ${ARTIFACT_NAME} (id=$AID)"
+                break
+              else
+                echo "[WARN] Artifact ${ARTIFACT_NAME} (id=$AID) has no PMF — trying next"
+              fi
             fi
           done
           if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
-            echo "[WARN] full_pmfs_wide.parquet not found after artifact download — will regenerate"
+            echo "[WARN] full_pmfs_wide.parquet not found after all artifact attempts — will regenerate"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
