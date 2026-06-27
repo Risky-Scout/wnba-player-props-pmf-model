@@ -488,8 +488,8 @@
 <footer>
   <span>WNBA PMF Model · <span id="footer-ver">hgb_v2.3.1_idr_beta_conformal</span></span>
   <span>
-    <a href="predictions/WNBA/Pre-Game-Edge/latest.json" target="_blank">Pre-Game JSON</a> ·
-    <a href="predictions/WNBA/Inplay-Edge/" target="_blank">Live JSON</a> ·
+    <a href="https://risky-scout.github.io/wnba-player-props-pmf-model/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/latest.json" target="_blank">Pre-Game JSON</a> ·
+    <a href="https://risky-scout.github.io/wnba-player-props-pmf-model/tools/odds-scanner/predictions/WNBA/Inplay-Edge/" target="_blank">Live JSON</a> ·
     Pre-game refreshes at game time · Live updates every 60 s
   </span>
 </footer>
@@ -498,8 +498,11 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ══════════════════════════════════════════════════════════════════════════════
-const PREGAME_URL = 'predictions/WNBA/Pre-Game-Edge/latest.json';
-const INPLAY_BASE = 'predictions/WNBA/Inplay-Edge/';
+// Data CDN: always fetch from GitHub Pages regardless of which server hosts
+// this HTML file. GitHub Pages serves with open CORS headers.
+const _GH_PAGES_BASE = 'https://risky-scout.github.io/wnba-player-props-pmf-model/tools/odds-scanner/';
+const PREGAME_URL = _GH_PAGES_BASE + 'predictions/WNBA/Pre-Game-Edge/latest.json';
+const INPLAY_BASE = _GH_PAGES_BASE + 'predictions/WNBA/Inplay-Edge/';
 const ACTIVE_GAMES_URL = INPLAY_BASE + 'active_games.json';
 const LIVE_REFRESH_MS = 60_000;
 const PMF_COLORS = {
