@@ -39,41 +39,37 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Restore calibrators from cache
-        id: cal-cache
-        uses: actions/cache/restore@v4
+      - name: Download calibrators (cross-run via GitHub CLI)
+        run: |
+          mkdir -p artifacts/models/calibration
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
+            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+            echo "Calibrators downloaded OK (id=$AID)"
+          else
+            echo "[WARN] calibrators-latest artifact not found"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
-        with:
-          path: artifacts/models/calibration/
-          key: calibrators-latest-${{ github.run_id }}
-          restore-keys: calibrators-latest-
 
-      - name: Download calibrators (fallback)
-        if: steps.cal-cache.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
+      - name: Download stage4 model (cross-run via GitHub CLI)
+        run: |
+          mkdir -p artifacts/models/stage4_baseline
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=model-stage4-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/model_stage4.zip
+            unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
+            echo "Stage4 model downloaded OK (id=$AID)"
+          else
+            echo "[WARN] model-stage4-latest artifact not found"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
-        with:
-          name: calibrators-latest
-          path: artifacts/models/calibration/
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Restore stage4 model from cache
-        id: model-cache
-        uses: actions/cache/restore@v4
-        continue-on-error: true
-        with:
-          path: artifacts/models/stage4_baseline/
-          key: model-stage4-latest-${{ github.run_id }}
-          restore-keys: model-stage4-latest-
-
-      - name: Download stage4 model (fallback)
-        if: steps.model-cache.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: model-stage4-latest
-          path: artifacts/models/stage4_baseline/
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve game date
         run: |

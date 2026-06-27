@@ -98,12 +98,23 @@ jobs:
             echo "NO_GAMES=true" >> $GITHUB_ENV
           fi
 
-      - name: Download pre-game projections (today's final or latest)
+      - name: Download pre-game projections (cross-run via GitHub CLI)
         if: env.NO_GAMES != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: pregame-final-${{ env.GAME_DATE }}
-          path: deliveries/tonight
+        run: |
+          mkdir -p deliveries/tonight
+          # Try today's final predictions first, then fall back to initial predictions
+          for ARTIFACT_NAME in "pregame-final-${{ env.GAME_DATE }}" "pregame-initial-${{ env.GAME_DATE }}"; do
+            AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}" \
+              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+            if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+              gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/pregame.zip
+              unzip -o /tmp/pregame.zip -d deliveries/tonight
+              echo "Pre-game artifact downloaded: ${ARTIFACT_NAME} (id=$AID)"
+              break
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Fetch PBP data for active games (BDL)

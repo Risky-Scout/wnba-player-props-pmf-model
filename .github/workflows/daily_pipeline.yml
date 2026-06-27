@@ -46,23 +46,24 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Restore calibrators from cache
-        id: cal-cache
-        uses: actions/cache/restore@v4
+      - name: Download calibrators (cross-run via GitHub CLI)
+        # actions/download-artifact@v4 only finds artifacts from the current run.
+        # Use the GitHub API to find the latest calibrators-latest artifact across all runs.
+        run: |
+          mkdir -p artifacts/models/calibration
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            echo "Downloading calibrators-latest artifact id=$AID"
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
+            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+            echo "Calibrators downloaded OK"
+          else
+            echo "[WARN] No calibrators-latest artifact found — pipeline will run without calibrators"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
-        with:
-          path: artifacts/models/calibration/
-          key: calibrators-latest-${{ github.run_id }}
-          restore-keys: calibrators-latest-
-
-      - name: Download latest calibrators (fallback)
-        if: steps.cal-cache.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: calibrators-latest
-          path: artifacts/models/calibration
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set game date (today by default)
         id: date
@@ -259,14 +260,21 @@ jobs:
             --out artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
 
       - name: Download OOF PMFs for drift auto-refit
-        # Only runs when drift-check triggers hard-refit. Downloads the latest
-        # OOF parquet published by weekly_calibration.yml so fit_calibrators.py
-        # has the data it needs without knowing the weekly-cal run ID.
+        # Only runs when drift-check triggers hard-refit. Uses GitHub CLI for cross-run download.
         if: steps.drift-check.outcome == 'failure'
-        uses: actions/download-artifact@v4
-        with:
-          name: oof-latest
-          path: data/oof
+        run: |
+          mkdir -p data/oof
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=oof-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/oof.zip
+            unzip -o /tmp/oof.zip -d data/oof
+            echo "OOF artifact downloaded OK (id=$AID)"
+          else
+            echo "[WARN] oof-latest artifact not found — auto-refit skipped"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Auto-refit calibrators on hard drift
