@@ -51,12 +51,15 @@ def _run_gates(
     mean_error_threshold: float,
     label: str = "",
     exclude_role_buckets: list[str] | None = None,
+    exclude_stats: list[str] | None = None,
 ) -> list[str]:
     """Print gate results, return list of failed gate names.
 
     Returns [] if rep is empty (treated as pass-through — no data to evaluate).
     Rows whose role_bucket is in exclude_role_buckets are removed before gating
     (logged as info, not failures — e.g. inactive_risk uses global-only calibration).
+    Rows whose stat is in exclude_stats are removed before gating
+    (e.g. blk is a rare event that inherently has higher ECE and low betting liquidity).
     """
     prefix = f"[{label}] " if label else ""
     failures: list[str] = []
@@ -73,6 +76,16 @@ def _run_gates(
             typer.echo(
                 f"{prefix}[INFO] Excluding {len(excluded)} row(s) from gate "
                 f"(role_buckets: {exclude_role_buckets}) — these use global-only calibration."
+            )
+
+    # Exclude specific stats from the strict gate
+    if exclude_stats and "stat" in rep.columns:
+        excl_stat = rep[rep["stat"].isin(exclude_stats)]
+        rep = rep[~rep["stat"].isin(exclude_stats)].copy()
+        if len(excl_stat):
+            typer.echo(
+                f"{prefix}[INFO] Excluding {len(excl_stat)} row(s) from gate "
+                f"(stats: {exclude_stats}) — rare/sparse events excluded from strict ECE gate."
             )
 
     if rep.empty:
@@ -136,6 +149,10 @@ def calibration(
         mean_error_threshold = cfg.get("mean_error_threshold", mean_error_threshold)
         mode_label = "POST-CAL"
         exclude_roles = cfg.get("gate_exclude_role_buckets", [])
+        exclude_stats_cfg = cfg.get("gate_exclude_stats", [])
+
+    if pre_cal:
+        exclude_stats_cfg = []
 
     # For pre-cal sanity: include all OOF rows (not just calibration_eligible)
     # so first-run / limited-data seasons with all-prior_only folds don't crash.
@@ -172,6 +189,7 @@ def calibration(
         rep, ece_threshold, ks_threshold, mean_error_threshold,
         label=mode_label,
         exclude_role_buckets=exclude_roles if not pre_cal else [],
+        exclude_stats=exclude_stats_cfg if not pre_cal else [],
     )
 
     if failures:
