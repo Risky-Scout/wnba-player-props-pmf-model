@@ -595,10 +595,10 @@ function buildPGCards(data) {
           median: proj.median,
           pmf: proj.pmf,
           ci: proj.conformal_90_ci,
-          edge: proj.edge_over,
-          line: proj.market_line,
-          mktProb: proj.market_prob_over,
-          kelly: proj.kelly_fraction,
+          edge: proj.calibrated_p_over?.edge_vs_market,
+          line: proj.calibrated_p_over?.market_line,
+          mktProb: proj.calibrated_p_over?.p_over,
+          kelly: proj.calibrated_p_over?.kelly_fraction,
         });
       }
     }
