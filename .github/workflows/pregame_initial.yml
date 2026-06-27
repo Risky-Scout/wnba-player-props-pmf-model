@@ -235,13 +235,22 @@ jobs:
           cp tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/${GAME_DATE}_initial.json \
              tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/initial/${GAME_DATE}.json
 
-      - name: Publish to gh-pages (wizardofodds.com)
+      - name: Publish predictions to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
           publish_branch: gh-pages
           destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          keep_files: true
+
+      - name: Publish dashboard index.html to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner
           keep_files: true
 
       - name: Upload deliveries artifact
