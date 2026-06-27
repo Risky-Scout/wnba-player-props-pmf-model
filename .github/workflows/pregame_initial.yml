@@ -13,9 +13,12 @@ on:
   workflow_run:
     workflows: ["Daily WNBA PMF Pipeline"]
     types: [completed]
-  # Keep cron as a safety fallback (6 AM ET = 10:00 UTC)
+  # Safety-net crons: run 30 min after each daily_pipeline cron (11 UTC and 14 UTC)
+  # so we still publish even if the explicit workflow dispatch somehow fails.
+  # Using TODAY not tomorrow since daily_pipeline already predicted today's games.
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '30 11 * * *'
+    - cron: '30 14 * * *'
   workflow_dispatch:
     inputs:
       game_date:
@@ -108,12 +111,9 @@ jobs:
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
             # Manual override
             echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
-          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # Triggered after daily_pipeline — target TODAY (same games the pipeline just predicted)
-            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           else
-            # Cron at 10:00 UTC (6 AM ET) — predict for TOMORROW's games so bettors have early data
-            echo "GAME_DATE=$(date -u -d '+1 day' +%Y-%m-%d 2>/dev/null || date -u -v+1d +%Y-%m-%d)" >> $GITHUB_ENV
+            # workflow_run or cron safety-net (both run after daily_pipeline) — use TODAY
+            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           fi
           echo "Game date set to: $GAME_DATE"
 

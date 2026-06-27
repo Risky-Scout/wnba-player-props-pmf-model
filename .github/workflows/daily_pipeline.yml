@@ -352,3 +352,17 @@ jobs:
             artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
             artifacts/audits/closing_lines_${{ steps.date.outputs.yesterday }}.parquet
           retention-days: 14
+
+      - name: Trigger pregame dashboard publish (explicit dispatch)
+        # workflow_run events are unreliable for schedule-triggered parent workflows.
+        # Explicitly dispatch pregame_initial after daily_pipeline succeeds so the
+        # dashboard always reflects today's model output.
+        if: success()
+        run: |
+          gh workflow run pregame_initial.yml \
+            --ref main \
+            --field game_date=${{ steps.date.outputs.target_date }}
+          echo "Dispatched pregame_initial for ${{ steps.date.outputs.target_date }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
