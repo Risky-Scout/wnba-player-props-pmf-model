@@ -2,9 +2,10 @@ name: Daily WNBA PMF Pipeline
 
 on:
   schedule:
-    # Morning run: 7 AM ET (11:00 UTC) -- trains models, builds slate for TODAY
-    # Runs early enough that projections are ready before books open WNBA lines.
-    - cron: "0 11 * * *"
+    # Morning run: 6 AM ET (10:00 UTC) -- trains models, builds slate for TODAY
+    # Moved to 6 AM to guarantee edges are published ≥12h before any WNBA tip-off (earliest ~7 PM ET).
+    # pregame_initial.yml fires 30 min after this, publishing Edge Board by ~6:30 AM ET.
+    - cron: "0 10 * * *"
     # Mid-morning run: 10 AM ET (14:00 UTC) -- re-pulls props after books post WNBA lines
     # Bookmakers typically post WNBA player props by 2 PM ET; this run captures early movers.
     - cron: "0 14 * * *"
