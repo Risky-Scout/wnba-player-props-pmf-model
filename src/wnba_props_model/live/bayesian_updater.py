@@ -192,10 +192,14 @@ class GammaPoissonLiveEngine:
         projected_total = sum(k * p for k, p in pmf.items())
 
         # #region agent log
-        import json as _j3, time as _t3
-        _log_path3 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-        with open(_log_path3, "a") as _lf3:
-            _lf3.write(_j3.dumps({"sessionId":"94807e","hypothesisId":"E","location":"bayesian_updater.py:compute_live_p_over","message":"live_computation_POST_FIX","data":{"stat":stat,"p_over":round(float(p_over),4),"observed":observed_count,"elapsed":elapsed_minutes,"foul_count":foul_count,"score_diff":score_diff,"is_star":is_star,"has_foul_adjustment":foul_count>0,"has_blowout_adjustment":abs(score_diff)>=15 and minutes_remaining<=8.0},"timestamp":int(_t3.time()*1000)}) + "\n")
+        try:
+            import json as _j3, time as _t3, os as _os3
+            _log_path3 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
+            _os3.makedirs(_os3.path.dirname(_log_path3), exist_ok=True)
+            with open(_log_path3, "a") as _lf3:
+                _lf3.write(_j3.dumps({"sessionId":"94807e","hypothesisId":"E","location":"bayesian_updater.py:compute_live_p_over","message":"live_computation_POST_FIX","data":{"stat":stat,"p_over":round(float(p_over),4),"observed":observed_count,"elapsed":elapsed_minutes,"foul_count":foul_count,"score_diff":score_diff,"is_star":is_star,"has_foul_adjustment":foul_count>0,"has_blowout_adjustment":abs(score_diff)>=15 and minutes_remaining<=8.0},"timestamp":int(_t3.time()*1000)}) + "\n")
+        except Exception:
+            pass
         # #endregion agent log
         return {
             "p_over": round(float(p_over), 6),

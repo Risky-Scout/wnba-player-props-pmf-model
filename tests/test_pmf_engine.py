@@ -397,7 +397,7 @@ class TestForbiddenMarketColumnsExcluded:
         # model_cols that includes the forbidden market column
         model_cols = ["player_minutes_mean_l5", "is_home", "position", bad_col]
         with pytest.raises(ValueError, match="Forbidden"):
-            prepare_feature_matrix(wide, model_cols)
+            prepare_feature_matrix(wide, model_cols, fit_encoder=True)
 
 
 # ===========================================================================
