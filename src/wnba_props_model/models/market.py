@@ -346,3 +346,73 @@ def market_implied_mean(
         logger.debug("[market_implied_mean] Brentq failed for %s line=%.1f p_over=%.3f",
                      stat or "?", line, market_prob_over)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Part 5: Portfolio-Aware Kelly Sizing (Markowitz-Kelly)
+# ---------------------------------------------------------------------------
+
+def compute_portfolio_kelly(
+    bets: list[dict],
+    max_total_exposure: float = 0.15,
+) -> list[dict]:
+    """Scale individual Kelly fractions for correlated-bet portfolio.
+
+    Applies Markowitz-Kelly: reduce each bet's Kelly fraction so total
+    bankroll exposure across correlated bets stays within max_total_exposure.
+
+    Correlation model:
+      - Same player_id, different stats → scale factor 0.5 (highly correlated)
+      - Same game_id, different players → scale factor 0.8 (weakly correlated)
+      - Different games → no adjustment (independent)
+
+    Each input bet dict must contain:
+        player_id, stat, game_id, kelly_individual
+
+    Returns the same list with a new field: kelly_portfolio (float | None).
+    """
+    if not bets:
+        return bets
+
+    result = [dict(b) for b in bets]
+
+    # Group by player_id to detect same-player correlated bets
+    from collections import defaultdict
+    player_bet_counts: dict = defaultdict(int)
+    game_bet_counts: dict = defaultdict(int)
+    for b in result:
+        if b.get("kelly_individual"):
+            player_bet_counts[str(b.get("player_id", ""))] += 1
+            game_bet_counts[str(b.get("game_id", ""))] += 1
+
+    for b in result:
+        kf = b.get("kelly_individual")
+        if not kf:
+            b["kelly_portfolio"] = None
+            continue
+
+        pid = str(b.get("player_id", ""))
+        gid = str(b.get("game_id", ""))
+        n_player = player_bet_counts.get(pid, 1)
+        n_game = game_bet_counts.get(gid, 1)
+
+        # Apply correlation penalty
+        scale = 1.0
+        if n_player > 1:
+            # Multiple bets on same player: 50% scale per additional bet
+            scale *= 0.5 ** (n_player - 1)
+        elif n_game > 1:
+            # Multiple bets in same game (different players): 80% scale
+            scale *= 0.8 ** (n_game - 1)
+
+        # Enforce total exposure cap proportionally
+        total_raw = sum(
+            abs(x.get("kelly_individual") or 0.0) for x in result
+        )
+        if total_raw > max_total_exposure:
+            exposure_scale = max_total_exposure / total_raw
+            scale *= exposure_scale
+
+        b["kelly_portfolio"] = round(max(0.0, min(kf * scale, max_total_exposure)), 4)
+
+    return result

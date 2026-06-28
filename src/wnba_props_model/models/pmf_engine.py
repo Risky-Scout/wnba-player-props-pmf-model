@@ -199,6 +199,21 @@ def build_all_pmfs(
             p_nz = None
             pos_mus = None
 
+        # Part 6: CLV head signal — soft-nudge stat_mean by ≤5% based on
+        # whether the model's direction beats the closing line historically.
+        if stat in stat_models:
+            _clv_model = stat_models[stat]
+            _clv_head = getattr(_clv_model, "clv_head", None)
+            if _clv_head is not None:
+                try:
+                    _clv_p = _clv_head.predict_proba(X_stat_df)[:, 1]  # P(beat closing)
+                    # ±5% nudge centred at 0.5: positive edge → increase mean
+                    _clv_adj = (_clv_p - 0.5) * 0.10
+                    stat_means = stat_means * (1.0 + _clv_adj)
+                    stat_means = np.clip(stat_means, 0.01, None)
+                except Exception:
+                    pass
+
         # ---- Build PMF matrix ---------------------------------------------
         # If role_bucket is missing from stat_rows but dispersion_r_by_role config
         # is present, derive role_bucket from predicted minutes_mean so the role-aware
@@ -385,6 +400,24 @@ def _build_pmf_matrix(
     model = stat_models.get(stat)
     if model is None:
         return poisson_pmf_batch(stat_means, cap)
+
+    # Part 3: Feature-based learned dispersion model (highest priority).
+    # Uses the fitted dispersion_model to predict log(r) per player from features,
+    # giving player-specific, context-specific NegBinom tails.
+    if (X_stat_df is not None
+            and getattr(model, "dispersion_model", None) is not None):
+        try:
+            _usable = getattr(model, "_usable_cols", None)
+            _X_disp = X_stat_df.reindex(columns=_usable) if _usable else X_stat_df
+            _log_r_vec = model.dispersion_model.predict(_X_disp)
+            _r_vec = np.exp(_log_r_vec).clip(0.3, 15.0)
+            n = len(stat_means)
+            pmf_mat = np.zeros((n, cap + 1))
+            for i in range(n):
+                pmf_mat[i] = negbinom_pmf_batch(stat_means[i:i+1], float(_r_vec[i]), cap)[0]
+            return pmf_mat
+        except Exception:
+            pass  # fall through to existing dispersion logic
 
     # P3.1: mean-dependent dispersion — per-row r(mu_i)
     use_mean_dep = getattr(model, "cfg", {}).get("use_mean_dependent_dispersion", False)

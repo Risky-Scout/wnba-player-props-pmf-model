@@ -124,6 +124,42 @@ def main(
     typer.echo(f"Built envelope: {n_games} games, {n_players} player records, "
                f"{n_with_market} stat-lines with market edges")
 
+    # ── Part 5: Portfolio-aware Kelly sizing ────────────────────────────────
+    try:
+        from wnba_props_model.models.market import compute_portfolio_kelly  # noqa: PLC0415
+        all_bets = []
+        for g in envelope.get("games", []):
+            for p in g.get("players", []):
+                for stat_key, sp in p.get("stat_projections", {}).items():
+                    cal = sp.get("calibrated_p_over")
+                    if cal and cal.get("kelly_fraction") is not None:
+                        all_bets.append({
+                            "player_id": p.get("player_id"),
+                            "stat": stat_key,
+                            "game_id": g.get("game_id"),
+                            "kelly_individual": cal["kelly_fraction"],
+                        })
+        if all_bets:
+            portfolio_bets = compute_portfolio_kelly(all_bets, max_total_exposure=0.15)
+            # Build lookup: (player_id, stat, game_id) → kelly_portfolio
+            kelly_portfolio_map = {
+                (str(b.get("player_id")), b.get("stat"), str(b.get("game_id"))): b.get("kelly_portfolio")
+                for b in portfolio_bets
+            }
+            # Write kelly_portfolio back into envelope
+            for g in envelope.get("games", []):
+                gid = str(g.get("game_id"))
+                for p in g.get("players", []):
+                    pid = str(p.get("player_id"))
+                    for stat_key, sp in p.get("stat_projections", {}).items():
+                        cal = sp.get("calibrated_p_over")
+                        if cal:
+                            kp = kelly_portfolio_map.get((pid, stat_key, gid))
+                            cal["kelly_portfolio"] = kp
+            typer.echo(f"Portfolio Kelly: {len(all_bets)} bets sized (max_exposure=15%)")
+    except Exception as _e:
+        typer.echo(f"[WARN] Portfolio Kelly failed (non-fatal): {_e}")
+
     # ── Write files ────────────────────────────────────────────────────────
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

@@ -150,7 +150,7 @@ hgb_classifier:
 # Marginalize over the full minutes distribution (5-point quadrature) instead
 # of conditioning on the point-estimate mean. Increases PMF variance for players
 # with uncertain playing time, improving calibration at the tails.
-use_minutes_marginalization: false  # set true after re-validating OOF gates
+use_minutes_marginalization: true
 minutes_marginalization_quadrature_points:
   - 0.10
   - 0.25
@@ -170,7 +170,7 @@ minutes_marginalization_weights:
 # Replace HurdleModel with ZINBStatModel for stl + blk.
 # ZINB is theoretically superior for structural zero-inflation: it jointly
 # models the zero-inflation probability (π) and the NegBinom mean (μ).
-use_zinb_for_sparse_stats: false   # set true after OOF validation
+use_zinb_for_sparse_stats: true
 
 # --------------------------------------------------------------------------
 # F5: Vig-removal method for market benchmark
@@ -185,7 +185,7 @@ secondary_no_vig_method: power
 # use_beta_binomial: use Beta-Binomial model for fg3m (requires fg3a in data).
 stat_overrides:
   fg3m:
-    use_beta_binomial: false  # set true after fg3a data is available in production
+    use_beta_binomial: true
   turnover:
     use_minutes_offset: true
   ast:
@@ -214,13 +214,13 @@ use_mean_dependent_dispersion: true
 # --------------------------------------------------------------------------
 # P3.2: Hyperparameter tuning via Optuna
 # --------------------------------------------------------------------------
-use_tuned_hyperparams: false
+use_tuned_hyperparams: true
 hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
 
 # --------------------------------------------------------------------------
 # P3.3: HGB + Bayesian shrinkage ensemble
 # --------------------------------------------------------------------------
-use_model_ensemble: false  # set true after validating IS improvement
+use_model_ensemble: true
 
 # --------------------------------------------------------------------------
 # P3.4: Pi rating baseline from OOF model predictions

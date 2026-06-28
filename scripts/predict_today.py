@@ -86,6 +86,30 @@ def main(
     apply_cal = not no_calibration
     effective_cal_dir = cal_dir if apply_cal else None
 
+    # Part 7B: Calibrator freshness guard
+    if apply_cal and cal_dir is not None:
+        import datetime as _dt
+        _meta_path = Path(cal_dir) / "calibration_metadata.json"
+        if _meta_path.exists():
+            try:
+                _meta = json.loads(_meta_path.read_text())
+                _cal_date = _dt.datetime.fromisoformat(_meta["fitted_at"])
+                _age_days = (_dt.datetime.now(_dt.timezone.utc) - _cal_date).days
+                if _age_days > 60:
+                    typer.echo(
+                        f"[ERROR] Calibrators are {_age_days} days old (fitted {_meta['fitted_at']}). "
+                        "Predictions may be badly miscalibrated. Trigger weekly_calibration."
+                    )
+                elif _age_days > 21:
+                    typer.echo(
+                        f"[WARN] Calibrators are {_age_days} days old (fitted {_meta['fitted_at']}). "
+                        "Consider triggering weekly_calibration to refresh."
+                    )
+                else:
+                    typer.echo(f"[OK] Calibrators age: {_age_days} days (fitted {_meta['fitted_at']})")
+            except Exception as _e:
+                typer.echo(f"[WARN] Could not read calibration_metadata.json: {_e}")
+
     pmfs = predict_player_pmfs(
         feature_df=features_df,
         model_dir=model_dir,

@@ -347,6 +347,48 @@ def train(
     except Exception as _exc:
         print(f"\n[WARN] Could not compute position-stratified correlations: {_exc}")
 
+    # Part 6: CLV Secondary Head — trained from historical closing-line labels.
+    # Classifies whether the model's edge direction beats the closing line.
+    # Soft-nudges stat_mean at inference by up to ±5% based on CLV signal.
+    _clv_labels_path = Path("data/oof/oof_clv_labels.parquet")
+    if _clv_labels_path.exists():
+        try:
+            print("\nTraining CLV secondary heads from closing-line labels...")
+            from sklearn.ensemble import HistGradientBoostingClassifier as _HGBC  # noqa: PLC0415
+            _clv_df = pd.read_parquet(_clv_labels_path)
+            _clv_stats_fitted = 0
+            for _stat in stats:
+                _stat_clv = _clv_df[_clv_df["stat"] == _stat].copy() if "stat" in _clv_df.columns else pd.DataFrame()
+                if len(_stat_clv) < 100:
+                    continue
+                # Join CLV labels with wide features via (player_id, game_id)
+                _join_keys = [k for k in ["player_id", "game_id"] if k in _stat_clv.columns and k in wide.columns]
+                if not _join_keys:
+                    continue
+                _clv_feat = wide.merge(_stat_clv[_join_keys + ["beat_closing"]], on=_join_keys, how="inner")
+                if len(_clv_feat) < 50:
+                    continue
+                _X_clv, _ = _prepare_X(_clv_feat, model_cols, pos_encoder=pos_encoder)
+                _y_clv = _clv_feat["beat_closing"].astype(int)
+                # Weight by edge magnitude if available
+                _sw_clv = None
+                if "clv_label" in _clv_feat.columns:
+                    _sw_clv = np.abs(_clv_feat["clv_label"].fillna(0.0).values).clip(0.01, 2.0)
+                    _sw_clv = _sw_clv / _sw_clv.mean()
+                _clv_head = _HGBC(max_iter=50, max_leaf_nodes=15, learning_rate=0.05, random_state=42)
+                _clv_head.fit(_X_clv, _y_clv, sample_weight=_sw_clv)
+                # Attach CLV head to the stat model
+                _mdl = stat_models.get(_stat)
+                if _mdl is not None:
+                    _mdl.clv_head = _clv_head
+                    _clv_stats_fitted += 1
+            print(f"  CLV heads fitted for {_clv_stats_fitted}/{len(stats)} stats")
+        except Exception as _clv_exc:
+            print(f"  [WARN] CLV head training failed (non-fatal): {_clv_exc}")
+    else:
+        print(f"\n[INFO] No CLV labels at {_clv_labels_path} — CLV head skipped. "
+              "Run scripts/build_clv_training_labels.py to enable.")
+
     # Save models
     stat_path = model_dir / "stat_rate_models.joblib"
     hurdle_path = model_dir / "hurdle_models.joblib"

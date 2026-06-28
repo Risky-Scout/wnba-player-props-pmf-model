@@ -46,6 +46,22 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
+      - name: Download tuned hyperparams artifact (if available)
+        run: |
+          mkdir -p artifacts/hyperparams
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=5&name=hyperparams-latest" \
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/hp.zip
+            unzip -o /tmp/hp.zip -d artifacts/hyperparams/
+            echo "Downloaded hyperparams-latest (id=$AID)"
+          else
+            echo "[INFO] No hyperparams-latest artifact found — using config defaults"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Download calibrators (cross-run via GitHub CLI)
         # actions/download-artifact@v4 only finds artifacts from the current run.
         # Use the GitHub API to find the latest calibrators-latest artifact across all runs.
@@ -202,6 +218,39 @@ jobs:
             --out-dir deliveries/next_game \
             --game-date ${{ steps.date.outputs.target_date }}
         continue-on-error: true
+
+      - name: CI Variance Gate — reject degenerate predictions
+        id: variance-gate
+        run: |
+          python3 - <<'EOF'
+          import pandas as pd, sys, os
+          pmf_path = "deliveries/next_game/full_pmfs_wide.parquet"
+          if not os.path.exists(pmf_path):
+              print("[GATE] No PMF file found — no games today, skipping gate")
+              sys.exit(0)
+          pmf = pd.read_parquet(pmf_path)
+          if pmf.empty:
+              print("[GATE] Empty PMF file — no games today, skipping gate")
+              sys.exit(0)
+          pts = pmf[pmf["stat"] == "pts"] if "stat" in pmf.columns else pmf
+          starters = pts[pts["role_bucket"].isin(["starter", "core"])] if "role_bucket" in pts.columns else pts
+          if len(starters) == 0:
+              print("[GATE PASS] No starter rows — nothing to validate")
+              sys.exit(0)
+          max_pts = starters["pmf_mean"].max()
+          mean_pts = starters["pmf_mean"].mean()
+          print(f"[GATE] starter pts: mean={mean_pts:.2f}, max={max_pts:.2f}, n={len(starters)}")
+          if mean_pts < 8.0:
+              print(f"[GATE FAIL] starter pts_mean={mean_pts:.2f} < 8.0 (calibration collapse)")
+              sys.exit(1)
+          if max_pts < 12.0:
+              print(f"[GATE FAIL] max starter pts={max_pts:.2f} < 12.0 (under-prediction)")
+              sys.exit(1)
+          if mean_pts > 28.0:
+              print(f"[GATE FAIL] starter pts_mean={mean_pts:.2f} > 28.0 (over-prediction)")
+              sys.exit(1)
+          print(f"[GATE PASS] starter pts mean={mean_pts:.2f}, max={max_pts:.2f}")
+          EOF
 
       - name: Export betting sheets
         run: |

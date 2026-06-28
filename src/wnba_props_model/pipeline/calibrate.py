@@ -296,6 +296,16 @@ def fit_calibrators(
         )
         # #endregion agent log
 
+    # Write calibration_metadata.json for freshness guard in predict_today.py
+    import datetime as _dt
+    _meta = {
+        "fitted_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "n_rows": int(_post_dnp_n),
+        "stats": sorted(paths.keys()),
+    }
+    (out / "calibration_metadata.json").write_text(json.dumps(_meta, indent=2))
+    print(f"[calibrate] Wrote calibration_metadata.json: {_meta['fitted_at']} n_rows={_meta['n_rows']}")
+
     # Also fit Beta calibrators for P(over) (Item 5A)
     try:
         beta_paths = fit_beta_calibrators(oof_pmfs_path, out_dir)
@@ -374,11 +384,14 @@ def apply_calibrators(
     for _, row in out.iterrows():
         stat = row["stat"]
         role = str(row.get("role_bucket", "unknown"))
+        player_id = row.get("player_id", None)
         raw_pmf = json_to_pmf(row["pmf_json"])
 
         if stat in calibrators:
             try:
-                cal_pmf = calibrators[stat].apply(normalize_pmf(raw_pmf), role)
+                cal_pmf = calibrators[stat].apply(
+                    normalize_pmf(raw_pmf), role, player_id=player_id
+                )
                 new_pmf_jsons.append(pmf_to_json(cal_pmf))
                 is_calibrated_flags.append(True)
                 cal_sources.append("role_aware_isotonic")

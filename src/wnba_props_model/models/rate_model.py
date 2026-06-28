@@ -41,6 +41,15 @@ class StatRateModel:
         self._global_mean: float = 0.0
         self._global_var: float = 0.0
         self._fitted = False
+        # Part 3: feature-based learned dispersion model (predicts log(r) from features)
+        # Trained after main HGB; replaces role-lookup at inference when available.
+        self.dispersion_model: HistGradientBoostingRegressor | None = None
+
+    def __setstate__(self, state: dict) -> None:
+        """Backward-compatible unpickling: add new fields if missing."""
+        self.__dict__.update(state)
+        if "dispersion_model" not in self.__dict__:
+            self.dispersion_model = None
 
     def fit(
         self,
@@ -129,6 +138,30 @@ class StatRateModel:
                 self._dispersion_intercept = float(beta0)
             except Exception:
                 pass  # fall back to global dispersion on any error
+
+        # Part 3: Feature-based dispersion model — predicts log(r) from features.
+        # Trained only when mean-dependent dispersion is not already providing a
+        # per-instance r.  Gives player-specific, context-specific dispersion that
+        # adapts to opponent defense consistency, back-to-back fatigue, etc.
+        if self._model is not None and len(X) >= 200:
+            try:
+                X_pred_disp = X.reindex(columns=self._usable_cols)
+                mu_hat = np.clip(self._model.predict(X_pred_disp), 0.01, None)
+                y_vals = (y.reset_index(drop=True) if use_offset and context_df is not None
+                          and "actual_minutes" in context_df.columns
+                          else y.reset_index(drop=True)).values.astype(float)
+                r_approx = mu_hat ** 2 / np.maximum(np.abs(y_vals - mu_hat), 0.01)
+                r_approx = np.clip(r_approx, 0.3, 15.0)
+                log_r = np.log(r_approx)
+                disp_mdl = HistGradientBoostingRegressor(
+                    max_iter=50, max_leaf_nodes=15,
+                    learning_rate=0.05, min_samples_leaf=20,
+                    random_state=self.cfg.get("random_seed", 42),
+                )
+                disp_mdl.fit(X_pred_disp, log_r)
+                self.dispersion_model = disp_mdl
+            except Exception:
+                self.dispersion_model = None
 
         # P3.3: Bayesian shrinkage prior (Gamma-Poisson empirical Bayes)
         # Correctly uses compute_league_priors_from_data(context_df) → {"pts": mean, ...}

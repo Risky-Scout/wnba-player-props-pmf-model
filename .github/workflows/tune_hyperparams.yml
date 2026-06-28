@@ -1,0 +1,82 @@
+name: Monthly Hyperparameter Tuning
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'   # 1st of each month at 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      n_trials:
+        description: 'Number of Optuna trials per stat'
+        required: false
+        default: '100'
+        type: string
+      stat:
+        description: 'Stat to tune (or "all" for all stats)'
+        required: false
+        default: 'all'
+        type: string
+
+jobs:
+  tune-hyperparams:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package (with optuna)
+        run: |
+          pip install -e ".[dev]"
+          pip install optuna --quiet
+
+      - name: Download BDL history
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/pull_bdl_history.py \
+            --start-season 2022 --end-season $YEAR \
+            --out-dir data/raw/bdl
+
+      - name: Build canonical tables and features
+        run: |
+          python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
+          python scripts/build_features.py --data-dir data/processed
+
+      - name: Run Optuna hyperparameter tuning
+        run: |
+          N_TRIALS="${{ github.event.inputs.n_trials || '100' }}"
+          STAT="${{ github.event.inputs.stat || 'all' }}"
+          mkdir -p artifacts/hyperparams
+          python scripts/tune_hyperparams.py \
+            --stat "$STAT" \
+            --n-trials "$N_TRIALS" \
+            --out artifacts/hyperparams/best_params_all.json \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-long data/processed/wnba_player_game_features_long.parquet \
+            --manifest data/processed/feature_schema_manifest.json \
+            --config config/model/stage4_baseline.yaml
+
+      - name: Upload hyperparams artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperparams-latest
+          path: artifacts/hyperparams/best_params_all.json
+          retention-days: 90
+          overwrite: true

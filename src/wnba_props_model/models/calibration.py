@@ -132,6 +132,13 @@ class RoleAwarePMFCalibrator:
     quality_tier_calibrators: dict[str, dict[str, PMFCDFCalibrator]] = field(default_factory=dict)
     # PMF-mean thresholds per role: role → (low_thresh, high_thresh)
     quality_tier_thresholds: dict[str, tuple[float, float]] = field(default_factory=dict)
+    # Part 4: Hierarchical player-level calibrators with Bayes shrinkage.
+    # player_id (str) → PMFCDFCalibrator fitted on that player's OOF PIT values.
+    # Players with < 30 OOF rows fall back to the role-tier calibrator.
+    player_calibrators: dict[str, PMFCDFCalibrator] = field(default_factory=dict)
+    # Shrinkage constant: w_player = n_player / (n_player + k).
+    # At k=150, a player with 30 games gets 17% player-level weight; 150 games → 50%.
+    player_bias_shrinkage_k: float = 150.0
     shrink_k: float = 500.0
     cap: float = 0.80
 
@@ -142,6 +149,10 @@ class RoleAwarePMFCalibrator:
             self.quality_tier_calibrators = {}
         if "quality_tier_thresholds" not in self.__dict__:
             self.quality_tier_thresholds = {}
+        if "player_calibrators" not in self.__dict__:
+            self.player_calibrators = {}
+        if "player_bias_shrinkage_k" not in self.__dict__:
+            self.player_bias_shrinkage_k = 150.0
 
     def _get_quality_tier(self, role: str, pmf_mean: float) -> str:
         """Map pmf_mean → quality tier label (low / mid / high) for a role."""
@@ -155,7 +166,12 @@ class RoleAwarePMFCalibrator:
             return "high"
         return "mid"
 
-    def apply(self, pmf: np.ndarray, role_bucket: str) -> np.ndarray:
+    def apply(
+        self,
+        pmf: np.ndarray,
+        role_bucket: str,
+        player_id: str | int | None = None,
+    ) -> np.ndarray:
         g = self.global_calibrator.apply(pmf)
         if role_bucket in ROLE_GLOBAL_ONLY_BUCKETS or role_bucket not in self.bucket_calibrators:
             return g
@@ -171,11 +187,27 @@ class RoleAwarePMFCalibrator:
             tier = self._get_quality_tier(role_bucket, pmf_mean_val)
             if tier in tier_cals:
                 b = tier_cals[tier].apply(pmf)
-                return normalize_pmf(w * b + (1.0 - w) * g)
+                output = normalize_pmf(w * b + (1.0 - w) * g)
+            else:
+                b = self.bucket_calibrators[role_bucket].apply(pmf)
+                output = normalize_pmf(w * b + (1.0 - w) * g)
+        else:
+            # Default: per-role-bucket calibrator.
+            b = self.bucket_calibrators[role_bucket].apply(pmf)
+            output = normalize_pmf(w * b + (1.0 - w) * g)
 
-        # Default: per-role-bucket calibrator.
-        b = self.bucket_calibrators[role_bucket].apply(pmf)
-        return normalize_pmf(w * b + (1.0 - w) * g)
+        # Part 4: Player-level shrinkage blend.
+        # w_player = n_player / (n_player + k), capped at 0.50 so the role-tier
+        # calibrator always retains majority weight except for very experienced players.
+        if player_id is not None and self.player_calibrators:
+            p_cal = self.player_calibrators.get(str(player_id))
+            if p_cal is not None:
+                n_player = self.bucket_counts.get(f"player_{player_id}", 30)
+                w_player = min(0.50, n_player / (n_player + self.player_bias_shrinkage_k))
+                p_output = p_cal.apply(pmf)
+                output = normalize_pmf(w_player * p_output + (1.0 - w_player) * output)
+
+        return output
 
     def save(self, path: str) -> None:
         joblib.dump(self, path)
@@ -291,6 +323,35 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
             if tier_cals:
                 quality_tier_calibrators[bucket_str] = tier_cals
 
+    # Part 4: Hierarchical player-level calibrators with Bayesian shrinkage.
+    # For players with >= 30 OOF rows, fit an individual PMFCDFCalibrator.
+    # At inference time, blend with role-tier calibrator via shrinkage weight.
+    player_calibrators: dict[str, PMFCDFCalibrator] = {}
+    _player_min_rows = 30
+    _player_pit_min = 15
+    if "player_id" in data.columns:
+        for pid, p_rows in data.groupby("player_id"):
+            if len(p_rows) < _player_min_rows:
+                continue
+            pit_vals = [
+                randomized_pit(p, y, rng)
+                for p, y in zip(p_rows["pmf"], p_rows["outcome"])
+            ]
+            if len(pit_vals) >= _player_pit_min:
+                try:
+                    p_cal = PMFCDFCalibrator().fit_from_pit(np.array(pit_vals))
+                    player_calibrators[str(pid)] = p_cal
+                except ValueError:
+                    pass
+        # Store player game counts in bucket_counts with "player_{pid}" keys
+        # so the apply() shrinkage weight can be computed correctly.
+        for pid, p_rows in data.groupby("player_id"):
+            bucket_counts[f"player_{pid}"] = len(p_rows)
+        print(
+            f"[calibration] Fitted {len(player_calibrators)} player-level calibrators "
+            f"for stat={stat} (min {_player_min_rows} OOF rows each)"
+        )
+
     return RoleAwarePMFCalibrator(
         stat=stat,
         global_calibrator=global_cal,
@@ -298,4 +359,5 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
         bucket_counts=bucket_counts,
         quality_tier_calibrators=quality_tier_calibrators,
         quality_tier_thresholds=quality_tier_thresholds,
+        player_calibrators=player_calibrators,
     )
