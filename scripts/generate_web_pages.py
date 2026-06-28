@@ -896,6 +896,12 @@ def main(
                                           "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
 
     # --- Build JSON ---
+    pipeline_run = "odds_refresh"
+    if "pregame_final" in (sys.argv[0] or ""):
+        pipeline_run = "pregame_final"
+    elif "pregame_initial" in (sys.argv[0] or ""):
+        pipeline_run = "pregame_initial"
+
     edge_json = _build_edge_json(edges_df, proj_df, game_date)
     pmf_json = _build_pmf_json(edges_df, proj_df, game_date)
 

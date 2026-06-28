@@ -1,0 +1,216 @@
+# Pre-Game Odds Refresh — publishes edges well before tip-off
+#
+# Sportsbooks post WNBA player props 24-48h in advance. This workflow
+# leverages existing model artifacts to compute and publish edges as early
+# as the evening before the game — no model retraining required.
+#
+# Schedule:
+#   20:00 UTC (4 PM ET) day-before   — books have posted next-day lines
+#   00:00 UTC (8 PM ET) day-before   — early sharp action captured
+#   08:00 UTC (4 AM ET) game morning — refresh before bettors wake up
+#
+# Delivery URLs:
+#   https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
+#   https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
+
+name: Pre-Game Odds Refresh
+
+on:
+  schedule:
+    - cron: '0 20 * * *'   # 4 PM ET  — day-before afternoon odds capture
+    - cron: '0 0 * * *'    # 8 PM ET  — evening refresh (20:00 ET prior day = 00:00 UTC)
+    - cron: '0 8 * * *'    # 4 AM ET  — early morning, 15+ hours before tip-off
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: 'Target game date (YYYY-MM-DD, defaults to today)'
+        required: false
+        default: ''
+
+jobs:
+  odds_refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+      pages: write
+    env:
+      BDL_API_KEY:  ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Resolve game date
+        run: |
+          if [ -n "${{ github.event.inputs.game_date }}" ]; then
+            echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
+          else
+            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+          fi
+
+      # ------------------------------------------------------------------
+      # Download existing model + PMF artifacts so we don't need to retrain
+      # ------------------------------------------------------------------
+      - name: Download latest calibrators
+        run: |
+          mkdir -p artifacts/models/calibration
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
+            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+            echo "Calibrators downloaded (id=$AID)"
+          else
+            echo "[WARN] calibrators-latest not found — will run without calibration"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Download latest stage4 model
+        run: |
+          mkdir -p artifacts/models/stage4_baseline
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=model-stage4-latest" \
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/model.zip
+            unzip -o /tmp/model.zip -d artifacts/models/stage4_baseline
+            echo "Stage4 model downloaded (id=$AID)"
+          else
+            echo "[WARN] model-stage4-latest not found"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Download latest PMFs from most recent pregame artifact
+        run: |
+          mkdir -p deliveries/tonight
+          # Try today's initial artifact first, then fall back to any recent pregame artifact
+          for ARTIFACT_PREFIX in \
+            "pregame-initial-${{ env.GAME_DATE }}" \
+            "pregame-final-${{ env.GAME_DATE }}" \
+            "pregame-initial"; do
+            AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_PREFIX}" \
+              --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+            if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+              gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/pregame_artifact.zip
+              unzip -o /tmp/pregame_artifact.zip -d .
+              echo "Downloaded ${ARTIFACT_PREFIX} (id=$AID)"
+              break
+            fi
+          done
+          ls deliveries/tonight/*.parquet 2>/dev/null || echo "[INFO] No cached PMF parquets found — will regenerate"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # ------------------------------------------------------------------
+      # Pull fresh odds — this is the whole point of this workflow
+      # ------------------------------------------------------------------
+      - name: Pull current Odds API player props
+        run: |
+          python scripts/pull_odds_api_props.py \
+            --game-date "$GAME_DATE" \
+            --out-dir data/processed
+          echo "Odds API pull complete at $(date -u)"
+        continue-on-error: true
+
+      - name: Pull opening line snapshot (for line movement tracking)
+        run: |
+          python scripts/pull_odds_api_closing_lines.py \
+            --game-date "$GAME_DATE" \
+            --out-dir data/clv_tracking
+        continue-on-error: true
+
+      # ------------------------------------------------------------------
+      # If no cached PMFs exist, regenerate from existing model artifacts
+      # ------------------------------------------------------------------
+      - name: Regenerate PMFs if not cached
+        run: |
+          PMF_FILE="deliveries/tonight/full_pmfs_wide.parquet"
+          PROJ_FILE="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
+          if [ ! -f "$PMF_FILE" ] && [ ! -f "$PROJ_FILE" ]; then
+            echo "No cached PMFs — regenerating from model artifacts"
+            FEATURES="data/processed/wnba_player_game_features_wide.parquet"
+            if [ -f "$FEATURES" ]; then
+              python scripts/predict_today.py \
+                --features-wide "$FEATURES" \
+                --game-date "$GAME_DATE" \
+                --out-dir deliveries/tonight \
+                --model-dir artifacts/models/stage4_baseline \
+                --cal-dir artifacts/models/calibration
+            else
+              echo "[WARN] No features parquet available — skipping PMF regeneration"
+            fi
+          else
+            echo "Cached PMFs found — skipping regeneration"
+          fi
+        continue-on-error: true
+
+      # ------------------------------------------------------------------
+      # Build edge report with fresh odds against existing PMFs
+      # ------------------------------------------------------------------
+      - name: Build edge report (fresh odds × cached PMFs)
+        run: |
+          python scripts/build_edge_report.py \
+            --pmfs deliveries/tonight/full_pmfs_wide.parquet \
+            --raw-props data/processed/wnba_player_props.parquet \
+            --out-dir deliveries/tonight \
+            --game-date "$GAME_DATE" \
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+          echo "Edge report built at $(date -u)"
+        continue-on-error: true
+
+      # ------------------------------------------------------------------
+      # Generate and publish web pages
+      # ------------------------------------------------------------------
+      - name: Generate Edge Board + PMF Dashboard pages
+        run: |
+          PROJ_FILE="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
+          if [ ! -f "$PROJ_FILE" ]; then
+            PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
+          fi
+          EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+
+          if [ -f "$EDGE_FILE" ]; then
+            python scripts/generate_web_pages.py \
+              --game-date "$GAME_DATE" \
+              ${PROJ_FILE:+--projections "$PROJ_FILE"} \
+              --edges "$EDGE_FILE" \
+              --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
+              --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges \
+              --skip-live-html
+            echo "Pages generated at $(date -u) — $(python -c "import json; d=json.load(open('deliveries/tonight/publishable_edges.parquet' and 'tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/latest.json')); print(d.get('total_props','?'), 'props')" 2>/dev/null || echo "check logs")"
+          else
+            echo "[WARN] No edge file found — skipping page generation"
+          fi
+        continue-on-error: true
+
+      - name: Publish Edge Board to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
+          keep_files: true
+
+      - name: Publish PMF Dashboard to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
+          keep_files: true
