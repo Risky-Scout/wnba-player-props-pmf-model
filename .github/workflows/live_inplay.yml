@@ -223,7 +223,58 @@ jobs:
             --out-dir data/live/closing_odds
         continue-on-error: true
 
-      - name: Publish live outputs to gh-pages
+      - name: Generate Inplay/Edges web page JSON + HTML
+        if: env.NO_GAMES != 'true'
+        run: |
+          # Aggregate all active game live outputs into a single flat edges JSON
+          # that the Inplay/Edges/index.html page fetches.
+          mkdir -p tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          python - <<'PYEOF'
+          import json, os, glob
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          inplay_src = Path("tools/odds-scanner/predictions/WNBA/Inplay-Edge")
+          out = Path("tools/odds-scanner/predictions/WNBA/Inplay/Edges")
+          out.mkdir(parents=True, exist_ok=True)
+
+          game_files = sorted(inplay_src.glob("game_*_latest.json"))
+          games = []
+          for gf in game_files:
+              try:
+                  games.append(json.loads(gf.read_text()))
+              except Exception:
+                  pass
+
+          # Also write the canonical index.html if it doesn't exist
+          html_path = out / "index.html"
+          if not html_path.exists():
+              # Bootstrap with a minimal redirect that loads live page
+              html_path.write_text(
+                  '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+                  '<title>WNBA Live In-Play — WizardOfOdds</title>'
+                  '<meta http-equiv="refresh" content="0;url=index.html">'
+                  '</head><body>Loading live edge data…</body></html>'
+              )
+
+          payload = {
+              "schema_version": "2.0",
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "active_games": len(games),
+              "games": games,
+          }
+          (out / "latest.json").write_text(json.dumps(payload, separators=(",", ":")))
+          print(f"Inplay/Edges latest.json: {len(games)} active games")
+          PYEOF
+
+          # Write live index.html via generate_web_pages (--skip-live-html=false for this run)
+          python scripts/generate_web_pages.py \
+            --game-date "$GAME_DATE" \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
+            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
+        continue-on-error: true
+
+      - name: Publish live outputs to gh-pages (legacy Inplay-Edge path)
         if: env.NO_GAMES != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -231,6 +282,16 @@ jobs:
           publish_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
           publish_branch: gh-pages
           destination_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          keep_files: true
+
+      - name: Publish Inplay/Edges to gh-pages (new URL path)
+        if: env.NO_GAMES != 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
           keep_files: true
 
       - name: Post-game archive (runs when all games final)
