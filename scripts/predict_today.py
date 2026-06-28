@@ -86,37 +86,6 @@ def main(
     apply_cal = not no_calibration
     effective_cal_dir = cal_dir if apply_cal else None
 
-    # #region agent log
-    import json as _jpd, time as _tpd, sys as _spd
-    _feat_src = features_wide
-    _feat_dates = sorted(features_df["game_date"].astype(str).unique()) if "game_date" in features_df.columns else []
-    _feat_players = sorted(features_df["player_name"].unique().tolist()) if "player_name" in features_df.columns else []
-    print(f"[predict_today] Feature source: {_feat_src}")
-    print(f"[predict_today] Feature rows: {len(features_df):,}, dates: {_feat_dates[-3:] if _feat_dates else 'N/A'}")
-    print(f"[predict_today] Players ({len(_feat_players)}): {_feat_players[:8]}")
-    try:
-        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-            _f.write(_jpd.dumps({"sessionId": "94807e", "hypothesisId": "H3", "location": "predict_today.py:features", "message": "feature_source_info", "data": {"source": _feat_src, "rows": len(features_df), "dates": _feat_dates[-3:], "n_players": len(_feat_players), "sample_players": _feat_players[:8]}, "timestamp": int(_tpd.time() * 1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
-
-    # Run WITHOUT calibration first to get raw means
-    # #region agent log
-    _raw_pmfs = predict_player_pmfs(feature_df=features_df, model_dir=model_dir, config_path=config, cal_dir=None, apply_calibration=False)
-    _raw_pts = _raw_pmfs[_raw_pmfs["stat"] == "pts"][["player_name", "pmf_mean", "role_bucket"]].copy() if not _raw_pmfs.empty else pd.DataFrame()
-    if not _raw_pts.empty:
-        _raw_pts = _raw_pts.sort_values("pmf_mean", ascending=False)
-        print(f"[predict_today] RAW pts predictions (top 8):")
-        for _, _r in _raw_pts.head(8).iterrows():
-            print(f"  {_r['player_name'][:22]:22s} raw_mean={_r['pmf_mean']:.2f} role={_r['role_bucket']}")
-        try:
-            with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-                _f.write(_jpd.dumps({"sessionId": "94807e", "hypothesisId": "H4", "location": "predict_today.py:raw_preds", "message": "raw_pts_predictions", "data": {"players": [{"name": r["player_name"], "raw_mean": round(r["pmf_mean"], 2), "role": r["role_bucket"]} for _, r in _raw_pts.iterrows()]}, "timestamp": int(_tpd.time() * 1000)}) + "\n")
-        except Exception:
-            pass
-    # #endregion agent log
-
     pmfs = predict_player_pmfs(
         feature_df=features_df,
         model_dir=model_dir,
@@ -127,23 +96,6 @@ def main(
     typer.echo(f"Generated {len(pmfs):,} PMF rows (stats × players × games)")
     n_cal = pmfs["is_calibrated"].sum() if "is_calibrated" in pmfs.columns else 0
     typer.echo(f"Calibrated: {n_cal:,}/{len(pmfs):,} rows")
-
-    # #region agent log
-    if apply_cal and not pmfs.empty:
-        _cal_pts = pmfs[pmfs["stat"] == "pts"][["player_name", "pmf_mean", "role_bucket"]].copy()
-        if not _cal_pts.empty and not _raw_pts.empty:
-            _merged = _raw_pts.merge(_cal_pts.rename(columns={"pmf_mean": "cal_mean"}), on=["player_name", "role_bucket"])
-            _merged["ratio"] = _merged["cal_mean"] / _merged["pmf_mean"].clip(lower=0.01)
-            _merged = _merged.sort_values("pmf_mean", ascending=False)
-            print(f"[predict_today] RAW vs CALIBRATED pts (top 8):")
-            for _, _r in _merged.head(8).iterrows():
-                print(f"  {_r['player_name'][:22]:22s} raw={_r['pmf_mean']:.2f} cal={_r['cal_mean']:.2f} ratio={_r['ratio']:.3f}")
-            try:
-                with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-                    _f.write(_jpd.dumps({"sessionId": "94807e", "hypothesisId": "H4", "location": "predict_today.py:cal_preds", "message": "raw_vs_calibrated_pts", "data": {"players": [{"name": r["player_name"], "raw": round(r["pmf_mean"], 2), "cal": round(r["cal_mean"], 2), "ratio": round(r["ratio"], 3)} for _, r in _merged.iterrows()]}, "timestamp": int(_tpd.time() * 1000)}) + "\n")
-            except Exception:
-                pass
-    # #endregion agent log
 
     props_df = pd.read_parquet(raw_props) if raw_props else None
 

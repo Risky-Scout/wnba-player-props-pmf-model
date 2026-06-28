@@ -169,45 +169,12 @@ class RoleAwarePMFCalibrator:
             arr = normalize_pmf(pmf)
             pmf_mean_val = float(np.dot(np.arange(len(arr)), arr))
             tier = self._get_quality_tier(role_bucket, pmf_mean_val)
-            # #region agent log
-            import json as _jc, time as _tc
-            _raw_m = pmf_mean_val
-            _thresh = self.quality_tier_thresholds.get(role_bucket, ())
-            try:
-                with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-                    _f.write(_jc.dumps({"sessionId": "94807e", "hypothesisId": "H1", "location": "calibration.py:apply", "message": "quality_tier_selected", "data": {"stat": self.stat, "role": role_bucket, "raw_pmf_mean": round(_raw_m, 3), "tier_selected": tier, "tier_exists_in_cal": tier in tier_cals, "thresholds": list(_thresh), "available_tiers": list(tier_cals.keys())}, "timestamp": int(_tc.time() * 1000)}) + "\n")
-            except Exception:
-                pass
-            # #endregion agent log
             if tier in tier_cals:
                 b = tier_cals[tier].apply(pmf)
-                # #region agent log
-                try:
-                    _cal_arr = normalize_pmf(w * b + (1.0 - w) * g)
-                    _ks = np.arange(len(_cal_arr))
-                    _cal_m = float(_ks @ _cal_arr)
-                    with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-                        _f.write(_jc.dumps({"sessionId": "94807e", "hypothesisId": "H1", "location": "calibration.py:apply_tier", "message": "tier_calibration_applied", "data": {"stat": self.stat, "role": role_bucket, "tier": tier, "raw_mean": round(_raw_m, 3), "cal_mean": round(_cal_m, 3), "compression_ratio": round(_cal_m / max(_raw_m, 0.01), 3)}, "timestamp": int(_tc.time() * 1000)}) + "\n")
-                except Exception:
-                    pass
-                # #endregion agent log
                 return normalize_pmf(w * b + (1.0 - w) * g)
 
         # Default: per-role-bucket calibrator.
         b = self.bucket_calibrators[role_bucket].apply(pmf)
-        # #region agent log
-        try:
-            import json as _jd, time as _td
-            _arr = normalize_pmf(pmf)
-            _ks2 = np.arange(len(_arr))
-            _raw_m2 = float(_ks2 @ _arr)
-            _cal_arr2 = normalize_pmf(w * b + (1.0 - w) * g)
-            _cal_m2 = float(_ks2 @ _cal_arr2)
-            with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-                _f.write(_jd.dumps({"sessionId": "94807e", "hypothesisId": "H1", "location": "calibration.py:apply_bucket", "message": "bucket_calibration_applied", "data": {"stat": self.stat, "role": role_bucket, "raw_mean": round(_raw_m2, 3), "cal_mean": round(_cal_m2, 3), "compression_ratio": round(_cal_m2 / max(_raw_m2, 0.01), 3), "weight_w": round(w, 3)}, "timestamp": int(_td.time() * 1000)}) + "\n")
-        except Exception:
-            pass
-        # #endregion agent log
         return normalize_pmf(w * b + (1.0 - w) * g)
 
     def save(self, path: str) -> None:

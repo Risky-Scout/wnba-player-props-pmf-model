@@ -47,27 +47,28 @@ pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
 
 # Exponential decay sample weighting — must match stage4_baseline.yaml so
 # the OOF training distribution aligns with production predictions.
-sample_weight_halflife_days: 45
+sample_weight_halflife_days: 42
 
-# HistGradientBoosting — intermediate capacity to balance calibrator quality
-# vs CI timeout.  Target: match Stage 4 distribution shape as closely as
-# possible so the PIT calibrator learns the correct correction curve.
+# HistGradientBoosting — must match stage4_baseline.yaml capacity so the OOF
+# and production models produce the same prediction range. Mismatched capacity
+# causes the calibrators to learn a correction curve that over-compresses
+# production predictions (root cause of the ~30% under-prediction bug).
 #
 # Tuning history:
 #   100 iter / 31 leaves  → ~2h OOF build; calibrator bias mismatch ~1.5 pt
-#   150 iter / 50 leaves  → ~3.5h OOF build; mismatch ~0.6 pt (current)
-#   300 iter / 63 leaves  → ~5h+ OOF build (CI timeout at 240 min)
+#   150 iter / 50 leaves  → ~3.5h OOF build; mismatch ~0.6 pt
+#   300 iter / 63 leaves  → ~5h OOF build (requires timeout-minutes: 360)
 #
-# timeout-minutes in weekly_calibration.yml raised to 360 to accommodate.
+# timeout-minutes in weekly_calibration.yml is 360 to accommodate.
 hgb_regressor:
-  max_iter: 150
-  max_leaf_nodes: 50
+  max_iter: 300
+  max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 15
 
 hgb_classifier:
-  max_iter: 150
-  max_leaf_nodes: 50
+  max_iter: 300
+  max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 15
 

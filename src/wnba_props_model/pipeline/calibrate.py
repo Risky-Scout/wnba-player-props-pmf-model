@@ -248,7 +248,6 @@ def fit_calibrators(
         "(removed %d DNP/low-minute games from calibration training set)",
         _pre_dnp_n, _post_dnp_n, _pre_dnp_n - _post_dnp_n,
     )
-    # #region agent log
     print(f"[calibrate] Total eligible rows before DNP filter: {_pre_dnp_n:,}")
     print(f"[calibrate] has_did_play={_has_did_play} has_actual_minutes={_has_actual_minutes}")
     print(f"[calibrate] After DNP/low-min filter: {_post_dnp_n:,} rows (removed {_pre_dnp_n - _post_dnp_n:,})")
@@ -258,13 +257,6 @@ def fit_calibrators(
             if len(_sub) > 0 and "actual_outcome" in _sub.columns and "pmf_mean" in _sub.columns:
                 _bias = _sub["pmf_mean"].mean() - _sub["actual_outcome"].mean()
                 print(f"[calibrate] Post-DNP-filter stat={_stat}: model_mean={_sub['pmf_mean'].mean():.2f} actual_mean={_sub['actual_outcome'].mean():.2f} bias={_bias:+.2f} n={len(_sub):,}")
-    import json as _jh, time as _th
-    try:
-        with open("/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log", "a") as _f:
-            _f.write(_jh.dumps({"sessionId": "94807e", "hypothesisId": "H2", "location": "calibrate.py:fit_calibrators", "message": "dnp_filter_result", "data": {"pre_dnp_n": _pre_dnp_n, "post_dnp_n": _post_dnp_n, "removed": _pre_dnp_n - _post_dnp_n, "has_did_play": _has_did_play, "has_actual_minutes": _has_actual_minutes}, "timestamp": int(_th.time() * 1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
 
     # Append combo OOF PMFs if not already present
     existing_stats = set(oof_eligible["stat"].unique())

@@ -80,11 +80,24 @@ jobs:
             echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           fi
 
-      - name: Download injury-update artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: pregame-injury-update-${{ env.GAME_DATE }}
-          path: .
+      - name: Download injury-update artifact (cross-run via GitHub CLI)
+        run: |
+          mkdir -p deliveries/tonight
+          for ARTIFACT_NAME in "pregame-injury-update-${{ env.GAME_DATE }}" "pregame-initial-${{ env.GAME_DATE }}"; do
+            AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}" \
+              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+            if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+              gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/pregame_artifact.zip
+              unzip -o /tmp/pregame_artifact.zip -d .
+              echo "Downloaded ${ARTIFACT_NAME} (id=$AID)"
+              break
+            fi
+          done
+          if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
+            echo "[WARN] No pregame PMF artifact found — will regenerate below"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Regenerate if no artifact
