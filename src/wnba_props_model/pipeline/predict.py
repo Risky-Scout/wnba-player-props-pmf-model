@@ -466,20 +466,6 @@ def predict_player_pmfs(
             except Exception as _ce:
                 logger.warning("[predict] Conformal interval computation failed: %s", _ce)
 
-    # #region agent log
-    try:
-        import json as _j, time as _t, os as _os
-        _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-        _conformal_pkl_p = Path(cal_dir) / "conformal_predictor.pkl" if cal_dir else None
-        _conformal_loaded = _conformal_pkl_p is not None and _conformal_pkl_p.exists()
-        _has_conformal_cols = "conformal_lower" in pmfs_long.columns
-        _os.makedirs(_os.path.dirname(_log_path), exist_ok=True)
-        with open(_log_path, "a") as _lf:
-            _lf.write(_j.dumps({"sessionId":"94807e","hypothesisId":"A","location":"predict.py:predict_player_pmfs","message":"conformal_pkl_state_POST_FIX","data":{"pkl_path":str(_conformal_pkl_p),"pkl_exists":_conformal_loaded,"has_conformal_lower_col":_has_conformal_cols,"n_rows":len(pmfs_long)},"timestamp":int(_t.time()*1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
-
     return pmfs_long
 
 

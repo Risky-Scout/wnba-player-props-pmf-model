@@ -535,16 +535,6 @@ def build_player_record(
                 else:
                     kelly_frac = None
 
-                # #region agent log
-                try:
-                    import json as _j2, time as _t2, os as _os2
-                    _log_path2 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
-                    _os2.makedirs(_os2.path.dirname(_log_path2), exist_ok=True)
-                    with open(_log_path2, "a") as _lf2:
-                        _lf2.write(_j2.dumps({"sessionId":"94807e","hypothesisId":"C","location":"output_schema.py:build_player_record","message":"kelly_edge_computation_POST_FIX","data":{"stat":stat,"p_model":round(p_over,4),"p_posterior":round(p_posterior,4),"mkt_p":round(mkt_p,4),"edge_posterior":edge_posterior,"kelly_frac":kelly_frac,"ci_penalty":round(_ci_penalty,3),"bayesian_blend_applied":True,"conformal_lower":_conformal_lo},"timestamp":int(_t2.time()*1000)}) + "\n")
-                except Exception:
-                    pass
-                # #endregion agent log
                 stat_proj["calibrated_p_over"] = {
                     "market_line": round(line, 1),
                     "p_over": round(p_posterior, 4),       # posterior (blended)
