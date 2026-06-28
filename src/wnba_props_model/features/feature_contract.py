@@ -203,6 +203,17 @@ GAME_SCRIPT_FEATURES: list[str] = [
     "opp_3in4_flag",                 # Opponent on 3-in-4 schedule
 ]
 
+# Parts B+F: Prior-game market features — lagged by 1 game to avoid leakage.
+# Same-day market data is forbidden; prior-day closing line is legal as a feature.
+# player_market_p_over_prev: prior game's closing no-vig P(over) for this stat
+# player_market_line_prev:   prior game's closing line value
+# player_line_movement_prev: prior game's (closing_line - opening_line) movement delta
+MARKET_PRIOR_FEATURES: list[str] = [
+    "player_market_p_over_prev",    # prior closing P(over) — aggregated sharp signal
+    "player_market_line_prev",      # prior closing line — market consensus benchmark
+    "player_line_movement_prev",    # prior (close - open) — sharp money direction signal
+]
+
 FEATURE_FAMILIES: dict[str, list[str]] = {
     "identity": IDENTITY_FEATURES,
     "schedule": SCHEDULE_FEATURES,
@@ -229,6 +240,8 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
     "shot_quality": SHOT_QUALITY_FEATURES,
     # Game script / blowout probability (Enhancement 5 — previously excluded)
     "game_script": GAME_SCRIPT_FEATURES,
+    # Parts B+F: prior-game market features (safe — lagged 1 game, no leakage)
+    "market_prior": MARKET_PRIOR_FEATURES,
 }
 
 MODEL_FEATURES: list[str] = [f for family in FEATURE_FAMILIES.values() for f in family]

@@ -440,6 +440,42 @@ def predict_player_pmfs(
             k=shrinkage_k,  # None → use per-stat Gamma prior.beta
         )
 
+    # Part D: Apply guaranteed conformal prediction intervals.
+    # conformal_predictor.pkl is fitted weekly by fit_calibrators() via ConformalPropPredictor.
+    # Without this, conformal_90_ci in the output is merely ±1.645σ (no coverage guarantee).
+    if cal_dir is not None:
+        import pickle as _pickle  # noqa: PLC0415
+        _conformal_pkl = Path(cal_dir) / "conformal_predictor.pkl"
+        if _conformal_pkl.exists():
+            try:
+                with open(_conformal_pkl, "rb") as _cpf:
+                    _conformal = _pickle.load(_cpf)
+                # Vectorised conformal interval: add conformal_lower / conformal_upper columns
+                _lowers, _uppers = [], []
+                for _row in pmfs_long.itertuples():
+                    _stat_r = str(getattr(_row, "stat", ""))
+                    _role_r = str(getattr(_row, "role_bucket", "all"))
+                    _mean_r = float(getattr(_row, "pmf_mean", 0.0))
+                    _lo, _hi = _conformal.predict_interval(_mean_r, _stat_r, _role_r)
+                    _lowers.append(round(max(0.0, _lo), 1))
+                    _uppers.append(round(_hi, 1))
+                pmfs_long = pmfs_long.copy()
+                pmfs_long["conformal_lower"] = _lowers
+                pmfs_long["conformal_upper"] = _uppers
+                pmfs_long["conformal_source"] = "split_conformal"
+            except Exception as _ce:
+                logger.warning("[predict] Conformal interval computation failed: %s", _ce)
+
+    # #region agent log
+    import json as _j, time as _t
+    _log_path = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
+    _conformal_pkl_p = Path(cal_dir) / "conformal_predictor.pkl" if cal_dir else None
+    _conformal_loaded = _conformal_pkl_p is not None and _conformal_pkl_p.exists()
+    _has_conformal_cols = "conformal_lower" in pmfs_long.columns
+    with open(_log_path, "a") as _lf:
+        _lf.write(_j.dumps({"sessionId":"94807e","hypothesisId":"A","location":"predict.py:predict_player_pmfs","message":"conformal_pkl_state_POST_FIX","data":{"pkl_path":str(_conformal_pkl_p),"pkl_exists":_conformal_loaded,"has_conformal_lower_col":_has_conformal_cols,"n_rows":len(pmfs_long)},"timestamp":int(_t.time()*1000)}) + "\n")
+    # #endregion agent log
+
     return pmfs_long
 
 

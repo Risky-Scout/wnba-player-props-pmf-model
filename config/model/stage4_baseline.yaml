@@ -223,6 +223,19 @@ hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
 use_model_ensemble: true
 
 # --------------------------------------------------------------------------
+# Part C: Bayesian posterior update — blend model P(over) with market prior.
+# lambda_market=0.30 → market gets 30% weight in log-odds space.
+# 0 = pure model signal; 1 = pure market signal.
+# --------------------------------------------------------------------------
+market_prior_lambda: 0.30
+
+# --------------------------------------------------------------------------
+# Part I: Use separate live calibrators for in-game PMF predictions.
+# Requires data/processed/live_calibration_data.parquet to exist.
+# --------------------------------------------------------------------------
+use_live_calibrators: false  # set true once build_live_calibration_data.py runs
+
+# --------------------------------------------------------------------------
 # P3.4: Pi rating baseline from OOF model predictions
 # --------------------------------------------------------------------------
 pi_rating_use_model_baseline: false  # set true after first OOF run produces predictions

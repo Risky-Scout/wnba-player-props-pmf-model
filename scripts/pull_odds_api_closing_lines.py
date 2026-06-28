@@ -45,12 +45,19 @@ def main(
         help="ISO UTC datetime for historical snapshot, e.g. '2026-06-23T23:30:00Z'. "
              "Defaults to 23:00:00 UTC (7 PM ET).",
     ),
+    open_time: str = typer.Option(
+        "",
+        "--open-time",
+        help="ISO UTC datetime for the opening snapshot (e.g. '2026-06-23T14:00:00Z'). "
+             "When provided, computes line_movement = closing_line - opening_line and "
+             "opening_p_over columns. Defaults to 14:00:00 UTC on game_date.",
+    ),
     out_dir: str = typer.Option("data/clv_tracking", "--out-dir"),
     api_key: str = typer.Option("", envvar="ODDS_API_KEY"),
     region: str = typer.Option("us", "--region"),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
-    """Pull historical closing lines for CLV calculation."""
+    """Pull historical closing lines (and optionally opening lines) for CLV calculation."""
     key = api_key or os.environ.get("ODDS_API_KEY", "")
     if not key:
         typer.echo("[WARN] No ODDS_API_KEY — cannot pull closing lines", err=True)
@@ -61,6 +68,7 @@ def main(
     out.mkdir(parents=True, exist_ok=True)
 
     snap_time = close_time if close_time else f"{game_date}T23:00:00Z"
+    open_snap_time = open_time if open_time else f"{game_date}T14:00:00Z"
     typer.echo(
         f"[OddsAPI] Pulling closing lines for {game_date} at snapshot={snap_time}"
     )
@@ -118,6 +126,42 @@ def main(
     merged["pulled_at_utc"] = datetime.now(timezone.utc).isoformat()
     merged["source"] = "odds_api_v4_historical"
 
+    # Parts B+F: Pull opening snapshot to compute line_movement (closing - opening).
+    # opening_line is used as a lagged feature (prior game day) — no temporal leakage.
+    merged["opening_line"] = None
+    merged["opening_p_over"] = None
+    merged["line_movement"] = None
+    try:
+        typer.echo(f"[OddsAPI] Pulling opening snapshot at {open_snap_time}")
+        raw_open = client.get_closing_lines_for_date(game_date, close_time_utc=open_snap_time)
+        if raw_open:
+            open_df = pd.DataFrame(raw_open)
+            open_over = open_df[open_df["side"].str.lower().str.startswith("over")].copy()
+            open_under = open_df[open_df["side"].str.lower().str.startswith("under")].copy()
+            open_key_cols = ["event_id", "bookmaker", "market_key", "player_name", "stat"]
+            open_over = open_over.rename(columns={"odds": "open_over_odds", "line": "opening_line_val"})
+            open_under = open_under.rename(columns={"odds": "open_under_odds"})
+            open_merged = open_over[open_key_cols + ["open_over_odds", "opening_line_val"]].merge(
+                open_under[open_key_cols + ["open_under_odds"]], on=open_key_cols, how="outer"
+            )
+            open_shin = open_merged.apply(
+                lambda r: shin_no_vig_two_way_with_z(r.get("open_over_odds"), r.get("open_under_odds")),
+                axis=1, result_type="expand",
+            )
+            open_merged["open_p_over"] = open_shin[0]
+            open_merged["open_line"] = open_merged["opening_line_val"]
+            join_key = ["event_id", "bookmaker", "market_key", "player_name", "stat"]
+            merged = merged.merge(
+                open_merged[join_key + ["open_p_over", "open_line"]],
+                on=join_key, how="left",
+            )
+            merged["opening_line"] = merged.pop("open_line")
+            merged["opening_p_over"] = merged.pop("open_p_over")
+            merged["line_movement"] = merged["line"] - merged["opening_line"]
+            typer.echo(f"[OddsAPI] Opening snapshot: {len(open_merged):,} rows merged")
+    except Exception as exc:
+        typer.echo(f"[WARN] Opening snapshot failed (non-fatal): {exc}", err=True)
+
     out_path = out / f"closing_lines_oddsapi_{game_date}.parquet"
     merged.to_parquet(out_path, index=False)
     typer.echo(f"[OddsAPI] Wrote {len(merged):,} closing-line rows → {out_path}")
@@ -134,6 +178,7 @@ def _write_empty(out: Path, game_date: str) -> None:
         "event_id", "game_date", "snapshot_time", "home_team", "away_team",
         "bookmaker", "market_key", "stat", "player_name", "line",
         "over_odds", "under_odds", "close_prob_over_no_vig", "close_shin_z",
+        "opening_line", "opening_p_over", "line_movement",
         "pulled_at_utc", "source",
     ]).to_parquet(out / f"closing_lines_oddsapi_{game_date}.parquet", index=False)
 

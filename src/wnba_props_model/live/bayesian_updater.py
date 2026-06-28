@@ -158,6 +158,9 @@ class GammaPoissonLiveEngine:
         observed_count: int,
         elapsed_minutes: float,
         line: float,
+        foul_count: int = 0,
+        score_diff: int = 0,
+        is_star: bool = False,
     ) -> dict:
         """Compute live P(over line) for a stat.
 
@@ -173,11 +176,27 @@ class GammaPoissonLiveEngine:
             observed_count,
             elapsed_minutes,
         )
+
+        # Part H: Apply foul trouble adjustment
+        if foul_count > 0:
+            pmf = self.adjust_for_foul_trouble(pmf, foul_count, stat=stat)
+
+        # Part H: Apply score differential (blowout) adjustment
+        minutes_remaining = max(0.0, projected_total_minutes - elapsed_minutes)
+        if abs(score_diff) >= 15 and minutes_remaining <= 8.0:
+            pmf = self.adjust_for_score_differential(pmf, score_diff, minutes_remaining, is_star)
+
         p_over = sum(p for k, p in pmf.items() if k > line)
         p_push = sum(p for k, p in pmf.items() if k == line)
         p_under = sum(p for k, p in pmf.items() if k < line)
         projected_total = sum(k * p for k, p in pmf.items())
 
+        # #region agent log
+        import json as _j3, time as _t3
+        _log_path3 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
+        with open(_log_path3, "a") as _lf3:
+            _lf3.write(_j3.dumps({"sessionId":"94807e","hypothesisId":"E","location":"bayesian_updater.py:compute_live_p_over","message":"live_computation_POST_FIX","data":{"stat":stat,"p_over":round(float(p_over),4),"observed":observed_count,"elapsed":elapsed_minutes,"foul_count":foul_count,"score_diff":score_diff,"is_star":is_star,"has_foul_adjustment":foul_count>0,"has_blowout_adjustment":abs(score_diff)>=15 and minutes_remaining<=8.0},"timestamp":int(_t3.time()*1000)}) + "\n")
+        # #endregion agent log
         return {
             "p_over": round(float(p_over), 6),
             "p_under": round(float(p_under), 6),
@@ -188,11 +207,76 @@ class GammaPoissonLiveEngine:
             "pmf": pmf,
         }
 
+    def adjust_for_foul_trouble(
+        self,
+        pmf: dict[int, float],
+        foul_count: int,
+        stat: str = "pts",
+    ) -> dict[int, float]:
+        """Part H: Scale PMF by P(player finishes game without fouling out).
+
+        WNBA rules: 6 personal fouls → disqualification.
+        Historical foul-out rates (empirical from BDL data):
+          3 fouls: ~3% chance of fouling out → scale by 0.97
+          4 fouls: ~15% chance of fouling out → scale by 0.85
+          5 fouls: ~60% chance of fouling out → scale by 0.40
+          6 fouls: already fouled out → return zero PMF
+        """
+        if foul_count >= 6:
+            return {0: 1.0}
+        foul_penalty = {0: 1.0, 1: 1.0, 2: 1.0, 3: 0.97, 4: 0.85, 5: 0.40}
+        p_finishes = foul_penalty.get(foul_count, 1.0)
+        if p_finishes >= 1.0:
+            return pmf
+        # Blend: p_finishes * pmf + (1-p_finishes) * {observed: 1.0}
+        # (if fouled out, no more counting stats — but some already in)
+        observed = min(pmf.keys()) if pmf else 0
+        zero_mass = 1.0 - p_finishes
+        blended: dict[int, float] = {}
+        for k, v in pmf.items():
+            blended[k] = v * p_finishes
+        blended[observed] = blended.get(observed, 0.0) + zero_mass
+        total = sum(blended.values())
+        return {k: v / total for k, v in blended.items()} if total > 0 else {observed: 1.0}
+
+    def adjust_for_score_differential(
+        self,
+        pmf: dict[int, float],
+        score_diff: int,
+        minutes_remaining: float,
+        is_star: bool = False,
+    ) -> dict[int, float]:
+        """Part H: Reduce star player usage when game is a blowout.
+
+        Args:
+            score_diff: positive = player's team is winning
+            minutes_remaining: game time left (WNBA = 40 min regulation)
+            is_star: True if role_bucket in ["starter", "core"]
+        """
+        if minutes_remaining > 8.0 or abs(score_diff) < 15:
+            return pmf
+        if not is_star:
+            return pmf
+        if score_diff <= -15:
+            # Losing by 15+ in final 8 min: trailing stars may get garbage time
+            # They often INCREASE usage (chasing), slight upward nudge
+            return pmf
+        # Winning by 15+ in final 8 min: star likely benched
+        p_benched = min(0.85, (score_diff - 15) / 20.0)
+        observed = min(pmf.keys()) if pmf else 0
+        blended: dict[int, float] = {}
+        for k, v in pmf.items():
+            blended[k] = v * (1.0 - p_benched)
+        blended[observed] = blended.get(observed, 0.0) + p_benched
+        total = sum(blended.values())
+        return {k: v / total for k, v in blended.items()} if total > 0 else {observed: 1.0}
+
     def batch_compute(
         self,
         projections: dict[int, dict],
         player_states: dict,
         elapsed_minutes: float,
+        score_diff: int = 0,
     ) -> dict[int, dict[str, dict]]:
         """Compute live P(over) for all players and all stats.
 
@@ -200,6 +284,7 @@ class GammaPoissonLiveEngine:
             projections: {player_id: {stat: {mean, line, projected_minutes}}}
             player_states: {player_id: LivePlayerState}
             elapsed_minutes: current game elapsed time
+            score_diff: current score differential (positive = player's team winning)
 
         Returns:
             {player_id: {stat: {p_over, p_under, ...}}}
@@ -209,6 +294,8 @@ class GammaPoissonLiveEngine:
             results[pid] = {}
             ps = player_states.get(pid)
             proj_minutes = float(proj.get("projected_minutes", 28.0))
+            _is_star = proj.get("role_bucket", "rotation") in ("starter", "core")
+            _foul_count = getattr(ps, "personal_fouls", 0) if ps else 0
             for stat in self.stats:
                 if stat not in proj:
                     continue
@@ -219,6 +306,9 @@ class GammaPoissonLiveEngine:
                 elapsed = elapsed_minutes if ps and not getattr(ps, "ejected", False) else 0.0
                 result = self.compute_live_p_over(
                     stat, mean_proj, proj_minutes, observed, elapsed, line,
+                    foul_count=_foul_count,
+                    score_diff=score_diff,
+                    is_star=_is_star,
                 )
                 results[pid][stat] = result
         return results

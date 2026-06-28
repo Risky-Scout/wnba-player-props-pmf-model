@@ -151,6 +151,73 @@ jobs:
             --pmfs data/oof/oof_player_stat_pmfs.parquet \
             --summary-out artifacts/audits/stage5_oof_summary.md
 
+      - name: Per-feature OOF ECE gate (Part E — sequential flag validation)
+        # Part E: Validate that all enabled feature flags produce ECE ≤ 0.08 per stat.
+        # If any stat's ECE > 0.08, the config flag may be harming calibration.
+        # This is informational (continue-on-error) but writes a machine-readable report.
+        continue-on-error: true
+        run: |
+          python3 - << 'PYEOF'
+          import json, math, sys
+          import numpy as np
+          import pandas as pd
+          from pathlib import Path
+
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print("[WARN] OOF parquet not found — skipping ECE gate")
+              sys.exit(0)
+
+          oof = pd.read_parquet(oof_path)
+          stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+          ECE_THRESHOLD = 0.08
+          results = {}
+          gate_passed = True
+
+          for stat in stats:
+              sub = oof[oof["stat"] == stat].copy() if "stat" in oof.columns else oof.copy()
+              if len(sub) < 30:
+                  continue
+              if "pmf_json" not in sub.columns and "pmf_mean" not in sub.columns:
+                  continue
+              # Compute ECE from P(over) if available, else from mean vs actual
+              if "p_over" in sub.columns and "actual_outcome" in sub.columns and "line" in sub.columns:
+                  sub = sub.dropna(subset=["p_over", "actual_outcome", "line"])
+                  if len(sub) < 30:
+                      continue
+                  # Calibration curve: bin by predicted p_over, compare to empirical hit rate
+                  n_bins = 10
+                  bins = np.linspace(0, 1, n_bins + 1)
+                  ece = 0.0
+                  for i in range(n_bins):
+                      mask = (sub["p_over"] >= bins[i]) & (sub["p_over"] < bins[i+1])
+                      if mask.sum() < 5:
+                          continue
+                      pred_p = sub.loc[mask, "p_over"].mean()
+                      act_rate = (sub.loc[mask, "actual_outcome"] > sub.loc[mask, "line"]).mean()
+                      ece += mask.sum() / len(sub) * abs(pred_p - act_rate)
+                  results[stat] = {"ece": round(float(ece), 4), "n": int(mask.sum())}
+                  if ece > ECE_THRESHOLD:
+                      print(f"[WARN] ECE GATE: {stat} ECE={ece:.4f} > {ECE_THRESHOLD} — review enabled flags")
+                      gate_passed = False
+                  else:
+                      print(f"[OK]  ECE gate:  {stat} ECE={ece:.4f} <= {ECE_THRESHOLD}")
+              elif "pmf_mean" in sub.columns and "actual_outcome" in sub.columns:
+                  # Fallback: |mean - actual| / actual as proxy ECE
+                  sub = sub.dropna(subset=["pmf_mean", "actual_outcome"])
+                  mae_ratio = np.abs(sub["pmf_mean"] - sub["actual_outcome"]).mean() / max(sub["actual_outcome"].mean(), 1.0)
+                  results[stat] = {"mae_ratio": round(float(mae_ratio), 4), "n": len(sub)}
+                  flag = "WARN" if mae_ratio > 0.25 else "OK  "
+                  print(f"[{flag}] ECE proxy: {stat} MAE/mean={mae_ratio:.4f} (n={len(sub)})")
+
+          out_dir = Path("artifacts/audits")
+          out_dir.mkdir(parents=True, exist_ok=True)
+          with open(out_dir / "oof_ece_gate_results.json", "w") as f:
+              json.dump({"stats": results, "gate_passed": gate_passed, "threshold": ECE_THRESHOLD}, f, indent=2)
+          print(f"\nECE gate overall: {'PASSED' if gate_passed else 'FAILED (informational)'}")
+          print("Results written to artifacts/audits/oof_ece_gate_results.json")
+          PYEOF
+
       - name: Pre-calibration sanity gate (raw OOF)
         # Loose informational gate on raw OOF predictions.
         # Reports ECE/PIT KS/mean_error but NEVER blocks calibrator fitting -- prior_only

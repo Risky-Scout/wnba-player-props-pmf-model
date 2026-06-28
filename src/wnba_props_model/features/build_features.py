@@ -1898,6 +1898,89 @@ def build_wide_table(
         audit_notes["advanced_features_error"] = str(exc)
 
     # ------------------------------------------------------------------ #
+    # Parts B+F: Join lagged (prior-game) market closing line features.
+    # Searches for closing line parquets in data/clv_tracking/*.parquet.
+    # Lags by 1 game per player-stat to avoid same-day market leakage.
+    # ------------------------------------------------------------------ #
+    try:
+        import glob as _glob  # noqa: PLC0415
+        _cl_pattern = str(Path(__file__).parents[3] / "data" / "clv_tracking" / "closing_lines_oddsapi_*.parquet")
+        _cl_files = sorted(_glob.glob(_cl_pattern))
+        if _cl_files:
+            _cl_frames = []
+            for _cf in _cl_files:
+                try:
+                    _cl_frames.append(pd.read_parquet(_cf))
+                except Exception:
+                    pass
+            if _cl_frames:
+                _cl_all = pd.concat(_cl_frames, ignore_index=True)
+                # Keep best (sharpest) bookmaker per player-stat-game_date
+                # Priority: pinnacle > draftkings > fanduel > other
+                _bk_priority = {"pinnacle": 0, "draftkings": 1, "fanduel": 2}
+                _cl_all["_bk_rank"] = _cl_all.get("bookmaker", pd.Series([""] * len(_cl_all))).apply(
+                    lambda b: _bk_priority.get(str(b).lower(), 99)
+                )
+                _cl_all = _cl_all.sort_values(["game_date", "player_name", "stat", "_bk_rank"])
+                _cl_best = _cl_all.groupby(["game_date", "player_name", "stat"], as_index=False).first()
+                # Rename market columns
+                _cl_best = _cl_best.rename(columns={
+                    "close_prob_over_no_vig": "_mkt_p_over",
+                    "line": "_mkt_line",
+                    "line_movement": "_mkt_movement",
+                    "game_date": "_mkt_game_date",
+                })
+                _cl_keep = ["_mkt_game_date", "player_name", "stat", "_mkt_p_over", "_mkt_line", "_mkt_movement"]
+                _cl_best = _cl_best[[c for c in _cl_keep if c in _cl_best.columns]]
+
+                # Merge to wide on player_name (normalized) + game_date — then lag by 1 game
+                _wide_pn = wide.copy()
+                _wide_pn["_pname_lower"] = _wide_pn["player_name"].str.lower().str.strip() if "player_name" in _wide_pn.columns else ""
+                _cl_best["_pname_lower"] = _cl_best["player_name"].str.lower().str.strip()
+
+                # For each player, sort by date and shift closing line values by 1 game
+                # Stack: join per-stat values by melting, shift, then pivot back
+                # Simpler: produce one row per (player, game_date) with prior P(over) for pts
+                _stats_of_interest = ["pts", "reb", "ast"]
+                for _ms in _stats_of_interest:
+                    _ms_slice = _cl_best[_cl_best["stat"] == _ms][
+                        ["_pname_lower", "_mkt_game_date", "_mkt_p_over", "_mkt_line", "_mkt_movement"]
+                    ].copy().drop_duplicates(subset=["_pname_lower", "_mkt_game_date"])
+                    _ms_slice = _ms_slice.sort_values(["_pname_lower", "_mkt_game_date"])
+                    _ms_slice["_mkt_p_over_prev"] = _ms_slice.groupby("_pname_lower")["_mkt_p_over"].shift(1)
+                    _ms_slice["_mkt_line_prev"] = _ms_slice.groupby("_pname_lower")["_mkt_line"].shift(1)
+                    _ms_slice["_mkt_movement_prev"] = _ms_slice.groupby("_pname_lower")["_mkt_movement"].shift(1)
+                    _ms_slice = _ms_slice.drop(columns=["_mkt_p_over", "_mkt_line", "_mkt_movement"])
+                    _ms_slice = _ms_slice.rename(columns={
+                        "_mkt_game_date": "game_date",
+                        "_mkt_p_over_prev": f"player_market_p_over_prev",
+                        "_mkt_line_prev": f"player_market_line_prev",
+                        "_mkt_movement_prev": f"player_line_movement_prev",
+                    })
+                    if _ms == "pts":  # use pts market as primary signal for all stats
+                        _wide_pn = _wide_pn.merge(
+                            _ms_slice[["_pname_lower", "game_date", "player_market_p_over_prev",
+                                       "player_market_line_prev", "player_line_movement_prev"]],
+                            on=["_pname_lower", "game_date"], how="left",
+                        )
+                        break
+
+                _wide_pn = _wide_pn.drop(columns=["_pname_lower"], errors="ignore")
+                wide = _wide_pn
+                audit_notes["market_prior_features_joined"] = True
+                audit_notes["market_prior_rows"] = int(wide["player_market_p_over_prev"].notna().sum()) if "player_market_p_over_prev" in wide.columns else 0
+        else:
+            audit_notes["market_prior_features_joined"] = False
+            audit_notes["market_prior_reason"] = "no closing line parquets found"
+    except Exception as exc:
+        audit_notes["market_prior_features_joined"] = False
+        audit_notes["market_prior_error"] = str(exc)
+        # Ensure columns exist even on failure (HGB handles NaN gracefully)
+        for _mc in ["player_market_p_over_prev", "player_market_line_prev", "player_line_movement_prev"]:
+            if _mc not in wide.columns:
+                wide[_mc] = np.nan
+
+    # ------------------------------------------------------------------ #
     # Sanitize: replace inf with NaN in numeric columns
     # ------------------------------------------------------------------ #
     num_cols = wide.select_dtypes(include="number").columns

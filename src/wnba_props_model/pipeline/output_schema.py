@@ -114,6 +114,27 @@ def _conformal_ci(mean: float, std: float, alpha: float = 0.90) -> list[float]:
     return [round(max(0.0, mean - z * std), 1), round(mean + z * std, 1)]
 
 
+def _bayesian_blend_p_over(
+    p_model: float,
+    p_market: float,
+    lambda_market: float = 0.30,
+) -> float:
+    """Blend model P(over) with market prior via log-odds pooling.
+
+    lambda_market=0.30 means market gets 30% weight in log-odds space.
+    This is the Bayesian posterior update:
+      log_odds_posterior = (1-λ)*log_odds_model + λ*log_odds_market
+    Equivalent to treating market as 0.43 independent observations.
+    """
+    eps = 1e-6
+    p_model = float(max(eps, min(1 - eps, p_model)))
+    p_market = float(max(eps, min(1 - eps, p_market)))
+    lo_model = math.log(p_model / (1.0 - p_model))
+    lo_market = math.log(p_market / (1.0 - p_market))
+    lo_post = (1.0 - lambda_market) * lo_model + lambda_market * lo_market
+    return 1.0 / (1.0 + math.exp(-lo_post))
+
+
 # ---------------------------------------------------------------------------
 # Deep-link builder (blueprint §3.5)
 # ---------------------------------------------------------------------------
@@ -489,11 +510,43 @@ def build_player_record(
                 else:
                     kelly_frac = None
 
+                # Part C: Bayesian posterior update — blend model P(over) with market prior.
+                # lambda_market=0.30 → market gets 30% weight in log-odds space.
+                # p_posterior is used for BOTH edge and Kelly; raw p_model is preserved for audit.
+                _lambda_mkt = 0.30
+                p_posterior = _bayesian_blend_p_over(p_over, mkt_p, lambda_market=_lambda_mkt)
+                edge_posterior = round(p_posterior - mkt_p, 4)
+
+                # Part D: Conformal CI Kelly cap — reduce Kelly when CI is wide (high uncertainty).
+                _conformal_lo = sr.get("conformal_lower")
+                _conformal_hi = sr.get("conformal_upper")
+                _ci_penalty = 1.0
+                if (_conformal_lo is not None and _conformal_hi is not None
+                        and not (math.isnan(float(_conformal_lo)) or math.isnan(float(_conformal_hi)))):
+                    _ci_width = max(float(_conformal_hi) - float(_conformal_lo), 1.0)
+                    _ci_penalty = min(1.0, 10.0 / _ci_width)
+
+                if edge_posterior > 0:
+                    kelly_raw = edge_posterior / max(1.0 - mkt_p, 1e-6)
+                    kelly_frac = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
+                elif edge_posterior < 0:
+                    kelly_raw = (-edge_posterior) / max(mkt_p, 1e-6)
+                    kelly_frac = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
+                else:
+                    kelly_frac = None
+
+                # #region agent log
+                import json as _j2, time as _t2
+                _log_path2 = "/Users/josephshackelford/SportsModels/wnba-player-props-pmf-model/.cursor/debug-94807e.log"
+                with open(_log_path2, "a") as _lf2:
+                    _lf2.write(_j2.dumps({"sessionId":"94807e","hypothesisId":"C","location":"output_schema.py:build_player_record","message":"kelly_edge_computation_POST_FIX","data":{"stat":stat,"p_model":round(p_over,4),"p_posterior":round(p_posterior,4),"mkt_p":round(mkt_p,4),"edge_posterior":edge_posterior,"kelly_frac":kelly_frac,"ci_penalty":round(_ci_penalty,3),"bayesian_blend_applied":True,"conformal_lower":_conformal_lo},"timestamp":int(_t2.time()*1000)}) + "\n")
+                # #endregion agent log
                 stat_proj["calibrated_p_over"] = {
                     "market_line": round(line, 1),
-                    "p_over": round(p_over, 4),
-                    "p_under": round(p_under, 4),
-                    "edge_vs_market": edge,
+                    "p_over": round(p_posterior, 4),       # posterior (blended)
+                    "p_over_model": round(p_over, 4),      # raw model for audit
+                    "p_under": round(1.0 - p_posterior, 4),
+                    "edge_vs_market": edge_posterior,
                     "kelly_fraction": kelly_frac,
                     "market_source": str(m.get("source") or "odds_api"),
                     "market_vendor": str(m.get("vendor") or m.get("bookmaker") or ""),
@@ -651,6 +704,25 @@ def build_game_record(
             game_spread = gf.iloc[0].get("spread_home_value")
             game_total = gf.iloc[0].get("total_value")
 
+    # Part J: Game-total coherence anchoring.
+    # If player pts_means sum more than 5 pts from market-implied team score,
+    # scale all player pts PMF means proportionally so the slate is coherent.
+    _game_total_anchor_scale: dict[int, float] = {}
+    if game_total is not None and game_total > 0:
+        _implied_team_pts = float(game_total) / 2.0  # rough 50/50 home/away split
+        for _team_id in [home_team_id, away_team_id]:
+            _team_pts_rows = game_rows[
+                (game_rows["team_id"] == _team_id) & (game_rows["stat"] == "pts")
+            ] if "stat" in game_rows.columns else pd.DataFrame()
+            if _team_pts_rows.empty:
+                continue
+            _team_pts_sum = _team_pts_rows["pmf_mean"].sum()
+            if _team_pts_sum > 0 and abs(_team_pts_sum - _implied_team_pts) > 5.0:
+                _scale = _implied_team_pts / _team_pts_sum
+                # Clamp scale to [0.7, 1.4] to prevent extreme adjustments
+                _scale = max(0.70, min(1.40, _scale))
+                _game_total_anchor_scale[_team_id] = _scale
+
     # Build per-player records
     player_ids = game_rows["player_id"].unique()
     players = []
@@ -697,8 +769,18 @@ def build_game_record(
                 if not p_utm_slice.empty:
                     p_utm_rows = p_utm_slice.to_dict("records")
 
+        # Part J: apply game-total anchor scale to pts_mean for this player's team.
+        _player_team_id = int(p_rows.iloc[0].get("team_id", 0)) if not p_rows.empty else 0
+        _pts_anchor = _game_total_anchor_scale.get(_player_team_id, 1.0)
+        _p_rows_anchored = p_rows.copy()
+        if _pts_anchor != 1.0 and "pmf_mean" in _p_rows_anchored.columns:
+            _pts_mask = _p_rows_anchored["stat"] == "pts" if "stat" in _p_rows_anchored.columns else pd.Series([True] * len(_p_rows_anchored))
+            _p_rows_anchored.loc[_pts_mask, "pmf_mean"] = (
+                _p_rows_anchored.loc[_pts_mask, "pmf_mean"] * _pts_anchor
+            )
+
         rec = build_player_record(
-            p_rows, market_rows=p_mkt,
+            _p_rows_anchored, market_rows=p_mkt,
             odds_api_rows=p_odds_rows,
             injury_status=inj_status,
             utm_impact_rows=p_utm_rows,

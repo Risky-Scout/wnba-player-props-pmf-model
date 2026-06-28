@@ -425,3 +425,63 @@ def apply_calibrators(
         out[key] = [r[key] for r in stats_rows]
 
     return out
+
+
+# ---------------------------------------------------------------------------
+# Part I: Live calibrators — fitted on in-game (live) PMF data
+# ---------------------------------------------------------------------------
+
+def fit_live_calibrators(
+    live_cal_path: str | Path = "data/processed/live_calibration_data.parquet",
+    cal_dir: str | Path = "artifacts/models/calibration",
+    min_samples: int = 30,
+) -> dict[str, str]:
+    """Part I: Fit separate role-aware calibrators from live (in-game) prediction data.
+
+    Live predictions conditioned on in-game box score have different calibration
+    characteristics than pre-game predictions. They need their own calibrators.
+
+    Input parquet schema:
+      player_id, game_id, stat, role_bucket, quarter, pmf_json, actual_outcome
+      (produced by scripts/build_live_calibration_data.py)
+
+    Output:
+      artifacts/models/calibration/live_pmf_cal_role_{stat}.pkl
+    """
+    live_path = Path(live_cal_path)
+    cal_dir_p = Path(cal_dir)
+    cal_dir_p.mkdir(parents=True, exist_ok=True)
+
+    if not live_path.exists():
+        logger.warning(
+            "[live_calibrators] No live calibration data at %s — "
+            "run scripts/build_live_calibration_data.py first.",
+            live_path,
+        )
+        return {}
+
+    live_df = pd.read_parquet(live_path)
+    required = {"stat", "role_bucket", "pmf_json", "actual_outcome"}
+    if not required.issubset(live_df.columns):
+        logger.warning(
+            "[live_calibrators] Missing columns in %s: need %s, got %s",
+            live_path, required, set(live_df.columns),
+        )
+        return {}
+
+    paths: dict[str, str] = {}
+    for stat in live_df["stat"].unique():
+        stat_df = live_df[live_df["stat"] == stat].dropna(subset=["pmf_json", "actual_outcome"])
+        if len(stat_df) < min_samples:
+            logger.info("[live_calibrators] %s: too few rows (%d) — skip", stat, len(stat_df))
+            continue
+        try:
+            cal = fit_role_aware_calibrator(stat_df, stat=stat)
+            out_path = cal_dir_p / f"live_pmf_cal_role_{stat}.pkl"
+            cal.save(str(out_path))
+            paths[stat] = str(out_path)
+            logger.info("[live_calibrators] %s: fitted calibrator → %s", stat, out_path)
+        except Exception as exc:
+            logger.warning("[live_calibrators] %s: calibrator fitting failed: %s", stat, exc)
+
+    return paths

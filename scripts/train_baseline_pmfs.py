@@ -370,11 +370,17 @@ def train(
                     continue
                 _X_clv, _ = _prepare_X(_clv_feat, model_cols, pos_encoder=pos_encoder)
                 _y_clv = _clv_feat["beat_closing"].astype(int)
-                # Weight by edge magnitude if available
-                _sw_clv = None
-                if "clv_label" in _clv_feat.columns:
+                # Part A: Sample-weight by |closing_p_over - 0.5| so that rows where
+                # the market has a confident view (far from 50/50) receive higher weight.
+                # This forces the model to focus on games where sharp consensus is clear
+                # — disagreeing with that consensus is the CLV opportunity.
+                _sw_clv = np.ones(len(_clv_feat))
+                if "closing_p_over" in _clv_feat.columns:
+                    _close_conf = np.abs(_clv_feat["closing_p_over"].fillna(0.5).values - 0.5).clip(0.01, 0.5)
+                    _sw_clv = _close_conf * 2.0  # scale [0, 1]
+                elif "clv_label" in _clv_feat.columns:
                     _sw_clv = np.abs(_clv_feat["clv_label"].fillna(0.0).values).clip(0.01, 2.0)
-                    _sw_clv = _sw_clv / _sw_clv.mean()
+                _sw_clv = _sw_clv / _sw_clv.mean()
                 _clv_head = _HGBC(max_iter=50, max_leaf_nodes=15, learning_rate=0.05, random_state=42)
                 _clv_head.fit(_X_clv, _y_clv, sample_weight=_sw_clv)
                 # Attach CLV head to the stat model
