@@ -44,7 +44,7 @@ def main(
     pmfs: str = typer.Option(..., help="Calibrated PMF parquet (full_pmfs_wide.parquet)."),
     raw_props: str = typer.Option(..., help="BDL player props parquet (fallback)."),
     out_dir: str = typer.Option(..., help="Output directory for edge report files."),
-    edge_threshold: float = typer.Option(0.04, help="Minimum |edge| to publish (default 4pp)."),
+    edge_threshold: float = typer.Option(0.06, help="Minimum |edge| to publish (default 6pp)."),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
     max_shin_z: float = typer.Option(
@@ -90,6 +90,15 @@ def main(
     props_df, props_source = _load_props(raw_props, odds_api_props, today)
     typer.echo(f"Loaded {len(props_df):,} market prop rows [source={props_source}]")
 
+    # Game_ID cross-join guard: fail loudly if projections and market props are from different slates
+    if not pmfs_df.empty and not props_df.empty:
+        if "game_id" in pmfs_df.columns and "game_id" in props_df.columns:
+            _pmfs_game_ids = set(pmfs_df["game_id"].dropna().unique())
+            _props_game_ids = set(props_df["game_id"].dropna().unique())
+            _shared_game_ids = _pmfs_game_ids & _props_game_ids
+            if not _shared_game_ids:
+                typer.echo(f"[WARN] GAME_ID MISMATCH: PMF game_ids={_pmfs_game_ids}, market game_ids={_props_game_ids}. No shared games — edge report will be empty.", err=True)
+
     if props_df.empty:
         typer.echo("[WARN] Props file is empty — no market lines to compare")
         _write_empty(out, today, edge_threshold)
@@ -106,6 +115,13 @@ def main(
     comp = comp[comp["market_prob_over_no_vig"].notna()]
     comp = comp[comp["market_prob_over_no_vig"] >= min_market_prob]
     comp = comp[comp["market_prob_over_no_vig"] <= (1.0 - min_market_prob)]
+
+    # Stats eligible for published edges.
+    # STL/BLK excluded: raw model over-predicts by ~40% (architectural issue — model retraining needed).
+    PUBLISHABLE_STATS = frozenset({"pts", "reb", "ast", "fg3m"})
+    if "stat" in comp.columns:
+        comp = comp[comp["stat"].isin(PUBLISHABLE_STATS)].copy()
+        typer.echo(f"[filter] Filtered to publishable stats {PUBLISHABLE_STATS}: {len(comp):,} rows remain")
 
     # Annotate with calibration status
     for col in ("is_calibrated", "cal_source", "model_version"):
@@ -195,6 +211,31 @@ def main(
     # fall back to raw edge if decay column is absent.
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     _sort_col = "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns else "edge_over"
+
+    # Book consensus filter: require at least 2 books offering the line
+    # Single-book lines have higher adverse-selection risk
+    _MIN_BOOKS = 2
+    if "number_of_books_offering" in edges.columns:
+        _pre_book_n = len(edges)
+        edges = edges[
+            edges["number_of_books_offering"].fillna(1).astype(int) >= _MIN_BOOKS
+        ].copy()
+        typer.echo(f"[filter] Book consensus (>={_MIN_BOOKS} books): {_pre_book_n} → {len(edges)} edges")
+
+    # Direction-contradiction filter: suppress edges where model direction
+    # contradicts significant line movement (steam)
+    if "line_movement_direction" in edges.columns and "line_movement_magnitude" in edges.columns:
+        _steam_mag_threshold = 0.5
+        _contradiction_mask = (
+            ((edges["edge_over"] > 0) & (edges["line_movement_direction"] == -1) &
+             (edges["line_movement_magnitude"].fillna(0) > _steam_mag_threshold)) |
+            ((edges["edge_over"] < 0) & (edges["line_movement_direction"] == 1) &
+             (edges["line_movement_magnitude"].fillna(0) > _steam_mag_threshold))
+        )
+        _n_suppressed_steam = int(_contradiction_mask.sum())
+        if _n_suppressed_steam > 0:
+            edges = edges[~_contradiction_mask].copy()
+            typer.echo(f"[filter] Suppressed {_n_suppressed_steam} edges contradicting line steam")
     if "projection_sanity_flag" in edges.columns:
         edges = edges.sort_values(
             ["projection_sanity_flag", _sort_col],

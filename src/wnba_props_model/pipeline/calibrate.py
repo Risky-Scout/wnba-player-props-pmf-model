@@ -102,7 +102,7 @@ def fit_beta_calibrators(
     import joblib  # noqa: PLC0415
     from wnba_props_model.evaluation.beta_calibration import fit_best_calibrator  # noqa: PLC0415
 
-    _BETA_MIN_CAL_MINUTES = 5
+    _BETA_MIN_CAL_MINUTES = 10  # Match fit_calibrators threshold: only prop-eligible games
     oof = pd.read_parquet(oof_pmfs_path).copy()
     if "outcome" not in oof.columns and "actual_outcome" in oof.columns:
         oof["outcome"] = oof["actual_outcome"]
@@ -186,6 +186,40 @@ def apply_beta_calibrators(
         return p_over_series
 
 
+def _apply_mean_bias_correction(
+    pmf_arr: np.ndarray,
+    alpha: float,
+    cap: int | None = None,
+) -> np.ndarray:
+    """Scale a discrete PMF so its mean shifts by factor alpha.
+
+    Uses NegBinom moment-matching: estimates r from current mean and variance,
+    rebuilds the PMF at the target mean with the same r. Falls back to the
+    original PMF if estimation fails.
+    """
+    from wnba_props_model.models.pmf_utils import negbinom_pmf_batch  # noqa: PLC0415
+
+    arr = normalize_pmf(pmf_arr)
+    if abs(alpha - 1.0) < 0.005:
+        return arr  # no correction needed
+    n = len(arr)
+    k = np.arange(n, dtype=float)
+    mu = float(np.dot(k, arr))
+    if mu < 0.05:
+        return arr
+    var = float(np.dot(k ** 2, arr)) - mu ** 2
+    # NegBinom: var = mu + mu²/r  →  r = mu²/(var - mu)
+    excess_var = max(var - mu, 1e-4)
+    r_est = float(np.clip(mu ** 2 / excess_var, 0.3, 20.0))
+    target_mu = float(np.clip(mu * alpha, 0.05, None))
+    support = (cap or n) - 1
+    try:
+        new_pmf = negbinom_pmf_batch(np.array([target_mu]), r_est, support)[0]
+        return normalize_pmf(new_pmf)
+    except Exception:
+        return arr
+
+
 def fit_calibrators(
     oof_pmfs_path: str | Path,
     out_dir: str | Path = "artifacts/models/calibration",
@@ -226,7 +260,20 @@ def fit_calibrators(
     # PIT ≈ 0.05.  The isotonic calibrator interprets this as systematic
     # over-prediction and learns to compress every distribution by ~2×,
     # causing severe under-prediction vs the market in live delivery.
-    _MIN_CAL_MINUTES = 5   # exclude pure garbage-time (< 5 min) while keeping fringe/bench games
+    _MIN_CAL_MINUTES = 10  # prop-eligibility floor: only games where player played >=10 min
+                           # (filters bench/fringe games that contaminate calibration training)
+    # #region agent log
+    import time as _time_dbg
+    _DBG_LOG = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+    def _dbg(msg: str, data: dict, hyp: str) -> None:
+        import json as _json_dbg
+        try:
+            with open(_DBG_LOG, "a") as _f:
+                _f.write(_json_dbg.dumps({"sessionId":"3f8dcc","timestamp":int(_time_dbg.time()*1000),"location":"calibrate.py:fit_calibrators","message":msg,"data":data,"hypothesisId":hyp}) + "\n")
+        except Exception:
+            pass
+    _dbg("FIT_CALIBRATORS_ENTRY", {"min_cal_minutes": _MIN_CAL_MINUTES, "total_oof_rows": len(oof)}, "H-B")
+    # #endregion agent log
     if "calibration_eligible" in oof.columns:
         oof_eligible = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
     else:
@@ -251,6 +298,66 @@ def fit_calibrators(
     print(f"[calibrate] Total eligible rows before DNP filter: {_pre_dnp_n:,}")
     print(f"[calibrate] has_did_play={_has_did_play} has_actual_minutes={_has_actual_minutes}")
     print(f"[calibrate] After DNP/low-min filter: {_post_dnp_n:,} rows (removed {_pre_dnp_n - _post_dnp_n:,})")
+    # Prop-eligible calibration filter: exclude bench/fringe players the model
+    # projects near-zero output for. Calibrators must match the distribution they
+    # are applied to in production (prop-eligible starters + core only).
+    # Including bench fringe rows creates a "false balance": aggregate mean_pit ≈ 0.49
+    # masks severe miscalibration for starters (mean_pit 0.58–0.74), causing isotonic
+    # calibrators to compress starter means by ~46% (PTS: 8.96 → 4.86, actual 9.32).
+    _PROP_ELIGIBLE_PMF_MIN: dict[str, float] = {
+        "pts":      4.0,
+        "reb":      1.5,
+        "ast":      0.8,
+        "fg3m":     0.25,
+        "stl":      0.25,
+        "blk":      0.15,
+        "turnover": 0.5,
+        "stocks":   0.4,
+        "pts_ast":  5.0,
+        "pts_reb":  5.5,
+        "reb_ast":  2.3,
+        "pts_reb_ast": 6.0,
+    }
+    if "pmf_mean" in oof_eligible.columns and "stat" in oof_eligible.columns:
+        _pre_prop_n = len(oof_eligible)
+        _prop_masks = []
+        for _sname, _pfloor in _PROP_ELIGIBLE_PMF_MIN.items():
+            _prop_masks.append(
+                (oof_eligible["stat"] == _sname) & (oof_eligible["pmf_mean"] >= _pfloor)
+            )
+        _unknown_stats = ~oof_eligible["stat"].isin(_PROP_ELIGIBLE_PMF_MIN.keys())
+        _combined = _unknown_stats.copy()
+        for _m in _prop_masks:
+            _combined = _combined | _m
+        oof_eligible = oof_eligible[_combined].copy()
+        _post_prop_n = len(oof_eligible)
+        print(f"[calibrate] Prop-eligible filter: {_pre_prop_n:,} → {_post_prop_n:,} rows (removed {_pre_prop_n - _post_prop_n:,} bench/fringe rows)")
+        # #region agent log
+        import time as _tprop, json as _jprop
+        _DBG_PROP = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+        _prop_by_stat = {}
+        for _s2 in ["pts","reb","ast","fg3m","stl","blk"]:
+            _ss2 = oof_eligible[oof_eligible["stat"]==_s2].dropna(subset=["pmf_mean","actual_outcome"]) if "stat" in oof_eligible.columns else oof_eligible.iloc[0:0]
+            if len(_ss2) > 0:
+                _prop_by_stat[_s2] = {"n": len(_ss2), "pmf_mean": round(float(_ss2["pmf_mean"].mean()),3), "actual": round(float(_ss2["actual_outcome"].mean()),3)}
+        try:
+            with open(_DBG_PROP, "a") as _fdbg:
+                _fdbg.write(_jprop.dumps({"sessionId":"3f8dcc","timestamp":int(_tprop.time()*1000),"location":"calibrate.py:prop_eligible_filter","message":"POST_PROP_FILTER","data":{"pre_n":_pre_prop_n,"post_n":_post_prop_n,"by_stat":_prop_by_stat},"hypothesisId":"H-C"}) + "\n")
+        except Exception:
+            pass
+        # #endregion agent log
+    # #region agent log
+    _bias_by_stat = {}
+    _pmf_floor_counts = {}
+    if "stat" in oof_eligible.columns and "pmf_mean" in oof_eligible.columns and "actual_outcome" in oof_eligible.columns:
+        for _s in ["pts","reb","ast","fg3m","stl","blk"]:
+            _ss = oof_eligible[oof_eligible["stat"]==_s].dropna(subset=["pmf_mean","actual_outcome"])
+            if len(_ss) > 0:
+                _bias_by_stat[_s] = {"n": len(_ss), "pmf_mean": round(float(_ss["pmf_mean"].mean()),3), "actual": round(float(_ss["actual_outcome"].mean()),3), "bias_pct": round((float(_ss["pmf_mean"].mean())-float(_ss["actual_outcome"].mean()))/max(float(_ss["actual_outcome"].mean()),0.01)*100,1)}
+                _pmf_floor_counts[_s] = {"n_above_4": int((_ss["pmf_mean"]>=4.0).sum()) if _s=="pts" else int((_ss["pmf_mean"]>=1.0).sum())}
+    _dbg("POST_DNP_FILTER_BIAS", {"pre_n": _pre_dnp_n, "post_n": _post_dnp_n, "min_cal_minutes": _MIN_CAL_MINUTES, "by_stat": _bias_by_stat}, "H-A")
+    _dbg("PMF_FLOOR_PREVIEW", {"counts_above_prop_floor": _pmf_floor_counts}, "H-C")
+    # #endregion agent log
     if _has_actual_minutes and _post_dnp_n > 0:
         for _stat in ["pts", "reb", "ast"]:
             _sub = oof_eligible[oof_eligible["stat"] == _stat] if "stat" in oof_eligible.columns else oof_eligible
@@ -281,6 +388,60 @@ def fit_calibrators(
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    # Per-stat multiplicative mean bias correction.
+    # Isotonic regression corrects PMF *shape* (PIT uniformity) but is unreliable
+    # for correcting global *level* bias. We separate these: first shift the mean
+    # by a multiplicative factor (ratio of actual to model mean on prop-eligible OOF),
+    # then let isotonic correct residual shape. This prevents the calibrator from
+    # over-correcting the tails to compensate for a mean shift.
+    _bias_corrections: dict[str, float] = {}
+    for _bc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
+        _bc_sub = oof_eligible[oof_eligible["stat"] == _bc_stat].dropna(
+            subset=["pmf_mean", "actual_outcome"]
+        )
+        if len(_bc_sub) < 200:
+            logger.warning("[calibrate] Too few rows (%d) for bias correction stat=%s; using 1.0", len(_bc_sub), _bc_stat)
+            _bias_corrections[_bc_stat] = 1.0
+            continue
+        _model_mean_bc = float(_bc_sub["pmf_mean"].mean())
+        _actual_mean_bc = float(_bc_sub["actual_outcome"].mean())
+        if _model_mean_bc > 0.01:
+            _raw_ratio = _actual_mean_bc / _model_mean_bc
+            # Cap correction to ±40% to prevent runaway corrections on thin stats
+            _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.60, 1.40))
+        else:
+            _bias_corrections[_bc_stat] = 1.0
+    (out / "bias_corrections.json").write_text(json.dumps(_bias_corrections, indent=2))
+    print(f"[calibrate] Bias corrections saved: { {k: round(v,3) for k,v in _bias_corrections.items()} }")
+    # #region agent log
+    try:
+        import time as _tprop_bc, json as _jprop_bc
+        _DBG_PROP_BC = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+        with open(_DBG_PROP_BC, "a") as _fdbg2:
+            _fdbg2.write(_jprop_bc.dumps({"sessionId":"3f8dcc","timestamp":int(_tprop_bc.time()*1000),"location":"calibrate.py:bias_corrections","message":"BIAS_CORRECTIONS_COMPUTED","data":{"corrections":{k:round(v,4) for k,v in _bias_corrections.items()}},"hypothesisId":"H-D"}) + "\n")
+    except Exception:
+        pass
+    # #endregion agent log
+
+    # Apply bias corrections to OOF PMFs BEFORE fitting isotonic calibrators.
+    # This aligns the calibrator training distribution with inference distribution
+    # (in apply_calibrators, bias correction is applied before isotonic calibration).
+    # Without this, there is a training/inference mismatch: calibrators trained on
+    # original PMFs would see bias-corrected PMFs at inference, producing wrong mappings.
+    if any(abs(v - 1.0) > 0.005 for v in _bias_corrections.values()):
+        _bc_pmf_jsons = []
+        for _bcr_idx, _bcr_row in oof_eligible.iterrows():
+            _bc_alpha = _bias_corrections.get(str(_bcr_row.get("stat", "")), 1.0)
+            if abs(_bc_alpha - 1.0) > 0.005 and pd.notna(_bcr_row.get("pmf_json")):
+                _bc_pmf = _apply_mean_bias_correction(json_to_pmf(_bcr_row["pmf_json"]), _bc_alpha)
+                _bc_pmf_jsons.append(pmf_to_json(_bc_pmf))
+            else:
+                _bc_pmf_jsons.append(_bcr_row.get("pmf_json"))
+        oof_eligible = oof_eligible.copy()
+        oof_eligible["pmf_json"] = _bc_pmf_jsons
+        oof_eligible["pmf"] = oof_eligible["pmf_json"].map(json_to_pmf)
+        print(f"[calibrate] Applied bias corrections to {len(oof_eligible):,} OOF PMFs for calibrator training alignment")
+
     paths = {}
     for stat in sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS)):
         cal = fit_role_aware_calibrator(oof_eligible, stat)
@@ -369,8 +530,26 @@ def apply_calibrators(
     is_calibrated=False and cal_source='no_calibrator'.
     """
     cal_dir = Path(cal_dir)
+    # Load per-stat multiplicative mean bias corrections (computed during fit_calibrators)
+    _bias_path_ac = cal_dir / "bias_corrections.json"
+    _bias_corrections_ac: dict[str, float] = {}
+    if _bias_path_ac.exists():
+        try:
+            _bias_corrections_ac = json.loads(_bias_path_ac.read_text())
+        except Exception as exc_bc:
+            logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc_bc)
     out = pmfs_df.copy()
     calibrators: dict[str, RoleAwarePMFCalibrator] = {}
+    # #region agent log
+    import time as _time_dbg2, json as _json_dbg2
+    _DBG_LOG2 = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+    _bias_corrections_exist = (cal_dir / "bias_corrections.json").exists()
+    try:
+        with open(_DBG_LOG2, "a") as _f2:
+            _f2.write(_json_dbg2.dumps({"sessionId":"3f8dcc","timestamp":int(_time_dbg2.time()*1000),"location":"calibrate.py:apply_calibrators","message":"APPLY_CALIBRATORS_ENTRY","data":{"cal_dir":str(cal_dir),"bias_corrections_json_exists":_bias_corrections_exist,"n_rows":len(pmfs_df)},"hypothesisId":"H-D"}) + "\n")
+    except Exception:
+        pass
+    # #endregion agent log
 
     for stat in out["stat"].unique():
         cal_path = cal_dir / f"pmf_cal_role_{stat}.pkl"
@@ -386,6 +565,11 @@ def apply_calibrators(
         role = str(row.get("role_bucket", "unknown"))
         player_id = row.get("player_id", None)
         raw_pmf = json_to_pmf(row["pmf_json"])
+
+        # Apply multiplicative mean bias correction before isotonic shape calibration
+        _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
+        if abs(_alpha_ac - 1.0) > 0.005:
+            raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac)
 
         if stat in calibrators:
             try:

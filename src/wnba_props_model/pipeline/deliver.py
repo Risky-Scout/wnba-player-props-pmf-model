@@ -179,6 +179,27 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.DataFrame:
+    # Game_ID integrity guard: projections and market props must share game_ids.
+    # Mismatch means market data is from a different slate — producing 100% artificial edges.
+    if "game_id" in pmfs.columns and "game_id" in raw_props.columns:
+        _proj_ids = set(pmfs["game_id"].dropna().unique())
+        _market_ids = set(raw_props["game_id"].dropna().unique())
+        _shared_ids = _proj_ids & _market_ids
+        if not _shared_ids:
+            import logging as _logging_gid  # noqa: PLC0415
+            _logger_gid = _logging_gid.getLogger(__name__)
+            _logger_gid.error(
+                "GAME_ID MISMATCH: projections have game_ids=%s but market props have game_ids=%s. "
+                "Different slates — returning empty DataFrame to prevent artificial edges.",
+                _proj_ids, _market_ids,
+            )
+            return pd.DataFrame()
+        pmfs = pmfs[pmfs["game_id"].isin(_shared_ids)].copy()
+        raw_props = raw_props[raw_props["game_id"].isin(_shared_ids)].copy()
+        import logging as _logging_gid2  # noqa: PLC0415
+        _logging_gid2.getLogger(__name__).info(
+            "[deliver] Game_ID guard: %d shared game_ids %s", len(_shared_ids), _shared_ids
+        )
     props = normalize_player_props_snapshot(raw_props)
 
     # Guard: nothing to compare if props normalisation produced no rows

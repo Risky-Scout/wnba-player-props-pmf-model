@@ -8,6 +8,11 @@ Generative model:
 
 This captures both shot-volume uncertainty (fg3a) and shot-rate uncertainty
 (fg3_pct) explicitly, rather than lumping both into a single NegBinom mean.
+
+Leakage audit (STEP F): No rolling windows are computed in this file. All
+features in X are pre-shifted via _sr() in build_features.py before being
+passed here. y_made and y_attempts are training labels (actual game outcomes),
+which is correct. No shift(1) changes needed here.
 """
 from __future__ import annotations
 

@@ -210,6 +210,54 @@ jobs:
             --out-dir data/processed
         continue-on-error: true
 
+      - name: Validate data pipeline integrity
+        run: |
+          source .venv/bin/activate 2>/dev/null || true
+          python3 - << 'PYEOF'
+          import pandas as pd, sys, json
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          all_ok = True
+
+          proj_path = Path("deliveries/tonight/full_pmfs_wide.parquet")
+          props_path = Path("data/processed/wnba_player_props.parquet")
+          if proj_path.exists() and props_path.exists():
+              proj = pd.read_parquet(proj_path)
+              props = pd.read_parquet(props_path)
+              proj_ids = set(proj["game_id"].dropna().unique()) if "game_id" in proj.columns else set()
+              props_ids = set(props["game_id"].dropna().unique()) if "game_id" in props.columns else set()
+              shared = proj_ids & props_ids
+              if not shared and proj_ids and props_ids:
+                  print(f"WARN: game_id mismatch: proj={proj_ids} market={props_ids} — edges will be empty", flush=True)
+              else:
+                  print(f"OK: game_ids shared={shared}", flush=True)
+          else:
+              print("INFO: parquet files not both present yet — skipping game_id check", flush=True)
+
+          meta_path = Path("artifacts/models/calibration/calibration_metadata.json")
+          if meta_path.exists():
+              meta = json.loads(meta_path.read_text())
+              fitted_at = datetime.fromisoformat(meta["fitted_at"].replace("Z", "+00:00"))
+              age_days = (datetime.now(timezone.utc) - fitted_at).days
+              if age_days > 14:
+                  print(f"WARN: calibrators are {age_days} days old — consider triggering weekly_calibration", flush=True)
+              else:
+                  print(f"OK: calibrators age {age_days} days", flush=True)
+          else:
+              print("INFO: calibration_metadata.json not found — calibrators may not be fitted", flush=True)
+
+          if proj_path.exists():
+              proj = pd.read_parquet(proj_path)
+              if len(proj) < 10:
+                  print(f"FAIL: only {len(proj)} projection rows — pipeline likely failed", file=sys.stderr, flush=True)
+                  sys.exit(1)
+              print(f"OK: {len(proj)} projection rows", flush=True)
+
+          print("Pipeline integrity check complete.", flush=True)
+          PYEOF
+        continue-on-error: true
+
       - name: Build final edge report
         run: |
           python scripts/build_edge_report.py \

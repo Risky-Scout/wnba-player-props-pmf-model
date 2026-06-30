@@ -1112,6 +1112,37 @@ def _build_player_features(
             df[f"player_{col}_l5_support"] = _sr(_a_grp, 5, agg="count")
             df = df.drop(columns=[f"_adv_{col}"], errors="ignore")
 
+    # ── Signal-maximizing features (added for prop-edge extraction) ──────────
+    # 1. Rest days (days since last game) — affects minutes and efficiency
+    if "game_date" in df.columns:
+        df["rest_days"] = (
+            df.sort_values("game_date")
+            .groupby("player_id")["game_date"]
+            .transform(lambda x: (pd.to_datetime(x) - pd.to_datetime(x).shift(1)).dt.days.clip(1, 14))
+        )
+        df["is_back_to_back"] = (df["rest_days"] == 1).astype(float)
+
+    # 2. Season game number and segment
+    if "season" in df.columns:
+        df["season_game_number"] = df.groupby(["player_id", "season"]).cumcount()
+        df["season_segment"] = pd.cut(
+            df["season_game_number"], bins=[0, 10, 25, 999], labels=[0, 1, 2], right=True
+        ).astype(float)
+
+    # 3. Momentum: player's L3 trend vs season average (hot streak indicator)
+    if "pts" in df.columns:
+        _pts_grp = df.sort_values("game_date").groupby("player_id")["pts"]
+        _l3 = _pts_grp.transform(lambda x: x.shift(1).rolling(3, min_periods=2).mean())
+        _l20 = _pts_grp.transform(lambda x: x.shift(1).rolling(20, min_periods=5).mean())
+        df["pts_momentum_l3_vs_l20"] = (_l3 / _l20.clip(lower=0.5) - 1.0).clip(-1.0, 2.0)
+
+    # 4. Opponent defensive rating proxy (pts allowed L5)
+    if "team_pts_allowed" in df.columns and "opponent_team_id" in df.columns:
+        _opp_grp = df.sort_values("game_date").groupby(["opponent_team_id", "season"])["team_pts_allowed"]
+        df["opp_def_pts_allowed_l5"] = _opp_grp.transform(
+            lambda x: x.shift(1).rolling(5, min_periods=2).mean()
+        )
+
     # Defragment DataFrame before returning — avoids PerformanceWarning downstream
     return df.copy()
 
