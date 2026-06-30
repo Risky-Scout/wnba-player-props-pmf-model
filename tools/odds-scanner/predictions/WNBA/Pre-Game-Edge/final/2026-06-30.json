@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-06-30T22:49:41Z",
+  "generated_at": "2026-06-30T23:03:56Z",
   "game_date": "2026-06-30",
   "pipeline_run": "pregame_final",
   "model_version": "hgb_v2.3.1_idr_beta_conformal",
@@ -27,8 +27,8 @@
       "sanity_checks": {
         "sanity_status": "RED",
         "model_vs_sharpest": {
-          "assists_gap_pp": 0.0785,
-          "threes_gap_pp": -0.0682,
+          "assists_gap_pp": 0.0905,
+          "threes_gap_pp": -0.0717,
           "rebounds_gap_pp": 0.1014,
           "points_gap_pp": 0.1741
         },
@@ -37,21 +37,21 @@
             "assists_line": 5.5,
             "threes_line": 0.5,
             "rebounds_line": 3.5,
-            "pra_line": 15.5,
+            "pra_line": 14.5,
             "points_line": 9.5,
             "ra_line": 6.5,
-            "pa_line": 8.5,
-            "pr_line": 23.5
+            "pa_line": 11.5,
+            "pr_line": 12.5
           },
           "vig": {
-            "assists": 0.0705,
-            "threes": 0.0727,
+            "assists": 0.0711,
+            "threes": 0.0736,
             "rebounds": 0.0641,
-            "pra": 0.0614,
+            "pra": 0.0768,
             "points": 0.0652,
             "ra": 0.0766,
-            "pa": 0.0755,
-            "pr": 0.0702
+            "pa": 0.0758,
+            "pr": 0.0755
           }
         }
       },
@@ -105,15 +105,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 14.5,
-                "p_over": 0.6038,
+                "p_over": 0.6059,
                 "p_over_model": 0.6641,
-                "p_under": 0.3962,
-                "edge_vs_market": 0.1501,
-                "kelly_fraction": 0.0411,
+                "p_under": 0.3941,
+                "edge_vs_market": 0.145,
+                "kelly_fraction": 0.0402,
                 "market_source": "odds_api_v4",
                 "market_vendor": "betonlineag",
-                "market_over_odds": 106,
-                "market_under_odds": -137,
+                "market_over_odds": 103,
+                "market_under_odds": -133,
                 "kelly_portfolio": 0.0001
               }
             },
@@ -137,16 +137,16 @@
               ],
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.7578,
+                "p_over": 0.7588,
                 "p_over_model": 0.855,
-                "p_under": 0.2422,
-                "edge_vs_market": 0.3412,
-                "kelly_fraction": 0.1917,
+                "p_under": 0.2412,
+                "edge_vs_market": 0.3379,
+                "kelly_fraction": 0.1913,
                 "market_source": "odds_api_v4",
                 "market_vendor": "draftkings",
-                "market_over_odds": 120,
-                "market_under_odds": -164,
-                "kelly_portfolio": 0.0006
+                "market_over_odds": 118,
+                "market_under_odds": -161,
+                "kelly_portfolio": 0.0007
               }
             },
             "assists": {
@@ -1193,15 +1193,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 10.5,
-                "p_over": 0.6222,
+                "p_over": 0.6208,
                 "p_over_model": 0.6776,
-                "p_under": 0.3778,
-                "edge_vs_market": 0.1397,
-                "kelly_fraction": 0.0415,
+                "p_under": 0.3792,
+                "edge_vs_market": 0.1434,
+                "kelly_fraction": 0.0421,
                 "market_source": "odds_api_v4",
-                "market_vendor": "fanduel",
-                "market_over_odds": -106,
-                "market_under_odds": -122,
+                "market_vendor": "draftkings",
+                "market_over_odds": -105,
+                "market_under_odds": -126,
                 "kelly_portfolio": 0.0001
               }
             },
@@ -1504,16 +1504,16 @@
               ],
               "calibrated_p_over": {
                 "market_line": 15.5,
-                "p_over": 0.4675,
+                "p_over": 0.4691,
                 "p_over_model": 0.4675,
-                "p_under": 0.5325,
-                "edge_vs_market": 0.0001,
-                "kelly_fraction": 0.0,
+                "p_under": 0.5309,
+                "edge_vs_market": -0.0037,
+                "kelly_fraction": 0.0012,
                 "market_source": "odds_api_v4",
-                "market_vendor": "fanduel",
-                "market_over_odds": 100,
-                "market_under_odds": -130,
-                "kelly_portfolio": null
+                "market_vendor": "betonlineag",
+                "market_over_odds": -102,
+                "market_under_odds": -127,
+                "kelly_portfolio": 0.0
               }
             },
             "rebounds": {
@@ -1545,7 +1545,7 @@
                 "market_vendor": "williamhill_us",
                 "market_over_odds": -113,
                 "market_under_odds": -118,
-                "kelly_portfolio": 0.0007
+                "kelly_portfolio": 0.0003
               }
             },
             "assists": {
@@ -1575,7 +1575,7 @@
                 "market_vendor": "betonlineag",
                 "market_over_odds": -111,
                 "market_under_odds": -116,
-                "kelly_portfolio": 0.0017
+                "kelly_portfolio": 0.0008
               }
             },
             "threes": {
@@ -1597,16 +1597,16 @@
               ],
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.7017,
+                "p_over": 0.7006,
                 "p_over_model": 0.7573,
-                "p_under": 0.2983,
-                "edge_vs_market": 0.1527,
-                "kelly_fraction": 0.1693,
+                "p_under": 0.2994,
+                "edge_vs_market": 0.1558,
+                "kelly_fraction": 0.1711,
                 "market_source": "odds_api_v4",
                 "market_vendor": "fanduel",
-                "market_over_odds": -140,
-                "market_under_odds": 106,
-                "kelly_portfolio": 0.0011
+                "market_over_odds": -138,
+                "market_under_odds": 104,
+                "kelly_portfolio": 0.0006
               }
             },
             "steals": {
@@ -2126,15 +2126,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 6.5,
-                "p_over": 0.5498,
+                "p_over": 0.5447,
                 "p_over_model": 0.5873,
-                "p_under": 0.4502,
-                "edge_vs_market": 0.0889,
-                "kelly_fraction": 0.0281,
+                "p_under": 0.4553,
+                "edge_vs_market": 0.1008,
+                "kelly_fraction": 0.0309,
                 "market_source": "odds_api_v4",
                 "market_vendor": "betonlineag",
-                "market_over_odds": 103,
-                "market_under_odds": -133,
+                "market_over_odds": 110,
+                "market_under_odds": -143,
                 "kelly_portfolio": 0.0001
               }
             },
@@ -2157,17 +2157,17 @@
                 15.0
               ],
               "calibrated_p_over": {
-                "market_line": 3.5,
-                "p_over": 0.6636,
-                "p_over_model": 0.749,
-                "p_under": 0.3364,
-                "edge_vs_market": 0.2348,
-                "kelly_fraction": 0.1444,
+                "market_line": 4.5,
+                "p_over": 0.6364,
+                "p_over_model": 0.6879,
+                "p_under": 0.3636,
+                "edge_vs_market": 0.1309,
+                "kelly_fraction": 0.093,
                 "market_source": "odds_api_v4",
                 "market_vendor": "betonlineag",
-                "market_over_odds": 117,
-                "market_under_odds": -152,
-                "kelly_portfolio": 0.0005
+                "market_over_odds": -116,
+                "market_under_odds": -111,
+                "kelly_portfolio": 0.0003
               }
             },
             "assists": {
@@ -2188,15 +2188,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.6436,
+                "p_over": 0.6408,
                 "p_over_model": 0.7434,
-                "p_under": 0.3564,
-                "edge_vs_market": 0.2691,
-                "kelly_fraction": 0.2151,
+                "p_under": 0.3592,
+                "edge_vs_market": 0.2757,
+                "kelly_fraction": 0.2171,
                 "market_source": "odds_api_v4",
                 "market_vendor": "betonlineag",
-                "market_over_odds": 146,
-                "market_under_odds": -192,
+                "market_over_odds": 152,
+                "market_under_odds": -200,
                 "kelly_portfolio": 0.0007
               }
             },
@@ -3255,7 +3255,7 @@
                 "market_vendor": "draftkings",
                 "market_over_odds": 105,
                 "market_under_odds": -143,
-                "kelly_portfolio": 0.0005
+                "kelly_portfolio": 0.0006
               }
             },
             "assists": {
@@ -3525,15 +3525,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 6.5,
-                "p_over": 0.4565,
+                "p_over": 0.4612,
                 "p_over_model": 0.4586,
-                "p_under": 0.5435,
-                "edge_vs_market": 0.0049,
-                "kelly_fraction": 0.0015,
+                "p_under": 0.5388,
+                "edge_vs_market": -0.0062,
+                "kelly_fraction": 0.0023,
                 "market_source": "odds_api_v4",
-                "market_vendor": "williamhill_us",
-                "market_over_odds": 107,
-                "market_under_odds": -138,
+                "market_vendor": "fanduel",
+                "market_over_odds": 100,
+                "market_under_odds": -130,
                 "kelly_portfolio": 0.0
               }
             },
@@ -3605,15 +3605,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.5054,
+                "p_over": 0.5048,
                 "p_over_model": 0.5013,
-                "p_under": 0.4946,
-                "edge_vs_market": -0.0095,
-                "kelly_fraction": 0.0092,
+                "p_under": 0.4952,
+                "edge_vs_market": -0.008,
+                "kelly_fraction": 0.0078,
                 "market_source": "odds_api_v4",
                 "market_vendor": "draftkings",
-                "market_over_odds": -124,
-                "market_under_odds": -110,
+                "market_over_odds": -123,
+                "market_under_odds": -111,
                 "kelly_portfolio": 0.0001
               }
             },
@@ -4396,12 +4396,12 @@
                 "p_over": 0.0176,
                 "p_over_model": 0.0031,
                 "p_under": 0.9824,
-                "edge_vs_market": -0.4955,
+                "edge_vs_market": -0.4943,
                 "kelly_fraction": 0.1978,
                 "market_source": "odds_api_v4",
-                "market_vendor": "betonlineag",
-                "market_over_odds": -120,
-                "market_under_odds": -108,
+                "market_vendor": "draftkings",
+                "market_over_odds": -121,
+                "market_under_odds": -110,
                 "kelly_portfolio": 0.0013
               }
             },
@@ -4473,15 +4473,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 0.5,
-                "p_over": 0.2327,
+                "p_over": 0.2336,
                 "p_over_model": 0.1236,
-                "p_under": 0.7673,
-                "edge_vs_market": -0.4114,
+                "p_under": 0.7664,
+                "edge_vs_market": -0.4141,
                 "kelly_fraction": 0.25,
                 "market_source": "odds_api_v4",
                 "market_vendor": "draftkings",
-                "market_over_odds": -213,
-                "market_under_odds": 155,
+                "market_over_odds": -217,
+                "market_under_odds": 157,
                 "kelly_portfolio": 0.0017
               }
             },
@@ -6569,15 +6569,15 @@
               ],
               "calibrated_p_over": {
                 "market_line": 8.5,
-                "p_over": 0.5645,
+                "p_over": 0.5658,
                 "p_over_model": 0.5862,
-                "p_under": 0.4355,
-                "edge_vs_market": 0.0514,
-                "kelly_fraction": 0.018,
+                "p_under": 0.4342,
+                "edge_vs_market": 0.0483,
+                "kelly_fraction": 0.0171,
                 "market_source": "odds_api_v4",
                 "market_vendor": "fanduel",
-                "market_over_odds": -120,
-                "market_under_odds": -108,
+                "market_over_odds": -122,
+                "market_under_odds": -106,
                 "kelly_portfolio": 0.0001
               }
             },
