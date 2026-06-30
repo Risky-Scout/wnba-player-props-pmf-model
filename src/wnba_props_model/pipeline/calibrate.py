@@ -262,18 +262,6 @@ def fit_calibrators(
     # causing severe under-prediction vs the market in live delivery.
     _MIN_CAL_MINUTES = 10  # prop-eligibility floor: only games where player played >=10 min
                            # (filters bench/fringe games that contaminate calibration training)
-    # #region agent log
-    import time as _time_dbg
-    _DBG_LOG = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-    def _dbg(msg: str, data: dict, hyp: str) -> None:
-        import json as _json_dbg
-        try:
-            with open(_DBG_LOG, "a") as _f:
-                _f.write(_json_dbg.dumps({"sessionId":"3f8dcc","timestamp":int(_time_dbg.time()*1000),"location":"calibrate.py:fit_calibrators","message":msg,"data":data,"hypothesisId":hyp}) + "\n")
-        except Exception:
-            pass
-    _dbg("FIT_CALIBRATORS_ENTRY", {"min_cal_minutes": _MIN_CAL_MINUTES, "total_oof_rows": len(oof)}, "H-B")
-    # #endregion agent log
     if "calibration_eligible" in oof.columns:
         oof_eligible = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
     else:
@@ -332,32 +320,6 @@ def fit_calibrators(
         oof_eligible = oof_eligible[_combined].copy()
         _post_prop_n = len(oof_eligible)
         print(f"[calibrate] Prop-eligible filter: {_pre_prop_n:,} → {_post_prop_n:,} rows (removed {_pre_prop_n - _post_prop_n:,} bench/fringe rows)")
-        # #region agent log
-        import time as _tprop, json as _jprop
-        _DBG_PROP = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-        _prop_by_stat = {}
-        for _s2 in ["pts","reb","ast","fg3m","stl","blk"]:
-            _ss2 = oof_eligible[oof_eligible["stat"]==_s2].dropna(subset=["pmf_mean","actual_outcome"]) if "stat" in oof_eligible.columns else oof_eligible.iloc[0:0]
-            if len(_ss2) > 0:
-                _prop_by_stat[_s2] = {"n": len(_ss2), "pmf_mean": round(float(_ss2["pmf_mean"].mean()),3), "actual": round(float(_ss2["actual_outcome"].mean()),3)}
-        try:
-            with open(_DBG_PROP, "a") as _fdbg:
-                _fdbg.write(_jprop.dumps({"sessionId":"3f8dcc","timestamp":int(_tprop.time()*1000),"location":"calibrate.py:prop_eligible_filter","message":"POST_PROP_FILTER","data":{"pre_n":_pre_prop_n,"post_n":_post_prop_n,"by_stat":_prop_by_stat},"hypothesisId":"H-C"}) + "\n")
-        except Exception:
-            pass
-        # #endregion agent log
-    # #region agent log
-    _bias_by_stat = {}
-    _pmf_floor_counts = {}
-    if "stat" in oof_eligible.columns and "pmf_mean" in oof_eligible.columns and "actual_outcome" in oof_eligible.columns:
-        for _s in ["pts","reb","ast","fg3m","stl","blk"]:
-            _ss = oof_eligible[oof_eligible["stat"]==_s].dropna(subset=["pmf_mean","actual_outcome"])
-            if len(_ss) > 0:
-                _bias_by_stat[_s] = {"n": len(_ss), "pmf_mean": round(float(_ss["pmf_mean"].mean()),3), "actual": round(float(_ss["actual_outcome"].mean()),3), "bias_pct": round((float(_ss["pmf_mean"].mean())-float(_ss["actual_outcome"].mean()))/max(float(_ss["actual_outcome"].mean()),0.01)*100,1)}
-                _pmf_floor_counts[_s] = {"n_above_4": int((_ss["pmf_mean"]>=4.0).sum()) if _s=="pts" else int((_ss["pmf_mean"]>=1.0).sum())}
-    _dbg("POST_DNP_FILTER_BIAS", {"pre_n": _pre_dnp_n, "post_n": _post_dnp_n, "min_cal_minutes": _MIN_CAL_MINUTES, "by_stat": _bias_by_stat}, "H-A")
-    _dbg("PMF_FLOOR_PREVIEW", {"counts_above_prop_floor": _pmf_floor_counts}, "H-C")
-    # #endregion agent log
     if _has_actual_minutes and _post_dnp_n > 0:
         for _stat in ["pts", "reb", "ast"]:
             _sub = oof_eligible[oof_eligible["stat"] == _stat] if "stat" in oof_eligible.columns else oof_eligible
@@ -413,15 +375,6 @@ def fit_calibrators(
             _bias_corrections[_bc_stat] = 1.0
     (out / "bias_corrections.json").write_text(json.dumps(_bias_corrections, indent=2))
     print(f"[calibrate] Bias corrections saved: { {k: round(v,3) for k,v in _bias_corrections.items()} }")
-    # #region agent log
-    try:
-        import time as _tprop_bc, json as _jprop_bc
-        _DBG_PROP_BC = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-        with open(_DBG_PROP_BC, "a") as _fdbg2:
-            _fdbg2.write(_jprop_bc.dumps({"sessionId":"3f8dcc","timestamp":int(_tprop_bc.time()*1000),"location":"calibrate.py:bias_corrections","message":"BIAS_CORRECTIONS_COMPUTED","data":{"corrections":{k:round(v,4) for k,v in _bias_corrections.items()}},"hypothesisId":"H-D"}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
 
     # Apply bias corrections to OOF PMFs BEFORE fitting isotonic calibrators.
     # This aligns the calibrator training distribution with inference distribution
@@ -540,16 +493,6 @@ def apply_calibrators(
             logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc_bc)
     out = pmfs_df.copy()
     calibrators: dict[str, RoleAwarePMFCalibrator] = {}
-    # #region agent log
-    import time as _time_dbg2, json as _json_dbg2
-    _DBG_LOG2 = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-    _bias_corrections_exist = (cal_dir / "bias_corrections.json").exists()
-    try:
-        with open(_DBG_LOG2, "a") as _f2:
-            _f2.write(_json_dbg2.dumps({"sessionId":"3f8dcc","timestamp":int(_time_dbg2.time()*1000),"location":"calibrate.py:apply_calibrators","message":"APPLY_CALIBRATORS_ENTRY","data":{"cal_dir":str(cal_dir),"bias_corrections_json_exists":_bias_corrections_exist,"n_rows":len(pmfs_df)},"hypothesisId":"H-D"}) + "\n")
-    except Exception:
-        pass
-    # #endregion agent log
 
     for stat in out["stat"].unique():
         cal_path = cal_dir / f"pmf_cal_role_{stat}.pkl"
