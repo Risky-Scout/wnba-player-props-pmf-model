@@ -119,9 +119,11 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
     )
     props = []
     for _, r in merged.iterrows():
-        pmf_str = r.get("pmf_json", "{}") or "{}"
+        raw_pmf = r.get("pmf_json", None)
+        pmf_str = raw_pmf if isinstance(raw_pmf, str) and raw_pmf.strip() else "{}"
         pairs, mu, var, std, skew, kurt, mode_k, median_k = _parse_pmf(pmf_str)
         if not pairs:
+            print(f"  [WARN] Skipping {r.get('player_name','?')} {r.get('stat','?')} — no PMF data after merge (pmf_json={repr(raw_pmf)[:40]})")
             continue
         edge = float(r.get("edge_over", 0) or 0)
         props.append({
@@ -896,12 +898,6 @@ def main(
                                           "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
 
     # --- Build JSON ---
-    pipeline_run = "odds_refresh"
-    if "pregame_final" in (sys.argv[0] or ""):
-        pipeline_run = "pregame_final"
-    elif "pregame_initial" in (sys.argv[0] or ""):
-        pipeline_run = "pregame_initial"
-
     edge_json = _build_edge_json(edges_df, proj_df, game_date)
     pmf_json = _build_pmf_json(edges_df, proj_df, game_date)
 

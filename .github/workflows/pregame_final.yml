@@ -20,6 +20,9 @@ on:
 jobs:
   pregame_final:
     runs-on: ubuntu-latest
+    concurrency:
+      group: pregame-final-${{ github.event.inputs.game_date || 'scheduled' }}
+      cancel-in-progress: false
     permissions:
       contents: write
       actions: read
@@ -107,27 +110,39 @@ jobs:
             if [ -f "$SLATE" ]; then
               FEATURES_SRC="$SLATE"
               echo "Using slate: $FEATURES_SRC"
-            else
+            elif [ -f "data/processed/wnba_player_game_features_wide.parquet" ]; then
               FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
-              echo "Slate not found, falling back to historical features: $FEATURES_SRC"
+              echo "Using historical features: $FEATURES_SRC"
+            else
+              echo "[WARN] No features or slate found and no cached PMFs — skipping regeneration"
+              exit 0
             fi
             python scripts/predict_today.py \
               --features-wide "$FEATURES_SRC" \
               --game-date "$GAME_DATE" \
               --out-dir deliveries/tonight \
               --overrides config/player_overrides.json
+          else
+            echo "[OK] full_pmfs_wide.parquet already present — skipping regeneration"
           fi
         continue-on-error: true
 
       - name: Apply manual overrides from config/player_overrides.json (blueprint §6.1)
         run: |
+          if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
+            echo "[WARN] No PMFs available — skipping overrides application"
+            exit 0
+          fi
           SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
           if [ -f "$SLATE" ]; then
             FEATURES_SRC="$SLATE"
             echo "Using slate: $FEATURES_SRC"
-          else
+          elif [ -f "data/processed/wnba_player_game_features_wide.parquet" ]; then
             FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
-            echo "Slate not found, falling back to historical features: $FEATURES_SRC"
+            echo "Using historical features: $FEATURES_SRC"
+          else
+            echo "[WARN] No features found — skipping overrides application"
+            exit 0
           fi
           python scripts/predict_today.py \
             --features-wide "$FEATURES_SRC" \

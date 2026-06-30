@@ -42,7 +42,7 @@ jobs:
         id: schedule_check
         run: |
           GAMES_TODAY=$(curl -sf \
-            "https://api.balldontlie.io/v1/wnba/games?dates[]=$(date -u +%Y-%m-%d)&per_page=1" \
+            "https://api.balldontlie.io/wnba/v1/games?dates[]=$(date -u +%Y-%m-%d)&per_page=1" \
             -H "Authorization: ${{ secrets.BDL_API_KEY }}" \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('data') and len(d['data'])>0 else 'false')" \
             2>/dev/null || echo "false")
@@ -72,6 +72,7 @@ jobs:
 
       - name: Find active WNBA games
         id: find_games
+        if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           python scripts/find_live_games.py \
             --out-dir artifacts/live
@@ -245,17 +246,6 @@ jobs:
                   games.append(json.loads(gf.read_text()))
               except Exception:
                   pass
-
-          # Also write the canonical index.html if it doesn't exist
-          html_path = out / "index.html"
-          if not html_path.exists():
-              # Bootstrap with a minimal redirect that loads live page
-              html_path.write_text(
-                  '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-                  '<title>WNBA Live In-Play — WizardOfOdds</title>'
-                  '<meta http-equiv="refresh" content="0;url=index.html">'
-                  '</head><body>Loading live edge data…</body></html>'
-              )
 
           payload = {
               "schema_version": "2.0",

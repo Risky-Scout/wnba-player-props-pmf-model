@@ -29,6 +29,9 @@ on:
 jobs:
   pregame_initial:
     runs-on: ubuntu-latest
+    concurrency:
+      group: pregame-initial-${{ github.event.inputs.game_date || 'scheduled' }}
+      cancel-in-progress: false
     permissions:
       contents: write
       actions: read
@@ -109,13 +112,13 @@ jobs:
         id: date
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
-            # Manual override
-            echo "GAME_DATE=${{ github.event.inputs.game_date }}" >> $GITHUB_ENV
+            RESOLVED_DATE="${{ github.event.inputs.game_date }}"
           else
             # workflow_run or cron safety-net (both run after daily_pipeline) — use TODAY
-            echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+            RESOLVED_DATE="$(date -u +%Y-%m-%d)"
           fi
-          echo "Game date set to: $GAME_DATE"
+          echo "GAME_DATE=${RESOLVED_DATE}" >> $GITHUB_ENV
+          echo "Game date set to: ${RESOLVED_DATE}"
 
       - name: Pull BDL current-season data
         run: |
