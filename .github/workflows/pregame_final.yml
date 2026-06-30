@@ -292,6 +292,23 @@ jobs:
           destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
           keep_files: true
 
+      - name: Generate Distributions page (combined Edges + PMF)
+        run: |
+          python scripts/generate_distributions_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir tools/odds-scanner/predictions/WNBA
+          echo "Distributions page generated for ${GAME_DATE}"
+        continue-on-error: true
+
+      - name: Publish Distributions page to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
+          keep_files: true
+
       - name: Upload final artifact
         uses: actions/upload-artifact@v4
         with:
@@ -301,4 +318,5 @@ jobs:
             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
             tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/
             tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
+            tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
           retention-days: 30

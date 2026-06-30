@@ -16,14 +16,18 @@ on:
         description: 'Specific game ID(s) to track (space-separated). Leave empty to auto-detect.'
         required: false
         default: ''
+      game_ids:
+        description: 'Space-separated game IDs passed by self-chain. Skips BDL discovery.'
+        required: false
+        default: ''
       duration_minutes:
-        description: 'How long to track in minutes (default 150)'
+        description: 'How long to track in minutes (default 5 for per-poll sessions)'
         required: false
-        default: '150'
+        default: '5'
       poll_interval:
-        description: 'Seconds between polls (default 15)'
+        description: 'Seconds between polls (default 5)'
         required: false
-        default: '15'
+        default: '5'
 
 jobs:
   find-games:
@@ -55,13 +59,17 @@ jobs:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
-          # If specific game_ids provided via manual trigger, use those
-          if [ -n "${{ github.event.inputs.game_id }}" ]; then
-            GAME_IDS="${{ github.event.inputs.game_id }}"
+          # If specific game_ids provided (via self-chain or manual trigger), use those
+          EXPLICIT_IDS="${{ github.event.inputs.game_ids }}"
+          if [ -z "$EXPLICIT_IDS" ]; then
+            EXPLICIT_IDS="${{ github.event.inputs.game_id }}"
+          fi
+          if [ -n "$EXPLICIT_IDS" ]; then
+            GAME_IDS="$EXPLICIT_IDS"
             echo "has_games=true" >> $GITHUB_OUTPUT
             echo "game_ids=$GAME_IDS" >> $GITHUB_OUTPUT
             echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-            echo "Using manually specified game IDs: $GAME_IDS"
+            echo "Using pre-specified game IDs: $GAME_IDS"
           else
             mkdir -p artifacts/live
             python scripts/find_live_games.py --out-dir artifacts/live
@@ -84,7 +92,7 @@ jobs:
       contents: write
       actions: read
       pages: write
-    timeout-minutes: 170
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -170,8 +178,8 @@ jobs:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
-          DURATION=${{ github.event.inputs.duration_minutes || '150' }}
-          POLL=${{ github.event.inputs.poll_interval || '15' }}
+          DURATION=${{ github.event.inputs.duration_minutes || '5' }}
+          POLL=${{ github.event.inputs.poll_interval || '5' }}
           GAME_IDS="${{ needs.find-games.outputs.game_ids }}"
 
           # Convert space-separated IDs to --game-ids arguments
@@ -266,6 +274,54 @@ jobs:
           publish_branch: gh-pages
           destination_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
           keep_files: true
+
+      - name: Publish live edges to gh-pages (In-Play/Edges canonical URL)
+        if: always()
+        run: |
+          mkdir -p tools/odds-scanner/predictions/WNBA/In-Play/Edges
+          # Mirror Inplay/Edges content to In-Play/Edges for the canonical URL
+          if [ -f "tools/odds-scanner/predictions/WNBA/Inplay/Edges/latest.json" ]; then
+            cp tools/odds-scanner/predictions/WNBA/Inplay/Edges/latest.json \
+               tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json
+          fi
+          if [ -f "tools/odds-scanner/predictions/WNBA/Inplay/Edges/index.html" ]; then
+            cp tools/odds-scanner/predictions/WNBA/Inplay/Edges/index.html \
+               tools/odds-scanner/predictions/WNBA/In-Play/Edges/index.html
+          fi
+        continue-on-error: true
+
+      - name: Publish In-Play Edges to gh-pages (canonical /In-Play/Edges/ URL)
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/In-Play/Edges
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/In-Play/Edges
+          keep_files: true
+
+      - name: Self-chain if games still active
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GAME_IDS="${{ needs.find-games.outputs.game_ids }}"
+          if [ -z "$GAME_IDS" ]; then
+            echo "No game_ids to self-chain with — skipping."
+            exit 0
+          fi
+          # Only self-chain during WNBA game hours (22:00–04:00 UTC)
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" -ge 4 ] && [ "$HOUR" -lt 22 ]; then
+            echo "Outside WNBA game window (UTC hour $HOUR) — not self-chaining."
+            exit 0
+          fi
+          echo "Self-chaining live tracker for game IDs: $GAME_IDS"
+          gh workflow run live_tracker.yml \
+            --ref ${{ github.ref_name }} \
+            --field game_ids="$GAME_IDS" \
+            --field duration_minutes="5" \
+            --field poll_interval="5"
 
       - name: Summary
         if: always()
