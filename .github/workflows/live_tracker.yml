@@ -118,6 +118,26 @@ jobs:
             mkdir -p deliveries/today
           fi
 
+      - name: Normalize projections path
+        # daily-delivery artifacts contain deliveries/next_game/full_pmfs_wide.parquet
+        # internally, so after download to deliveries/today/ the file lands at
+        # deliveries/today/deliveries/next_game/full_pmfs_wide.parquet (double-nested).
+        # Flatten it to deliveries/today/full_pmfs_wide.parquet where run_live_tracker.py
+        # expects it (_DEFAULT_PROJECTIONS = "deliveries/today/full_pmfs_wide.parquet").
+        run: |
+          if [ ! -f "deliveries/today/full_pmfs_wide.parquet" ]; then
+            NESTED=$(find deliveries/today -name "full_pmfs_wide.parquet" 2>/dev/null | head -1)
+            if [ -n "$NESTED" ]; then
+              cp "$NESTED" deliveries/today/full_pmfs_wide.parquet
+              echo "Normalized projections from $NESTED → deliveries/today/full_pmfs_wide.parquet"
+            else
+              echo "[WARN] No full_pmfs_wide.parquet found anywhere under deliveries/today/"
+            fi
+          else
+            echo "Projections already at expected path."
+          fi
+        continue-on-error: true
+
       - name: Poll live scores from Odds API (pre-tracker)
         # Fetch live score snapshot before the tracker starts so we have
         # a baseline game score. Written to artifacts/live/live_scores_oddsapi.json.
@@ -189,9 +209,36 @@ jobs:
                 --out-dir tools/odds-scanner/predictions/WNBA/Inplay-Edge \
                 --game-id $GID
             done
-            python scripts/write_active_games_json.py
+            # write_active_games_json.py reads IDS (comma-separated) from env.
+            # GAME_IDS is space-separated from find-games output; convert before calling.
+            IDS_CSV=$(echo "$GAME_IDS" | tr ' ' ',')
+            IDS="$IDS_CSV" GAME_DATE="${{ needs.find-games.outputs.date }}" python scripts/write_active_games_json.py
           fi
-          # Generate live web page (Inplay/Edges)
+          # Aggregate game_*_latest.json → Inplay/Edges/latest.json so that
+          # generate_web_pages.py (--live-dir) finds a populated index file.
+          python3 - <<'PYEOF'
+          import json
+          from pathlib import Path
+          from datetime import datetime, timezone
+          inplay_src = Path("tools/odds-scanner/predictions/WNBA/Inplay-Edge")
+          out = Path("tools/odds-scanner/predictions/WNBA/Inplay/Edges")
+          out.mkdir(parents=True, exist_ok=True)
+          games = []
+          for gf in sorted(inplay_src.glob("game_*_latest.json")):
+              try:
+                  games.append(json.loads(gf.read_text()))
+              except Exception:
+                  pass
+          payload = {
+              "schema_version": "2.0",
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "active_games": len(games),
+              "games": games,
+          }
+          (out / "latest.json").write_text(json.dumps(payload, separators=(",", ":")))
+          print(f"Inplay/Edges latest.json: {len(games)} active game(s)")
+          PYEOF
+          # Generate live web page now that Inplay/Edges/latest.json exists
           python scripts/generate_web_pages.py \
             --game-date "${{ needs.find-games.outputs.date }}" \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \

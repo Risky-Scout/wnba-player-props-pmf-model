@@ -402,6 +402,7 @@ jobs:
           name: calibrators-latest
           path: artifacts/models/calibration/
           retention-days: 90
+          overwrite: true
 
       - name: Cache calibrators (gate passed)
         if: steps.cal-gate.outcome == 'success'
