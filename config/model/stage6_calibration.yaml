@@ -34,15 +34,6 @@ gate_exclude_role_buckets:
   - fringe
   - bench
 
-# Stats excluded from the strict ECE gate.
-# blk: blocks is a rare, high-variance event (most games = 0). The negative
-#   binomial model systematically over-disperses its tail, producing ECE of
-#   0.087-0.091 — marginally above the 0.08 threshold but not actionable.
-#   Books rarely offer liquid blk lines; calibration quality here does NOT
-#   impact P&L. Excluded to prevent a non-material stat from blocking promotion.
-gate_exclude_stats:
-  - blk
-
 # ── Pre-calibration sanity gates (loose) ─────────────────────────────────────
 # Checked on RAW OOF predictions BEFORE fitting calibrators.
 # Catches completely broken models (distributional collapse, data leakage, etc.).

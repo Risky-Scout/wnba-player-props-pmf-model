@@ -83,6 +83,7 @@ jobs:
     permissions:
       contents: write
       actions: read
+      pages: write
     timeout-minutes: 170
 
     steps:
@@ -173,6 +174,51 @@ jobs:
           name: live-edges-${{ github.run_number }}-${{ needs.find-games.outputs.date }}
           path: artifacts/live/
           retention-days: 7
+
+      - name: Format live JSON outputs per game
+        if: always()
+        run: |
+          mkdir -p tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          mkdir -p tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          GAME_IDS="${{ needs.find-games.outputs.game_ids }}"
+          if [ -n "$GAME_IDS" ]; then
+            for GID in $GAME_IDS; do
+              echo "Formatting live output for game $GID"
+              python scripts/format_live_output.py \
+                --live-dir artifacts/live \
+                --out-dir tools/odds-scanner/predictions/WNBA/Inplay-Edge \
+                --game-id $GID
+            done
+            python scripts/write_active_games_json.py
+          fi
+          # Generate live web page (Inplay/Edges)
+          python scripts/generate_web_pages.py \
+            --game-date "${{ needs.find-games.outputs.date }}" \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
+            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
+        continue-on-error: true
+        env:
+          GAME_DATE: ${{ needs.find-games.outputs.date }}
+
+      - name: Publish live edges to gh-pages (Inplay-Edge path)
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          keep_files: true
+
+      - name: Publish live edges to gh-pages (Inplay/Edges path)
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          keep_files: true
 
       - name: Summary
         if: always()

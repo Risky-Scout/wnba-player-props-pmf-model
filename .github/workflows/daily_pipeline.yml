@@ -429,7 +429,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           gh workflow run pregame_initial.yml \
-            --ref main \
+            --ref ${{ github.ref_name }} \
             --field game_date=${{ steps.date.outputs.target_date }}
           echo "Dispatched pregame_initial for ${{ steps.date.outputs.target_date }}"
         env:
