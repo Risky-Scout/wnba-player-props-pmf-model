@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WNBA Odds Pricer — Pre-Game | WizardOfOdds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Reset + Variables ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0b0d;
+  --surface: #13151a;
+  --surface2: #1c1f26;
+  --surface3: #22262f;
+  --border: #1e2230;
+  --border2: #2a2f3e;
+  --gold: #d4af37;
+  --gold-dim: rgba(212, 175, 55, 0.12);
+  --gold-border: rgba(212, 175, 55, 0.35);
+  --gold-glow: rgba(212, 175, 55, 0.08);
+  --text: #e8e6e3;
+  --text-muted: #8b8fa8;
+  --text-faint: #4a4e62;
+  --green: #22c55e;
+  --green-dim: rgba(34, 197, 94, 0.12);
+  --green-border: rgba(34, 197, 94, 0.35);
+  --red: #ef4444;
+  --red-dim: rgba(239, 68, 68, 0.12);
+  --red-border: rgba(239, 68, 68, 0.35);
+  --blue: #3b82f6;
+  --amber: #f59e0b;
+  --purple: #a855f7;
+  --teal: #14b8a6;
+}
+html { font-size: 14px; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ── Page Header ───────────────────────────────────────────────── */
+.page-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border2);
+  padding: 20px 24px 16px;
+}
+.page-header-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.page-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+.page-subtitle {
+  font-family: 'Fraunces', serif;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.page-meta {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+.page-meta span {
+  margin-right: 16px;
+}
+
+/* ── Nav links in header ───────────────────────────────────────── */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.nav-link {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-link:hover { color: var(--gold); border-color: var(--gold-border); }
+.nav-link.active { color: var(--gold); border-color: var(--gold-border); background: var(--gold-dim); }
+
+/* ── Controls Bar (sticky) ─────────────────────────────────────── */
+.controls-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 2px solid var(--gold-border);
+  padding: 10px 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+.controls-bar-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* Number input */
+.margin-input {
+  width: 72px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--gold);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.margin-input:focus { border-color: var(--gold-border); }
+.margin-unit { font-size: 0.7rem; color: var(--text-muted); }
+
+/* Tooltip */
+.has-tip { position: relative; cursor: help; }
+.tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border2);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  cursor: help;
+}
+.has-tip:hover .tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.7rem;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.15s, transform 0.15s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Format toggle buttons */
+.fmt-btn-group {
+  display: flex;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.fmt-btn {
+  background: var(--surface2);
+  border: none;
+  border-right: 1px solid var(--border2);
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.fmt-btn:last-child { border-right: none; }
+.fmt-btn:hover { color: var(--text); background: var(--surface3); }
+.fmt-btn.active {
+  background: var(--gold-dim);
+  color: var(--gold);
+  border-color: var(--gold-border);
+}
+
+/* Stat filter pills */
+.stat-pill-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.stat-pill {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  padding: 3px 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.stat-pill:hover { border-color: var(--gold-border); color: var(--text); }
+.stat-pill.active {
+  background: var(--gold-dim);
+  border-color: var(--gold-border);
+  color: var(--gold);
+}
+
+/* Range slider */
+.edge-slider {
+  width: 100px;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+/* Toggle switch */
+.toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.toggle-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 32px;
+  height: 17px;
+  border-radius: 10px;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle-switch:checked {
+  background: var(--gold-dim);
+  border-color: var(--gold-border);
+}
+.toggle-switch:checked::after {
+  transform: translateX(15px);
+  background: var(--gold);
+}
+.toggle-label { font-size: 0.7rem; color: var(--text-muted); }
+
+/* Summary stat cards in controls */
+.summary-cards {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.summary-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 12px;
+  text-align: center;
+  min-width: 80px;
+}
+.summary-card .sc-val {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.1;
+}
+.summary-card .sc-lbl {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+/* ── Main Content ──────────────────────────────────────────────── */
+main {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 16px 24px 40px;
+}
+
+/* ── Table Wrapper ─────────────────────────────────────────────── */
+.table-outer {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  font-size: 0.78rem;
+}
+thead {
+  position: sticky;
+  top: 72px;
+  z-index: 50;
+}
+thead tr {
+  background: var(--surface);
+}
+th {
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 9px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-bottom: 2px solid var(--gold-border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+th:hover { color: var(--gold); }
+th.sort-asc::after { content: ' ↑'; color: var(--gold); }
+th.sort-desc::after { content: ' ↓'; color: var(--gold); }
+
+/* Table rows */
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(30, 34, 48, 0.7);
+  vertical-align: middle;
+  white-space: nowrap;
+  background: var(--surface);
+}
+.prop-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.prop-row:hover td {
+  background: var(--surface2);
+}
+.prop-row.expanded td {
+  background: var(--surface2);
+  border-bottom-color: transparent;
+}
+
+/* Monospace + muted helpers */
+.mono { font-family: 'JetBrains Mono', monospace; }
+.muted { color: var(--text-muted); }
+
+/* Player cell */
+.player-cell { font-weight: 600; color: var(--text); min-width: 160px; }
+
+/* Stat badge */
+.stat-badge {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* Best value badge */
+.best-badge {
+  display: inline-block;
+  background: var(--gold-dim);
+  border: 1px solid var(--gold-border);
+  color: var(--gold);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Hero odds column */
+.priced-odds {
+  font-size: 1.05em;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+/* Atom sub-table row */
+.atom-row td {
+  padding: 0;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border2);
+}
+.atom-wrapper {
+  padding: 8px 16px 12px 48px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.atom-table {
+  width: auto;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+.atom-table th {
+  background: var(--surface2);
+  color: var(--text-muted);
+  padding: 5px 12px;
+  font-size: 0.6rem;
+  border-bottom: 1px solid var(--border2);
+  position: static;
+  cursor: default;
+}
+.atom-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid rgba(30, 34, 48, 0.5);
+  background: var(--surface);
+}
+.atom-table tr:nth-child(even) td { background: var(--surface2); }
+.atom-table tr:last-child td { border-bottom: none; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 70px 24px;
+  color: var(--text-muted);
+}
+.empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.empty-state h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1.2rem;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.empty-state p { font-size: 0.8rem; line-height: 1.7; }
+
+/* ── Footer ───────────────────────────────────────────────────── */
+footer {
+  text-align: center;
+  font-size: 0.67rem;
+  color: var(--text-faint);
+  padding: 24px 0 18px;
+  border-top: 1px solid var(--border);
+  margin-top: 28px;
+  line-height: 1.9;
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  th.hide-md, td.hide-md { display: none; }
+}
+@media (max-width: 768px) {
+  .controls-bar-inner { gap: 8px; }
+  th.hide-sm, td.hide-sm { display: none; }
+  .summary-cards { margin-left: 0; width: 100%; justify-content: space-between; }
+  main { padding: 12px 12px 40px; }
+  .page-header { padding: 16px 12px 12px; }
+  .controls-bar { padding: 8px 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Page Header ─────────────────────────────────────────────── -->
+<div class="page-header">
+  <div class="page-header-inner">
+    <div class="page-title">WNBA ODDS PRICER</div>
+    <div class="page-subtitle">Pre-Game &bull; Full PMF Distribution Pricing</div>
+    <div class="page-meta">
+      <span>Powered by calibrated probabilistic model</span>
+      <span>All odds computed from full integer PMF</span>
+      <span id="generated-at" style="color:var(--text-muted)">Loading&hellip;</span>
+    </div>
+    <nav class="header-nav">
+      <a href="../Edge/" class="nav-link">Edge Board</a>
+      <a href="../Distributions/" class="nav-link">PMF Distributions</a>
+      <a href="" class="nav-link active">Pre-Game Pricer</a>
+      <a href="../../In-Play/Pricer/" class="nav-link">Live In-Play Pricer</a>
+    </nav>
+  </div>
+</div>
+
+<!-- ── Controls Bar ────────────────────────────────────────────── -->
+<div class="controls-bar">
+  <div class="controls-bar-inner">
+
+    <!-- 1. Overround -->
+    <div class="ctrl-group has-tip">
+      <span class="ctrl-label">Overround</span>
+      <input type="number" id="margin-input" class="margin-input" min="0" max="20" step="0.01" value="4.76">
+      <span class="margin-unit">%</span>
+      <span class="tip-icon">?</span>
+      <div class="tooltip">4.76% = typical sportsbook margin.<br>0% = fair/no-vig odds.<br>Industry standard: 4–8%.</div>
+    </div>
+
+    <!-- 2. Odds Format -->
+    <div class="ctrl-group">
+      <span class="ctrl-label">Format</span>
+      <div class="fmt-btn-group">
+        <button class="fmt-btn active" data-fmt="Decimal">Decimal</button>
+        <button class="fmt-btn" data-fmt="American">American</button>
+        <button class="fmt-btn" data-fmt="Fractional">Fractional</button>
+      </div>
+    </div>
+
+    <!-- 3. Stat Filter -->
+    <div class="ctrl-group">
+      <span class="ctrl-label">Stat</span>
+      <div class="stat-pill-row">
+        <button class="stat-pill active" data-stat="ALL">ALL</button>
+        <button class="stat-pill" data-stat="PTS">PTS</button>
+        <button class="stat-pill" data-stat="REB">REB</button>
+        <button class="stat-pill" data-stat="AST">AST</button>
+        <button class="stat-pill" data-stat="FG3M">FG3M</button>
+        <button class="stat-pill" data-stat="STL">STL</button>
+        <button class="stat-pill" data-stat="BLK">BLK</button>
+      </div>
+    </div>
+
+    <!-- 4. Min Edge -->
+    <div class="ctrl-group">
+      <span class="ctrl-label" id="min-edge-label">Edge &ge; 0.0%</span>
+      <input type="range" id="min-edge" class="edge-slider" min="0" max="15" step="0.5" value="0">
+    </div>
+
+    <!-- 5. Expand all -->
+    <div class="ctrl-group">
+      <label class="toggle-wrap" for="show-atoms">
+        <input type="checkbox" id="show-atoms" class="toggle-switch">
+        <span class="toggle-label">Expand all outcomes</span>
+      </label>
+    </div>
+
+    <!-- 6. Summary cards -->
+    <div class="summary-cards">
+      <div class="summary-card">
+        <div class="sc-val" id="props-shown">—</div>
+        <div class="sc-lbl">Props Shown</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-val" id="avg-edge">—</div>
+        <div class="sc-lbl">Avg Edge</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-val" id="best-edge-val">—</div>
+        <div class="sc-lbl">Best Edge</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Main Table ──────────────────────────────────────────────── -->
+<main>
+  <div class="table-outer">
+    <table>
+      <thead>
+        <tr>
+          <th data-col="player">Player</th>
+          <th data-col="stat">Stat</th>
+          <th data-col="line">Line</th>
+          <th data-col="mean" class="hide-sm">Model &mu;</th>
+          <th data-col="pover">P(Over)</th>
+          <th data-col="fairover" class="hide-md">Fair Over</th>
+          <th data-col="fairunder" class="hide-md">Fair Under</th>
+          <th data-col="pricedover">&bull; Over</th>
+          <th data-col="pricedunder">&bull; Under</th>
+          <th data-col="market" class="hide-sm">Market</th>
+          <th data-col="edge">Edge</th>
+        </tr>
+      </thead>
+      <tbody id="table-body">
+        <tr>
+          <td colspan="11">
+            <div class="empty-state">
+              <div class="empty-icon">&#9203;</div>
+              <h3>Loading pricer data&hellip;</h3>
+              <p>Fetching PMF distributions from model output.</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<footer>
+  <div>WNBA Pre-Game Odds Pricer &mdash; WizardOfOdds Sports Analytics</div>
+  <div>Odds derived from full integer PMF &bull; Overround applied proportionally across distribution</div>
+  <div>For entertainment and research purposes only. Gamble responsibly. 21+</div>
+</footer>
+
+<script>
+(function () {
+'use strict';
+
+// ── Core math ───────────────────────────────────────────────────────────────
+
+function applyMargin(pFair, marginFraction) {
+  return pFair * (1 + marginFraction);
+}
+
+function probToDecimal(p) {
+  if (p <= 0) return Infinity;
+  return 1 / p;
+}
+
+function decimalToAmerican(d) {
+  if (!isFinite(d) || d <= 1) return 'N/A';
+  if (d >= 2.0) return '+' + Math.round((d - 1) * 100);
+  return String(Math.round(-100 / (d - 1)));
+}
+
+function decimalToFractional(d) {
+  if (!isFinite(d) || d <= 1) return 'N/A';
+  var target = d - 1;
+  var bestNum = 1, bestDen = 1, bestErr = Infinity;
+  for (var den = 1; den <= 20; den++) {
+    var num = Math.round(target * den);
+    if (num <= 0) continue;
+    var err = Math.abs(num / den - target);
+    if (err < bestErr) { bestErr = err; bestNum = num; bestDen = den; }
+  }
+  return bestNum + '/' + bestDen;
+}
+
+function formatOdds(decimal, fmt) {
+  if (fmt === 'American') return decimalToAmerican(decimal);
+  if (fmt === 'Fractional') return decimalToFractional(decimal);
+  return isFinite(decimal) ? decimal.toFixed(2) : 'N/A';
+}
+
+function computePOver(pmfAtoms, line) {
+  var pOver = 0;
+  for (var i = 0; i < pmfAtoms.length; i++) {
+    var k = pmfAtoms[i][0];
+    var p = pmfAtoms[i][1];
+    if (k > line) pOver += p;
+  }
+  return Math.min(pOver, 0.9999);
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+
+var allProps = [];
+var expandedRows = new Set();
+var oddsFormat = 'Decimal';
+var activeStats = new Set(['ALL']);
+var sortCol = null;
+var sortDir = 1;
+
+// ── Load + Render ────────────────────────────────────────────────────────────
+
+async function loadAndRender() {
+  try {
+    var resp = await fetch('../PMF-Distributions/latest.json?t=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    allProps = data.props || [];
+    var genAt = document.getElementById('generated-at');
+    genAt.textContent = 'Generated: ' + (data.generated_at
+      ? new Date(data.generated_at).toLocaleString()
+      : 'Unknown');
+    renderTable();
+  } catch (e) {
+    document.getElementById('table-body').innerHTML =
+      '<tr><td colspan="11">' +
+      '<div class="empty-state">' +
+      '<div class="empty-icon">&#128201;</div>' +
+      '<h3>No data available</h3>' +
+      '<p>Check back when games are scheduled for today.</p>' +
+      '</div></td></tr>';
+    console.error('[Pricer] Failed to load PMF data:', e);
+  }
+}
+
+function getFilters() {
+  var margin = parseFloat(document.getElementById('margin-input').value || '4.76') / 100;
+  var minEdge = parseFloat(document.getElementById('min-edge').value || '0') / 100;
+  var showAtoms = document.getElementById('show-atoms').checked;
+  return { margin: margin, minEdge: minEdge, showAtoms: showAtoms };
+}
+
+function renderTable() {
+  var filters = getFilters();
+  var margin = filters.margin;
+  var minEdge = filters.minEdge;
+  var showAtoms = filters.showAtoms;
+
+  var filtered = allProps.filter(function (p) {
+    if (!activeStats.has('ALL') && !activeStats.has(p.stat)) return false;
+    var edgeVal = Math.abs(p.edge || p.edge_pp / 100 || 0);
+    if (edgeVal < minEdge) return false;
+    return true;
+  });
+
+  // Sort
+  if (sortCol) {
+    filtered = filtered.slice().sort(function (a, b) {
+      var va = getSortVal(a, sortCol, margin);
+      var vb = getSortVal(b, sortCol, margin);
+      if (va < vb) return -1 * sortDir;
+      if (va > vb) return 1 * sortDir;
+      return 0;
+    });
+  }
+
+  // Summary stats
+  document.getElementById('props-shown').textContent = filtered.length;
+  var totalAbsEdge = filtered.reduce(function (s, p) {
+    return s + Math.abs(getEdgeFrac(p));
+  }, 0);
+  var avgEdge = filtered.length ? (totalAbsEdge / filtered.length * 100).toFixed(1) : '0.0';
+  var bestEdge = filtered.length
+    ? (Math.max.apply(null, filtered.map(function (p) { return Math.abs(getEdgeFrac(p)); })) * 100).toFixed(1)
+    : '0.0';
+  document.getElementById('avg-edge').textContent = avgEdge + '%';
+  document.getElementById('best-edge-val').textContent = bestEdge + '%';
+
+  var tbody = document.getElementById('table-body');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="11">' +
+      '<div class="empty-state">' +
+      '<div class="empty-icon">&#128203;</div>' +
+      '<h3>No props match current filters</h3>' +
+      '<p>Try adjusting the stat filter or minimum edge slider.</p>' +
+      '</div></td></tr>';
+    return;
+  }
+
+  // Find best-value row index (highest absolute edge)
+  var bestIdx = 0;
+  var bestAbs = 0;
+  for (var i = 0; i < filtered.length; i++) {
+    var abs = Math.abs(getEdgeFrac(filtered[i]));
+    if (abs > bestAbs) { bestAbs = abs; bestIdx = i; }
+  }
+
+  tbody.innerHTML = '';
+
+  filtered.forEach(function (prop, idx) {
+    var pmf = prop.pmf || [];
+    var line = prop.line;
+    var pOver = pmf.length ? computePOver(pmf, line) : (prop.model_p_over || prop.p_over || 0.5);
+    var pUnder = 1 - pOver;
+
+    var fairOver = probToDecimal(pOver);
+    var fairUnder = probToDecimal(pUnder);
+    var pricedOver = probToDecimal(applyMargin(pOver, margin));
+    var pricedUnder = probToDecimal(applyMargin(pUnder, margin));
+
+    var edgeFrac = getEdgeFrac(prop);
+    var edgePct = (edgeFrac * 100).toFixed(1);
+    var edgeColor = edgeFrac > 0 ? 'var(--green)' : 'var(--red)';
+    var edgeBold = Math.abs(edgeFrac) > 0.05 ? '700' : '400';
+
+    var rowBorderColor = pOver > 0.55 ? 'var(--gold)' : (pOver < 0.45 ? 'var(--red)' : 'transparent');
+    var isBest = idx === bestIdx;
+    var isExpanded = expandedRows.has(idx) || showAtoms;
+
+    var statColors = {
+      PTS: '#3b82f6', REB: '#f97316', AST: '#14b8a6',
+      FG3M: '#a855f7', STL: '#f59e0b', BLK: '#f59e0b',
+      TURNOVER: '#6b7280', PRA: '#ec4899', PA: '#06b6d4', PR: '#84cc16'
+    };
+    var sc = statColors[prop.stat] || '#6b7280';
+
+    var pOverColor = pOver > 0.55 ? 'var(--gold)' : (pOver < 0.45 ? 'var(--red)' : 'var(--text)');
+
+    var mktOdds = prop.best_odds_american != null
+      ? (prop.best_odds_american > 0 ? '+' + prop.best_odds_american : String(prop.best_odds_american))
+      : '&mdash;';
+
+    var modelMean = ((prop.mean != null ? prop.mean : prop.model_mean) || 0).toFixed(1);
+
+    var row = document.createElement('tr');
+    row.className = 'prop-row' + (isExpanded ? ' expanded' : '');
+    row.style.cssText = '--row-border: ' + rowBorderColor + ';';
+
+    row.innerHTML =
+      '<td class="player-cell" style="border-left: 3px solid ' + rowBorderColor + '">' +
+        prop.player +
+        (isBest ? ' <span class="best-badge">BEST VALUE</span>' : '') +
+      '</td>' +
+      '<td><span class="stat-badge mono" style="background:' + sc + '22;color:' + sc + ';border:1px solid ' + sc + '44">' + prop.stat + '</span></td>' +
+      '<td class="mono">' + line + '</td>' +
+      '<td class="mono hide-sm">' + modelMean + '</td>' +
+      '<td class="mono" style="color:' + pOverColor + '">' + (pOver * 100).toFixed(1) + '%</td>' +
+      '<td class="mono muted hide-md">' + formatOdds(fairOver, oddsFormat) + '</td>' +
+      '<td class="mono muted hide-md">' + formatOdds(fairUnder, oddsFormat) + '</td>' +
+      '<td class="mono priced-odds">' + formatOdds(pricedOver, oddsFormat) + '</td>' +
+      '<td class="mono priced-odds">' + formatOdds(pricedUnder, oddsFormat) + '</td>' +
+      '<td class="mono muted hide-sm">' + mktOdds + '</td>' +
+      '<td class="mono" style="color:' + edgeColor + ';font-weight:' + edgeBold + '">' + (edgeFrac >= 0 ? '+' : '') + edgePct + '%</td>';
+
+    row.addEventListener('click', (function (capturedIdx, capturedProp, capturedLine) {
+      return function () { toggleRow(capturedIdx, capturedProp, capturedLine); };
+    })(idx, prop, line));
+
+    tbody.appendChild(row);
+
+    // Atom sub-table row
+    var atomRow = document.createElement('tr');
+    atomRow.className = 'atom-row';
+    atomRow.id = 'atom-' + idx;
+    atomRow.style.display = isExpanded ? '' : 'none';
+
+    var atomTd = document.createElement('td');
+    atomTd.setAttribute('colspan', '11');
+    atomTd.style.padding = '0';
+    if (isExpanded) {
+      atomTd.innerHTML = buildAtomTable(pmf, line, margin);
+    }
+    atomRow.appendChild(atomTd);
+    tbody.appendChild(atomRow);
+  });
+}
+
+function getSortVal(prop, col, margin) {
+  var pmf = prop.pmf || [];
+  var line = prop.line;
+  var pOver = pmf.length ? computePOver(pmf, line) : (prop.model_p_over || 0.5);
+  switch (col) {
+    case 'player': return prop.player || '';
+    case 'stat': return prop.stat || '';
+    case 'line': return prop.line || 0;
+    case 'mean': return prop.mean || prop.model_mean || 0;
+    case 'pover': return pOver;
+    case 'pricedover': return probToDecimal(applyMargin(pOver, margin));
+    case 'edge': return getEdgeFrac(prop);
+    default: return 0;
+  }
+}
+
+function getEdgeFrac(prop) {
+  if (prop.edge != null && prop.edge !== 0) return parseFloat(prop.edge);
+  if (prop.edge_pp != null) return parseFloat(prop.edge_pp) / 100;
+  return 0;
+}
+
+function buildAtomTable(pmf, line, margin) {
+  if (!pmf || pmf.length === 0) {
+    return '<div style="padding:10px 16px;color:var(--text-muted);font-size:0.75rem">No atom data available.</div>';
+  }
+  var lineCeil = Math.ceil(line);
+  var html = '<div class="atom-wrapper">' +
+    '<table class="atom-table">' +
+    '<thead><tr>' +
+    '<th>Outcome</th>' +
+    '<th>P(Y=k)</th>' +
+    '<th>Fair Dec</th>' +
+    '<th>Fair Amer</th>' +
+    '<th>Priced Dec</th>' +
+    '<th>Priced Amer</th>' +
+    '</tr></thead><tbody>';
+  for (var i = 0; i < pmf.length; i++) {
+    var k = pmf[i][0];
+    var p = pmf[i][1];
+    if (p < 0.001) continue;
+    var fairD = probToDecimal(p);
+    var pricedD = probToDecimal(applyMargin(p, margin));
+    var style = '';
+    if (k === lineCeil) {
+      style = 'background:rgba(212,175,55,0.12);';
+    } else if (p < 0.005) {
+      style = 'opacity:0.4;';
+    }
+    html += '<tr style="' + style + '">' +
+      '<td class="mono">' + k + '</td>' +
+      '<td class="mono">' + (p * 100).toFixed(2) + '%</td>' +
+      '<td class="mono">' + (isFinite(fairD) ? fairD.toFixed(3) : 'N/A') + '</td>' +
+      '<td class="mono">' + decimalToAmerican(fairD) + '</td>' +
+      '<td class="mono">' + (isFinite(pricedD) ? pricedD.toFixed(3) : 'N/A') + '</td>' +
+      '<td class="mono">' + decimalToAmerican(pricedD) + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function toggleRow(idx, prop, line) {
+  var filters = getFilters();
+  if (expandedRows.has(idx)) {
+    expandedRows.delete(idx);
+  } else {
+    expandedRows.add(idx);
+  }
+  var atomRow = document.getElementById('atom-' + idx);
+  if (!atomRow) return;
+  var isNowExpanded = expandedRows.has(idx);
+  atomRow.style.display = isNowExpanded ? '' : 'none';
+  var propRow = atomRow.previousElementSibling;
+  if (propRow) propRow.classList.toggle('expanded', isNowExpanded);
+  if (isNowExpanded) {
+    var td = atomRow.querySelector('td');
+    if (td && td.innerHTML.trim() === '') {
+      td.innerHTML = buildAtomTable(prop.pmf || [], line, filters.margin);
+    }
+  }
+}
+
+// ── Event Wiring ─────────────────────────────────────────────────────────────
+
+function wireEvents() {
+  document.getElementById('margin-input').addEventListener('input', renderTable);
+
+  document.getElementById('min-edge').addEventListener('input', function () {
+    document.getElementById('min-edge-label').textContent =
+      'Edge \u2265 ' + parseFloat(this.value).toFixed(1) + '%';
+    renderTable();
+  });
+
+  document.getElementById('show-atoms').addEventListener('change', function () {
+    if (!this.checked) expandedRows.clear();
+    renderTable();
+  });
+
+  // Odds format buttons
+  document.querySelectorAll('.fmt-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.fmt-btn').forEach(function (b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      oddsFormat = this.dataset.fmt;
+      renderTable();
+    });
+  });
+
+  // Stat filter pills
+  document.querySelectorAll('.stat-pill').forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var stat = this.dataset.stat;
+      if (stat === 'ALL') {
+        activeStats = new Set(['ALL']);
+        document.querySelectorAll('.stat-pill').forEach(function (p) { p.classList.remove('active'); });
+        document.querySelector('.stat-pill[data-stat="ALL"]').classList.add('active');
+      } else {
+        activeStats.delete('ALL');
+        document.querySelector('.stat-pill[data-stat="ALL"]').classList.remove('active');
+        if (activeStats.has(stat)) {
+          activeStats.delete(stat);
+          this.classList.remove('active');
+          if (activeStats.size === 0) {
+            activeStats.add('ALL');
+            document.querySelector('.stat-pill[data-stat="ALL"]').classList.add('active');
+          }
+        } else {
+          activeStats.add(stat);
+          this.classList.add('active');
+        }
+      }
+      renderTable();
+    });
+  });
+
+  // Sortable columns
+  document.querySelectorAll('th[data-col]').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var col = this.dataset.col;
+      if (sortCol === col) {
+        sortDir *= -1;
+        this.className = sortDir === 1 ? 'sort-asc' : 'sort-desc';
+      } else {
+        sortCol = col;
+        sortDir = 1;
+        document.querySelectorAll('th').forEach(function (t) {
+          t.classList.remove('sort-asc', 'sort-desc');
+        });
+        this.className = 'sort-asc';
+      }
+      renderTable();
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  wireEvents();
+  loadAndRender();
+});
+
+})();
+</script>
+</body>
+</html>
