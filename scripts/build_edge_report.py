@@ -208,29 +208,37 @@ def main(
                 comp = comp.merge(links_df[merge_keys + link_cols], on=merge_keys, how="left")
 
     # ── Extreme model-vs-market disagreement guard ─────────────────────────
-    # When the model's pmf_mean is < 50% OR > 250% of the market_implied_mean
-    # the pick is almost certainly from a grossly mis-predicted player (e.g.,
-    # a recent hot/cold streak not yet in rolling features, DNP-contaminated
-    # rolling stats, or a player who recently changed roles).  These produce
-    # artificial edges with zero predictive value and overwhelm the sheet.
+    # Position-blind inflated predictions (e.g. guards predicted to rebound
+    # like centers) produce model_market_ratio >> 1.  The original thresholds
+    # of [0.50, 2.50] were too permissive — ratios up to 2.50 were merely
+    # "caution" flagged and still published.  Tightened per stat:
+    #   REB/AST: suppress above 1.65 (guards rarely produce 65%+ more than line)
+    #   PTS/FG3M/combos: suppress above 1.80 (higher natural variance)
+    #   Low side: suppress below 0.55 (model < 55% of market is implausible)
     #
-    # Sanity tiers (added as projection_sanity_flag):
-    #   0 = clean (ratio in [0.65, 2.00]) — full confidence
-    #   1 = caution (ratio in [0.50, 0.65] or [2.00, 2.50]) — show but warn
-    #   2 = suppressed (ratio < 0.50 or > 2.50) — removed from publishable picks
-    _EXTREME_LOW_RATIO   = 0.50   # model_mean < 50% of market → suppressed
-    _EXTREME_HIGH_RATIO  = 2.50   # model_mean > 250% of market → suppressed
-    _CAUTION_LOW_RATIO   = 0.65   # model_mean < 65% of market → caution
-    _CAUTION_HIGH_RATIO  = 2.00   # model_mean > 200% of market → caution
+    # Sanity tiers:
+    #   0 = clean  — ratio inside stat-specific tight band
+    #   1 = caution — ratio in stat-specific medium band (show, warn)
+    #   2 = suppressed — ratio outside stat-specific extreme band (drop)
+    _STAT_EXTREME_HIGH = {"reb": 1.65, "ast": 1.65, "pts": 1.80, "fg3m": 1.80}
+    _STAT_EXTREME_LOW  = {"reb": 0.55, "ast": 0.55, "pts": 0.55, "fg3m": 0.50}
+    _DEFAULT_EXTREME_HIGH = 1.80
+    _DEFAULT_EXTREME_LOW  = 0.55
+    _CAUTION_HIGH = 1.40
+    _CAUTION_LOW  = 0.65
     if "pmf_mean" in comp.columns and "market_implied_mean" in comp.columns:
         _ratio = comp["pmf_mean"] / comp["market_implied_mean"].replace(0, np.nan)
         comp["model_market_ratio"] = _ratio.round(4)
+        # Per-stat extreme thresholds (fall back to default for combo stats)
+        _stat_col = comp.get("stat", pd.Series([""] * len(comp), index=comp.index))
+        _hi = _stat_col.map(lambda s: _STAT_EXTREME_HIGH.get(str(s), _DEFAULT_EXTREME_HIGH))
+        _lo = _stat_col.map(lambda s: _STAT_EXTREME_LOW.get(str(s), _DEFAULT_EXTREME_LOW))
         _extreme_mask = (
-            (_ratio < _EXTREME_LOW_RATIO) | (_ratio > _EXTREME_HIGH_RATIO)
+            (_ratio < _lo) | (_ratio > _hi)
         ) & comp["market_implied_mean"].notna()
         _caution_mask = (
             ~_extreme_mask
-            & ((_ratio < _CAUTION_LOW_RATIO) | (_ratio > _CAUTION_HIGH_RATIO))
+            & ((_ratio < _CAUTION_LOW) | (_ratio > _CAUTION_HIGH))
             & comp["market_implied_mean"].notna()
         )
         comp["projection_sanity_flag"] = np.where(
@@ -240,10 +248,23 @@ def main(
         _n_before = len(comp)
         _n_extreme = int(_extreme_mask.sum())
         _n_caution = int(_caution_mask.sum())
+        # #region agent log
+        import json as _jlog, time as _tlog  # noqa: PLC0415, E401
+        _dbg_log = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+        def _wlog(msg, data, hyp):  # noqa: ANN001, ANN202
+            try:
+                with open(_dbg_log, "a") as _f:
+                    _f.write(_jlog.dumps({"sessionId": "3f8dcc", "timestamp": int(_tlog.time() * 1000), "location": "build_edge_report.py:sanity_guard", "message": msg, "data": data, "hypothesisId": hyp}) + "\n")
+            except Exception: pass
+        _top_ratios = comp[["player_name", "stat", "model_market_ratio", "projection_sanity_flag"]].sort_values("model_market_ratio", ascending=False).head(10)
+        _wlog("RATIO_GATE: top rows by model_market_ratio", {"rows": _top_ratios.to_dict("records"), "n_extreme": _n_extreme, "n_caution": _n_caution, "n_total": _n_before}, "A")
+        if _n_extreme > 0:
+            _suppressed = comp[_extreme_mask][["player_name", "stat", "model_market_ratio"]].to_dict("records")
+            _wlog("RATIO_GATE: suppressed rows", {"suppressed": _suppressed[:20]}, "A")
+        # #endregion
         typer.echo(
             f"[sanity-guard] {_n_extreme}/{_n_before} rows suppressed "
-            f"(ratio outside [{_EXTREME_LOW_RATIO:.0%}, {_EXTREME_HIGH_RATIO:.0%}]); "
-            f"{_n_caution} rows flagged as caution"
+            f"(stat-specific ratio bounds); {_n_caution} rows flagged as caution"
         )
         comp = comp[~_extreme_mask].copy()
     else:
