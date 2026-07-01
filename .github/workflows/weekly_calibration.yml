@@ -266,7 +266,8 @@ jobs:
         run: |
           python scripts/fit_calibrators.py \
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
-            --out-dir artifacts/models/calibration
+            --out-dir artifacts/models/calibration \
+            --props-parquet data/processed/wnba_player_props.parquet
 
       - name: Apply calibrators to OOF (for post-cal gate)
         run: |

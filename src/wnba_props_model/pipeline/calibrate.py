@@ -223,6 +223,7 @@ def _apply_mean_bias_correction(
 def fit_calibrators(
     oof_pmfs_path: str | Path,
     out_dir: str | Path = "artifacts/models/calibration",
+    props_parquet_path: str | Path | None = None,
 ) -> dict[str, Path]:
     """Fit per-stat role-aware isotonic calibrators from OOF PMFs.
 
@@ -421,8 +422,43 @@ def fit_calibrators(
     print(f"[calibrate] Wrote calibration_metadata.json: {_meta['fitted_at']} n_rows={_meta['n_rows']}")
 
     # Also fit Beta calibrators for P(over) (Item 5A)
+    # Beta calibrators require a 'line' column to compute P(over) during training.
+    # The OOF parquet intentionally forbids 'line' to prevent lookahead bias.
+    # Join lines from a separate historical props parquet if provided.
     try:
-        beta_paths = fit_beta_calibrators(oof_pmfs_path, out_dir)
+        _beta_oof_path = oof_pmfs_path
+        if props_parquet_path is not None:
+            _props_path = Path(props_parquet_path)
+            if _props_path.exists():
+                _oof_for_beta = pd.read_parquet(oof_pmfs_path).copy()
+                if "line" not in _oof_for_beta.columns:
+                    _props_df = pd.read_parquet(_props_path)
+                    # Normalize stat column name if needed
+                    try:
+                        from wnba_props_model.constants import BDL_PROP_TO_STAT  # noqa: PLC0415
+                        if "stat" not in _props_df.columns and "prop_type" in _props_df.columns:
+                            _props_df["stat"] = _props_df["prop_type"].map(BDL_PROP_TO_STAT)
+                    except ImportError:
+                        pass
+                    _line_cols = [c for c in ["game_id", "player_id", "stat"] if c in _props_df.columns]
+                    _line_val_col = next((c for c in ["line_value", "line"] if c in _props_df.columns), None)
+                    if _line_cols and _line_val_col:
+                        _lines = (
+                            _props_df[_line_cols + [_line_val_col]]
+                            .dropna(subset=[_line_val_col])
+                            .rename(columns={_line_val_col: "line"})
+                            .groupby(_line_cols, as_index=False)["line"]
+                            .median()
+                        )
+                        _oof_for_beta = _oof_for_beta.merge(_lines, on=_line_cols, how="left")
+                        _n_with_line = int(_oof_for_beta["line"].notna().sum())
+                        print(f"[calibrate] Joined lines for beta calibration: {_n_with_line:,} OOF rows have a line")
+                        import tempfile as _tf  # noqa: PLC0415
+                        with _tf.NamedTemporaryFile(suffix=".parquet", delete=False) as _tmp:
+                            _tmp_path = _tmp.name
+                        _oof_for_beta.to_parquet(_tmp_path, index=False)
+                        _beta_oof_path = _tmp_path
+        beta_paths = fit_beta_calibrators(_beta_oof_path, out_dir)
         paths.update({f"beta_{k}": v for k, v in beta_paths.items()})
     except Exception as exc:
         logger.warning("[calibrate] Beta calibrator fitting failed: %s", exc)
