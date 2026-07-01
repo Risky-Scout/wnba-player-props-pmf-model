@@ -82,23 +82,46 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Set game date (today by default)
+      - name: Set game date (today or next game date)
         id: date
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
-            # Manual override: predict for specified date
+            # Manual override — use exactly what was passed
             echo "target_date=${{ github.event.inputs.game_date }}" >> $GITHUB_OUTPUT
           else
-            # Default: predict for TODAY.
-            # WNBA games tip off 7-10 PM ET. Both the 9 AM and 2 PM scheduled runs
-            # should target the same calendar date so the afternoon run refreshes
-            # props for today's games without rebuilding the whole slate.
-            echo "target_date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            # Auto-advance: if no WNBA games today, target tomorrow.
+            # On off days the pipeline exits cleanly but leaves pages empty.
+            # This keeps pages populated with the next slate's data.
+            python3 - <<'PYEOF'
+          import sys, os, json
+          from datetime import date, timedelta
+          try:
+              import urllib.request
+              today = date.today()
+              tomorrow = today + timedelta(days=1)
+              def has_games(d):
+                  try:
+                      api_key = os.environ.get("BDL_API_KEY", "")
+                      url = f"https://api.balldontlie.io/wnba/v1/games?dates[]={d.isoformat()}&per_page=5"
+                      req = urllib.request.Request(url, headers={"Authorization": api_key})
+                      with urllib.request.urlopen(req, timeout=8) as r:
+                          data = json.loads(r.read())
+                          return len(data.get("data", [])) > 0
+                  except Exception as e:
+                      print(f"[date] BDL check failed: {e} -- defaulting to today", flush=True)
+                      return True
+              target = today if has_games(today) else tomorrow
+              print(f"[date] target_date={target} (today={today}, tomorrow={tomorrow})", flush=True)
+          except Exception as e:
+              print(f"[date] Date logic failed: {e} -- falling back to today", flush=True)
+              target = date.today()
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"target_date={target.isoformat()}\n")
+          PYEOF
           fi
-          # Record today for data ingestion
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          # Record yesterday -- this is the game date whose closing lines we snapshot
-          # so that post_game_scoring.yml can download them for true CLV computation.
           echo "yesterday=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Pull BDL history (current season)
