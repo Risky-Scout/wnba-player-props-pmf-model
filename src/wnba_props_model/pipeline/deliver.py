@@ -181,7 +181,15 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
 def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.DataFrame:
     # Game_ID integrity guard: projections and market props must share game_ids.
     # Mismatch means market data is from a different slate — producing 100% artificial edges.
-    if "game_id" in pmfs.columns and "game_id" in raw_props.columns:
+    # Guard is skipped when all props are Odds API sourced: their game_id is an Odds API
+    # event_id string (not a BDL integer) and will never intersect. Matching falls through
+    # to the player_name fallback join below.
+    _odds_api_only = (
+        "source" in raw_props.columns
+        and len(raw_props["source"].dropna().unique()) > 0
+        and all(str(s) == "odds_api_v4" for s in raw_props["source"].dropna().unique())
+    )
+    if "game_id" in pmfs.columns and "game_id" in raw_props.columns and not _odds_api_only:
         _proj_ids = set(pmfs["game_id"].dropna().unique())
         _market_ids = set(raw_props["game_id"].dropna().unique())
         _shared_ids = _proj_ids & _market_ids
