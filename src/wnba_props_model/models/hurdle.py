@@ -138,6 +138,7 @@ class ZINBStatModel:
         X: pd.DataFrame,
         y: pd.Series,
         sample_weight: np.ndarray | None = None,
+        actual_minutes: np.ndarray | None = None,
     ) -> "ZINBStatModel":
         seed  = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
@@ -177,8 +178,10 @@ class ZINBStatModel:
         # Up-weight games where the player played meaningful minutes (prop-eligible context).
         # Garbage-time appearances (low minutes, y≈0 despite non-trivial feature vectors)
         # pull mu down and create a spurious correction in the mu-model.
-        if "actual_minutes" in X.columns:
-            _min_w = np.clip(X["actual_minutes"].fillna(0).values / 25.0, 0.05, 1.0)
+        if actual_minutes is not None:
+            # Up-weight prop-eligible games (minutes >= 10) in mu-model training.
+            # Aligns the conditional mean estimate with the production population.
+            _min_w = np.clip(actual_minutes / 25.0, 0.05, 1.0)
             _combined_w = _min_w * (sample_weight if sample_weight is not None else np.ones(len(_min_w)))
         else:
             _combined_w = sample_weight

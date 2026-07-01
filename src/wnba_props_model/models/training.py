@@ -223,7 +223,19 @@ def train_fold(
             if use_zinb:
                 from wnba_props_model.models.hurdle import ZINBStatModel  # noqa: PLC0415
                 m = ZINBStatModel(stat, cfg)
-                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
+                # Pass actual_minutes from train_wide (played rows only) so the mu-model
+                # can up-weight prop-eligible appearances. actual_minutes is a target label,
+                # not a model feature — it cannot be extracted from X_played.
+                _zinb_actual_min = (
+                    train_wide.loc[played_mask, "actual_minutes"]
+                    .fillna(0)
+                    .reset_index(drop=True)
+                    .values
+                    if "actual_minutes" in train_wide.columns
+                    else None
+                )
+                m.fit(X_played, y_stat, sample_weight=sample_weight_played,
+                      actual_minutes=_zinb_actual_min)
             else:
                 m = HurdleModel(stat, cfg)
                 m.fit(X_played, y_stat, sample_weight=sample_weight_played)
