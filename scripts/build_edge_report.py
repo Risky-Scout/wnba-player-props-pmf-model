@@ -39,6 +39,37 @@ from wnba_props_model.models.simulation import json_to_pmf
 app = typer.Typer(add_completion=False)
 
 
+def _get_publishable_stats(cal_dir: str | Path | None) -> frozenset[str]:
+    """Dynamically determine publishable stats based on calibration bias corrections.
+
+    STL/BLK are re-enabled only when their multiplicative bias correction factor is >= 0.85,
+    meaning the raw model over-bias is <= 15% — correctable by the existing calibration.
+    """
+    _base = {"pts", "reb", "ast", "fg3m"}
+    _conditional = {"stl": 0.85, "blk": 0.85}
+
+    if cal_dir is None:
+        return frozenset(_base)
+
+    bc_path = Path(cal_dir) / "bias_corrections.json"
+    if not bc_path.exists():
+        return frozenset(_base)
+
+    try:
+        bc = json.loads(bc_path.read_text())
+        for stat, min_factor in _conditional.items():
+            factor = float(bc.get(stat, 0.0))
+            if factor >= min_factor:
+                _base.add(stat)
+                print(f"[edge_report] {stat} re-enabled: bias_correction={factor:.3f} >= {min_factor}")
+            else:
+                print(f"[edge_report] {stat} suppressed: bias_correction={factor:.3f} < {min_factor}")
+    except Exception as exc:
+        print(f"[edge_report] Could not read bias_corrections.json: {exc}")
+
+    return frozenset(_base)
+
+
 @app.command()
 def main(
     pmfs: str = typer.Option(..., help="Calibrated PMF parquet (full_pmfs_wide.parquet)."),
@@ -63,6 +94,11 @@ def main(
             "When supplied and non-empty, Odds API data is PREFERRED over BDL; "
             "deep link columns are added to publishable_edges."
         ),
+    ),
+    cal_dir: str = typer.Option(
+        "artifacts/models/calibration",
+        "--cal-dir",
+        help="Directory containing calibration artifacts (bias_corrections.json).",
     ),
 ) -> None:
     """Compare model PMFs vs. market lines using Shin no-vig.
@@ -116,9 +152,9 @@ def main(
     comp = comp[comp["market_prob_over_no_vig"] >= min_market_prob]
     comp = comp[comp["market_prob_over_no_vig"] <= (1.0 - min_market_prob)]
 
-    # Stats eligible for published edges.
-    # STL/BLK excluded: raw model over-predicts by ~40% (architectural issue — model retraining needed).
-    PUBLISHABLE_STATS = frozenset({"pts", "reb", "ast", "fg3m"})
+    # Stats eligible for published edges — dynamically determined from calibration bias gate.
+    # STL/BLK are re-enabled when bias_corrections.json shows factor >= 0.85 (< 15% raw over-bias).
+    PUBLISHABLE_STATS = _get_publishable_stats(cal_dir)
     if "stat" in comp.columns:
         comp = comp[comp["stat"].isin(PUBLISHABLE_STATS)].copy()
         typer.echo(f"[filter] Filtered to publishable stats {PUBLISHABLE_STATS}: {len(comp):,} rows remain")

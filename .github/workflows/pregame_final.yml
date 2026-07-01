@@ -265,7 +265,8 @@ jobs:
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
             --game-date "$GAME_DATE" \
-            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --cal-dir artifacts/models/calibration
         continue-on-error: true
 
       - name: Format final JSON output

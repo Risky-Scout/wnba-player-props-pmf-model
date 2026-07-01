@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -218,6 +219,51 @@ def _apply_mean_bias_correction(
         return normalize_pmf(new_pmf)
     except Exception:
         return arr
+
+
+def fit_pnz_calibrators(
+    oof: pd.DataFrame,
+    out: Path,
+) -> dict[str, Path]:
+    """Fit isotonic calibrators for P(nonzero) on hurdle-model stats (stl, blk).
+
+    Uses OOF p_nz predictions vs actual nonzero indicators.
+    A well-calibrated pi model produces uniform PIT, but the structural zero
+    probability p_nz = 1-pi can still be biased in the mean even with uniform PIT.
+    Isotonic regression corrects this monotonically without overfitting.
+    """
+    from sklearn.isotonic import IsotonicRegression  # noqa: PLC0415
+    import joblib  # noqa: PLC0415
+
+    pnz_paths: dict[str, Path] = {}
+    for stat in ("stl", "blk"):
+        sub = oof[(oof["stat"] == stat) & (oof["p_nz"].notna())].copy()
+        if len(sub) < 100:
+            logger.warning(
+                "[calibrate] Insufficient OOF rows for p_nz calibration of %s (%d rows)",
+                stat, len(sub),
+            )
+            continue
+        y_actual = (sub["actual_outcome"] > 0).astype(float).values
+        y_pred   = sub["p_nz"].clip(1e-6, 1 - 1e-6).values
+
+        ir = IsotonicRegression(out_of_bounds="clip")
+        ir.fit(y_pred, y_actual)
+
+        y_cal = ir.predict(y_pred)
+        cal_mean = float(y_cal.mean())
+        emp_rate = float(y_actual.mean())
+        logger.info(
+            "[calibrate] p_nz calibrator %s: empirical_nonzero=%.3f cal_mean=%.3f (delta=%.4f) n=%d",
+            stat, emp_rate, cal_mean, cal_mean - emp_rate, len(sub),
+        )
+
+        path = out / f"pnz_cal_{stat}.pkl"
+        joblib.dump(ir, path)
+        pnz_paths[stat] = path
+        print(f"[calibrate] Saved p_nz calibrator: {path}")
+
+    return pnz_paths
 
 
 def fit_calibrators(
@@ -502,6 +548,16 @@ def fit_calibrators(
     except Exception as exc:
         logger.warning("[calibrate] Conformal predictor fitting failed (non-fatal): %s", exc)
 
+    # Fit p_nz isotonic calibrators for hurdle-model stats (stl, blk)
+    if "p_nz" in oof_eligible.columns:
+        pnz_paths = fit_pnz_calibrators(oof_eligible, out)
+        paths.update({f"pnz_{k}": v for k, v in pnz_paths.items()})
+    else:
+        logger.info(
+            "[calibrate] p_nz column not in OOF — skipping p_nz calibrators "
+            "(rebuild OOF with updated training.py to enable)"
+        )
+
     return paths
 
 
@@ -535,6 +591,15 @@ def apply_calibrators(
         if cal_path.exists():
             calibrators[stat] = RoleAwarePMFCalibrator.load(str(cal_path))
 
+    # Load p_nz calibrators for hurdle stats (stl, blk)
+    import joblib as _joblib_pnz  # noqa: PLC0415
+    _pnz_calibrators: dict[str, Any] = {}
+    for _pnz_stat in ("stl", "blk"):
+        _pnz_path = cal_dir / f"pnz_cal_{_pnz_stat}.pkl"
+        if _pnz_path.exists():
+            _pnz_calibrators[_pnz_stat] = _joblib_pnz.load(_pnz_path)
+            logger.info("[calibrate] Loaded p_nz calibrator for %s", _pnz_stat)
+
     new_pmf_jsons = []
     is_calibrated_flags = []
     cal_sources = []
@@ -549,6 +614,18 @@ def apply_calibrators(
         _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
         if abs(_alpha_ac - 1.0) > 0.005:
             raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac)
+
+        # P_nz calibration for hurdle stats (stl, blk): rescale zero mass
+        if stat in _pnz_calibrators:
+            _p_nz_raw = float(1.0 - raw_pmf[0])
+            _p_nz_raw_clipped = np.clip(_p_nz_raw, 1e-6, 1 - 1e-6)
+            _p_nz_cal = float(_pnz_calibrators[stat].predict([_p_nz_raw_clipped])[0])
+            _p_nz_cal = np.clip(_p_nz_cal, 1e-6, 1 - 1e-6)
+            if _p_nz_raw > 1e-6:
+                # Rescale non-zero atoms proportionally; preserve shape of conditional distribution
+                raw_pmf[1:] = raw_pmf[1:] * (_p_nz_cal / _p_nz_raw)
+            raw_pmf[0] = 1.0 - _p_nz_cal
+            raw_pmf = raw_pmf / raw_pmf.sum()  # renormalize
 
         if stat in calibrators:
             try:

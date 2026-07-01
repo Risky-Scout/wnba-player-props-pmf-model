@@ -217,7 +217,8 @@ jobs:
             --raw-props data/processed/wnba_player_props.parquet \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --out-dir deliveries/next_game \
-            --game-date ${{ steps.date.outputs.target_date }}
+            --game-date ${{ steps.date.outputs.target_date }} \
+            --cal-dir artifacts/models/calibration
         continue-on-error: true
 
       - name: CI Variance Gate — reject degenerate predictions

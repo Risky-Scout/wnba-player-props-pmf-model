@@ -508,6 +508,8 @@ def generate_fold_pmfs(
             "minutes_prediction_type":      "model" if oof_type == "model_oof" else "prior",
             "stat_mean":                    stat_means_out,
             "stat_variance":                stat_var_out,
+            "p_nz":                         p_nz_out if p_nz_out is not None else np.ones(len(stat_rows)),
+            "pos_mu":                       pos_mus_out if pos_mus_out is not None else stat_means_out,
             "stat_model_type":              stat_model_type,
             "pmf_json":                     pmf_jsons,
             "pmf_support_min":              0,
