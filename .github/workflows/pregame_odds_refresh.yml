@@ -264,21 +264,20 @@ jobs:
              tools/odds-scanner/predictions/WNBA/In-Play/Edges/index.html
           # Seed a no-games latest.json if none exists
           if [ ! -f "tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json" ]; then
-            python3 -c "
-import json
-from datetime import datetime, timezone
-payload = {
-  'schema_version': '2.0',
-  'generated_at': datetime.now(timezone.utc).isoformat(),
-  'active_games': 0,
-  'games': []
-}
-import pathlib
-pathlib.Path('tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json').write_text(
-  json.dumps(payload, separators=(',', ':'))
-)
-print('Seeded empty latest.json')
-"
+            python3 - <<'PYEOF'
+          import json, pathlib
+          from datetime import datetime, timezone
+          payload = {
+            'schema_version': '2.0',
+            'generated_at': datetime.now(timezone.utc).isoformat(),
+            'active_games': 0,
+            'games': [],
+          }
+          pathlib.Path('tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json').write_text(
+            json.dumps(payload, separators=(',', ':'))
+          )
+          print('Seeded empty latest.json')
+          PYEOF
           fi
         continue-on-error: true
 

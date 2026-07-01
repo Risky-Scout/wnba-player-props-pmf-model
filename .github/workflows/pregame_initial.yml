@@ -113,12 +113,36 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
             RESOLVED_DATE="${{ github.event.inputs.game_date }}"
+            echo "Explicit game_date input: ${RESOLVED_DATE}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Triggered by daily_pipeline: infer the target date from the
+            # daily-delivery-YYYY-MM-DD-RUNID artifact produced by that run.
+            TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
+            DELIVERY_NAME=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("daily-delivery-"))] | sort_by(.created_at) | reverse | .[0].name' \
+              2>/dev/null || echo "")
+            if [ -n "$DELIVERY_NAME" ] && [ "$DELIVERY_NAME" != "null" ]; then
+              INFERRED_DATE=$(echo "$DELIVERY_NAME" | grep -oP '\d{4}-\d{2}-\d{2}' | head -1)
+              if [ -n "$INFERRED_DATE" ]; then
+                RESOLVED_DATE="$INFERRED_DATE"
+                echo "Inferred target date from daily-delivery artifact '${DELIVERY_NAME}': ${RESOLVED_DATE}"
+              else
+                RESOLVED_DATE="$(date -u +%Y-%m-%d)"
+                echo "Could not extract date from artifact '${DELIVERY_NAME}' — falling back to today: ${RESOLVED_DATE}"
+              fi
+            else
+              RESOLVED_DATE="$(date -u +%Y-%m-%d)"
+              echo "No daily-delivery artifact found in triggering run ${TRIGGER_RUN_ID} — falling back to today: ${RESOLVED_DATE}"
+            fi
           else
-            # workflow_run or cron safety-net (both run after daily_pipeline) — use TODAY
+            # cron safety-net — default to today
             RESOLVED_DATE="$(date -u +%Y-%m-%d)"
+            echo "Cron/schedule trigger — using today: ${RESOLVED_DATE}"
           fi
           echo "GAME_DATE=${RESOLVED_DATE}" >> $GITHUB_ENV
-          echo "Game date set to: ${RESOLVED_DATE}"
+          echo "Game date resolved to: ${RESOLVED_DATE}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull BDL current-season data
         run: |
