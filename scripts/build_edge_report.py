@@ -283,7 +283,14 @@ def main(
         _pre_book_n = len(edges)
         _is_combo = edges["stat"].isin(_COMBO_STATS)
         _min_books_arr = _is_combo.map({True: _MIN_BOOKS_COMBO, False: _MIN_BOOKS_INDIVIDUAL})
-        _book_mask = edges["number_of_books_offering"].fillna(1).astype(int) >= _min_books_arr
+        # When number_of_books_offering is null (Odds API doesn't always populate it),
+        # treat it as "unknown" and pass through rather than defaulting to 1 book which
+        # would incorrectly eliminate every individual prop from publication.
+        _known_books = edges["number_of_books_offering"].notna()
+        _book_mask = (
+            ~_known_books  # null = unknown = pass through
+            | (edges["number_of_books_offering"].fillna(1).astype(int) >= _min_books_arr)
+        )
         edges = edges[_book_mask].copy()
         typer.echo(
             f"[filter] Book consensus (individual>={_MIN_BOOKS_INDIVIDUAL}, "
