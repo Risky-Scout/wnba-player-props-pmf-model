@@ -45,7 +45,16 @@ def _get_publishable_stats(cal_dir: str | Path | None) -> frozenset[str]:
     STL/BLK are re-enabled only when their multiplicative bias correction factor is >= 0.85,
     meaning the raw model over-bias is <= 15% — correctable by the existing calibration.
     """
-    _base = {"pts", "reb", "ast", "fg3m"}
+    # Combo stats are always publishable: their PMFs are derived from calibrated
+    # component distributions via convolution, not from raw model outputs.
+    # Correlation adjustments (bivariate_pmf.py) are applied at prediction time.
+    # Note: "stocks" (stl+blk) is a combo and is always-on; individual "stl" and
+    # "blk" edges remain gated on their bias correction factor.
+    _base = {
+        "pts", "reb", "ast", "fg3m",
+        "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast",
+        "stocks",
+    }
     _conditional = {"stl": 0.85, "blk": 0.85}
 
     if cal_dir is None:
@@ -245,18 +254,41 @@ def main(
     # keep sanity_flag=1 (caution) but sort them to the bottom.
     # Primary sort: by CLV-decay-adjusted edge (time-corrected signal);
     # fall back to raw edge if decay column is absent.
-    edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
+    # Combo props have higher natural variance (sum of components), so a naive
+    # edge filter catches more noise. Apply a 1pp markup for combo stats to
+    # ensure only robust signals are published. For individual stats, use the
+    # standard threshold. This maximises ROI by filtering combo noise while
+    # preserving genuine combo edges.
+    _COMBO_STATS_SET = frozenset({"pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"})
+    if "stat" in comp.columns:
+        _combo_threshold = edge_threshold + 0.01  # 1pp markup for combos
+        _is_combo_edge = comp["stat"].isin(_COMBO_STATS_SET)
+        _threshold_arr = _is_combo_edge.map({True: _combo_threshold, False: edge_threshold})
+        edges = comp[comp["edge_over"].abs() >= _threshold_arr].copy()
+        typer.echo(
+            f"[filter] Edge threshold: individual={edge_threshold:.2%}, "
+            f"combo={_combo_threshold:.2%} → {len(edges)} edges"
+        )
+    else:
+        edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     _sort_col = "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns else "edge_over"
 
-    # Book consensus filter: require at least 2 books offering the line
-    # Single-book lines have higher adverse-selection risk
-    _MIN_BOOKS = 2
-    if "number_of_books_offering" in edges.columns:
+    # Combo props (pts_reb, pts_ast, etc.) are offered by fewer sportsbooks
+    # than individual props — requiring 2 books would silently eliminate nearly
+    # all combo edges. Apply a 1-book minimum for combos, 2-book for individuals.
+    _COMBO_STATS = frozenset({"pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"})
+    _MIN_BOOKS_INDIVIDUAL = 2
+    _MIN_BOOKS_COMBO = 1
+    if "number_of_books_offering" in edges.columns and "stat" in edges.columns:
         _pre_book_n = len(edges)
-        edges = edges[
-            edges["number_of_books_offering"].fillna(1).astype(int) >= _MIN_BOOKS
-        ].copy()
-        typer.echo(f"[filter] Book consensus (>={_MIN_BOOKS} books): {_pre_book_n} → {len(edges)} edges")
+        _is_combo = edges["stat"].isin(_COMBO_STATS)
+        _min_books_arr = _is_combo.map({True: _MIN_BOOKS_COMBO, False: _MIN_BOOKS_INDIVIDUAL})
+        _book_mask = edges["number_of_books_offering"].fillna(1).astype(int) >= _min_books_arr
+        edges = edges[_book_mask].copy()
+        typer.echo(
+            f"[filter] Book consensus (individual>={_MIN_BOOKS_INDIVIDUAL}, "
+            f"combo>={_MIN_BOOKS_COMBO}): {_pre_book_n} → {len(edges)} edges"
+        )
 
     # Direction-contradiction filter: suppress edges where model direction
     # contradicts significant line movement (steam)
