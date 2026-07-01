@@ -446,6 +446,25 @@ jobs:
             artifacts/audits/closing_lines_${{ steps.date.outputs.yesterday }}.parquet
           retention-days: 14
 
+      - name: Bridge next_game → tonight for pregame_final compatibility
+        # When target_date != today (off-day advance), daily_pipeline writes to
+        # deliveries/next_game/ but pregame_final reads from deliveries/tonight/.
+        # Copy outputs so the pregame-initial artifact chain works correctly.
+        if: ${{ !cancelled() }}
+        run: |
+          TARGET="${{ steps.date.outputs.target_date }}"
+          TODAY=$(date -u +%Y-%m-%d)
+          if [ "$TARGET" != "$TODAY" ] && [ -d "deliveries/next_game" ]; then
+            mkdir -p deliveries/tonight
+            find deliveries/next_game -maxdepth 1 \( -name "*.parquet" -o -name "*.json" \) | while read f; do
+              cp "$f" "deliveries/tonight/$(basename $f)" 2>/dev/null || true
+            done
+            echo "[bridge] Copied next_game → tonight for target_date=$TARGET"
+            ls -la deliveries/tonight/ | head -20
+          else
+            echo "[bridge] target_date=$TARGET == today=$TODAY or next_game absent — no bridge needed"
+          fi
+
       - name: Trigger pregame dashboard publish (explicit dispatch)
         # workflow_run events are unreliable for schedule-triggered parent workflows.
         # Explicitly dispatch pregame_initial after daily_pipeline runs so the

@@ -2224,6 +2224,7 @@ def main(
         "--base-dir",
         help="Root WNBA predictions directory",
     ),
+    json_only: bool = typer.Option(False, "--json-only", help="Write only JSON data files, skip index.html regeneration."),
 ) -> None:
     """Generate WNBA Odds Pricer pages (Pre-Game and Live In-Play)."""
     base = typer.style(base_dir, fg=typer.colors.CYAN)
@@ -2234,16 +2235,18 @@ def main(
     # Pre-Game Pricer
     pregame_dir = base_path / "Pre-Game" / "Pricer"
     pregame_dir.mkdir(parents=True, exist_ok=True)
-    pregame_out = pregame_dir / "index.html"
-    pregame_out.write_text(_PREGAME_PRICER_HTML, encoding="utf-8")
-    typer.echo(f"  Written: {pregame_out}  ({pregame_out.stat().st_size:,} bytes)")
+    if not json_only:
+        pregame_out = pregame_dir / "index.html"
+        pregame_out.write_text(_PREGAME_PRICER_HTML, encoding="utf-8")
+        typer.echo(f"  Written: {pregame_out}  ({pregame_out.stat().st_size:,} bytes)")
 
     # Live In-Play Pricer
     live_dir = base_path / "In-Play" / "Pricer"
     live_dir.mkdir(parents=True, exist_ok=True)
-    live_out = live_dir / "index.html"
-    live_out.write_text(_LIVE_PRICER_HTML, encoding="utf-8")
-    typer.echo(f"  Written: {live_out}  ({live_out.stat().st_size:,} bytes)")
+    if not json_only:
+        live_out = live_dir / "index.html"
+        live_out.write_text(_LIVE_PRICER_HTML, encoding="utf-8")
+        typer.echo(f"  Written: {live_out}  ({live_out.stat().st_size:,} bytes)")
 
     typer.echo("[generate_pricer_page] Done.")
 

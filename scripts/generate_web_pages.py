@@ -1341,6 +1341,7 @@ def main(
         help="Output directory for Inplay/Edges page",
     ),
     skip_live_html: bool = typer.Option(False, "--skip-live-html", help="Skip writing the live page HTML"),
+    json_only: bool = typer.Option(False, "--json-only", help="Write only JSON data files, skip index.html regeneration."),
 ) -> None:
     """Generate all three web page directories (Edge, PMF-Distributions, Inplay/Edges)."""
     out = Path(out_dir)
@@ -1389,15 +1390,16 @@ def main(
     (pmf_dir / f"{game_date}.json").write_text(json.dumps(pmf_json, separators=(",", ":")))
     typer.echo(f"  PMF JSON → {pmf_dir}/latest.json ({pmf_json['total_props']} props with distributions)")
 
-    # --- Write HTML templates (overwrite with canonical version each run) ---
-    (edge_dir / "index.html").write_text(_EDGE_HTML)
-    typer.echo(f"  Edge HTML → {edge_dir}/index.html")
+    # --- Write HTML templates (skip when --json-only) ---
+    if not json_only:
+        (edge_dir / "index.html").write_text(_EDGE_HTML)
+        typer.echo(f"  Edge HTML → {edge_dir}/index.html")
 
-    (pmf_dir / "index.html").write_text(_PMF_HTML)
-    typer.echo(f"  PMF HTML → {pmf_dir}/index.html")
+        (pmf_dir / "index.html").write_text(_PMF_HTML)
+        typer.echo(f"  PMF HTML → {pmf_dir}/index.html")
 
-    # --- Live page: always write fresh index.html; JSON is written by live_inplay.yml ---
-    if not skip_live_html:
+    # --- Live page: JSON is written by live_inplay.yml; HTML skipped when --json-only ---
+    if not skip_live_html and not json_only:
         (live_out / "index.html").write_text(_LIVE_HTML)
         typer.echo(f"  Live HTML → {live_out}/index.html")
 

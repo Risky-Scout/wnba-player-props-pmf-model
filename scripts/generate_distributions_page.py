@@ -618,6 +618,7 @@ def main(
         "--base-dir",
         help="Root WNBA predictions directory",
     ),
+    json_only: bool = typer.Option(False, "--json-only", help="Write only JSON data files, skip index.html regeneration."),
 ) -> None:
     """Generate pure PMF visualization page at Pre-Game/Distributions/."""
     if not game_date:
@@ -636,11 +637,13 @@ def main(
 
     (out_dir / "latest.json").write_text(json.dumps(payload, separators=(",", ":")))
     (out_dir / f"{game_date}.json").write_text(json.dumps(payload, separators=(",", ":")))
-    (out_dir / "index.html").write_text(_HTML)
+    if not json_only:
+        (out_dir / "index.html").write_text(_HTML)
 
     typer.echo(f"  → latest.json ({payload['total_props']} props)")
     typer.echo(f"  → {game_date}.json")
-    typer.echo(f"  → index.html")
+    if not json_only:
+        typer.echo(f"  → index.html")
     typer.echo("[generate_distributions_page] Done.")
 
 
