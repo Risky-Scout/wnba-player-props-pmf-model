@@ -450,7 +450,9 @@ jobs:
             --config-path config/model/stage4_baseline.yaml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
           git pull --rebase origin main
+          git stash pop || true
           git add config/model/stage4_baseline.yaml
           git diff --cached --quiet || git commit -m "chore: auto-update dispersion_r from OOF [skip ci]"
           git push || true
