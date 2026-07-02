@@ -336,28 +336,42 @@ jobs:
           path: data/clv_tracking/
         continue-on-error: true
 
+      - name: Determine calibration staleness threshold
+        id: staleness
+        run: |
+          MONTH=$(date +%m)
+          if [ "$MONTH" -ge 9 ]; then
+            echo "threshold=3" >> $GITHUB_OUTPUT
+            echo "Season phase: playoffs (threshold=3 days)"
+          else
+            echo "threshold=7" >> $GITHUB_OUTPUT
+            echo "Season phase: regular season (threshold=7 days)"
+          fi
+
       - name: Check calibration staleness and drift
         # Checks two failure modes:
-        # 1. STALENESS: calibrators older than 7 days → force refit regardless of ECE.
+        # 1. STALENESS: calibrators older than threshold days → force refit regardless of ECE.
         # 2. DRIFT: ECE>0.12 on last 100 scored predictions → force refit.
         # Both exit 1 to trigger the auto-refit steps below.
         id: drift-check
         continue-on-error: true
         run: |
-          # Staleness check: force refit if calibrators have not been updated in 7 days
+          STALE_THRESHOLD="${{ steps.staleness.outputs.threshold }}"
+          # Staleness check: force refit if calibrators have not been updated in threshold days
           python -c "
 import json, sys, datetime, pathlib
 meta = pathlib.Path('artifacts/models/calibration/calibration_metadata.json')
+threshold = int('${STALE_THRESHOLD}')
 if meta.exists():
     d = json.loads(meta.read_text())
     fitted_at = d.get('fitted_at', '')
     if fitted_at:
         age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(fitted_at)).days
-        if age > 7:
-            print(f'[STALE] Calibrators are {age} days old (>7) — forcing refit.')
+        if age > threshold:
+            print(f'[STALE] Calibrators are {age} days old (>{threshold}) — forcing refit.')
             sys.exit(1)
         else:
-            print(f'[OK] Calibrators are {age} days old (<=7).')
+            print(f'[OK] Calibrators are {age} days old (<={threshold}).')
 "
           # Drift check: ECE threshold gate
           python scripts/check_calibration_drift.py \

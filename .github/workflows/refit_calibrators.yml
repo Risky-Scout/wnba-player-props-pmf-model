@@ -68,11 +68,34 @@ jobs:
           rm -f artifacts/models/calibration/conformal_predictor.pkl
           echo "Old calibrators invalidated."
 
+      - name: Download historical props for beta calibration
+        run: |
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=bdl-data-snapshot" \
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id // empty' 2>/dev/null)
+          if [ -n "$AID" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/props.zip
+            unzip -o /tmp/props.zip -d /tmp/props_artifact/
+            find /tmp/props_artifact -name "*.parquet" | head -1 | xargs -I{} cp {} data/processed/wnba_player_props.parquet 2>/dev/null || true
+          fi
+          if [ -f "data/processed/wnba_player_props.parquet" ]; then
+            echo "Props parquet found — beta calibrators will be fitted."
+          else
+            echo "WARNING: No props parquet — beta calibrators will be skipped."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Fit calibrators (Stage 6)
         run: |
+          PROPS_ARG=""
+          if [ -f "data/processed/wnba_player_props.parquet" ]; then
+            PROPS_ARG="--props-parquet data/processed/wnba_player_props.parquet"
+          fi
           python scripts/fit_calibrators.py \
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
-            --out-dir artifacts/models/calibration
+            --out-dir artifacts/models/calibration \
+            $PROPS_ARG
 
       - name: Apply calibrators to OOF (for post-cal gate)
         run: |

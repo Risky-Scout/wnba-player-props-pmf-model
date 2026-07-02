@@ -438,6 +438,29 @@ jobs:
           echo "::warning title=Calibration Gate Failed::Post-cal gate failed. New calibrators NOT promoted. Previous calibrators remain active."
           echo "Gate failed on $(date -u +%Y-%m-%d). Check artifacts/audits/stage5_oof_summary.md for details."
 
+      - name: Auto-update dispersion r from OOF
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          pip install ruamel.yaml -q 2>/dev/null || true
+          python scripts/update_dispersion_config.py \
+            --oof-path data/oof/oof_player_stat_pmfs.parquet \
+            --config-path config/model/stage4_baseline.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add config/model/stage4_baseline.yaml
+          git diff --cached --quiet || git commit -m "chore: auto-update dispersion_r from OOF [skip ci]"
+          git push || true
+        continue-on-error: true
+
+      - name: Compute position-stratified combo correlations
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          python scripts/compute_combo_correlations_by_pos.py \
+            --oof-path data/oof/oof_player_stat_pmfs.parquet \
+            --out artifacts/models/stage4_baseline/combo_correlations_by_pos.json
+        continue-on-error: true
+
       - name: Upload OOF audit artifacts
         uses: actions/upload-artifact@v4
         if: always()
