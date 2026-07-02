@@ -240,16 +240,6 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
     else:
         merged = edges_df.copy()
     props = []
-    # #region agent log
-    import json as _jlog2, time as _tlog2  # noqa: PLC0415, E401
-    _dbg_log2 = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-    def _wlog2(msg, data, hyp):  # noqa: ANN001, ANN202
-        try:
-            with open(_dbg_log2, "a") as _f2:
-                _f2.write(_jlog2.dumps({"sessionId": "3f8dcc", "timestamp": int(_tlog2.time() * 1000), "location": "generate_web_pages.py:_build_pmf_json", "message": msg, "data": data, "hypothesisId": hyp}) + "\n")
-        except Exception: pass
-    _wlog2("PMF_JSON_MERGE: merged cols", {"cols": list(merged.columns), "n_rows": len(merged)}, "C")
-    # #endregion
     for _, r in merged.iterrows():
         raw_pmf = r.get("pmf_json", None)
         pmf_str = raw_pmf if isinstance(raw_pmf, str) and raw_pmf.strip() else "{}"
@@ -257,11 +247,6 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
         if not pairs:
             print(f"  [WARN] Skipping {r.get('player_name','?')} {r.get('stat','?')} — no PMF data after merge (pmf_json={repr(raw_pmf)[:40]})")
             continue
-        # #region agent log
-        _stored_pmf_mean = float(r.get("pmf_mean") or r.get("pmf_mean_proj") or 0)
-        if abs(mu - _stored_pmf_mean) > 2.0 and _stored_pmf_mean > 0:
-            _wlog2("MEAN_DISCREPANCY: parsed_mu != stored_pmf_mean", {"player": r.get("player_name"), "stat": r.get("stat"), "parsed_mu": round(mu, 2), "stored_pmf_mean": round(_stored_pmf_mean, 2), "pmf_json_preview": str(raw_pmf)[:80] if raw_pmf else None}, "B")
-        # #endregion
         edge = float(r.get("edge_over", 0) or 0)
         # Use calibrated pmf_mean (stored in parquet) as the authoritative mean —
         # the raw pmf_json array is pre-calibration and _parse_pmf(pmf_json) would

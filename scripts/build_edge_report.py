@@ -248,20 +248,6 @@ def main(
         _n_before = len(comp)
         _n_extreme = int(_extreme_mask.sum())
         _n_caution = int(_caution_mask.sum())
-        # #region agent log
-        import json as _jlog, time as _tlog  # noqa: PLC0415, E401
-        _dbg_log = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-        def _wlog(msg, data, hyp):  # noqa: ANN001, ANN202
-            try:
-                with open(_dbg_log, "a") as _f:
-                    _f.write(_jlog.dumps({"sessionId": "3f8dcc", "timestamp": int(_tlog.time() * 1000), "location": "build_edge_report.py:sanity_guard", "message": msg, "data": data, "hypothesisId": hyp}) + "\n")
-            except Exception: pass
-        _top_ratios = comp[["player_name", "stat", "model_market_ratio", "projection_sanity_flag"]].sort_values("model_market_ratio", ascending=False).head(10)
-        _wlog("RATIO_GATE: top rows by model_market_ratio", {"rows": _top_ratios.to_dict("records"), "n_extreme": _n_extreme, "n_caution": _n_caution, "n_total": _n_before}, "A")
-        if _n_extreme > 0:
-            _suppressed = comp[_extreme_mask][["player_name", "stat", "model_market_ratio"]].to_dict("records")
-            _wlog("RATIO_GATE: suppressed rows", {"suppressed": _suppressed[:20]}, "A")
-        # #endregion
         typer.echo(
             f"[sanity-guard] {_n_extreme}/{_n_before} rows suppressed "
             f"(stat-specific ratio bounds); {_n_caution} rows flagged as caution"
