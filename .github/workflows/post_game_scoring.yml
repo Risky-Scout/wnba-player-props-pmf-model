@@ -55,6 +55,17 @@ jobs:
           path: deliveries/scored_day
         continue-on-error: true
 
+      - name: "[DEBUG 3f8dcc] Inspect artifact download result"
+        run: |
+          echo "=== H-1/H-2/H-3 diagnostic ==="
+          echo "game_date=${{ steps.date.outputs.game_date }}"
+          echo "--- deliveries/scored_day tree (all files) ---"
+          find deliveries/scored_day -type f 2>/dev/null | sort || echo "[DIAG-H2] deliveries/scored_day does not exist or is empty"
+          echo "--- flat path guard would check ---"
+          ls -la deliveries/scored_day/full_pmfs_wide.parquet 2>/dev/null && echo "[DIAG-H2-PASS] flat path EXISTS" || echo "[DIAG-H1] flat path MISSING"
+          echo "--- searching for full_pmfs_wide.parquet anywhere under scored_day ---"
+          find deliveries/scored_day -name "full_pmfs_wide.parquet" 2>/dev/null | sort || echo "[DIAG-H2] full_pmfs_wide.parquet not found anywhere"
+
       - name: Download closing lines for scored game date
         # The daily pipeline snapshots BDL props for yesterday's games each morning.
         # We need those lines here to compute true CLV (model prob vs. closing price).

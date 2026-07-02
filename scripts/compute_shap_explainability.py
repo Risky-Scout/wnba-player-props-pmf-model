@@ -39,6 +39,20 @@ import typer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+# #region agent log — debug session 3f8dcc
+_DBG_LOG = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+import time as _time
+def _dbg(msg: str, data: dict | None = None, hyp: str = "") -> None:
+    import json as _j
+    entry = {"sessionId": "3f8dcc", "timestamp": int(_time.time() * 1000),
+             "message": msg, "data": data or {}, "hypothesisId": hyp}
+    try:
+        with open(_DBG_LOG, "a") as _f:
+            _f.write(_j.dumps(entry) + "\n")
+    except Exception:
+        pass
+# #endregion
+
 app = typer.Typer(add_completion=False)
 
 STATS_TO_EXPLAIN = ["pts", "reb", "ast", "fg3m", "stl", "blk"]
@@ -136,6 +150,16 @@ def main(
 
         # Prepare feature matrix
         X = _prepare_X(today_df, feat_cols)
+        # #region agent log — H-E: did _prepare_X return a usable matrix?
+        _dbg("_prepare_X result", {
+            "stat": stat,
+            "feat_cols_count": len(feat_cols),
+            "feat_cols_sample": feat_cols[:5],
+            "df_columns_sample": list(today_df.columns[:10]),
+            "X_shape": list(X.shape) if X is not None else None,
+            "X_is_none": X is None,
+        }, hyp="H-E")
+        # #endregion
         if X is None or X.shape[1] == 0:
             typer.echo(f"  [WARN] Empty feature matrix for {stat} — skipping.", err=True)
             continue
@@ -147,7 +171,13 @@ def main(
                 sv = shap_values[0]
             else:
                 sv = shap_values
+            # #region agent log — H-D: SHAP succeeded
+            _dbg("shap_values computed", {"stat": stat, "sv_shape": list(sv.shape)}, hyp="H-D")
+            # #endregion
         except Exception as exc:
+            # #region agent log — H-D: SHAP failed
+            _dbg("shap_values FAILED", {"stat": stat, "error": str(exc), "model_type": type(model).__name__}, hyp="H-D")
+            # #endregion
             typer.echo(f"  [WARN] SHAP failed for {stat}: {exc}", err=True)
             continue
 
@@ -203,6 +233,13 @@ def _load_models(model_dir: str) -> dict:
     import joblib  # noqa: PLC0415
 
     md = Path(model_dir)
+
+    # #region agent log — H-A: what files actually exist in model_dir?
+    actual_files = [p.name for p in md.iterdir()] if md.exists() else []
+    _dbg("_load_models entry", {"model_dir": str(md), "files_found": actual_files,
+                                 "dir_exists": md.exists()}, hyp="H-A")
+    # #endregion
+
     models: dict = {}
     for stat in STATS_TO_EXPLAIN:
         for fname in [f"hgb_{stat}.pkl", f"model_{stat}.pkl", f"{stat}_model.pkl", "model.pkl"]:
@@ -229,6 +266,38 @@ def _load_models(model_dir: str) -> dict:
                     break
                 except Exception:
                     pass
+
+    # #region agent log — H-A/H-B/H-C: what did we end up with?
+    # Also probe stat_rate_models.joblib to test H-B and H-C
+    srm_probe: dict = {}
+    srm_path = md / "stat_rate_models.joblib"
+    if srm_path.exists():
+        try:
+            srm = joblib.load(srm_path)
+            srm_probe = {
+                "loaded": True,
+                "keys": list(srm.keys()) if isinstance(srm, dict) else str(type(srm)),
+                "stats_to_explain": STATS_TO_EXPLAIN,
+            }
+            if isinstance(srm, dict):
+                per_stat = {}
+                for k, v in srm.items():
+                    inner_model = getattr(v, "_model", "ATTR_MISSING")
+                    usable_cols = getattr(v, "_usable_cols", "ATTR_MISSING")
+                    per_stat[k] = {
+                        "type": type(v).__name__,
+                        "_model": type(inner_model).__name__ if not isinstance(inner_model, str) else inner_model,
+                        "_model_is_none": inner_model is None,
+                        "_usable_cols_len": len(usable_cols) if isinstance(usable_cols, list) else usable_cols,
+                    }
+                srm_probe["per_stat"] = per_stat
+        except Exception as exc:
+            srm_probe = {"loaded": False, "error": str(exc)}
+    _dbg("_load_models result", {
+        "pkl_models_found": list(models.keys()),
+        "stat_rate_models_probe": srm_probe,
+    }, hyp="H-A,H-B,H-C")
+    # #endregion
 
     return models
 
