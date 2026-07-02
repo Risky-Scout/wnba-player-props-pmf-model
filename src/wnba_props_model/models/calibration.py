@@ -188,30 +188,6 @@ class RoleAwarePMFCalibrator:
             arr = normalize_pmf(pmf)
             pmf_mean_val = float(np.dot(np.arange(len(arr)), arr))
             tier = self._get_quality_tier(role_bucket, pmf_mean_val)
-            # #region agent log
-            import json as _json_log_qt, time as _time_log_qt
-            _thresholds_qt = self.quality_tier_thresholds.get(role_bucket)
-            try:
-                _log_path_qt = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-                _log_entry_qt = _json_log_qt.dumps({
-                    "sessionId": "3f8dcc", "id": f"log_qt_{role_bucket}_{int(_time_log_qt.time()*1000)}",
-                    "timestamp": int(_time_log_qt.time() * 1000),
-                    "location": "calibration.py:apply:quality_tier",
-                    "message": "quality tier assigned (H-C: is pmf_mean used for tier?)",
-                    "hypothesisId": "H-C",
-                    "data": {
-                        "role_bucket": role_bucket,
-                        "pmf_mean_val": round(pmf_mean_val, 3),
-                        "tier_assigned": tier,
-                        "thresholds": [round(x, 3) for x in _thresholds_qt] if _thresholds_qt else None,
-                        "player_id": str(player_id) if player_id is not None else None,
-                    }
-                }) + "\n"
-                with open(_log_path_qt, "a") as _f_qt:
-                    _f_qt.write(_log_entry_qt)
-            except Exception:
-                pass
-            # #endregion agent log
             if tier in tier_cals:
                 b = tier_cals[tier].apply(pmf)
                 output = normalize_pmf(w * b + (1.0 - w) * g)
