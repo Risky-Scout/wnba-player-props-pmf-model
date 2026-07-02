@@ -215,54 +215,21 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Publish Edge Board to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          keep_files: true
-
-      - name: Publish PMF Dashboard to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          keep_files: true
-
-      - name: Generate Distributions page (combined Edges + PMF)
+      - name: Generate Distributions + seed Live In-Play page
         run: |
           python scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
             --base-dir tools/odds-scanner/predictions/WNBA
           echo "Distributions page generated for ${GAME_DATE}"
-        continue-on-error: true
 
-      - name: Publish Distributions page to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
-          keep_files: true
-
-      - name: Seed Live In-Play page HTML (canonical In-Play/Edges/ URL)
-        run: |
-          # Deploy live page HTML shell to the canonical URL so the page exists
-          # even when no games are active. The tracker updates latest.json during games.
+          # Deploy live page HTML shell to canonical URL so it exists even without games.
           python scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
             --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
-          # Mirror to canonical URL path
           mkdir -p tools/odds-scanner/predictions/WNBA/In-Play/Edges
           cp tools/odds-scanner/predictions/WNBA/Inplay/Edges/index.html \
              tools/odds-scanner/predictions/WNBA/In-Play/Edges/index.html
-          # Seed a no-games latest.json if none exists
           if [ ! -f "tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json" ]; then
             python3 - <<'PYEOF'
           import json, pathlib
@@ -281,11 +248,30 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Publish In-Play Edges page to gh-pages (canonical URL)
+      - name: Stage all outputs for single gh-pages deploy
+        run: |
+          # Consolidate every output directory into _site so we make exactly
+          # one push to gh-pages — eliminates all push race conditions.
+          DIRS=(
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions"
+            "tools/odds-scanner/predictions/WNBA/In-Play/Edges"
+          )
+          for DIR in "${DIRS[@]}"; do
+            if [ -d "$DIR" ]; then
+              mkdir -p "_site/${DIR}"
+              cp -r "${DIR}/." "_site/${DIR}/"
+            fi
+          done
+          [ -d "tools/odds-scanner" ] && cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
+          echo "Staged files: $(find _site -type f | wc -l)"
+
+      - name: Deploy all pages to gh-pages (single push — no race condition)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/In-Play/Edges
+          publish_dir: _site
           publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/In-Play/Edges
+          destination_dir: .
           keep_files: true

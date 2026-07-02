@@ -317,33 +317,6 @@ jobs:
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
         continue-on-error: true
 
-      - name: Publish predictions to gh-pages (legacy Pre-Game-Edge path)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
-          keep_files: true
-
-      - name: Publish Edge Board to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          keep_files: true
-
-      - name: Publish PMF Dashboard to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          keep_files: true
-
       - name: Generate Distributions page (combined Edges + PMF)
         run: |
           python scripts/generate_distributions_page.py \
@@ -352,22 +325,38 @@ jobs:
           echo "Distributions page generated for ${GAME_DATE}"
         continue-on-error: true
 
-      - name: Publish Distributions page to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
-          keep_files: true
+      - name: Stage all outputs for single gh-pages deploy
+        run: |
+          # Consolidate every output directory into _site so we make exactly
+          # one push to gh-pages — eliminates all push race conditions.
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
 
-      - name: Publish dashboard index.html to gh-pages
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game-Edge" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
+          [ -d "tools/odds-scanner" ] && \
+            cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
+          echo "Staged files: $(find _site -type f | wc -l)"
+
+      - name: Deploy all pages to gh-pages (single push — no race condition)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner
+          publish_dir: _site
           publish_branch: gh-pages
-          destination_dir: tools/odds-scanner
+          destination_dir: .
           keep_files: true
 
       - name: Upload deliveries artifact

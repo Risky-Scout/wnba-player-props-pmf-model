@@ -333,79 +333,48 @@ jobs:
           echo "Web pages generated for ${GAME_DATE}"
         continue-on-error: true
 
-      - name: Publish Pre-Game-Edge (legacy path) to gh-pages
-        if: steps.data-gate.outputs.has_data == 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
-          keep_files: true
-
-      - name: Publish Edge Board to gh-pages
-        if: steps.data-gate.outputs.has_data == 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          keep_files: true
-
-      - name: Publish PMF Dashboard to gh-pages
-        if: steps.data-gate.outputs.has_data == 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          keep_files: true
-
-      - name: Generate Distributions page (combined Edges + PMF)
+      - name: Generate Distributions + Pricer pages
         run: |
           python scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
             --base-dir tools/odds-scanner/predictions/WNBA \
             --json-only
-          echo "Distributions page generated for ${GAME_DATE}"
+          python scripts/generate_pricer_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir tools/odds-scanner/predictions/WNBA
+          echo "Distributions + Pricer pages generated for ${GAME_DATE}"
         continue-on-error: true
 
-      - name: Publish Distributions page to gh-pages
+      - name: Stage all outputs for single gh-pages deploy
+        if: steps.data-gate.outputs.has_data == 'true'
+        run: |
+          # Consolidate every output directory into _site so we make exactly
+          # one push to gh-pages — eliminates all push race conditions.
+          DIRS=(
+            "tools/odds-scanner/predictions/WNBA/Pre-Game-Edge"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Pricer"
+            "tools/odds-scanner/predictions/WNBA/In-Play/Pricer"
+          )
+          for DIR in "${DIRS[@]}"; do
+            if [ -d "$DIR" ]; then
+              mkdir -p "_site/${DIR}"
+              cp -r "${DIR}/." "_site/${DIR}/"
+            fi
+          done
+          [ -d "tools/odds-scanner" ] && cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
+          echo "Staged files: $(find _site -type f | wc -l)"
+
+      - name: Deploy all pages to gh-pages (single push — no race condition)
         if: steps.data-gate.outputs.has_data == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
+          publish_dir: _site
           publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
-          keep_files: true
-
-      - name: Generate Odds Pricer pages (Pre-Game + Live)
-        run: |
-          python scripts/generate_pricer_page.py \
-            --game-date "$GAME_DATE" \
-            --base-dir tools/odds-scanner/predictions/WNBA
-          echo "Pricer pages generated for ${GAME_DATE}"
-        continue-on-error: true
-
-      - name: Publish Pre-Game Pricer to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Pricer
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Pricer
-          keep_files: true
-
-      - name: Publish Live In-Play Pricer to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/In-Play/Pricer
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/In-Play/Pricer
+          destination_dir: .
           keep_files: true
 
       - name: Upload final artifact

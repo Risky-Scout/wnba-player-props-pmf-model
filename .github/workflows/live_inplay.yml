@@ -264,24 +264,29 @@ jobs:
             --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
         continue-on-error: true
 
-      - name: Publish live outputs to gh-pages (legacy Inplay-Edge path)
+      - name: Stage live outputs for single gh-pages deploy
         if: env.NO_GAMES != 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
-          keep_files: true
+        run: |
+          DIRS=(
+            "tools/odds-scanner/predictions/WNBA/Inplay-Edge"
+            "tools/odds-scanner/predictions/WNBA/Inplay/Edges"
+          )
+          for DIR in "${DIRS[@]}"; do
+            if [ -d "$DIR" ]; then
+              mkdir -p "_site/${DIR}"
+              cp -r "${DIR}/." "_site/${DIR}/"
+            fi
+          done
+          echo "Staged live files: $(find _site -type f | wc -l)"
 
-      - name: Publish Inplay/Edges to gh-pages (new URL path)
+      - name: Deploy live pages to gh-pages (single push — no race condition)
         if: env.NO_GAMES != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          publish_dir: _site
           publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          destination_dir: .
           keep_files: true
 
       - name: Post-game archive (runs when all games final)
