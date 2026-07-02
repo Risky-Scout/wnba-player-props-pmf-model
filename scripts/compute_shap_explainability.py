@@ -39,20 +39,6 @@ import typer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-# #region agent log — debug session 3f8dcc
-_DBG_LOG = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
-import time as _time
-def _dbg(msg: str, data: dict | None = None, hyp: str = "") -> None:
-    import json as _j
-    entry = {"sessionId": "3f8dcc", "timestamp": int(_time.time() * 1000),
-             "message": msg, "data": data or {}, "hypothesisId": hyp}
-    try:
-        with open(_DBG_LOG, "a") as _f:
-            _f.write(_j.dumps(entry) + "\n")
-    except Exception:
-        pass
-# #endregion
-
 app = typer.Typer(add_completion=False)
 
 STATS_TO_EXPLAIN = ["pts", "reb", "ast", "fg3m", "stl", "blk"]
@@ -143,23 +129,21 @@ def main(
     all_shap_rows: list[dict] = []
     top5_out: dict = {}
 
-    for stat, model in models.items():
+    for stat, model_entry in models.items():
         if stat not in STATS_TO_EXPLAIN:
             continue
         typer.echo(f"  SHAP for stat={stat} ...")
 
-        # Prepare feature matrix
-        X = _prepare_X(today_df, feat_cols)
-        # #region agent log — H-E: did _prepare_X return a usable matrix?
-        _dbg("_prepare_X result", {
-            "stat": stat,
-            "feat_cols_count": len(feat_cols),
-            "feat_cols_sample": feat_cols[:5],
-            "df_columns_sample": list(today_df.columns[:10]),
-            "X_shape": list(X.shape) if X is not None else None,
-            "X_is_none": X is None,
-        }, hyp="H-E")
-        # #endregion
+        # Unpack: new loader returns (hgb, per_stat_cols); legacy returns bare model
+        if isinstance(model_entry, tuple):
+            model, stat_cols = model_entry
+            effective_cols = stat_cols if stat_cols else feat_cols
+        else:
+            model = model_entry
+            effective_cols = feat_cols
+
+        # Prepare feature matrix using per-stat columns
+        X = _prepare_X(today_df, effective_cols)
         if X is None or X.shape[1] == 0:
             typer.echo(f"  [WARN] Empty feature matrix for {stat} — skipping.", err=True)
             continue
@@ -171,17 +155,11 @@ def main(
                 sv = shap_values[0]
             else:
                 sv = shap_values
-            # #region agent log — H-D: SHAP succeeded
-            _dbg("shap_values computed", {"stat": stat, "sv_shape": list(sv.shape)}, hyp="H-D")
-            # #endregion
         except Exception as exc:
-            # #region agent log — H-D: SHAP failed
-            _dbg("shap_values FAILED", {"stat": stat, "error": str(exc), "model_type": type(model).__name__}, hyp="H-D")
-            # #endregion
             typer.echo(f"  [WARN] SHAP failed for {stat}: {exc}", err=True)
             continue
 
-        actual_cols = feat_cols[:X.shape[1]] if len(feat_cols) >= X.shape[1] else list(range(X.shape[1]))
+        actual_cols = effective_cols[:X.shape[1]] if len(effective_cols) >= X.shape[1] else list(range(X.shape[1]))
 
         for row_idx, row in enumerate(today_df.itertuples()):
             pid = int(getattr(row, "player_id", row_idx))
@@ -229,75 +207,81 @@ def main(
 
 
 def _load_models(model_dir: str) -> dict:
-    """Load HGB models from joblib files in model_dir."""
+    """Load HGB models from joblib files in model_dir.
+
+    Prefers stat_rate_models.joblib (dict of StatRateModel wrappers) and
+    hurdle_models.joblib (dict of HurdleModel wrappers) — the canonical
+    production artifacts. Falls back to legacy per-stat .pkl files.
+
+    Returns dict[stat_name -> (hgb_model, usable_cols_list)].
+    """
     import joblib  # noqa: PLC0415
 
     md = Path(model_dir)
 
-    # #region agent log — H-A: what files actually exist in model_dir?
-    actual_files = [p.name for p in md.iterdir()] if md.exists() else []
-    _dbg("_load_models entry", {"model_dir": str(md), "files_found": actual_files,
-                                 "dir_exists": md.exists()}, hyp="H-A")
-    # #endregion
-
     models: dict = {}
+
+    # --- Priority 1a: stat_rate_models.joblib (StatRateModel wrappers) ---
+    srm_path = md / "stat_rate_models.joblib"
+    if srm_path.exists():
+        try:
+            stat_rate_models = joblib.load(srm_path)
+            for stat, srm in stat_rate_models.items():
+                if stat not in STATS_TO_EXPLAIN:
+                    continue
+                hgb = getattr(srm, "_model", None)
+                cols = getattr(srm, "_usable_cols", [])
+                if hgb is not None:
+                    models[stat] = (hgb, list(cols))
+                    typer.echo(f"  Loaded StatRateModel._model for {stat} ({len(cols)} features)")
+        except Exception as exc:
+            typer.echo(f"[WARN] Failed to load stat_rate_models.joblib: {exc}", err=True)
+
+    # --- Priority 1b: hurdle_models.joblib (HurdleModel wrappers, e.g. blk) ---
+    hm_path = md / "hurdle_models.joblib"
+    if hm_path.exists():
+        try:
+            hurdle_models = joblib.load(hm_path)
+            for stat, hm in hurdle_models.items():
+                if stat not in STATS_TO_EXPLAIN or stat in models:
+                    continue
+                reg = getattr(hm, "_reg", None)
+                cols = getattr(hm, "_usable_cols", [])
+                if reg is not None:
+                    models[stat] = (reg, list(cols))
+                    typer.echo(f"  Loaded HurdleModel._reg for {stat} ({len(cols)} features)")
+        except Exception as exc:
+            typer.echo(f"[WARN] Failed to load hurdle_models.joblib: {exc}", err=True)
+
+    if models:
+        return models
+
+    # --- Priority 2: legacy per-stat .pkl files ---
     for stat in STATS_TO_EXPLAIN:
-        for fname in [f"hgb_{stat}.pkl", f"model_{stat}.pkl", f"{stat}_model.pkl", "model.pkl"]:
+        for fname in [f"hgb_{stat}.pkl", f"model_{stat}.pkl", f"{stat}_model.pkl"]:
             p = md / fname
             if p.exists():
                 try:
-                    models[stat] = joblib.load(p)
-                    typer.echo(f"  Loaded model for {stat} from {p.name}")
+                    m = joblib.load(p)
+                    models[stat] = (m, [])
+                    typer.echo(f"  Loaded legacy model for {stat} from {p.name}")
                     break
                 except Exception:
                     pass
 
+    # --- Priority 3: single shared model fallback ---
     if not models:
-        # Try to load a single multi-output model
         for fname in ["model.pkl", "stage4_model.pkl", "hgb_model.pkl"]:
             p = md / fname
             if p.exists():
                 try:
                     m = joblib.load(p)
-                    # Assign the same model for all stats as fallback
                     for s in STATS_TO_EXPLAIN:
-                        models[s] = m
+                        models[s] = (m, [])
                     typer.echo(f"  Loaded shared model from {p.name}")
                     break
                 except Exception:
                     pass
-
-    # #region agent log — H-A/H-B/H-C: what did we end up with?
-    # Also probe stat_rate_models.joblib to test H-B and H-C
-    srm_probe: dict = {}
-    srm_path = md / "stat_rate_models.joblib"
-    if srm_path.exists():
-        try:
-            srm = joblib.load(srm_path)
-            srm_probe = {
-                "loaded": True,
-                "keys": list(srm.keys()) if isinstance(srm, dict) else str(type(srm)),
-                "stats_to_explain": STATS_TO_EXPLAIN,
-            }
-            if isinstance(srm, dict):
-                per_stat = {}
-                for k, v in srm.items():
-                    inner_model = getattr(v, "_model", "ATTR_MISSING")
-                    usable_cols = getattr(v, "_usable_cols", "ATTR_MISSING")
-                    per_stat[k] = {
-                        "type": type(v).__name__,
-                        "_model": type(inner_model).__name__ if not isinstance(inner_model, str) else inner_model,
-                        "_model_is_none": inner_model is None,
-                        "_usable_cols_len": len(usable_cols) if isinstance(usable_cols, list) else usable_cols,
-                    }
-                srm_probe["per_stat"] = per_stat
-        except Exception as exc:
-            srm_probe = {"loaded": False, "error": str(exc)}
-    _dbg("_load_models result", {
-        "pkl_models_found": list(models.keys()),
-        "stat_rate_models_probe": srm_probe,
-    }, hyp="H-A,H-B,H-C")
-    # #endregion
 
     return models
 

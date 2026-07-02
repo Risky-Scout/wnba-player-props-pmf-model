@@ -55,16 +55,32 @@ jobs:
           path: deliveries/scored_day
         continue-on-error: true
 
-      - name: "[DEBUG 3f8dcc] Inspect artifact download result"
+      - name: Normalize predictions path
+        # daily-delivery artifacts embed files as deliveries/next_game/... (workspace-relative).
+        # After download to deliveries/scored_day/, they land at
+        # deliveries/scored_day/deliveries/next_game/full_pmfs_wide.parquet (double-nested).
+        # Flatten to the path the guard and scoring command expect.
+        # Identical fix already applied in live_tracker.yml lines 129-146.
         run: |
-          echo "=== H-1/H-2/H-3 diagnostic ==="
-          echo "game_date=${{ steps.date.outputs.game_date }}"
-          echo "--- deliveries/scored_day tree (all files) ---"
-          find deliveries/scored_day -type f 2>/dev/null | sort || echo "[DIAG-H2] deliveries/scored_day does not exist or is empty"
-          echo "--- flat path guard would check ---"
-          ls -la deliveries/scored_day/full_pmfs_wide.parquet 2>/dev/null && echo "[DIAG-H2-PASS] flat path EXISTS" || echo "[DIAG-H1] flat path MISSING"
-          echo "--- searching for full_pmfs_wide.parquet anywhere under scored_day ---"
-          find deliveries/scored_day -name "full_pmfs_wide.parquet" 2>/dev/null | sort || echo "[DIAG-H2] full_pmfs_wide.parquet not found anywhere"
+          if [ ! -f "deliveries/scored_day/full_pmfs_wide.parquet" ]; then
+            NESTED=$(find deliveries/scored_day -name "full_pmfs_wide.parquet" 2>/dev/null | head -1)
+            if [ -n "$NESTED" ]; then
+              cp "$NESTED" deliveries/scored_day/full_pmfs_wide.parquet
+              echo "Normalized PMF path: $NESTED → deliveries/scored_day/full_pmfs_wide.parquet"
+            else
+              echo "[WARN] full_pmfs_wide.parquet not found anywhere under deliveries/scored_day/"
+            fi
+          else
+            echo "full_pmfs_wide.parquet already at expected path."
+          fi
+          if [ ! -f "deliveries/scored_day/market_comparison.parquet" ]; then
+            MC=$(find deliveries/scored_day -name "market_comparison.parquet" 2>/dev/null | head -1)
+            if [ -n "$MC" ]; then
+              cp "$MC" deliveries/scored_day/market_comparison.parquet
+              echo "Normalized market_comparison path: $MC → deliveries/scored_day/market_comparison.parquet"
+            fi
+          fi
+        continue-on-error: true
 
       - name: Download closing lines for scored game date
         # The daily pipeline snapshots BDL props for yesterday's games each morning.

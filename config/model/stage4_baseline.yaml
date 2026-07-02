@@ -15,9 +15,8 @@ stats:
   - turnover
 
 # Hurdle model (explicit P(Y>0)) for structurally zero-inflated sparse stats.
-# stl removed: var/mean=1.21 is near-Poisson, NOT structurally zero-inflated.
-# Direct NegBinom with r≈3.8 matches empirical ~52% zero rate via the Poisson tail.
-# blk retained: var/mean≈1.30, blocks are more bursty/positional — structural zeros.
+# blk: var/mean≈1.30, blocks are bursty/positional — structural zeros modeled explicitly.
+# stl: var/mean=1.21, near-Poisson — modeled via NegBinom in StatRateModel (no hurdle).
 sparse_stats:
   - stl
   - blk
