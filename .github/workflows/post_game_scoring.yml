@@ -56,17 +56,12 @@ jobs:
           AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
             --jq "[.artifacts[] | select(.expired == false) | select(.name | startswith(\"daily-delivery-${GAME_DATE}-\"))] | sort_by(.created_at) | reverse | .[0].id" 2>/dev/null)
           if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            echo "[DEBUG 3f8dcc] H-NEW-1: found artifact id=$AID for $GAME_DATE"
+            echo "Downloading daily-delivery artifact id=$AID for $GAME_DATE"
             gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/delivery.zip
             unzip -o /tmp/delivery.zip -d deliveries/scored_day
-            echo "[DEBUG 3f8dcc] H-NEW-1: extracted delivery artifact"
-            echo "[DEBUG 3f8dcc] H-1: tree after extraction:"
-            find deliveries/scored_day -type f | sort
+            echo "Delivery artifact downloaded and extracted."
           else
-            echo "[DEBUG 3f8dcc] H-NEW-2/H-NEW-3: no daily-delivery artifact found for $GAME_DATE"
-            echo "[DEBUG 3f8dcc] All available artifacts (sample):"
-            gh api "repos/${{ github.repository }}/actions/artifacts?per_page=20" \
-              --jq '[.artifacts[] | select(.expired == false)] | .[:10] | .[].name' 2>/dev/null || true
+            echo "[WARN] No daily-delivery artifact found for $GAME_DATE (no game that day or pipeline not yet run)"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -83,12 +78,12 @@ jobs:
             NESTED=$(find deliveries/scored_day -name "full_pmfs_wide.parquet" 2>/dev/null | head -1)
             if [ -n "$NESTED" ]; then
               cp "$NESTED" deliveries/scored_day/full_pmfs_wide.parquet
-              echo "[DEBUG 3f8dcc] H-1: Normalized PMF: $NESTED → flat path"
+              echo "Normalized: $NESTED → deliveries/scored_day/full_pmfs_wide.parquet"
             else
-              echo "[DEBUG 3f8dcc] H-1: full_pmfs_wide.parquet not found after extraction"
+              echo "[WARN] full_pmfs_wide.parquet not found anywhere under deliveries/scored_day/"
             fi
           else
-            echo "[DEBUG 3f8dcc] H-1: full_pmfs_wide.parquet already at flat path"
+            echo "full_pmfs_wide.parquet already at expected path."
           fi
           if [ ! -f "deliveries/scored_day/market_comparison.parquet" ]; then
             MC=$(find deliveries/scored_day -name "market_comparison.parquet" 2>/dev/null | head -1)
