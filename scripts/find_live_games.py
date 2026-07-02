@@ -109,7 +109,7 @@ def main(
         typer.echo(f"game_ids={game_ids_str}")
         typer.echo(f"date={target_date}")
 
-    # Also write active_game_ids.txt for workflow compatibility (H-C fix)
+    # Also write active_game_ids.txt for workflow compatibility
     ids_txt_path = out / "active_game_ids.txt"
     ids_txt_path.write_text(",".join(str(g) for g in game_ids))
 

@@ -454,7 +454,6 @@ def fit_calibrators(
         print(f"[calibrate] Applied bias corrections to {len(oof_eligible):,} OOF PMFs for calibrator training alignment")
 
     # Compute per-stat variance compression factors and save for inference.
-    # Runtime evidence: fg3m model_var/actual_var=1.543, ast=1.431 (H-D confirmed).
     # These factors are passed to _apply_mean_bias_correction at inference to tighten
     # over-wide PMF distributions that inflate P(over) for outlier players.
     _var_compress: dict[str, float] = {}
