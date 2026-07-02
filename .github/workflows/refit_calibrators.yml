@@ -101,6 +101,22 @@ jobs:
           path: artifacts/models/calibration/
           key: calibrators-latest-${{ github.run_id }}
 
+      - name: Commit calibrators to git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add -f artifacts/models/calibration/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update calibration artifacts from refit run ${{ github.run_id }} [skip ci]"
+            git push
+            echo "Calibrators committed to main."
+          else
+            echo "No calibration artifact changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish fresh OOF as oof-latest
         uses: actions/upload-artifact@v4
         if: always()

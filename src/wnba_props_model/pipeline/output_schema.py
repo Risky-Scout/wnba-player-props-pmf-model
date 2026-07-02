@@ -498,24 +498,14 @@ def build_player_record(
                 mkt_p = float(m.get("market_prob_over_no_vig") or 0.5)
                 edge = round(p_over - mkt_p, 4)
 
-                # Fractional Kelly bet sizing (half-Kelly, capped at 25% bankroll).
-                # Over bet Kelly  = edge_over  / (1 - mkt_p)  [edge > 0]
-                # Under bet Kelly = edge_under / mkt_p        [edge < 0]
-                if edge > 0:
-                    kelly_raw = edge / max(1.0 - mkt_p, 1e-6)
-                    kelly_frac: float | None = round(min(kelly_raw * 0.5, 0.25), 4)
-                elif edge < 0:
-                    kelly_raw = (-edge) / max(mkt_p, 1e-6)
-                    kelly_frac = round(min(kelly_raw * 0.5, 0.25), 4)
-                else:
-                    kelly_frac = None
-
-                # Part C: Bayesian posterior update — blend model P(over) with market prior.
-                # lambda_market=0.30 → market gets 30% weight in log-odds space.
-                # p_posterior is used for BOTH edge and Kelly; raw p_model is preserved for audit.
-                _lambda_mkt = 0.30
-                p_posterior = _bayesian_blend_p_over(p_over, mkt_p, lambda_market=_lambda_mkt)
-                edge_posterior = round(p_posterior - mkt_p, 4)
+                # DUAL-SIGNAL ARCHITECTURE
+                # Signal A: Pure model P(over) — used for edge and Kelly (no market contamination).
+                # Signal B: Consensus blend — display only, NOT used for bet sizing.
+                # Mathematical basis: Kelly criterion requires the true probability p uncontaminated
+                # by the market price. p enters Kelly only through edge = p - p_mkt.
+                # Blending p_model with p_mkt before computing edge is equivalent to multiplying
+                # all Kelly stakes by (1 - lambda), which is suboptimal for any lambda > 0.
+                edge_raw = edge  # edge = round(p_over - mkt_p, 4) computed above
 
                 # Part D: Conformal CI Kelly cap — reduce Kelly when CI is wide (high uncertainty).
                 _conformal_lo = sr.get("conformal_lower")
@@ -526,22 +516,30 @@ def build_player_record(
                     _ci_width = max(float(_conformal_hi) - float(_conformal_lo), 1.0)
                     _ci_penalty = min(1.0, 10.0 / _ci_width)
 
-                if edge_posterior > 0:
-                    kelly_raw = edge_posterior / max(1.0 - mkt_p, 1e-6)
-                    kelly_frac = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
-                elif edge_posterior < 0:
-                    kelly_raw = (-edge_posterior) / max(mkt_p, 1e-6)
+                # Signal A: Half-Kelly from pure model edge + CI penalty (primary signal)
+                if edge_raw > 0:
+                    kelly_raw = edge_raw / max(1.0 - mkt_p, 1e-6)
+                    kelly_frac: float | None = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
+                elif edge_raw < 0:
+                    kelly_raw = (-edge_raw) / max(mkt_p, 1e-6)
                     kelly_frac = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
                 else:
                     kelly_frac = None
 
+                # Signal B: Display-only consensus blend (lambda=0.15, not used for Kelly)
+                _DISPLAY_LAMBDA = 0.15
+                p_consensus = _bayesian_blend_p_over(p_over, mkt_p, lambda_market=_DISPLAY_LAMBDA)
+                edge_posterior = round(p_consensus - mkt_p, 4)  # display only
+
                 stat_proj["calibrated_p_over"] = {
                     "market_line": round(line, 1),
-                    "p_over": round(p_posterior, 4),       # posterior (blended)
-                    "p_over_model": round(p_over, 4),      # raw model for audit
-                    "p_under": round(1.0 - p_posterior, 4),
-                    "edge_vs_market": edge_posterior,
-                    "kelly_fraction": kelly_frac,
+                    "p_over": round(p_consensus, 4),           # display consensus
+                    "p_over_model": round(p_over, 4),          # pure model signal
+                    "p_over_market": round(mkt_p, 4),          # pure market signal
+                    "p_under": round(1.0 - p_consensus, 4),
+                    "edge_vs_market": edge_raw,                # PURE model edge (primary signal)
+                    "edge_consensus": edge_posterior,          # display only
+                    "kelly_fraction": kelly_frac,              # from PURE model edge
                     "market_source": str(m.get("source") or "odds_api"),
                     "market_vendor": str(m.get("vendor") or m.get("bookmaker") or ""),
                     "market_over_odds": int(m.get("over_odds") or 0) if m.get("over_odds") else None,

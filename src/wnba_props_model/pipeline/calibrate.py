@@ -78,8 +78,22 @@ def _build_oof_combo_pmfs(oof_base: pd.DataFrame) -> pd.DataFrame:
     if "outcome" not in combo_rows.columns and "actual_outcome" in combo_rows.columns:
         combo_rows["outcome"] = combo_rows["actual_outcome"]
 
-    # Combo stats calibrate globally (role_bucket="all") — not enough per-role volume
-    combo_rows["role_bucket"] = "all"
+    # Preserve role_bucket from the parent player's base rows.
+    _rb_map = (
+        oof_base[["player_id", "game_id", "role_bucket"]]
+        .drop_duplicates(subset=["player_id", "game_id"])
+        .set_index(["player_id", "game_id"])["role_bucket"]
+    )
+    combo_rows["role_bucket"] = (
+        combo_rows.set_index(["player_id", "game_id"])
+        .index.map(_rb_map)
+        .fillna("all")
+        .values
+    )
+    logger.info(
+        "[calibrate] Combo stats role distribution: %s",
+        combo_rows["role_bucket"].value_counts().to_dict(),
+    )
 
     logger.info(
         "[calibrate] Built %d OOF combo PMF rows for calibration (%s stats)",
@@ -524,7 +538,7 @@ def fit_calibrators(
     import datetime as _dt
     _meta = {
         "fitted_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
-        "n_rows": int(_post_dnp_n),
+        "n_rows": int(len(oof_eligible)),
         "stats": sorted(paths.keys()),
     }
     (out / "calibration_metadata.json").write_text(json.dumps(_meta, indent=2))

@@ -223,11 +223,13 @@ hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
 use_model_ensemble: true
 
 # --------------------------------------------------------------------------
-# Part C: Bayesian posterior update — blend model P(over) with market prior.
-# lambda_market=0.30 → market gets 30% weight in log-odds space.
+# Part C: Dual-signal architecture — edge/Kelly use pure model signal.
+# Edge/Kelly use pure model signal (market_prior_lambda=0.0 for bet sizing).
+# A display-only consensus uses market_prior_lambda_display=0.15 in output_schema.py for the UI.
 # 0 = pure model signal; 1 = pure market signal.
 # --------------------------------------------------------------------------
-market_prior_lambda: 0.30
+market_prior_lambda: 0.0
+market_prior_lambda_display: 0.15
 
 # --------------------------------------------------------------------------
 # Part I: Use separate live calibrators for in-game PMF predictions.
