@@ -289,6 +289,15 @@ jobs:
           destination_dir: .
           keep_files: true
 
+      - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
+        if: env.NO_GAMES != 'true'
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: python scripts/ftp_deploy.py
+        continue-on-error: true
+
       - name: Post-game archive (runs when all games final)
         if: env.NO_GAMES != 'true'
         run: |
