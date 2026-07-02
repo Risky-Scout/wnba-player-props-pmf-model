@@ -46,6 +46,7 @@ import json
 import logging
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -64,6 +65,18 @@ _LEAGUE_PRIORS: dict[str, float] = {
     "blk": 0.5,
     "turnover": 1.7,
 }
+
+# Load updated league priors from artifacts/models/league_priors.json if available.
+# These are computed by scripts/update_league_priors.py from current-season data,
+# keeping shrinkage targets calibrated to the actual league distribution each year.
+_LEAGUE_PRIORS_PATH = Path(__file__).parents[3] / "artifacts" / "models" / "league_priors.json"
+if _LEAGUE_PRIORS_PATH.exists():
+    try:
+        import json as _json
+        _LEAGUE_PRIORS.update(_json.loads(_LEAGUE_PRIORS_PATH.read_text()))
+        logger.info("Loaded league priors from %s", _LEAGUE_PRIORS_PATH)
+    except Exception as _lp_exc:
+        logger.warning("Failed to load league priors: %s", _lp_exc)
 
 # Minimum games before shrinkage is bypassed entirely
 _MIN_GAMES_FOR_FULL_CONFIDENCE: int = 25  # was 40; WNBA season = 40 games, starters play 32-36

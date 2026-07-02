@@ -19,6 +19,7 @@ stats:
 # Direct NegBinom with r≈3.8 matches empirical ~52% zero rate via the Poisson tail.
 # blk retained: var/mean≈1.30, blocks are more bursty/positional — structural zeros.
 sparse_stats:
+  - stl
   - blk
 
 # Role-aware NegBinom dispersion r override (calibration-aligned).

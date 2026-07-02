@@ -291,6 +291,51 @@ def fit_pnz_calibrators(
     return pnz_paths
 
 
+def fit_pdnp_calibrator(
+    oof: pd.DataFrame,
+    out: Path,
+) -> Path | None:
+    """Fit isotonic calibrator for P(DNP) — probability a player does not play.
+
+    Calibrates the model's p_dnp predictions against actual did_play outcomes
+    from OOF data. A well-calibrated P(DNP) prevents overconfident projections
+    for players with uncertain availability.
+    """
+    from sklearn.isotonic import IsotonicRegression  # noqa: PLC0415
+    import joblib  # noqa: PLC0415
+
+    if "p_dnp" not in oof.columns or "did_play" not in oof.columns:
+        logger.warning("[calibrate] p_dnp or did_play column missing — skipping P(DNP) calibrator")
+        return None
+
+    sub = oof[oof["p_dnp"].notna() & oof["did_play"].notna()].copy()
+    if len(sub) < 50:
+        logger.warning(
+            "[calibrate] Insufficient OOF rows for P(DNP) calibration (%d rows, need 50)",
+            len(sub),
+        )
+        return None
+
+    # Target: 1 = DNP (did NOT play), 0 = played
+    y_actual = (sub["did_play"] == False).astype(float).values  # noqa: E712
+    y_pred = sub["p_dnp"].clip(1e-6, 1 - 1e-6).values
+
+    ir = IsotonicRegression(out_of_bounds="clip")
+    ir.fit(y_pred, y_actual)
+
+    y_cal = ir.predict(y_pred)
+    logger.info(
+        "[calibrate] P(DNP) calibrator: empirical_dnp=%.3f cal_mean=%.3f (delta=%.4f) n=%d",
+        float(y_actual.mean()), float(y_cal.mean()),
+        float(y_cal.mean()) - float(y_actual.mean()), len(sub),
+    )
+
+    path = out / "pdnp_cal.pkl"
+    joblib.dump(ir, path)
+    print(f"[calibrate] Saved P(DNP) calibrator: {path}")
+    return path
+
+
 def fit_calibrators(
     oof_pmfs_path: str | Path,
     out_dir: str | Path = "artifacts/models/calibration",
@@ -519,6 +564,26 @@ def fit_calibrators(
         oof_eligible["pmf"] = oof_eligible["pmf_json"].map(json_to_pmf)
         print(f"[calibrate] Applied variance compression to {len(oof_eligible):,} OOF PMFs")
 
+    # Per-player variance compression: compute player-specific VC factors from OOF.
+    # Applied after global stat-level VC to capture residual player-level overdispersion.
+    _MIN_PLAYER_VC_ROWS = 30
+    if "player_id" in oof_eligible.columns and "pmf_variance" in oof_eligible.columns:
+        _player_vc: dict[str, float] = {}
+        for _pvc_pid, _pvc_grp in oof_eligible.groupby("player_id"):
+            if len(_pvc_grp) < _MIN_PLAYER_VC_ROWS:
+                continue
+            _pvc_model_var = float(_pvc_grp["pmf_variance"].mean())
+            _pvc_actual_var = float(_pvc_grp["actual_outcome"].var())
+            if _pvc_actual_var > 1e-4:
+                _pvc_ratio = float(np.clip(_pvc_model_var / _pvc_actual_var, 0.5, 3.0))
+                _player_vc[str(_pvc_pid)] = round(_pvc_ratio, 4)
+        if _player_vc:
+            (out / "player_variance_compress.json").write_text(json.dumps(_player_vc, indent=2))
+            print(
+                f"[calibrate] Per-player variance compression: {len(_player_vc)} players, "
+                f"mean_ratio={float(np.mean(list(_player_vc.values()))):.3f}"
+            )
+
     paths = {}
     for stat in sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS)):
         cal = fit_role_aware_calibrator(oof_eligible, stat)
@@ -543,6 +608,12 @@ def fit_calibrators(
     }
     (out / "calibration_metadata.json").write_text(json.dumps(_meta, indent=2))
     print(f"[calibrate] Wrote calibration_metadata.json: {_meta['fitted_at']} n_rows={_meta['n_rows']}")
+
+    # Fit P(DNP) calibrator if p_dnp and did_play columns are present in OOF
+    if "p_dnp" in oof.columns and "did_play" in oof.columns:
+        _pdnp_path = fit_pdnp_calibrator(oof, out)
+        if _pdnp_path:
+            paths["pdnp"] = _pdnp_path
 
     # Also fit Beta calibrators for P(over) (Item 5A)
     # Beta calibrators require a 'line' column to compute P(over) during training.
@@ -677,6 +748,15 @@ def apply_calibrators(
         except Exception as exc_vc:
             logger.warning("[calibrate] Could not load variance_compress.json: %s", exc_vc)
 
+    # Load per-player variance compression factors (computed during fit_calibrators)
+    _player_vc_map: dict[str, float] = {}
+    _player_vc_path = cal_dir / "player_variance_compress.json"
+    if _player_vc_path.exists():
+        try:
+            _player_vc_map = json.loads(_player_vc_path.read_text())
+        except Exception:
+            pass
+
     # Load p_nz calibrators for hurdle stats (stl, blk)
     import joblib as _joblib_pnz  # noqa: PLC0415
     _pnz_calibrators: dict[str, Any] = {}
@@ -685,6 +765,25 @@ def apply_calibrators(
         if _pnz_path.exists():
             _pnz_calibrators[_pnz_stat] = _joblib_pnz.load(_pnz_path)
             logger.info("[calibrate] Loaded p_nz calibrator for %s", _pnz_stat)
+
+    # Load P(DNP) calibrator
+    _pdnp_calibrator: Any = None
+    _pdnp_cal_path = cal_dir / "pdnp_cal.pkl"
+    if _pdnp_cal_path.exists():
+        try:
+            _pdnp_calibrator = _joblib_pnz.load(_pdnp_cal_path)
+            logger.info("[calibrate] Loaded P(DNP) calibrator from %s", _pdnp_cal_path)
+        except Exception as _pdnp_exc:
+            logger.warning("[calibrate] Could not load pdnp_cal.pkl: %s", _pdnp_exc)
+
+    # Apply P(DNP) calibration to p_dnp column if available
+    if _pdnp_calibrator is not None and "p_dnp" in out.columns:
+        _raw_pdnp = out["p_dnp"].fillna(0.0).clip(1e-6, 1 - 1e-6).values
+        _cal_pdnp = _pdnp_calibrator.predict(_raw_pdnp)
+        out = out.copy()
+        out["p_dnp"] = np.clip(_cal_pdnp, 0.0, 1.0)
+        logger.info("[calibrate] Applied P(DNP) calibration: mean_raw=%.3f mean_cal=%.3f",
+                    float(_raw_pdnp.mean()), float(_cal_pdnp.mean()))
 
     new_pmf_jsons = []
     is_calibrated_flags = []
@@ -701,6 +800,15 @@ def apply_calibrators(
         _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
         if abs(_alpha_ac - 1.0) > 0.005 or _vc_factor_ac > 1.05:
             raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac, variance_compress_factor=_vc_factor_ac)
+
+        # Per-player variance compression override (applied after global stat-level VC)
+        _player_vc_factor = _player_vc_map.get(str(row.get("player_id", "")))
+        if _player_vc_factor is not None and abs(_player_vc_factor - 1.0) > 0.05:
+            raw_pmf = _apply_mean_bias_correction(
+                raw_pmf,
+                alpha=1.0,  # mean already corrected above; compress variance only
+                variance_compress_factor=float(_player_vc_factor),
+            )
 
         # P_nz calibration for hurdle stats (stl, blk): rescale zero mass
         if stat in _pnz_calibrators:

@@ -246,7 +246,14 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
         bucket_str = str(bucket)
         n = len(gdf)
         bucket_counts[bucket_str] = n
-        if bucket in ROLE_GLOBAL_ONLY_BUCKETS or n < ROLE_MIN_ROWS.get(bucket_str, 500):
+        # Fringe and inactive_risk get dedicated calibrators with relaxed minimums
+        _bucket_min_rows = ROLE_MIN_ROWS.get(bucket_str, 500)
+        if bucket_str == "fringe":
+            _bucket_min_rows = 100
+        elif bucket_str == "inactive_risk":
+            _bucket_min_rows = 50
+        # Only skip if still below the (possibly relaxed) minimum or in global-only buckets
+        if bucket in ROLE_GLOBAL_ONLY_BUCKETS or n < _bucket_min_rows:
             continue
         bp = np.array([randomized_pit(p, y, rng) for p, y in zip(gdf["pmf"], gdf["outcome"])])
         bucket_calibrators[bucket_str] = PMFCDFCalibrator().fit_from_pit(bp)
