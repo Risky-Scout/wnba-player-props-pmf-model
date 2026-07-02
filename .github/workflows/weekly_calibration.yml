@@ -466,6 +466,30 @@ jobs:
             --out artifacts/models/stage4_baseline/combo_correlations_by_pos.json
         continue-on-error: true
 
+      - name: Update league priors from current-season data
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/update_league_priors.py \
+            --stats-path data/processed/wnba_player_game_stats.parquet \
+            --season $YEAR \
+            --out artifacts/models/league_priors.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f artifacts/models/league_priors.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update league priors from $(date -u +%Y-%m-%d) season data [skip ci]"
+            git push
+            echo "League priors committed."
+          else
+            echo "No league priors changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Upload OOF audit artifacts
         uses: actions/upload-artifact@v4
         if: always()
