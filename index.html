@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WNBA Sports Analytics — WizardOfOdds</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#0a0d14;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column}
+header{background:#0f1623;border-bottom:1px solid #1e2d48;padding:18px 32px;display:flex;align-items:center;gap:16px}
+.logo{font-size:1.15rem;font-weight:800;color:#fff;letter-spacing:.2px}
+.logo span{color:#3b82f6}
+.logo-sub{font-size:.78rem;color:#475569;border-left:1px solid #1e2d48;padding-left:14px;margin-left:2px}
+.live-badge{display:flex;align-items:center;gap:6px;background:#10b98115;border:1px solid #10b98130;border-radius:100px;padding:3px 12px;font-size:.73rem;font-weight:600;color:#10b981;margin-left:auto}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#10b981;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+main{flex:1;max-width:1100px;margin:40px auto;padding:0 24px;width:100%}
+.hero{text-align:center;margin-bottom:48px}
+.hero h1{font-size:2.2rem;font-weight:800;background:linear-gradient(135deg,#e2e8f0 0%,#94a3b8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2;margin-bottom:12px}
+.hero p{font-size:.95rem;color:#64748b;max-width:540px;margin:0 auto;line-height:1.6}
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:48px}
+.stat-card{background:#0f1623;border:1px solid #1e2d48;border-radius:10px;padding:16px 20px;text-align:center}
+.stat-card .num{font-size:1.8rem;font-weight:800;color:#e2e8f0}
+.stat-card .num.green{color:#10b981}
+.stat-card .num.blue{color:#3b82f6}
+.stat-card .num.amber{color:#f59e0b}
+.stat-card .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.6px;color:#475569;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:48px}
+@media(max-width:768px){.grid{grid-template-columns:1fr}.stats-bar{grid-template-columns:repeat(2,1fr)}}
+.card{background:#0f1623;border:1px solid #1e2d48;border-radius:12px;overflow:hidden;transition:border-color .2s,transform .2s;text-decoration:none;display:flex;flex-direction:column}
+.card:hover{border-color:#3b82f6;transform:translateY(-2px)}
+.card-accent{height:3px}
+.card-accent.blue{background:linear-gradient(90deg,#3b82f6,#6366f1)}
+.card-accent.green{background:linear-gradient(90deg,#10b981,#059669)}
+.card-accent.purple{background:linear-gradient(90deg,#8b5cf6,#ec4899)}
+.card-body{padding:22px 24px;flex:1;display:flex;flex-direction:column}
+.card-icon{font-size:1.6rem;margin-bottom:12px}
+.card-title{font-size:1.05rem;font-weight:700;color:#e2e8f0;margin-bottom:8px}
+.card-desc{font-size:.82rem;color:#64748b;line-height:1.6;flex:1}
+.card-footer{padding:14px 24px;border-top:1px solid #1e2d48;display:flex;align-items:center;justify-content:space-between;font-size:.78rem}
+.card-footer .tag{background:#1e2d48;border-radius:4px;padding:2px 8px;color:#94a3b8;font-weight:500}
+.card-footer .arrow{color:#3b82f6;font-weight:700;font-size:.9rem}
+.card:hover .arrow{transform:translateX(3px)}
+.top-edges{background:#0f1623;border:1px solid #1e2d48;border-radius:12px;overflow:hidden;margin-bottom:48px}
+.section-header{padding:16px 22px;border-bottom:1px solid #1e2d48;display:flex;align-items:center;justify-content:space-between}
+.section-title{font-size:.88rem;font-weight:700;color:#e2e8f0;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';display:inline-block;width:3px;height:14px;background:#3b82f6;border-radius:2px}
+.section-link{font-size:.75rem;color:#3b82f6;text-decoration:none}
+.section-link:hover{text-decoration:underline}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{padding:9px 16px;text-align:left;color:#475569;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;background:#0a0d14;border-bottom:1px solid #1e2d48}
+td{padding:10px 16px;border-bottom:1px solid #111827;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#111827}
+.player{font-weight:500;color:#e2e8f0}
+.stat-tag{background:#1e2d48;border-radius:4px;padding:1px 7px;font-size:.7rem;font-weight:700;color:#94a3b8}
+.over{color:#10b981;font-weight:700}
+.under{color:#ef4444;font-weight:700}
+.edge-pos{color:#10b981;font-weight:700;font-variant-numeric:tabular-nums}
+.edge-neg{color:#ef4444;font-weight:700;font-variant-numeric:tabular-nums}
+.kelly{color:#3b82f6;font-weight:600}
+.num-cell{text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8}
+.gen-note{font-size:.72rem;color:#334155;padding:10px 16px}
+footer{background:#0f1623;border-top:1px solid #1e2d48;padding:20px 32px;text-align:center;font-size:.75rem;color:#334155}
+footer a{color:#3b82f6;text-decoration:none}
+footer a:hover{text-decoration:underline}
+.loading{color:#475569;padding:20px 16px;text-align:center;font-size:.82rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">WizardOf<span>Odds</span></div>
+  <div class="logo-sub">WNBA Sports Analytics</div>
+  <div class="live-badge"><div class="live-dot"></div>Model Active</div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>WNBA Player Props Intelligence</h1>
+    <p>Full probability mass function modeling · Bayesian in-play updating · Market edge detection · Kelly criterion sizing</p>
+  </div>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-card"><div class="num" id="s-props">—</div><div class="lbl">Props Analyzed</div></div>
+    <div class="stat-card"><div class="num green" id="s-over">—</div><div class="lbl">Over Signals</div></div>
+    <div class="stat-card"><div class="num" id="s-under" style="color:#ef4444">—</div><div class="lbl">Under Signals</div></div>
+    <div class="stat-card"><div class="num blue" id="s-date">—</div><div class="lbl">Game Date</div></div>
+  </div>
+
+  <div class="grid">
+    <a class="card" href="tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/">
+      <div class="card-accent blue"></div>
+      <div class="card-body">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Pre-Game Edge Board</div>
+        <div class="card-desc">Model probability vs. no-vig market price for every player prop. Sorted by edge magnitude. Includes Kelly criterion bet sizing, line movement flags, and reverse line movement detection.</div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">Pre-Game</span>
+        <span class="arrow">→</span>
+      </div>
+    </a>
+
+    <a class="card" href="tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/">
+      <div class="card-accent green"></div>
+      <div class="card-body">
+        <div class="card-icon">📈</div>
+        <div class="card-title">PMF Distributions</div>
+        <div class="card-desc">Full probability mass function charts for every player-stat projection. Displays EV, variance, skewness, and excess kurtosis. Vertical lines for market line, model mean, median, and mode.</div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">Pre-Game</span>
+        <span class="arrow">→</span>
+      </div>
+    </a>
+
+    <a class="card" href="tools/odds-scanner/predictions/WNBA/Inplay/Edges/">
+      <div class="card-accent purple"></div>
+      <div class="card-body">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Live In-Play Edges</div>
+        <div class="card-desc">Bayesian Gamma-Poisson posterior updating in real time. Pace-adjusted projections accounting for remaining possessions, foul trouble, and score differential. Refreshes every 2 minutes during games.</div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">Live · Auto-refresh</span>
+        <span class="arrow">→</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="top-edges">
+    <div class="section-header">
+      <div class="section-title">Today's Top Edges</div>
+      <a class="section-link" href="tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/">View full board →</a>
+    </div>
+    <div id="edgeTable"><div class="loading">Loading today's edges…</div></div>
+    <div class="gen-note" id="genNote"></div>
+  </div>
+</main>
+
+<footer>
+  <div>WizardOfOdds Sports Analytics · WNBA Player Props PMF Model</div>
+  <div style="margin-top:6px">
+    <a href="tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/">Edge Board</a> ·
+    <a href="tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/">PMF Distributions</a> ·
+    <a href="tools/odds-scanner/predictions/WNBA/Inplay/Edges/">Live In-Play</a>
+  </div>
+  <div style="margin-top:6px">Model: Negative Binomial PMF · HMM player states · Conformal calibration · Shin no-vig devig</div>
+</footer>
+
+<script>
+(function(){
+  fetch('tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/latest.json')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      const props = data.props || [];
+      document.getElementById('s-props').textContent = data.total_props || 0;
+      document.getElementById('s-over').textContent = data.over_signals || 0;
+      document.getElementById('s-under').textContent = data.under_signals || 0;
+      document.getElementById('s-date').textContent = data.game_date || '—';
+      document.getElementById('genNote').textContent =
+        'Last updated: ' + (data.generated_at ? new Date(data.generated_at).toLocaleString() : '—');
+
+      const top = props.slice(0, 10);
+      if (!top.length) {
+        document.getElementById('edgeTable').innerHTML = '<div class="loading">No props with market lines yet for today.</div>';
+        return;
+      }
+      const rows = top.map(p => {
+        const isOver = p.direction === 'OVER';
+        const edgeFmt = (p.edge >= 0 ? '+' : '') + (p.edge * 100).toFixed(1) + '%';
+        const st = p.stat === 'FG3M' ? '3PM' : p.stat;
+        return `<tr>
+          <td class="player">${p.player}</td>
+          <td><span class="stat-tag">${st}</span></td>
+          <td><span class="${isOver?'over':'under'}">${p.direction}</span></td>
+          <td class="num-cell">${p.model_mean.toFixed(1)}</td>
+          <td class="num-cell">${p.market_line}</td>
+          <td class="num-cell">${(p.model_p_over*100).toFixed(1)}%</td>
+          <td class="num-cell">${(p.market_p_over*100).toFixed(1)}%</td>
+          <td class="${isOver?'edge-pos':'edge-neg'}">${edgeFmt}</td>
+          <td class="kelly">${p.kelly_pct > 0 ? p.kelly_pct.toFixed(1)+'%' : '—'}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('edgeTable').innerHTML = `
+        <table>
+          <thead><tr>
+            <th>Player</th><th>Stat</th><th>Dir</th>
+            <th style="text-align:right">Mdl Mean</th>
+            <th style="text-align:right">Mkt Line</th>
+            <th style="text-align:right">Mdl P%</th>
+            <th style="text-align:right">Mkt P%</th>
+            <th style="text-align:right">Edge</th>
+            <th style="text-align:right">Kelly%</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    })
+    .catch(() => {
+      document.getElementById('edgeTable').innerHTML =
+        '<div class="loading">Edge data will appear here once the model runs for today\'s slate.</div>';
+    });
+})();
+</script>
+</body>
+</html>
