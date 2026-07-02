@@ -386,13 +386,11 @@ jobs:
         run: |
           python scripts/generate_pricer_page.py \
             --game-date "$GAME_DATE" \
-            --base-dir tools/odds-scanner/predictions/WNBA \
-            --json-only
+            --base-dir tools/odds-scanner/predictions/WNBA
           echo "Pricer pages generated for ${GAME_DATE}"
         continue-on-error: true
 
       - name: Publish Pre-Game Pricer to gh-pages
-        if: steps.data-gate.outputs.has_data == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -402,7 +400,6 @@ jobs:
           keep_files: true
 
       - name: Publish Live In-Play Pricer to gh-pages
-        if: steps.data-gate.outputs.has_data == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

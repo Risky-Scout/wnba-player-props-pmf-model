@@ -413,6 +413,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
   <nav class="nav-links">
     <a href="" class="nav-link active">Prop Edges</a>
     <a href="../Distributions/" class="nav-link">Distributions</a>
+    <a href="../Pricer/" class="nav-link">Market X-Ray</a>
     <a href="../../In-Play/Edges/" class="nav-link">Live In-Play</a>
   </nav>
   <div class="hdr-right">
