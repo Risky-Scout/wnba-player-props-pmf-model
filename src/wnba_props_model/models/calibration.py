@@ -136,9 +136,12 @@ class RoleAwarePMFCalibrator:
     # player_id (str) → PMFCDFCalibrator fitted on that player's OOF PIT values.
     # Players with < 30 OOF rows fall back to the role-tier calibrator.
     player_calibrators: dict[str, PMFCDFCalibrator] = field(default_factory=dict)
-    # Shrinkage constant: w_player = n_player / (n_player + k).
-    # At k=150, a player with 30 games gets 17% player-level weight; 150 games → 50%.
-    player_bias_shrinkage_k: float = 150.0
+    # Shrinkage constant: w_player = n_player / (n_player + k), capped at 0.50.
+    # Reduced from 150 → 50: runtime evidence showed players with 20 OOF rows were
+    # getting only 11.8% player-specific weight (20/(20+150)), insufficient to correct
+    # systematic per-player overestimation (e.g. low-volume FG3M shooters).
+    # At k=50: 20 games → 28.6%, 30 games → 37.5%, 50 games → 50% (cap).
+    player_bias_shrinkage_k: float = 50.0
     shrink_k: float = 500.0
     cap: float = 0.80
 
@@ -151,8 +154,8 @@ class RoleAwarePMFCalibrator:
             self.quality_tier_thresholds = {}
         if "player_calibrators" not in self.__dict__:
             self.player_calibrators = {}
-        if "player_bias_shrinkage_k" not in self.__dict__:
-            self.player_bias_shrinkage_k = 150.0
+        if "player_bias_shrinkage_k" not in self.__dict__ or self.__dict__.get("player_bias_shrinkage_k", 150.0) == 150.0:
+            self.player_bias_shrinkage_k = 50.0
 
     def _get_quality_tier(self, role: str, pmf_mean: float) -> str:
         """Map pmf_mean → quality tier label (low / mid / high) for a role."""
@@ -185,6 +188,30 @@ class RoleAwarePMFCalibrator:
             arr = normalize_pmf(pmf)
             pmf_mean_val = float(np.dot(np.arange(len(arr)), arr))
             tier = self._get_quality_tier(role_bucket, pmf_mean_val)
+            # #region agent log
+            import json as _json_log_qt, time as _time_log_qt
+            _thresholds_qt = self.quality_tier_thresholds.get(role_bucket)
+            try:
+                _log_path_qt = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+                _log_entry_qt = _json_log_qt.dumps({
+                    "sessionId": "3f8dcc", "id": f"log_qt_{role_bucket}_{int(_time_log_qt.time()*1000)}",
+                    "timestamp": int(_time_log_qt.time() * 1000),
+                    "location": "calibration.py:apply:quality_tier",
+                    "message": "quality tier assigned (H-C: is pmf_mean used for tier?)",
+                    "hypothesisId": "H-C",
+                    "data": {
+                        "role_bucket": role_bucket,
+                        "pmf_mean_val": round(pmf_mean_val, 3),
+                        "tier_assigned": tier,
+                        "thresholds": [round(x, 3) for x in _thresholds_qt] if _thresholds_qt else None,
+                        "player_id": str(player_id) if player_id is not None else None,
+                    }
+                }) + "\n"
+                with open(_log_path_qt, "a") as _f_qt:
+                    _f_qt.write(_log_entry_qt)
+            except Exception:
+                pass
+            # #endregion agent log
             if tier in tier_cals:
                 b = tier_cals[tier].apply(pmf)
                 output = normalize_pmf(w * b + (1.0 - w) * g)

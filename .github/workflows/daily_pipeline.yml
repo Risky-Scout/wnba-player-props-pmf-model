@@ -336,16 +336,30 @@ jobs:
           path: data/clv_tracking/
         continue-on-error: true
 
-      - name: Check calibration drift
-        # Compares last 100 scored predictions per stat against ECE/mean_error thresholds.
-        # Reads from data/clv_tracking/drift_window.parquet -- a rolling 300-row-per-stat
-        # window WITH pmf_json written by post_game_scoring.yml. ECE computation requires
-        # the full PMF array so we cannot use results.parquet (which drops pmf_json).
-        # Soft drift (ECE>0.06): warning logged, pipeline continues.
-        # Hard drift (ECE>0.12): exit 1, triggers auto-refit below.
+      - name: Check calibration staleness and drift
+        # Checks two failure modes:
+        # 1. STALENESS: calibrators older than 7 days → force refit regardless of ECE.
+        # 2. DRIFT: ECE>0.12 on last 100 scored predictions → force refit.
+        # Both exit 1 to trigger the auto-refit steps below.
         id: drift-check
         continue-on-error: true
         run: |
+          # Staleness check: force refit if calibrators have not been updated in 7 days
+          python -c "
+import json, sys, datetime, pathlib
+meta = pathlib.Path('artifacts/models/calibration/calibration_metadata.json')
+if meta.exists():
+    d = json.loads(meta.read_text())
+    fitted_at = d.get('fitted_at', '')
+    if fitted_at:
+        age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(fitted_at)).days
+        if age > 7:
+            print(f'[STALE] Calibrators are {age} days old (>7) — forcing refit.')
+            sys.exit(1)
+        else:
+            print(f'[OK] Calibrators are {age} days old (<=7).')
+"
+          # Drift check: ECE threshold gate
           python scripts/check_calibration_drift.py \
             --scored-predictions data/clv_tracking/drift_window.parquet \
             --thresholds-soft-ece 0.06 \

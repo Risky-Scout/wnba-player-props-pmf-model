@@ -191,18 +191,24 @@ def _apply_mean_bias_correction(
     pmf_arr: np.ndarray,
     alpha: float,
     cap: int | None = None,
+    variance_compress_factor: float = 1.0,
 ) -> np.ndarray:
-    """Scale a discrete PMF so its mean shifts by factor alpha.
+    """Scale a discrete PMF so its mean shifts by factor alpha, optionally compressing variance.
 
     Uses NegBinom moment-matching: estimates r from current mean and variance,
-    rebuilds the PMF at the target mean with the same r. Falls back to the
-    original PMF if estimation fails.
+    rebuilds the PMF at the target mean. When variance_compress_factor > 1.0,
+    the dispersion parameter r is multiplied by that factor (higher r = less
+    overdispersion = narrower PMF), correcting over-wide distributions confirmed
+    by runtime OOF evidence (fg3m ratio=1.54, ast ratio=1.43).
+    Falls back to the original PMF if estimation fails.
     """
     from wnba_props_model.models.pmf_utils import negbinom_pmf_batch  # noqa: PLC0415
 
     arr = normalize_pmf(pmf_arr)
-    if abs(alpha - 1.0) < 0.005:
-        return arr  # no correction needed
+    needs_alpha = abs(alpha - 1.0) >= 0.005
+    needs_compress = variance_compress_factor > 1.05
+    if not needs_alpha and not needs_compress:
+        return arr
     n = len(arr)
     k = np.arange(n, dtype=float)
     mu = float(np.dot(k, arr))
@@ -212,6 +218,11 @@ def _apply_mean_bias_correction(
     # NegBinom: var = mu + mu²/r  →  r = mu²/(var - mu)
     excess_var = max(var - mu, 1e-4)
     r_est = float(np.clip(mu ** 2 / excess_var, 0.3, 20.0))
+    # Variance compression: multiply r by the compress factor.
+    # Runtime evidence: fg3m model_var/actual_var=1.54, ast=1.43.
+    # Higher r tightens the NegBinom distribution toward its mean.
+    if needs_compress:
+        r_est = float(np.clip(r_est * variance_compress_factor, 0.5, 60.0))
     target_mu = float(np.clip(mu * alpha, 0.05, None))
     support = (cap or n) - 1
     try:
@@ -420,6 +431,31 @@ def fit_calibrators(
             _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.60, 1.40))
         else:
             _bias_corrections[_bc_stat] = 1.0
+        # #region agent log
+        import json as _json_log_bc, time as _time_log_bc
+        try:
+            _log_path_bc = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+            _log_entry_bc = _json_log_bc.dumps({
+                "sessionId": "3f8dcc", "id": f"log_bc_{_bc_stat}_{int(_time_log_bc.time())}",
+                "timestamp": int(_time_log_bc.time() * 1000),
+                "location": "calibrate.py:fit_calibrators:bias_correction",
+                "message": f"bias correction computed for {_bc_stat}",
+                "hypothesisId": "H-A",
+                "data": {
+                    "stat": _bc_stat,
+                    "n_rows": len(_bc_sub),
+                    "model_mean": round(_model_mean_bc, 4),
+                    "actual_mean": round(_actual_mean_bc, 4),
+                    "raw_ratio": round(_actual_mean_bc / _model_mean_bc if _model_mean_bc > 0.01 else 1.0, 4),
+                    "stored_correction": round(_bias_corrections[_bc_stat], 4),
+                    "correction_sign_correct": (_actual_mean_bc < _model_mean_bc) == (_bias_corrections[_bc_stat] < 1.0),
+                }
+            }) + "\n"
+            with open(_log_path_bc, "a") as _f_bc:
+                _f_bc.write(_log_entry_bc)
+        except Exception:
+            pass
+        # #endregion agent log
     (out / "bias_corrections.json").write_text(json.dumps(_bias_corrections, indent=2))
     print(f"[calibrate] Bias corrections saved: { {k: round(v,3) for k,v in _bias_corrections.items()} }")
 
@@ -441,6 +477,86 @@ def fit_calibrators(
         oof_eligible["pmf_json"] = _bc_pmf_jsons
         oof_eligible["pmf"] = oof_eligible["pmf_json"].map(json_to_pmf)
         print(f"[calibrate] Applied bias corrections to {len(oof_eligible):,} OOF PMFs for calibrator training alignment")
+
+    # #region agent log
+    import json as _json_log_var, time as _time_log_var
+    _var_log_data = {}
+    for _vs in ["fg3m", "ast", "blk", "stl"]:
+        _vs_sub = oof_eligible[oof_eligible["stat"] == _vs].dropna(subset=["pmf_mean", "actual_outcome", "pmf_json"])
+        if len(_vs_sub) >= 100:
+            _pmf_vars = []
+            for _, _vr in _vs_sub.iterrows():
+                try:
+                    _vp = normalize_pmf(json_to_pmf(_vr["pmf_json"]))
+                    _vk = np.arange(len(_vp))
+                    _vm = float(np.dot(_vk, _vp))
+                    _pmf_vars.append(float(np.dot(_vk**2, _vp)) - _vm**2)
+                except Exception:
+                    pass
+            _model_var = float(np.mean(_pmf_vars)) if _pmf_vars else 0.0
+            _actual_var = float(_vs_sub["actual_outcome"].var())
+            _var_log_data[_vs] = {"model_var": round(_model_var, 4), "actual_var": round(_actual_var, 4), "ratio": round(_model_var / max(_actual_var, 0.001), 4)}
+    try:
+        _log_path_var = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+        _log_entry_var = _json_log_var.dumps({"sessionId": "3f8dcc", "id": f"log_var_{int(_time_log_var.time())}", "timestamp": int(_time_log_var.time() * 1000), "location": "calibrate.py:fit_calibrators:variance_check", "message": "PMF variance vs actual variance (H-D: is PMF too wide?)", "hypothesisId": "H-D", "data": _var_log_data}) + "\n"
+        with open(_log_path_var, "a") as _f_var:
+            _f_var.write(_log_entry_var)
+    except Exception:
+        pass
+    # #endregion agent log
+
+    # Compute per-stat variance compression factors and save for inference.
+    # Runtime evidence: fg3m model_var/actual_var=1.543, ast=1.431 (H-D confirmed).
+    # These factors are passed to _apply_mean_bias_correction at inference to tighten
+    # over-wide PMF distributions that inflate P(over) for outlier players.
+    _var_compress: dict[str, float] = {}
+    for _vc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
+        _vc_sub = oof_eligible[oof_eligible["stat"] == _vc_stat].dropna(subset=["pmf_mean", "actual_outcome", "pmf_json"])
+        if len(_vc_sub) < 200:
+            _var_compress[_vc_stat] = 1.0
+            continue
+        _vc_pmf_vars: list[float] = []
+        for _, _vc_row in _vc_sub.iterrows():
+            try:
+                _vc_p = normalize_pmf(json_to_pmf(_vc_row["pmf_json"]))
+                _vc_k = np.arange(len(_vc_p), dtype=float)
+                _vc_m = float(np.dot(_vc_k, _vc_p))
+                _vc_pmf_vars.append(float(np.dot(_vc_k ** 2, _vc_p)) - _vc_m ** 2)
+            except Exception:
+                pass
+        _vc_model_var = float(np.mean(_vc_pmf_vars)) if _vc_pmf_vars else 0.0
+        _vc_actual_var = float(_vc_sub["actual_outcome"].var())
+        if _vc_actual_var > 0.01 and _vc_model_var > 0.01:
+            # Clamp: compress at most 3× to avoid over-squeezing thin-tailed distributions
+            _var_compress[_vc_stat] = float(np.clip(_vc_model_var / _vc_actual_var, 1.0, 3.0))
+        else:
+            _var_compress[_vc_stat] = 1.0
+    (out / "variance_compress.json").write_text(json.dumps(_var_compress, indent=2))
+    print(f"[calibrate] Variance compression factors saved: { {k: round(v,3) for k,v in _var_compress.items()} }")
+
+    # Apply variance compression to OOF PMFs BEFORE fitting isotonic calibrators,
+    # matching what will be done at inference (same alignment logic as bias corrections).
+    # NOTE: At this point oof_eligible["pmf_json"] may already have bias corrections applied
+    # (from the block above). Pass alpha=1.0 here so we only compress variance, not
+    # double-apply the mean shift.
+    _any_compress = any(v > 1.05 for v in _var_compress.values())
+    if _any_compress:
+        _vc_pmf_jsons = []
+        for _, _vc_bcr_row in oof_eligible.iterrows():
+            _vc_factor = _var_compress.get(str(_vc_bcr_row.get("stat", "")), 1.0)
+            if _vc_factor > 1.05 and pd.notna(_vc_bcr_row.get("pmf_json")):
+                _vc_pmf = _apply_mean_bias_correction(
+                    json_to_pmf(_vc_bcr_row["pmf_json"]),
+                    alpha=1.0,  # mean already shifted by bias correction loop above
+                    variance_compress_factor=_vc_factor,
+                )
+                _vc_pmf_jsons.append(pmf_to_json(_vc_pmf))
+            else:
+                _vc_pmf_jsons.append(_vc_bcr_row.get("pmf_json"))
+        oof_eligible = oof_eligible.copy()
+        oof_eligible["pmf_json"] = _vc_pmf_jsons
+        oof_eligible["pmf"] = oof_eligible["pmf_json"].map(json_to_pmf)
+        print(f"[calibrate] Applied variance compression to {len(oof_eligible):,} OOF PMFs")
 
     paths = {}
     for stat in sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS)):
@@ -591,6 +707,15 @@ def apply_calibrators(
         if cal_path.exists():
             calibrators[stat] = RoleAwarePMFCalibrator.load(str(cal_path))
 
+    # Load per-stat variance compression factors (computed during fit_calibrators)
+    _var_compress_ac: dict[str, float] = {}
+    _var_compress_path = cal_dir / "variance_compress.json"
+    if _var_compress_path.exists():
+        try:
+            _var_compress_ac = json.loads(_var_compress_path.read_text())
+        except Exception as exc_vc:
+            logger.warning("[calibrate] Could not load variance_compress.json: %s", exc_vc)
+
     # Load p_nz calibrators for hurdle stats (stl, blk)
     import joblib as _joblib_pnz  # noqa: PLC0415
     _pnz_calibrators: dict[str, Any] = {}
@@ -612,8 +737,53 @@ def apply_calibrators(
 
         # Apply multiplicative mean bias correction before isotonic shape calibration
         _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
-        if abs(_alpha_ac - 1.0) > 0.005:
-            raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac)
+        # #region agent log
+        if stat in ("fg3m", "ast") and abs(_alpha_ac - 1.0) > 0.005:
+            import json as _json_log_ac, time as _time_log_ac
+            try:
+                _k_ac = np.arange(len(raw_pmf))
+                _mu_before = float(np.dot(_k_ac, raw_pmf / (raw_pmf.sum() + 1e-12)))
+                _log_path_ac = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+                _log_entry_ac = _json_log_ac.dumps({
+                    "sessionId": "3f8dcc", "id": f"log_apply_{stat}_{int(_time_log_ac.time())}",
+                    "timestamp": int(_time_log_ac.time() * 1000),
+                    "location": "calibrate.py:apply_calibrators:bias_apply",
+                    "message": f"applying bias correction to {stat} (H-B: is correction inflating?)",
+                    "hypothesisId": "H-B",
+                    "data": {
+                        "stat": stat, "role": role,
+                        "alpha_applied": round(_alpha_ac, 4),
+                        "mean_before": round(_mu_before, 4),
+                        "alpha_inflates": _alpha_ac > 1.0,
+                    }
+                }) + "\n"
+                with open(_log_path_ac, "a") as _f_ac:
+                    _f_ac.write(_log_entry_ac)
+            except Exception:
+                pass
+        # #endregion agent log
+        _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
+        if abs(_alpha_ac - 1.0) > 0.005 or _vc_factor_ac > 1.05:
+            raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac, variance_compress_factor=_vc_factor_ac)
+            # #region agent log
+            if stat in ("fg3m", "ast"):
+                import json as _json_log_pf, time as _time_log_pf
+                try:
+                    _k_pf = np.arange(len(raw_pmf))
+                    _mu_after = float(np.dot(_k_pf, raw_pmf / (raw_pmf.sum() + 1e-12)))
+                    _log_path_pf = "/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log"
+                    with open(_log_path_pf, "a") as _f_pf:
+                        _f_pf.write(_json_log_pf.dumps({
+                            "sessionId": "3f8dcc", "id": f"log_postfix_{stat}_{int(_time_log_pf.time()*1000)}",
+                            "timestamp": int(_time_log_pf.time() * 1000),
+                            "location": "calibrate.py:apply_calibrators:post_fix_verify",
+                            "message": f"post-fix: mean+variance correction applied to {stat}",
+                            "hypothesisId": "H-D", "runId": "post-fix",
+                            "data": {"stat": stat, "alpha": round(_alpha_ac, 4), "var_compress": round(_vc_factor_ac, 4), "mean_after": round(_mu_after, 4)}
+                        }) + "\n")
+                except Exception:
+                    pass
+            # #endregion agent log
 
         # P_nz calibration for hurdle stats (stl, blk): rescale zero mass
         if stat in _pnz_calibrators:

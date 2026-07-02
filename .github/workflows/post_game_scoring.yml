@@ -109,10 +109,24 @@ jobs:
           python scripts/build_canonical_tables.py \
             --raw-dir data/raw/bdl --out-dir data/processed
 
+      - name: Guard — skip scoring on no-game dates
+        id: game_guard
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          # If predictions artifact was not downloaded (no game that day), skip scoring
+          if [ ! -f "deliveries/scored_day/full_pmfs_wide.parquet" ]; then
+            echo "No predictions artifact for $GAME_DATE — no game day, skipping CLV scoring."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Score predictions vs. actuals (with market lines + closing lines)
         # This is the single authoritative CLV scoring path.
         # Computes open-line CLV (vs. morning market price) and true CLV
         # (vs. closing lines) for every scored bet.
+        # continue-on-error REMOVED: failures must be visible, not silently skipped.
+        if: steps.game_guard.outputs.skip != 'true'
         run: |
           python scripts/score_daily_predictions.py \
             --predictions deliveries/scored_day/full_pmfs_wide.parquet \
@@ -122,7 +136,6 @@ jobs:
             --closing-lines "${{ steps.closing.outputs.path }}" \
             --out-dir data/clv_tracking \
             --results-file data/clv_tracking/results.parquet
-        continue-on-error: true
 
       - name: Generate CLV report
         run: |
@@ -156,3 +169,16 @@ jobs:
             artifacts/audits/clv_*.json
             artifacts/audits/clv_*.md
           retention-days: 90
+
+      - name: Commit and push CLV results
+        if: steps.game_guard.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/clv_tracking/results.parquet artifacts/audits/clv_*.json artifacts/audits/clv_*.md 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: CLV scoring results for ${{ steps.date.outputs.game_date }} [skip ci]"
+            git push
+          else
+            echo "No CLV data changes to commit."
+          fi
