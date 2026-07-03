@@ -1,4 +1,4 @@
-random_seed: 20260610
+random_seed: 42
 
 # Use LogLinearStatModel (Dixon-Coles opponent adjustment) — same as Stage 4
 use_log_linear: true
@@ -27,6 +27,7 @@ stats:
 # stl removed: near-Poisson (var/mean=1.21), direct NegBinom is correct.
 # blk retained: structurally zero-inflated (positional/foul-out dependent).
 sparse_stats:
+  - stl
   - blk
 
 pmf_support_caps:
@@ -64,18 +65,18 @@ hgb_regressor:
   max_iter: 300
   max_leaf_nodes: 63
   learning_rate: 0.08
-  min_samples_leaf: 15
+  min_samples_leaf: 10
 
 hgb_classifier:
   max_iter: 300
   max_leaf_nodes: 63
   learning_rate: 0.08
-  min_samples_leaf: 15
+  min_samples_leaf: 10
 
 # --------------------------------------------------------------------------
 # F1: Minutes distribution marginalization (must match stage4_baseline.yaml)
 # --------------------------------------------------------------------------
-use_minutes_marginalization: false
+use_minutes_marginalization: true
 minutes_marginalization_quadrature_points:
   - 0.10
   - 0.25
@@ -92,7 +93,7 @@ minutes_marginalization_weights:
 # --------------------------------------------------------------------------
 # F3: ZINB for sparse stats (must match stage4_baseline.yaml)
 # --------------------------------------------------------------------------
-use_zinb_for_sparse_stats: false
+use_zinb_for_sparse_stats: true
 
 # --------------------------------------------------------------------------
 # F5: Vig-removal method for market benchmark
@@ -100,10 +101,68 @@ use_zinb_for_sparse_stats: false
 no_vig_method: shin
 secondary_no_vig_method: power
 
+dispersion_r_by_role:
+  pts:
+    starter: 2.84
+    core: 2.36
+    rotation: 1.92
+    bench: 1.69
+    fringe: 1.50
+    inactive_risk: 1.17
+  reb:
+    starter: 2.73
+    core: 2.53
+    rotation: 2.16
+    bench: 1.90
+    fringe: 1.72
+    inactive_risk: 1.45
+  ast:
+    starter: 2.11
+    core: 1.79
+    rotation: 1.48
+    bench: 1.30
+    fringe: 0.93
+    inactive_risk: 0.55
+  fg3m:
+    starter: 1.23
+    core: 1.04
+    rotation: 0.92
+    bench: 0.81
+    fringe: 0.73
+    inactive_risk: 0.64
+  stl:
+    starter: 2.96
+    core: 2.62
+    rotation: 2.37
+    bench: 2.19
+    fringe: 1.98
+    inactive_risk: 1.75
+  blk:
+    starter: 1.61
+    core: 1.32
+    rotation: 0.88
+    bench: 0.63
+    fringe: 0.39
+    inactive_risk: 0.21
+  turnover:
+    starter: 5.78
+    core: 4.90
+    rotation: 4.09
+    bench: 3.57
+    fringe: 2.67
+    inactive_risk: 1.57
+  stocks:
+    starter: 2.50
+    core: 2.20
+    rotation: 1.90
+    bench: 1.70
+    fringe: 1.50
+    inactive_risk: 1.20
+
 # Per-stat configuration overrides (must match stage4_baseline.yaml)
 stat_overrides:
   fg3m:
-    use_beta_binomial: false
+    use_beta_binomial: true
   turnover:
     use_minutes_offset: true
   ast:
@@ -114,9 +173,9 @@ use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true
 use_mean_dependent_dispersion: true
-use_tuned_hyperparams: false
+use_tuned_hyperparams: true
 hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
-use_model_ensemble: false
+use_model_ensemble: true
 pi_rating_use_model_baseline: false
 
 minutes_clip_min: 0.0

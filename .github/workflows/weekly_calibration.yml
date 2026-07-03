@@ -50,21 +50,50 @@ jobs:
           import yaml, sys
           s4 = yaml.safe_load(open("config/model/stage4_baseline.yaml"))
           s5 = yaml.safe_load(open("config/model/stage5_oof.yaml"))
-          checks = [
-              ("sample_weight_halflife_days", s4, s5),
-              ("hgb_regressor.max_iter", s4["hgb_regressor"], s5["hgb_regressor"]),
-              ("hgb_regressor.max_leaf_nodes", s4["hgb_regressor"], s5["hgb_regressor"]),
-          ]
+          def check(label, v4, v5):
+              if v4 != v5:
+                  print(f"MISMATCH {label}: stage4={v4!r}  stage5={v5!r}")
+                  return True
+              print(f"OK {label}: {v4!r}")
+              return False
           failed = False
-          for key, a, b in checks:
-              k = key.split(".")[-1]
-              if a[k] != b[k]:
-                  print(f"MISMATCH {key}: stage4={a[k]} stage5={b[k]}")
-                  failed = True
-              else:
-                  print(f"OK {key}: {a[k]}")
+          failed |= check("random_seed", s4.get("random_seed"), s5.get("random_seed"))
+          failed |= check("sample_weight_halflife_days", s4.get("sample_weight_halflife_days"), s5.get("sample_weight_halflife_days"))
+          failed |= check("hgb_regressor.max_iter", s4["hgb_regressor"]["max_iter"], s5["hgb_regressor"]["max_iter"])
+          failed |= check("hgb_regressor.max_leaf_nodes", s4["hgb_regressor"]["max_leaf_nodes"], s5["hgb_regressor"]["max_leaf_nodes"])
+          failed |= check("hgb_regressor.min_samples_leaf", s4["hgb_regressor"]["min_samples_leaf"], s5["hgb_regressor"]["min_samples_leaf"])
+          failed |= check("hgb_regressor.learning_rate", s4["hgb_regressor"]["learning_rate"], s5["hgb_regressor"]["learning_rate"])
+          failed |= check("use_minutes_marginalization", s4.get("use_minutes_marginalization"), s5.get("use_minutes_marginalization"))
+          failed |= check("use_zinb_for_sparse_stats", s4.get("use_zinb_for_sparse_stats"), s5.get("use_zinb_for_sparse_stats"))
+          failed |= check("use_model_ensemble", s4.get("use_model_ensemble"), s5.get("use_model_ensemble"))
+          failed |= check("use_tuned_hyperparams", s4.get("use_tuned_hyperparams"), s5.get("use_tuned_hyperparams"))
+          failed |= check("use_mean_dependent_dispersion", s4.get("use_mean_dependent_dispersion"), s5.get("use_mean_dependent_dispersion"))
+          failed |= check("use_positional_defense_features", s4.get("use_positional_defense_features"), s5.get("use_positional_defense_features"))
+          failed |= check("use_ewma_features", s4.get("use_ewma_features"), s5.get("use_ewma_features"))
+          failed |= check("use_matchup_features", s4.get("use_matchup_features"), s5.get("use_matchup_features"))
+          failed |= check("sparse_stats", sorted(s4.get("sparse_stats", [])), sorted(s5.get("sparse_stats", [])))
+          s4_bb = s4.get("stat_overrides", {}).get("fg3m", {}).get("use_beta_binomial", False)
+          s5_bb = s5.get("stat_overrides", {}).get("fg3m", {}).get("use_beta_binomial", False)
+          failed |= check("stat_overrides.fg3m.use_beta_binomial", s4_bb, s5_bb)
+          s4_has_dr = "dispersion_r_by_role" in s4
+          s5_has_dr = "dispersion_r_by_role" in s5
+          failed |= check("dispersion_r_by_role present", s4_has_dr, s5_has_dr)
+          if s4_has_dr and s5_has_dr:
+              for stat in s4["dispersion_r_by_role"]:
+                  if stat in s5["dispersion_r_by_role"]:
+                      for role, v4 in s4["dispersion_r_by_role"][stat].items():
+                          v5 = s5["dispersion_r_by_role"][stat].get(role)
+                          failed |= check(f"dispersion_r_by_role.{stat}.{role}", v4, v5)
+          for stat in s4.get("pmf_support_caps", {}):
+              v4 = s4["pmf_support_caps"][stat]
+              v5 = s5.get("pmf_support_caps", {}).get(stat)
+              failed |= check(f"pmf_support_caps.{stat}", v4, v5)
           if failed:
+              print("\nCONFIG ALIGNMENT FAILED — OOF calibrators will be trained on a different")
+              print("model than production. Fix stage5_oof.yaml before the next weekly calibration run.")
               sys.exit(1)
+          else:
+              print("\nAll alignment checks passed.")
           EOF
 
       - name: Download tuned hyperparams artifact (if available)

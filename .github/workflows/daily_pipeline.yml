@@ -358,21 +358,21 @@ jobs:
         run: |
           STALE_THRESHOLD="${{ steps.staleness.outputs.threshold }}"
           # Staleness check: force refit if calibrators have not been updated in threshold days
-          python -c "
-import json, sys, datetime, pathlib
-meta = pathlib.Path('artifacts/models/calibration/calibration_metadata.json')
-threshold = int('${STALE_THRESHOLD}')
-if meta.exists():
-    d = json.loads(meta.read_text())
-    fitted_at = d.get('fitted_at', '')
-    if fitted_at:
-        age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(fitted_at)).days
-        if age > threshold:
-            print(f'[STALE] Calibrators are {age} days old (>{threshold}) — forcing refit.')
-            sys.exit(1)
-        else:
-            print(f'[OK] Calibrators are {age} days old (<={threshold}).')
-"
+          python3 - <<PYEOF
+          import json, sys, datetime, pathlib
+          meta = pathlib.Path('artifacts/models/calibration/calibration_metadata.json')
+          threshold = int('${STALE_THRESHOLD}')
+          if meta.exists():
+              d = json.loads(meta.read_text())
+              fitted_at = d.get('fitted_at', '')
+              if fitted_at:
+                  age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(fitted_at)).days
+                  if age > threshold:
+                      print(f'[STALE] Calibrators are {age} days old (>{threshold}) — forcing refit.')
+                      sys.exit(1)
+                  else:
+                      print(f'[OK] Calibrators are {age} days old (<={threshold}).')
+          PYEOF
           # Drift check: ECE threshold gate
           python scripts/check_calibration_drift.py \
             --scored-predictions data/clv_tracking/drift_window.parquet \
