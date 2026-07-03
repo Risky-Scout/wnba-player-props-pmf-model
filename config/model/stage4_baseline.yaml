@@ -137,12 +137,16 @@ hgb_regressor:
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
+  early_stopping: true
+  n_iter_no_change: 10
 
 hgb_classifier:
   max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
+  early_stopping: true
+  n_iter_no_change: 10
 
 # --------------------------------------------------------------------------
 # F1: Minutes distribution marginalization
