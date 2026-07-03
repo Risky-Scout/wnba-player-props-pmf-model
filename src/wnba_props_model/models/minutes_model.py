@@ -73,6 +73,8 @@ class MinutesModel:
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
             learning_rate=hgb_kw.get("learning_rate", 0.1),
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+            early_stopping=hgb_kw.get("early_stopping", False),
+            n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
             random_state=seed,
         )
         self._model.fit(X, y, sample_weight=sample_weight)
@@ -87,6 +89,8 @@ class MinutesModel:
                 max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
                 learning_rate=hgb_kw.get("learning_rate", 0.1),
                 min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+                early_stopping=hgb_kw.get("early_stopping", False),
+                n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
                 random_state=seed,
             )
             qm.fit(X, y, sample_weight=sample_weight)

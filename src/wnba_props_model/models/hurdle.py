@@ -173,6 +173,8 @@ class ZINBStatModel:
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
             learning_rate=hgb_kw.get("learning_rate", 0.1),
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+            early_stopping=hgb_kw.get("early_stopping", False),
+            n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
             random_state=seed,
         )
         # Up-weight games where the player played meaningful minutes (prop-eligible context).
