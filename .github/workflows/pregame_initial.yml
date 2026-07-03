@@ -272,7 +272,8 @@ jobs:
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
             --game-date "$GAME_DATE" \
-            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --edge-threshold 0.0
         continue-on-error: true
 
       - name: Format pre-game JSON output (blueprint S3)

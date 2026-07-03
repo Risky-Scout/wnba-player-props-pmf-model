@@ -84,7 +84,7 @@ def main(
     pmfs: str = typer.Option(..., help="Calibrated PMF parquet (full_pmfs_wide.parquet)."),
     raw_props: str = typer.Option(..., help="BDL player props parquet (fallback)."),
     out_dir: str = typer.Option(..., help="Output directory for edge report files."),
-    edge_threshold: float = typer.Option(0.06, help="Minimum |edge| to publish (default 6pp)."),
+    edge_threshold: float = typer.Option(0.0, help="Minimum |edge| to publish (default 0 — show all props)."),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
     max_shin_z: float = typer.Option(
@@ -261,23 +261,9 @@ def main(
     # keep sanity_flag=1 (caution) but sort them to the bottom.
     # Primary sort: by CLV-decay-adjusted edge (time-corrected signal);
     # fall back to raw edge if decay column is absent.
-    # Combo props have higher natural variance (sum of components), so a naive
-    # edge filter catches more noise. Apply a 1pp markup for combo stats to
-    # ensure only robust signals are published. For individual stats, use the
-    # standard threshold. This maximises ROI by filtering combo noise while
-    # preserving genuine combo edges.
-    _COMBO_STATS_SET = frozenset({"pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"})
-    if "stat" in comp.columns:
-        _combo_threshold = edge_threshold + 0.01  # 1pp markup for combos
-        _is_combo_edge = comp["stat"].isin(_COMBO_STATS_SET)
-        _threshold_arr = _is_combo_edge.map({True: _combo_threshold, False: edge_threshold})
-        edges = comp[comp["edge_over"].abs() >= _threshold_arr].copy()
-        typer.echo(
-            f"[filter] Edge threshold: individual={edge_threshold:.2%}, "
-            f"combo={_combo_threshold:.2%} → {len(edges)} edges"
-        )
-    else:
-        edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
+    # Uniform threshold across individual and combo stats — no markup.
+    edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
+    typer.echo(f"[filter] Edge threshold: {edge_threshold:.2%} → {len(edges)} props")
     _sort_col = "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns else "edge_over"
 
     # Combo props (pts_reb, pts_ast, etc.) are offered by fewer sportsbooks

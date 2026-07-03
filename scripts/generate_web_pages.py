@@ -226,19 +226,39 @@ def _build_edge_json(
 
 
 def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: str) -> dict:
-    """Build the payload for Pre-Game/PMF-Distributions/latest.json."""
-    pmf_cols = [c for c in ["player_id", "stat", "pmf_json", "pmf_mean", "pmf_variance", "median", "mode"]
-                if c in proj_df.columns]
-    merge_keys = [k for k in ["player_id", "stat"] if k in edges_df.columns and k in proj_df.columns]
-    if merge_keys:
-        merged = edges_df.merge(
-            proj_df[pmf_cols],
+    """Build the payload for Pre-Game/PMF-Distributions/latest.json.
+
+    Shows ALL players × ALL stats (except suppressed stats). Edge columns are
+    left-joined from edges_df so players with no market line still appear with
+    their full PMF distribution (edge/kelly/market columns default to 0/null).
+    """
+    # Stats suppressed until new calibrators are promoted (bias factors too low).
+    # Remove from this set once weekly_calibration produces updated calibrators.
+    _SUPPRESSED_STATS = frozenset({"stl", "blk"})
+
+    # Start from the full projection universe (all players × all stats).
+    base_df = proj_df.copy()
+    if "stat" in base_df.columns:
+        base_df = base_df[~base_df["stat"].isin(_SUPPRESSED_STATS)]
+
+    # Columns to pull from the edge report (market line + edge signal).
+    _edge_payload_cols = [
+        "edge_over", "kelly_fraction", "model_prob_over",
+        "market_prob_over_no_vig", "line", "bookmaker",
+        "over_odds", "under_odds",
+    ]
+    edge_join_cols = [c for c in _edge_payload_cols if c in edges_df.columns]
+    merge_keys = [k for k in ["player_id", "stat"] if k in base_df.columns and k in edges_df.columns]
+
+    if merge_keys and edge_join_cols:
+        merged = base_df.merge(
+            edges_df[merge_keys + edge_join_cols].drop_duplicates(subset=merge_keys),
             on=merge_keys,
             how="left",
-            suffixes=("", "_proj"),
+            suffixes=("", "_edge"),
         )
     else:
-        merged = edges_df.copy()
+        merged = base_df.copy()
     props = []
     for _, r in merged.iterrows():
         raw_pmf = r.get("pmf_json", None)
