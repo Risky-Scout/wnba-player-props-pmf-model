@@ -131,15 +131,15 @@ sample_weight_halflife_days: 42
 # learning_rate 0.1→0.08: slower learning compensates for increased capacity
 #   (reduces overfitting on older down-weighted data).
 # min_samples_leaf 20→10: allows finer splits on elite-player sub-populations.
-# max_iter 200: converges well at lr=0.08 within OOF timeout budget.
+# max_iter 150: fits OOF within 360min timeout at 63 leaves (lr=0.08).
 hgb_regressor:
-  max_iter: 200
+  max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
 
 hgb_classifier:
-  max_iter: 200
+  max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
