@@ -496,6 +496,7 @@ jobs:
         continue-on-error: true
 
       - name: Update league priors from current-season data
+        if: always()
         run: |
           YEAR=$(date -u +%Y)
           python scripts/update_league_priors.py \
