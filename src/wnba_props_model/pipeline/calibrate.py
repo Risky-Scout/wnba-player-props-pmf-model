@@ -410,18 +410,18 @@ def fit_calibrators(
     # masks severe miscalibration for starters (mean_pit 0.58–0.74), causing isotonic
     # calibrators to compress starter means by ~46% (PTS: 8.96 → 4.86, actual 9.32).
     _PROP_ELIGIBLE_PMF_MIN: dict[str, float] = {
-        "pts":      4.0,
-        "reb":      1.5,
-        "ast":      0.8,
-        "fg3m":     0.25,
-        "stl":      0.25,
-        "blk":      0.15,
-        "turnover": 0.5,
-        "stocks":   0.4,
-        "pts_ast":  5.0,
-        "pts_reb":  5.5,
-        "reb_ast":  2.3,
-        "pts_reb_ast": 6.0,
+        "pts":         5.0,   # raised from 4.0 — matches sportsbook offering floor
+        "reb":         2.0,   # raised from 1.5
+        "ast":         1.0,   # raised from 0.8
+        "fg3m":        0.30,  # raised from 0.25
+        "stl":         0.30,  # raised from 0.25
+        "blk":         0.18,  # raised from 0.15
+        "turnover":    0.6,   # raised from 0.5
+        "stocks":      0.5,   # raised from 0.4
+        "pts_ast":     6.0,   # raised from 5.0
+        "pts_reb":     6.5,   # raised from 5.5
+        "reb_ast":     2.8,   # raised from 2.3
+        "pts_reb_ast": 7.0,   # raised from 6.0
     }
     if "pmf_mean" in oof_eligible.columns and "stat" in oof_eligible.columns:
         _pre_prop_n = len(oof_eligible)

@@ -4,7 +4,7 @@ random_seed: 42
 use_log_linear: true
 
 # OOF fold configuration
-validation_window_days: 14
+validation_window_days: 7
 
 # Restrict OOF validation windows to the current WNBA season only.
 # Without this, game_dates from 2022-2025 produce ~30+ model-fitting folds
