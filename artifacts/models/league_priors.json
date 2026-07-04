@@ -1,4 +1,5 @@
 {
+<<<<<<< Updated upstream
   "pts": 8.742,
   "reb": 3.378,
   "ast": 2.048,
@@ -6,4 +7,13 @@
   "stl": 0.739,
   "blk": 0.413,
   "turnover": 1.343
+=======
+  "pts": 8.748,
+  "reb": 3.38,
+  "ast": 2.049,
+  "fg3m": 0.856,
+  "stl": 0.74,
+  "blk": 0.413,
+  "turnover": 1.344
+>>>>>>> Stashed changes
 }
