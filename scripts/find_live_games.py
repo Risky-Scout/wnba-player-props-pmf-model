@@ -25,8 +25,19 @@ import pandas as pd
 
 app = typer.Typer(add_completion=False)
 
-_LIVE_STATUSES = {"in_progress", "live", "halftime", "end_of_period"}
+# Explicit live/upcoming allowlists (kept for reference and is_live classification).
+_LIVE_STATUSES = {
+    "in_progress", "live", "halftime", "end_of_period",
+    # BDL WNBA quarter-period strings after .lower().replace(" ","_"):
+    "1st_qtr", "2nd_qtr", "3rd_qtr", "4th_qtr",
+    "1_qtr", "2_qtr", "3_qtr", "4_qtr",
+    "q1", "q2", "q3", "q4",
+    "ot", "ot1", "ot2", "overtime", "1st_ot", "2nd_ot",
+}
 _UPCOMING_STATUSES = {"scheduled", "pregame"}
+# Terminal statuses — anything NOT in this set (and not empty) is treated as active.
+# Denylist is safer than allowlist because BDL may return novel quarter strings.
+_TERMINAL_STATUSES = {"final", "final/ot", "final_ot", "canceled", "postponed", "tbd", ""}
 
 
 @app.command()
@@ -61,9 +72,10 @@ def main(
             gid = row.get("id")
             if gid is None:
                 continue
-            is_live = status in _LIVE_STATUSES
+            is_live = status in _LIVE_STATUSES or status not in _TERMINAL_STATUSES
             is_upcoming = status in _UPCOMING_STATUSES
             if is_live or (include_upcoming and is_upcoming):
+                typer.echo(f"  → game {gid}: status={repr(status)} is_live={is_live}")
                 game_ids.append(int(gid))
                 home = row.get("home_team") or {}
                 away = row.get("visitor_team") or {}
