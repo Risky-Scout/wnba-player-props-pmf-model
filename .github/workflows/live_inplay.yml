@@ -93,7 +93,8 @@ jobs:
         run: |
           python scripts/find_live_games.py \
             --out-dir artifacts/live \
-            --date "$GAME_DATE"
+            --date "$GAME_DATE" \
+            --live-only
           # Read game IDs from live_games.json (primary) or active_game_ids.txt (fallback)
           if [ -f "artifacts/live/live_games.json" ]; then
             ACTIVE_IDS=$(python -c "import json; d=json.load(open('artifacts/live/live_games.json')); print(','.join(str(g) for g in d.get('game_ids',[])) if d.get('has_games') else '')")
