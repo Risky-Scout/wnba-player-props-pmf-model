@@ -374,6 +374,23 @@ jobs:
               print(f"  {flag}  {stat}: model_mean={model_mean:.2f}, actual_mean={actual_mean:.2f}, bias={bias:+.2f}")
           EOF
 
+      - name: Join historical prop lines to OOF parquet
+        run: |
+          python3 - <<'PYEOF'
+          from src.wnba_props_model.calibration.oof_line_joiner import join_historical_props_to_oof
+          import pathlib, sys
+          oof_path = "data/oof/oof_player_stat_pmfs.parquet"
+          props_path = "data/processed/wnba_player_props.parquet"
+          out_path = "data/oof/oof_pmfs_with_lines.parquet"
+          # Only run if both input files exist
+          if pathlib.Path(oof_path).exists() and pathlib.Path(props_path).exists():
+              join_historical_props_to_oof(oof_path, props_path, out_path)
+              print("OOF line join complete.")
+          else:
+              print(f"Skipping line join: oof={pathlib.Path(oof_path).exists()}, props={pathlib.Path(props_path).exists()}")
+          PYEOF
+        continue-on-error: true
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
