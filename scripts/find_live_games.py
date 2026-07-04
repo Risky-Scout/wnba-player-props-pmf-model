@@ -34,7 +34,7 @@ _LIVE_STATUSES = {
     "q1", "q2", "q3", "q4",
     "ot", "ot1", "ot2", "overtime", "1st_ot", "2nd_ot",
 }
-_UPCOMING_STATUSES = {"scheduled", "pregame"}
+_UPCOMING_STATUSES = {"scheduled", "pregame", "pre"}
 # Terminal statuses — anything NOT in this set (and not empty) is treated as active.
 # Denylist is safer than allowlist because BDL may return novel quarter strings.
 _TERMINAL_STATUSES = {"final", "final/ot", "final_ot", "canceled", "postponed", "tbd", "post", ""}
@@ -83,7 +83,7 @@ def main(
             gid = row.get("id")
             if gid is None:
                 continue
-            is_live = status in _LIVE_STATUSES or status not in _TERMINAL_STATUSES
+            is_live = (status in _LIVE_STATUSES or status not in _TERMINAL_STATUSES) and status not in _UPCOMING_STATUSES
             is_upcoming = status in _UPCOMING_STATUSES
             if (is_live or (include_upcoming and is_upcoming)) and int(gid) not in seen_ids:
                 typer.echo(f"  → game {gid}: status={repr(status)} is_live={is_live}")

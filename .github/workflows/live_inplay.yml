@@ -381,11 +381,20 @@ jobs:
           for GID in $(echo "$IDS" | tr ',' ' '); do
             GAME_FILE="tools/odds-scanner/predictions/WNBA/Inplay-Edge/game_${GID}_latest.json"
             if [ -f "$GAME_FILE" ]; then
-              STATUS=$(python3 -c "import json; d=json.load(open('$GAME_FILE')); s=d.get('game_status','').lower(); terminal={'final','final/ot','final_ot','canceled','postponed','post'}; print('terminal' if s in terminal else 'live')")
-              if [ "$STATUS" = "live" ]; then
+              GAME_STATUS=$(python3 - <<PYEOF
+          import json
+          try:
+              s = json.load(open("${GAME_FILE}")).get("game_status", "").lower()
+              t = {"final", "final/ot", "final_ot", "canceled", "postponed", "post"}
+              print("done" if s in t else "live")
+          except Exception:
+              print("live")
+          PYEOF
+              )
+              if [ "$GAME_STATUS" = "live" ]; then
                 STILL_LIVE="$STILL_LIVE,$GID"
               else
-                echo "Game $GID status=$(python3 -c \"import json; print(json.load(open('$GAME_FILE')).get('game_status','?'))\") — terminal, not re-queuing"
+                echo "Game $GID finished (game_status=$GAME_STATUS) — not re-queuing"
               fi
             else
               echo "Game $GID — no output file found, including in self-chain as precaution"
