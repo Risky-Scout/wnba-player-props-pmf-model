@@ -116,12 +116,7 @@ jobs:
           # the next UTC date. Use the BDL-authoritative game date for artifact
           # lookups so pre-game projections are found correctly.
           if [ -f "artifacts/live/live_games.json" ]; then
-            BDL_DATE=$(python3 -c "
-import json
-d = json.load(open('artifacts/live/live_games.json'))
-games = d.get('games', [])
-print(games[0]['date'] if games else d.get('date', ''))
-" 2>/dev/null)
+            BDL_DATE=$(python3 -c "import json; d=json.load(open('artifacts/live/live_games.json')); games=d.get('games',[]); print(games[0]['date'] if games else d.get('date',''))" 2>/dev/null)
             if [ -n "$BDL_DATE" ] && [ "$BDL_DATE" != "$GAME_DATE" ]; then
               echo "BDL game date ($BDL_DATE) differs from ET date ($GAME_DATE) — using BDL date for artifact lookup"
               echo "ARTIFACT_DATE=$BDL_DATE" >> $GITHUB_ENV
@@ -386,13 +381,7 @@ print(games[0]['date'] if games else d.get('date', ''))
           for GID in $(echo "$IDS" | tr ',' ' '); do
             GAME_FILE="tools/odds-scanner/predictions/WNBA/Inplay-Edge/game_${GID}_latest.json"
             if [ -f "$GAME_FILE" ]; then
-              STATUS=$(python3 -c "
-import json
-d = json.load(open('$GAME_FILE'))
-s = d.get('game_status', '').lower()
-terminal = {'final', 'final/ot', 'final_ot', 'canceled', 'postponed', 'post'}
-print('terminal' if s in terminal else 'live')
-")
+              STATUS=$(python3 -c "import json; d=json.load(open('$GAME_FILE')); s=d.get('game_status','').lower(); terminal={'final','final/ot','final_ot','canceled','postponed','post'}; print('terminal' if s in terminal else 'live')")
               if [ "$STATUS" = "live" ]; then
                 STILL_LIVE="$STILL_LIVE,$GID"
               else
