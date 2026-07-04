@@ -134,8 +134,10 @@ jobs:
         run: |
           IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
           if [ -n "$IDS" ]; then
+            # Typer List[int] options require one --game-ids flag per value.
+            GAME_ID_FLAGS=$(echo "$IDS" | tr ',' '\n' | awk '{print "--game-ids " $1}' | tr '\n' ' ')
             python scripts/run_live_tracker.py \
-              --game-ids $(echo $IDS | tr ',' ' ') \
+              $GAME_ID_FLAGS \
               --duration 3 \
               --poll-interval 30 \
               --out-dir artifacts/live \

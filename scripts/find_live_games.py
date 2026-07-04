@@ -37,7 +37,7 @@ _LIVE_STATUSES = {
 _UPCOMING_STATUSES = {"scheduled", "pregame"}
 # Terminal statuses — anything NOT in this set (and not empty) is treated as active.
 # Denylist is safer than allowlist because BDL may return novel quarter strings.
-_TERMINAL_STATUSES = {"final", "final/ot", "final_ot", "canceled", "postponed", "tbd", ""}
+_TERMINAL_STATUSES = {"final", "final/ot", "final_ot", "canceled", "postponed", "tbd", "post", ""}
 
 
 @app.command()
