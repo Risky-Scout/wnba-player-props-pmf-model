@@ -236,6 +236,13 @@ def train_fold(
                 )
                 m.fit(X_played, y_stat, sample_weight=sample_weight_played,
                       actual_minutes=_zinb_actual_min)
+            elif stat in {"stl", "blk"}:
+                # Use ZINBHurdleModel for stl/blk: minutes-conditional zero-inflation
+                # with per-role NB dispersion — superior to generic HurdleModel for
+                # sparse stats with strong zero-inflation structure.
+                from wnba_props_model.models.zinb_hurdle import ZINBHurdleModel  # noqa: PLC0415
+                m = ZINBHurdleModel(stat=stat)
+                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
             else:
                 m = HurdleModel(stat, cfg)
                 m.fit(X_played, y_stat, sample_weight=sample_weight_played)
