@@ -299,9 +299,28 @@ jobs:
               print(f"[WARN] OOF missing columns {required - set(oof.columns)} — skipping degenerate check")
               sys.exit(0)
 
+          # Filter to prop-eligible rows only — same floors as fit_calibrators.
+          # Bench/fringe rows with pmf_mean near zero drag the aggregate ratio up
+          # for sparse stats (stl, blk) and cause false degenerate failures.
+          PROP_FLOOR = {
+              "pts": 5.0, "reb": 2.0, "ast": 1.0, "fg3m": 0.30,
+              "stl": 0.30, "blk": 0.18, "turnover": 0.6,
+          }
+          n_before = len(oof)
+          if "pmf_mean" in oof.columns:
+              eligible_masks = []
+              for s, floor in PROP_FLOOR.items():
+                  eligible_masks.append((oof["stat"] == s) & (oof["pmf_mean"] >= floor))
+              unknown = ~oof["stat"].isin(PROP_FLOOR.keys())
+              combined = unknown.copy()
+              for m in eligible_masks:
+                  combined = combined | m
+              oof = oof[combined].copy()
+              print(f"Prop-eligible filter: {n_before:,} → {len(oof):,} rows (removed {n_before - len(oof):,} bench/fringe rows)")
+
           stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
           failures = []
-          print("=== OOF Degenerate Prediction Gate ===")
+          print("=== OOF Degenerate Prediction Gate (prop-eligible rows only) ===")
           for stat in stats:
               sub = oof[oof["stat"] == stat].dropna(subset=["pmf_mean", "actual_outcome"])
               if len(sub) < 100:
