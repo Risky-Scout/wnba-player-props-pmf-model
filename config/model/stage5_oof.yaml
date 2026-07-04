@@ -6,6 +6,13 @@ use_log_linear: true
 # OOF fold configuration
 validation_window_days: 14
 
+# Restrict OOF validation windows to the current WNBA season only.
+# Without this, game_dates from 2022-2025 produce ~30+ model-fitting folds
+# (each requiring a full re-train of ~13 HGB models), blowing the 360-min budget.
+# Training data per fold still uses ALL historical seasons — only the set of
+# validation windows is filtered.  Set to the approximate season start date.
+oof_first_val_date: "2026-05-01"
+
 # Minimum training data before a fold qualifies for model_oof
 min_train_long_rows: 2000
 min_train_stat_rows: 250

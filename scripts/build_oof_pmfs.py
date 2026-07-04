@@ -130,7 +130,21 @@ def build(
     game_dates_all: list[date] = sorted(
         wide["game_date"].dt.date.unique().tolist()
     )
-    folds = generate_oof_folds(game_dates_all, cfg.get("validation_window_days", 14))
+
+    # oof_first_val_date restricts VALIDATION windows to the current season.
+    # Each fold still trains on all historical data (train_mask uses full wide).
+    # Without this filter, 2022-2025 game dates generate ~30 extra folds that
+    # push the OOF build past the 360-min GitHub Actions budget.
+    first_val_str = cfg.get("oof_first_val_date")
+    if first_val_str:
+        first_val = date.fromisoformat(str(first_val_str))
+        fold_game_dates = [d for d in game_dates_all if d >= first_val]
+        print(f"\noof_first_val_date={first_val}: restricting fold windows to "
+              f"{len(fold_game_dates)} dates (of {len(game_dates_all)} total)")
+    else:
+        fold_game_dates = game_dates_all
+
+    folds = generate_oof_folds(fold_game_dates, cfg.get("validation_window_days", 14))
     print(f"\nFolds generated: {len(folds)}")
     print(f"  First val window: {folds[0]['val_start_date']} – {folds[0]['val_end_date']}")
     print(f"  Last  val window: {folds[-1]['val_start_date']} – {folds[-1]['val_end_date']}")
