@@ -139,6 +139,7 @@ hgb_regressor:
   min_samples_leaf: 10
   early_stopping: true
   n_iter_no_change: 10
+  tol: 1.0e-3
 
 hgb_classifier:
   max_iter: 150
@@ -147,6 +148,7 @@ hgb_classifier:
   min_samples_leaf: 10
   early_stopping: true
   n_iter_no_change: 10
+  tol: 1.0e-3
 
 # --------------------------------------------------------------------------
 # F1: Minutes distribution marginalization

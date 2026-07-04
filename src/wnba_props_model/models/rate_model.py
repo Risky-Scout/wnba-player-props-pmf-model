@@ -79,6 +79,7 @@ class StatRateModel:
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
             early_stopping=hgb_kw.get("early_stopping", False),
             n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
+            tol=hgb_kw.get("tol", 1e-7),
             random_state=seed,
         )
         # Drop all-NaN columns to prevent sklearn BinMapper crash on early-season data
@@ -364,6 +365,7 @@ class HurdleModel:
             min_samples_leaf=clf_kw.get("min_samples_leaf", 20),
             early_stopping=clf_kw.get("early_stopping", False),
             n_iter_no_change=clf_kw.get("n_iter_no_change", 10),
+            tol=clf_kw.get("tol", 1e-7),
             random_state=seed,
         )
         self._clf.fit(X, y_binary, sample_weight=sample_weight)
@@ -383,6 +385,7 @@ class HurdleModel:
                 min_samples_leaf=reg_kw.get("min_samples_leaf", 20),
                 early_stopping=reg_kw.get("early_stopping", False),
                 n_iter_no_change=reg_kw.get("n_iter_no_change", 10),
+                tol=reg_kw.get("tol", 1e-7),
                 random_state=seed,
             )
             self._reg.fit(X_pos, y_pos, sample_weight=sw_pos)

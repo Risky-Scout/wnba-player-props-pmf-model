@@ -75,6 +75,7 @@ class MinutesModel:
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
             early_stopping=hgb_kw.get("early_stopping", False),
             n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
+            tol=hgb_kw.get("tol", 1e-7),
             random_state=seed,
         )
         self._model.fit(X, y, sample_weight=sample_weight)
@@ -91,6 +92,7 @@ class MinutesModel:
                 min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
                 early_stopping=hgb_kw.get("early_stopping", False),
                 n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
+                tol=hgb_kw.get("tol", 1e-7),
                 random_state=seed,
             )
             qm.fit(X, y, sample_weight=sample_weight)
