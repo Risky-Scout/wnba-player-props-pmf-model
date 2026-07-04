@@ -36,6 +36,18 @@ import typer
 
 app = typer.Typer(add_completion=False)
 
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with None so json.dumps produces valid JSON."""
+    if isinstance(obj, float):
+        return None if not math.isfinite(obj) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
 # ---------------------------------------------------------------------------
 # PMF helpers
 # ---------------------------------------------------------------------------
@@ -1408,13 +1420,13 @@ def main(
     pmf_json = _build_pmf_json(edges_df, proj_df, game_date)
 
     # Write Edge page JSON
-    (edge_dir / "latest.json").write_text(json.dumps(edge_json, separators=(",", ":")))
-    (edge_dir / f"{game_date}.json").write_text(json.dumps(edge_json, separators=(",", ":")))
+    (edge_dir / "latest.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))
+    (edge_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))
     typer.echo(f"  Edge JSON → {edge_dir}/latest.json ({edge_json['total_props']} props)")
 
     # Write PMF page JSON
-    (pmf_dir / "latest.json").write_text(json.dumps(pmf_json, separators=(",", ":")))
-    (pmf_dir / f"{game_date}.json").write_text(json.dumps(pmf_json, separators=(",", ":")))
+    (pmf_dir / "latest.json").write_text(json.dumps(_sanitize(pmf_json), separators=(",", ":")))
+    (pmf_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(pmf_json), separators=(",", ":")))
     typer.echo(f"  PMF JSON → {pmf_dir}/latest.json ({pmf_json['total_props']} props with distributions)")
 
     # --- Write HTML templates (skip when --json-only) ---

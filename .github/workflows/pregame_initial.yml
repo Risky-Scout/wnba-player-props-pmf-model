@@ -313,7 +313,7 @@ jobs:
             ${PROJ_FILE:+--projections "$PROJ_FILE"} \
             ${EDGE_FILE:+--edges "$EDGE_FILE"} \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
-            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges \
+            --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges \
             --skip-live-html
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
         continue-on-error: true

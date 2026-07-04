@@ -20,12 +20,24 @@ Usage:
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
 
 app = typer.Typer(add_completion=False)
+
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with None so json.dumps produces valid JSON."""
+    if isinstance(obj, float):
+        return None if not math.isfinite(obj) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 _STAT_LABELS: dict[str, str] = {
     "PTS": "Points", "REB": "Rebounds", "AST": "Assists",
@@ -636,8 +648,8 @@ def main(
 
     payload = _build_json(pmf_path, game_date)
 
-    (out_dir / "latest.json").write_text(json.dumps(payload, separators=(",", ":")))
-    (out_dir / f"{game_date}.json").write_text(json.dumps(payload, separators=(",", ":")))
+    (out_dir / "latest.json").write_text(json.dumps(_sanitize(payload), separators=(",", ":")))
+    (out_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(payload), separators=(",", ":")))
     if not json_only:
         (out_dir / "index.html").write_text(_HTML)
 

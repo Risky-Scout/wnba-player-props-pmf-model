@@ -236,14 +236,14 @@ jobs:
         run: |
           # Aggregate all active game live outputs into a single flat edges JSON
           # that the Inplay/Edges/index.html page fetches.
-          mkdir -p tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          mkdir -p tools/odds-scanner/predictions/WNBA/In-Play/Edges
           python - <<'PYEOF'
           import json, os, glob
           from datetime import datetime, timezone
           from pathlib import Path
 
           inplay_src = Path("tools/odds-scanner/predictions/WNBA/Inplay-Edge")
-          out = Path("tools/odds-scanner/predictions/WNBA/Inplay/Edges")
+          out = Path("tools/odds-scanner/predictions/WNBA/In-Play/Edges")
           out.mkdir(parents=True, exist_ok=True)
 
           game_files = sorted(inplay_src.glob("game_*_latest.json"))
@@ -261,14 +261,14 @@ jobs:
               "games": games,
           }
           (out / "latest.json").write_text(json.dumps(payload, separators=(",", ":")))
-          print(f"Inplay/Edges latest.json: {len(games)} active games")
+          print(f"In-Play/Edges latest.json: {len(games)} active games")
           PYEOF
 
           # Write live index.html via generate_web_pages (--skip-live-html=false for this run)
           python scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
-            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
+            --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges
         continue-on-error: true
 
       - name: Stage live outputs for single gh-pages deploy
@@ -276,7 +276,7 @@ jobs:
         run: |
           DIRS=(
             "tools/odds-scanner/predictions/WNBA/Inplay-Edge"
-            "tools/odds-scanner/predictions/WNBA/Inplay/Edges"
+            "tools/odds-scanner/predictions/WNBA/In-Play/Edges"
           )
           for DIR in "${DIRS[@]}"; do
             if [ -d "$DIR" ]; then
