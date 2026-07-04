@@ -67,6 +67,10 @@ def build(
     audit_out: Path = typer.Option(
         Path("artifacts/audits/stage5_oof_audit.json"), "--audit-out"
     ),
+    max_folds: int = typer.Option(
+        0, "--max-folds",
+        help="Limit the number of folds (0 = use all folds). Set to 2 for fast fallback run.",
+    ),
 ) -> None:
     t0 = time.time()
     print("=" * 70)
@@ -146,6 +150,11 @@ def build(
 
     folds = generate_oof_folds(fold_game_dates, cfg.get("validation_window_days", 14))
     print(f"\nFolds generated: {len(folds)}")
+    if max_folds and max_folds > 0 and len(folds) > max_folds:
+        # Keep the MOST RECENT folds — they use the largest training sets
+        # and best represent current-season calibration targets.
+        folds = folds[-max_folds:]
+        print(f"  --max-folds {max_folds}: using last {len(folds)} folds (most recent data)")
     print(f"  First val window: {folds[0]['val_start_date']} – {folds[0]['val_end_date']}")
     print(f"  Last  val window: {folds[-1]['val_start_date']} – {folds[-1]['val_end_date']}")
 

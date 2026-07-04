@@ -265,6 +265,33 @@ jobs:
             --out-dir artifacts/explainability
         continue-on-error: true
 
+      - name: Commit SHAP top-5 to repo (permanent visibility)
+        run: |
+          TOP5="artifacts/explainability/shap_${GAME_DATE}_top5.json"
+          LATEST="artifacts/explainability/shap_latest_top5.json"
+          if [ -f "$TOP5" ]; then
+            mkdir -p artifacts/explainability
+            cp "$TOP5" "$LATEST"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git stash --include-untracked
+            git pull --rebase origin main
+            git stash pop || true
+            git add -f "$LATEST"
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: update shap_latest_top5.json for ${GAME_DATE} [skip ci]"
+              git push
+              echo "SHAP top-5 committed to repo."
+            else
+              echo "No SHAP changes to commit."
+            fi
+          else
+            echo "[WARN] SHAP top-5 not found at $TOP5 — skipping commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Build edge report
         run: |
           python scripts/build_edge_report.py \

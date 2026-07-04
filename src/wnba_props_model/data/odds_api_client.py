@@ -40,11 +40,11 @@ ODDS_API_TO_STAT: dict[str, str] = {
     "player_steals":                       "stl",
     "player_blocks_steals":                "stocks",
     "player_turnovers":                    "turnover",
-    # Combo props
-    "player_points_rebounds_assists":      "pra",
-    "player_points_rebounds":              "pr",
-    "player_points_assists":               "pa",
-    "player_rebounds_assists":             "ra",
+    # Combo props — use canonical pipeline names so build_edge_report.py join works
+    "player_points_rebounds_assists":      "pts_reb_ast",
+    "player_points_rebounds":              "pts_reb",
+    "player_points_assists":               "pts_ast",
+    "player_rebounds_assists":             "reb_ast",
     # Niche
     "player_frees_made":                   "ftm",
     "player_frees_attempts":               "fta",
@@ -55,10 +55,10 @@ ODDS_API_TO_STAT: dict[str, str] = {
     "player_steals_alternate":             "stl",
     "player_turnovers_alternate":          "turnover",
     "player_threes_alternate":             "fg3m",
-    "player_points_assists_alternate":     "pa",
-    "player_points_rebounds_alternate":    "pr",
-    "player_rebounds_assists_alternate":   "ra",
-    "player_points_rebounds_assists_alternate": "pra",
+    "player_points_assists_alternate":     "pts_ast",
+    "player_points_rebounds_alternate":    "pts_reb",
+    "player_rebounds_assists_alternate":   "reb_ast",
+    "player_points_rebounds_assists_alternate": "pts_reb_ast",
     # Quarter props
     "player_points_q1":                    "pts_q1",
     "player_rebounds_q1":                  "reb_q1",

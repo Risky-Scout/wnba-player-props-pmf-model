@@ -158,14 +158,32 @@ jobs:
 
       - name: Build OOF PMFs (Stage 5)
         if: github.event.inputs.skip_oof_build != 'true'
+        id: oof-build
+        continue-on-error: true
+        timeout-minutes: 240
         run: |
-          python scripts/build_oof_pmfs.py \
+          timeout 235m python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --features-long data/processed/wnba_player_game_features_long.parquet \
             --manifest data/processed/feature_schema_manifest.json \
             --config config/model/stage5_oof.yaml \
             --out-dir data/oof \
             --audit-out artifacts/audits/stage5_oof_audit.json
+          echo "OOF_EXIT=$?" >> $GITHUB_ENV
+
+      - name: Build OOF PMFs — 2-fold fallback (if 4-fold timed out)
+        if: github.event.inputs.skip_oof_build != 'true' && steps.oof-build.outcome != 'success'
+        run: |
+          echo "::warning title=OOF Fallback::4-fold OOF timed out or failed. Running 2-fold fallback."
+          rm -f data/oof/oof_player_stat_pmfs.parquet data/oof/oof_fold_manifest.parquet
+          python scripts/build_oof_pmfs.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-long data/processed/wnba_player_game_features_long.parquet \
+            --manifest data/processed/feature_schema_manifest.json \
+            --config config/model/stage5_oof.yaml \
+            --out-dir data/oof \
+            --audit-out artifacts/audits/stage5_oof_audit.json \
+            --max-folds 2
 
       - name: Validate OOF PMFs
         if: github.event.inputs.skip_oof_build != 'true'
@@ -259,6 +277,52 @@ jobs:
             --config config/model/stage6_calibration.yaml \
             --pre-cal
 
+      # HARD GATE: Reject degenerate OOF before calibrators are fitted.
+      # If any stat has mean_predicted/mean_actual ratio > 2.5 or < 0.3,
+      # the OOF is garbage and we must NOT fit calibrators on it.
+      - name: OOF degenerate prediction gate (HARD — blocks calibrator fit)
+        id: oof-degenerate-gate
+        run: |
+          python3 - <<'PYEOF'
+          import sys
+          import pandas as pd
+          from pathlib import Path
+
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print("::error title=OOF Missing::oof_player_stat_pmfs.parquet not found — cannot fit calibrators")
+              sys.exit(1)
+
+          oof = pd.read_parquet(oof_path)
+          required = {"stat", "pmf_mean", "actual_outcome"}
+          if not required.issubset(oof.columns):
+              print(f"[WARN] OOF missing columns {required - set(oof.columns)} — skipping degenerate check")
+              sys.exit(0)
+
+          stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+          failures = []
+          print("=== OOF Degenerate Prediction Gate ===")
+          for stat in stats:
+              sub = oof[oof["stat"] == stat].dropna(subset=["pmf_mean", "actual_outcome"])
+              if len(sub) < 100:
+                  print(f"  SKIP {stat}: only {len(sub)} rows")
+                  continue
+              pred_mean = sub["pmf_mean"].mean()
+              act_mean  = sub["actual_outcome"].mean()
+              ratio = pred_mean / max(act_mean, 0.01)
+              flag = "OK  " if 0.3 <= ratio <= 2.5 else "FAIL"
+              print(f"  {flag}  {stat}: pred={pred_mean:.3f}, actual={act_mean:.3f}, ratio={ratio:.3f}")
+              if ratio > 2.5 or ratio < 0.3:
+                  failures.append(f"{stat} ratio={ratio:.3f}")
+
+          if failures:
+              print(f"\n::error title=OOF Degenerate::OOF predictions are degenerate for: {', '.join(failures)}")
+              print("Aborting — do NOT fit calibrators on degenerate OOF. Fix the model first.")
+              sys.exit(1)
+
+          print("\nOOF degenerate gate: PASSED")
+          PYEOF
+
       # R2.2 — Invalidate any stale calibrators before fitting new ones.
       # Calibrators fitted on a polluted model's OOF learn incorrect curves
       # (e.g. "star players' raw predictions are 50% too high, downscale by -3 pts").
@@ -297,6 +361,45 @@ jobs:
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
             --out-dir artifacts/models/calibration \
             --props-parquet data/processed/wnba_player_props.parquet
+
+      # HARD GATE: Reject calibrators where too many stats are at the floor.
+      # If > 4 stats have bias_correction == 0.60 (floored), the calibration
+      # did not converge — do NOT overwrite working calibrators with these.
+      - name: Calibrator bias floor gate (HARD — blocks promotion)
+        id: bias-floor-gate
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys
+          from pathlib import Path
+
+          bc_path = Path("artifacts/models/calibration/bias_corrections.json")
+          if not bc_path.exists():
+              print("::error title=No Bias Corrections::bias_corrections.json not found after fit")
+              sys.exit(1)
+
+          bc = json.loads(bc_path.read_text())
+          FLOOR = 0.6000
+          TOLERANCE = 0.0005  # treat values within 0.0005 of floor as floored
+          STATS = ["pts", "reb", "ast", "fg3m", "stl", "turnover", "blk", "stocks"]
+
+          floored = [s for s in STATS if s in bc and abs(bc[s] - FLOOR) < TOLERANCE]
+          print("=== Calibrator Bias Floor Gate ===")
+          for s in STATS:
+              v = bc.get(s)
+              if v is None:
+                  continue
+              at_floor = abs(v - FLOOR) < TOLERANCE
+              flag = "FLOOR" if at_floor else "OK   "
+              print(f"  {flag}  {s}: {v:.4f}")
+
+          print(f"\n{len(floored)} of {len([s for s in STATS if s in bc])} stats at floor ({floored})")
+          if len(floored) > 4:
+              print(f"\n::error title=Calibration Floor::Too many stats at floor 0.60 ({len(floored)}). "
+                    "Calibration did not converge. Keeping previous calibrators.")
+              sys.exit(1)
+
+          print("Bias floor gate: PASSED")
+          PYEOF
 
       - name: Apply calibrators to OOF (for post-cal gate)
         run: |
@@ -462,13 +565,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Calibration gate failed -- preserving previous calibrators
-        # When the post-cal gate fails, log the failure clearly so it is visible
-        # in the Actions UI but do NOT upload the failing calibrators.
-        # The daily pipeline will continue using the last passing calibrators.
-        if: steps.cal-gate.outcome == 'failure'
+        # When any gate fails (degenerate OOF, bias floor, or post-cal strict gate),
+        # log the failure clearly. Previous calibrators remain active.
+        if: failure() && (steps.oof-degenerate-gate.outcome == 'failure' || steps.bias-floor-gate.outcome == 'failure' || steps.cal-gate.outcome == 'failure')
         run: |
-          echo "::warning title=Calibration Gate Failed::Post-cal gate failed. New calibrators NOT promoted. Previous calibrators remain active."
-          echo "Gate failed on $(date -u +%Y-%m-%d). Check artifacts/audits/stage5_oof_summary.md for details."
+          if [ "${{ steps.oof-degenerate-gate.outcome }}" == "failure" ]; then
+            echo "::error title=OOF Gate Failed::OOF predictions were degenerate. Calibrators NOT updated."
+          elif [ "${{ steps.bias-floor-gate.outcome }}" == "failure" ]; then
+            echo "::error title=Bias Floor Gate Failed::Too many stats at bias floor 0.60. Calibrators NOT updated."
+          else
+            echo "::warning title=Post-Cal Gate Failed::Post-cal strict gate failed. Calibrators NOT promoted."
+          fi
+          echo "Gate failed on $(date -u +%Y-%m-%d). Previous calibrators remain active."
 
       - name: Auto-update dispersion r from OOF
         if: steps.cal-gate.outcome == 'success'
