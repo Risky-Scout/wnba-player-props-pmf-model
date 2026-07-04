@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,63 @@ import typer
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from wnba_props_model.pipeline.output_schema import build_live_envelope, SCHEMA_VERSION
+
+_ODDSAPI_PROPS_DIRS = [
+    "data/live/oddsapi_props",
+    "data/processed",
+]
+
+
+def _norm_name(name: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace for fuzzy matching."""
+    return re.sub(r"[^a-z0-9 ]", "", name.lower()).strip()
+
+
+def _load_market_rows(player_states: list[dict]) -> list[dict]:
+    """Load Odds API props parquet and add player_id via name-based lookup.
+
+    Returns list of dicts ready to pass as live_market_rows to build_live_envelope.
+    """
+    # Build name → player_id map from player_states (BDL authoritative IDs)
+    name_to_id: dict[str, int] = {}
+    for ps in player_states:
+        pid = int(ps.get("player_id", 0))
+        name = str(ps.get("player_name", ""))
+        if pid and name:
+            name_to_id[_norm_name(name)] = pid
+
+    # Find latest Odds API parquet
+    parquet_path: Path | None = None
+    for d in _ODDSAPI_PROPS_DIRS:
+        p = Path(d)
+        candidates = sorted(p.glob("wnba_player_props_oddsapi_latest.parquet"), reverse=True)
+        if not candidates:
+            candidates = sorted(p.glob("wnba_player_props_oddsapi_*.parquet"), reverse=True)
+        if candidates:
+            parquet_path = candidates[0]
+            break
+
+    if parquet_path is None or not parquet_path.exists():
+        typer.echo("[INFO] No Odds API parquet found — edges will be model-only")
+        return []
+
+    try:
+        df = pd.read_parquet(parquet_path)
+    except Exception as exc:
+        typer.echo(f"[WARN] Could not read Odds API parquet: {exc}", err=True)
+        return []
+
+    rows: list[dict] = []
+    for rec in df.to_dict(orient="records"):
+        pname = str(rec.get("player_name", ""))
+        pid = name_to_id.get(_norm_name(pname), 0)
+        rec["player_id"] = pid
+        rows.append(rec)
+
+    matched = sum(1 for r in rows if r["player_id"])
+    typer.echo(f"[OddsAPI] Loaded {len(rows)} market rows, {matched} matched to player_id")
+    return rows
+
 
 app = typer.Typer(add_completion=False)
 
@@ -83,11 +141,15 @@ def main(
         "remaining_possessions_est": summary.get("remaining_possessions_est", 60),
     }
 
+    # Load live market rows so edge_vs_current_market is populated
+    live_market_rows = _load_market_rows(player_states)
+
     envelope = build_live_envelope(
         game_id=game_id,
         game_state=game_state,
         player_states=player_states,
         posterior_pmfs=posterior_pmfs,
+        live_market_rows=live_market_rows if live_market_rows else None,
     )
 
     payload = json.dumps(envelope, indent=2, default=_json_default)

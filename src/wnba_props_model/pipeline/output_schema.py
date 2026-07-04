@@ -917,16 +917,15 @@ def build_live_envelope(
                 arr_for_p = np.array(pdata.get("pmf_arr", []), dtype=float)
                 p_over = float(np.sum(arr_for_p[math.ceil(line):])) if len(arr_for_p) > 0 else 0.5
                 mkt_p = float(mkt_row.get("market_prob_over_no_vig") or 0.5)
-                stat_entry["p_over"] = {
-                    "market_line": round(line, 1),
-                    "p_over": round(p_over, 4),
-                    "p_under": round(1.0 - p_over, 4),
-                    "edge_vs_current_market": round(p_over - mkt_p, 4),
-                    "market_source": str(mkt_row.get("source") or "bdl_live_props"),
-                    "market_vendor": str(mkt_row.get("vendor") or ""),
-                    "live_over_odds": int(mkt_row.get("over_odds") or 0) if mkt_row.get("over_odds") else None,
-                    "live_under_odds": int(mkt_row.get("under_odds") or 0) if mkt_row.get("under_odds") else None,
-                }
+                # Flat fields so the dashboard JS can read pd.market_line, pd.p_over, pd.market_p_over
+                stat_entry["market_line"] = round(line, 1)
+                stat_entry["p_over"] = round(p_over, 4)
+                stat_entry["market_p_over"] = round(mkt_p, 4)
+                stat_entry["edge_vs_current_market"] = round(p_over - mkt_p, 4)
+                stat_entry["market_source"] = str(mkt_row.get("source") or "bdl_live_props")
+                stat_entry["market_vendor"] = str(mkt_row.get("vendor") or "")
+                stat_entry["live_over_odds"] = int(mkt_row.get("over_odds") or 0) if mkt_row.get("over_odds") else None
+                stat_entry["live_under_odds"] = int(mkt_row.get("under_odds") or 0) if mkt_row.get("under_odds") else None
 
             posterior_predictive[stat_display] = stat_entry
 
