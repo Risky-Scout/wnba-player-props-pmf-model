@@ -14,7 +14,7 @@ on:
     # Only run during WNBA season months (May–October, months 5-10).
     # October covers playoff extension. Saves ~9,500 Actions minutes/year
     # vs the original */2 * * * *.
-    - cron: '*/2 * * 5,6,7,8,9,10 *'
+    - cron: '*/10 * * 5,6,7,8,9,10 *'
   workflow_dispatch:
     inputs:
       game_ids:
@@ -29,7 +29,7 @@ jobs:
     if: ${{ vars.WNBA_SEASON_ACTIVE == 'true' }}
     permissions:
       contents: write
-      actions: read
+      actions: write
       pages: write
     env:
       BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
@@ -83,7 +83,9 @@ jobs:
       - name: Detect today's date (ET)
         if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          echo "GAME_DATE=$(TZ=America/New_York date +%Y-%m-%d)" >> $GITHUB_ENV
+          ET_DATE=$(TZ=America/New_York date +%Y-%m-%d)
+          echo "GAME_DATE=$ET_DATE" >> $GITHUB_ENV
+          echo "ARTIFACT_DATE=$ET_DATE" >> $GITHUB_ENV
 
       - name: Find active WNBA games
         id: find_games
@@ -107,6 +109,25 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Resolve artifact date from BDL game date
+        if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # BDL stores late-night ET games (after 8 PM ET / midnight UTC) under
+          # the next UTC date. Use the BDL-authoritative game date for artifact
+          # lookups so pre-game projections are found correctly.
+          if [ -f "artifacts/live/live_games.json" ]; then
+            BDL_DATE=$(python3 -c "
+import json
+d = json.load(open('artifacts/live/live_games.json'))
+games = d.get('games', [])
+print(games[0]['date'] if games else d.get('date', ''))
+" 2>/dev/null)
+            if [ -n "$BDL_DATE" ] && [ "$BDL_DATE" != "$GAME_DATE" ]; then
+              echo "BDL game date ($BDL_DATE) differs from ET date ($GAME_DATE) — using BDL date for artifact lookup"
+              echo "ARTIFACT_DATE=$BDL_DATE" >> $GITHUB_ENV
+            fi
+          fi
+
       # Only continue if there are active games
       - name: Check active games
         run: |
@@ -120,7 +141,7 @@ jobs:
         run: |
           mkdir -p deliveries/tonight
           # Try today's final predictions first, then fall back to initial predictions
-          for ARTIFACT_NAME in "pregame-final-${{ env.GAME_DATE }}" "pregame-initial-${{ env.GAME_DATE }}"; do
+          for ARTIFACT_NAME in "pregame-final-${{ env.ARTIFACT_DATE }}" "pregame-initial-${{ env.ARTIFACT_DATE }}"; do
             AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}" \
               --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
             if [ -n "$AID" ] && [ "$AID" != "null" ]; then
@@ -348,3 +369,50 @@ jobs:
             artifacts/live/
             tools/odds-scanner/predictions/WNBA/Inplay-Edge/
           retention-days: 7
+
+      - name: Self-chain if games still active (replaces unreliable cron)
+        if: env.NO_GAMES != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
+          if [ -z "$IDS" ]; then
+            echo "No game IDs tracked this run — skipping self-chain."
+            exit 0
+          fi
+
+          # Check each tracked game's latest JSON to see if it is still live.
+          STILL_LIVE=""
+          for GID in $(echo "$IDS" | tr ',' ' '); do
+            GAME_FILE="tools/odds-scanner/predictions/WNBA/Inplay-Edge/game_${GID}_latest.json"
+            if [ -f "$GAME_FILE" ]; then
+              STATUS=$(python3 -c "
+import json
+d = json.load(open('$GAME_FILE'))
+s = d.get('game_status', '').lower()
+terminal = {'final', 'final/ot', 'final_ot', 'canceled', 'postponed', 'post'}
+print('terminal' if s in terminal else 'live')
+")
+              if [ "$STATUS" = "live" ]; then
+                STILL_LIVE="$STILL_LIVE,$GID"
+              else
+                echo "Game $GID status=$(python3 -c \"import json; print(json.load(open('$GAME_FILE')).get('game_status','?'))\") — terminal, not re-queuing"
+              fi
+            else
+              echo "Game $GID — no output file found, including in self-chain as precaution"
+              STILL_LIVE="$STILL_LIVE,$GID"
+            fi
+          done
+          STILL_LIVE="${STILL_LIVE#,}"  # strip leading comma
+
+          if [ -n "$STILL_LIVE" ]; then
+            echo "Games still live: $STILL_LIVE"
+            echo "Sleeping 5 minutes then triggering next poll cycle..."
+            sleep 300
+            gh workflow run live_inplay.yml \
+              --repo Risky-Scout/wnba-player-props-pmf-model \
+              -f game_ids="$STILL_LIVE"
+            echo "Self-chain triggered for: $STILL_LIVE"
+          else
+            echo "All games finished — self-chain terminates. No further runs queued."
+          fi
