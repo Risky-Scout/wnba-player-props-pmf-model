@@ -584,6 +584,79 @@ def fit_calibrators(
                 f"mean_ratio={float(np.mean(list(_player_vc.values()))):.3f}"
             )
 
+    # Fit PerRoleVarianceCompressor (Phase 5) — per-role + per-player factors.
+    # Saved to artifacts/models/calibration/variance_compressor.pkl for inference.
+    try:
+        from wnba_props_model.calibration.venn_abers import PerRoleVarianceCompressor  # noqa: PLC0415
+        _prvc_compressor = PerRoleVarianceCompressor(min_samples=50)
+        for _prvc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
+            _prvc_sub = oof_eligible[oof_eligible["stat"] == _prvc_stat].dropna(
+                subset=["pmf_mean", "actual_outcome"]
+            )
+            if len(_prvc_sub) < 50:
+                continue
+            _prvc_preds = _prvc_sub["pmf_mean"].values
+            _prvc_actuals = _prvc_sub["actual_outcome"].values
+            _prvc_roles = _prvc_sub["role_bucket"].fillna("unknown").values if "role_bucket" in _prvc_sub.columns else np.array(["unknown"] * len(_prvc_sub))
+            _prvc_players = _prvc_sub["player_id"].astype(str).values if "player_id" in _prvc_sub.columns else np.array(["0"] * len(_prvc_sub))
+            _prvc_compressor.fit(_prvc_preds, _prvc_actuals, _prvc_roles, _prvc_players, stat=_prvc_stat)
+        _prvc_path = out / "variance_compressor.pkl"
+        _prvc_compressor.save(str(_prvc_path))
+        print(f"[calibrate] PerRoleVarianceCompressor saved: {_prvc_path} "
+              f"({len(_prvc_compressor.role_factors)} role factors, "
+              f"{len(_prvc_compressor.player_factors)} player factors)")
+    except Exception as _prvc_exc:
+        logger.warning("[calibrate] PerRoleVarianceCompressor fitting failed (non-fatal): %s", _prvc_exc)
+
+    # Fit Venn-Abers calibrators per (stat, role_bucket) when OOF+lines parquet is available.
+    # Saved to artifacts/models/calibration/venn_abers_{stat}_{role}.pkl
+    _va_oof_path = Path(oof_pmfs_path).parent / "oof_pmfs_with_lines.parquet"
+    if _va_oof_path.exists():
+        try:
+            import math as _math  # noqa: PLC0415
+            from wnba_props_model.calibration.venn_abers import VennAbersCalibrator  # noqa: PLC0415
+            _va_oof = pd.read_parquet(_va_oof_path)
+            if "outcome" not in _va_oof.columns and "actual_outcome" in _va_oof.columns:
+                _va_oof["outcome"] = _va_oof["actual_outcome"]
+            if "pmf" not in _va_oof.columns and "pmf_json" in _va_oof.columns:
+                _va_oof["pmf"] = _va_oof["pmf_json"].map(json_to_pmf)
+            _va_stats = sorted(set(_va_oof["stat"].dropna()) & set(SUPPORTED_STATS)) if "stat" in _va_oof.columns else []
+            _va_roles = sorted(_va_oof["role_bucket"].dropna().unique().tolist()) if "role_bucket" in _va_oof.columns else ["all"]
+            for _va_stat in _va_stats:
+                for _va_role in _va_roles:
+                    _va_sub = _va_oof[
+                        (_va_oof["stat"] == _va_stat) &
+                        (_va_oof.get("role_bucket", pd.Series(["all"] * len(_va_oof))) == _va_role)
+                    ].dropna(subset=["outcome", "line"]) if "line" in _va_oof.columns else pd.DataFrame()
+                    if len(_va_sub) < 30:
+                        continue
+                    # Compute P(over) scores from PMF at line
+                    _va_scores = []
+                    _va_labels = []
+                    for _, _va_row in _va_sub.iterrows():
+                        try:
+                            _va_pmf = normalize_pmf(json_to_pmf(_va_row["pmf_json"]))
+                            _va_line = float(_va_row["line"])
+                            _va_p = float(_va_pmf[_math.ceil(_va_line):].sum())
+                            _va_label = float(_va_row["outcome"] > _va_line)
+                            if _va_row["outcome"] != _va_line:  # skip pushes
+                                _va_scores.append(_va_p)
+                                _va_labels.append(_va_label)
+                        except Exception:
+                            continue
+                    if len(_va_scores) < 20:
+                        continue
+                    _va_cal = VennAbersCalibrator()
+                    _va_cal.fit(np.array(_va_scores), np.array(_va_labels))
+                    _va_role_safe = str(_va_role).replace("/", "_").replace(" ", "_")
+                    _va_out = out / f"venn_abers_{_va_stat}_{_va_role_safe}.pkl"
+                    _va_cal.save(str(_va_out))
+            print(f"[calibrate] Venn-Abers calibrators saved for {_va_stats} × {_va_roles}")
+        except Exception as _va_exc:
+            logger.warning("[calibrate] Venn-Abers fitting failed (non-fatal): %s", _va_exc)
+    else:
+        logger.info("[calibrate] Skipping Venn-Abers fit — OOF+lines parquet not found at %s", _va_oof_path)
+
     paths = {}
     for stat in sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS)):
         cal = fit_role_aware_calibrator(oof_eligible, stat)
