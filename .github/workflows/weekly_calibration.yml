@@ -431,6 +431,33 @@ jobs:
           PYEOF
         continue-on-error: true
 
+      - name: Train archetype-conditioned shrinkage model
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pathlib, sys
+          sys.path.insert(0, '.')
+          from wnba_props_model.models.archetype_shrinkage import ArchetypeConditionedShrinkage
+          import pandas as pd
+
+          feature_path = "data/processed/wnba_player_game_features_wide.parquet"
+          if not pathlib.Path(feature_path).exists():
+              print(f"Feature parquet not found at {feature_path}. Skipping archetype shrinkage training.")
+              sys.exit(0)
+
+          df = pd.read_parquet(feature_path)
+          model = ArchetypeConditionedShrinkage(n_archetypes=8)
+          # Use actual stat columns (rename from actual_ prefix if present)
+          stat_map = {f'actual_{s}': s for s in ['pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'turnover']
+                      if f'actual_{s}' in df.columns}
+          df_fit = df.rename(columns=stat_map)
+          model.fit(df_fit)
+          pathlib.Path("artifacts/models").mkdir(parents=True, exist_ok=True)
+          model.save("artifacts/models/archetype_shrinkage.pkl")
+          print(f"Archetype shrinkage model trained on {len(df)} rows, "
+                f"saved to artifacts/models/archetype_shrinkage.pkl")
+          PYEOF
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \

@@ -440,6 +440,37 @@ def predict_player_pmfs(
             k=shrinkage_k,  # None → use per-stat Gamma prior.beta
         )
 
+    # Archetype-conditioned shrinkage (Phase 4): augments the single-prior
+    # Gamma-Poisson shrinkage with per-archetype priors fitted from player clusters.
+    # Only applied when the archetype model artifact exists.
+    if apply_shrinkage and cal_dir is not None:
+        import json as _json  # noqa: PLC0415
+        _arch_pkl = Path(cal_dir).parent / "archetype_shrinkage.pkl"
+        if _arch_pkl.exists():
+            try:
+                from wnba_props_model.models.archetype_shrinkage import ArchetypeConditionedShrinkage  # noqa: PLC0415
+                from wnba_props_model.models.simulation import json_to_pmf as _jtpmf, pmf_to_json as _ptmj  # noqa: PLC0415
+                _arch = ArchetypeConditionedShrinkage.load(str(_arch_pkl))
+                _ngames_map = {}
+                if feature_df is not None and "player_id" in feature_df.columns:
+                    _gc = "player_games_prior" if "player_games_prior" in feature_df.columns else None
+                    if _gc:
+                        _ngames_map = (feature_df.groupby("player_id")[_gc].max().to_dict())
+                _shrunk_jsons = []
+                for _, _arow in pmfs_long.iterrows():
+                    _pid = str(_arow.get("player_id", ""))
+                    _stat = str(_arow.get("stat", ""))
+                    _role = str(_arow.get("role_bucket", "starter"))
+                    _ng = int(_ngames_map.get(int(_pid), 0)) if _pid.isdigit() else 0
+                    _pmf_arr = _jtpmf(_arow["pmf_json"])
+                    _shrunk = _arch.shrink_pmf(_pmf_arr, _pid, _stat, _ng, _role)
+                    _shrunk_jsons.append(_ptmj(_shrunk))
+                pmfs_long = pmfs_long.copy()
+                pmfs_long["pmf_json"] = _shrunk_jsons
+                logger.info("[predict] Applied archetype-conditioned shrinkage from %s", _arch_pkl)
+            except Exception as _ae:
+                logger.warning("[predict] Archetype shrinkage failed (non-fatal): %s", _ae)
+
     # Part D: Apply guaranteed conformal prediction intervals.
     # conformal_predictor.pkl is fitted weekly by fit_calibrators() via ConformalPropPredictor.
     # Without this, conformal_90_ci in the output is merely ±1.645σ (no coverage guarantee).
