@@ -55,27 +55,39 @@ def main(
     from wnba_props_model.data.bdl_client import BDLClient, BDLAPIError  # noqa: PLC0415
 
     target_date = check_date or date.today().isoformat()
-    typer.echo(f"Checking for WNBA games on {target_date}...")
+    # BDL uses UTC dates. Evening ET games (after 8 PM ET / midnight UTC) are stored
+    # under the *next* UTC date. Always query both the given ET date and ET+1 so late
+    # games are never missed regardless of when the workflow runs.
+    next_date = (date.fromisoformat(target_date) + timedelta(days=1)).isoformat()
+    dates_to_check = [target_date, next_date]
+    typer.echo(f"Checking for WNBA games on {target_date} and {next_date} (UTC+1 boundary)...")
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
     game_ids: list[int] = []
     games_info: list[dict] = []
+    seen_ids: set[int] = set()
 
     try:
         client = BDLClient()
-        rows = client.list_endpoint("games", {"dates": [target_date], "per_page": 50})
+        all_rows: list[dict] = []
+        for qdate in dates_to_check:
+            try:
+                all_rows.extend(client.list_endpoint("games", {"dates": [qdate], "per_page": 50}))
+            except Exception as exc:
+                typer.echo(f"[WARN] BDL query for {qdate} failed: {exc}", err=True)
 
-        for row in rows:
+        for row in all_rows:
             status = str(row.get("status") or "").lower().replace(" ", "_")
             gid = row.get("id")
             if gid is None:
                 continue
             is_live = status in _LIVE_STATUSES or status not in _TERMINAL_STATUSES
             is_upcoming = status in _UPCOMING_STATUSES
-            if is_live or (include_upcoming and is_upcoming):
+            if (is_live or (include_upcoming and is_upcoming)) and int(gid) not in seen_ids:
                 typer.echo(f"  → game {gid}: status={repr(status)} is_live={is_live}")
+                seen_ids.add(int(gid))
                 game_ids.append(int(gid))
                 home = row.get("home_team") or {}
                 away = row.get("visitor_team") or {}
@@ -92,7 +104,7 @@ def main(
                 })
     except BDLAPIError as exc:
         typer.echo(f"[WARN] BDL API error: {exc}", err=True)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         typer.echo(f"[WARN] Unexpected error: {exc}", err=True)
 
     has_games = len(game_ids) > 0
