@@ -499,13 +499,14 @@ def build_player_record(
                 edge = round(p_over - mkt_p, 4)
 
                 # DUAL-SIGNAL ARCHITECTURE
-                # Signal A: Pure model P(over) — used for edge and Kelly (no market contamination).
-                # Signal B: Consensus blend — display only, NOT used for bet sizing.
-                # Mathematical basis: Kelly criterion requires the true probability p uncontaminated
-                # by the market price. p enters Kelly only through edge = p - p_mkt.
-                # Blending p_model with p_mkt before computing edge is equivalent to multiplying
-                # all Kelly stakes by (1 - lambda), which is suboptimal for any lambda > 0.
-                edge_raw = edge  # edge = round(p_over - mkt_p, 4) computed above
+                # Signal A (Kelly path): p_over_raw — raw model P(over) from PMF, NEVER blended.
+                #   Kelly criterion requires the uncontaminated true probability p.
+                #   Blending p_model with p_mkt before computing edge multiplies all
+                #   Kelly stakes by (1 - lambda), which is strictly suboptimal for any lambda > 0.
+                # Signal B (display only): p_consensus — blended with market at lambda=0.15
+                #   for visual sanity checking. MUST NOT be used for Kelly or bet sizing.
+                p_over_raw = p_over  # raw model PMF-derived probability, leakage-free
+                edge_raw = round(p_over_raw - mkt_p, 4)  # Kelly uses raw model edge only
 
                 # Part D: Conformal CI Kelly cap — reduce Kelly when CI is wide (high uncertainty).
                 _conformal_lo = sr.get("conformal_lower")

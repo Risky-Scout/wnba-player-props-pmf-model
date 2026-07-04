@@ -774,6 +774,19 @@ def _build_player_features(
     if _rate_cols:
         df = pd.concat([df, pd.DataFrame(_rate_cols, index=df.index)], axis=1)
 
+    # Explicit per-minute rate features for stl/blk using mean/mean ratio.
+    # Named _rate_per_minute_season for ZINB hurdle zero-inflation model compatibility.
+    if "player_stl_mean_season" in df.columns and "player_minutes_mean_season" in df.columns:
+        df["player_stl_rate_per_minute_season"] = (
+            df["player_stl_mean_season"] /
+            df["player_minutes_mean_season"].clip(lower=1)
+        )
+    if "player_blk_mean_season" in df.columns and "player_minutes_mean_season" in df.columns:
+        df["player_blk_rate_per_minute_season"] = (
+            df["player_blk_mean_season"] /
+            df["player_minutes_mean_season"].clip(lower=1)
+        )
+
     # ------------------------------------------------------------------ #
     # 4b. fg3a (three-point attempts) rolling features — batched
     # ------------------------------------------------------------------ #

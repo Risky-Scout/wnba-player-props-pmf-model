@@ -79,7 +79,7 @@ if _LEAGUE_PRIORS_PATH.exists():
         logger.warning("Failed to load league priors: %s", _lp_exc)
 
 # Minimum games before shrinkage is bypassed entirely
-_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 25  # was 40; WNBA season = 40 games, starters play 32-36
+_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 80  # raised from 25; smooth alpha decay prevents hard cutoff artifacts
 
 # Minimum effective k to avoid explosive shrinkage in low-variance stats
 _MIN_K: float = 3.0
