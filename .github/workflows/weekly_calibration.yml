@@ -156,19 +156,54 @@ jobs:
         if: github.event.inputs.skip_oof_build != 'true'
         run: python scripts/build_features.py --data-dir data/processed
 
+      - name: Train SVD bridge estimator
+        if: github.event.inputs.skip_oof_build != 'true'
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pathlib, sys
+          sys.path.insert(0, '.')
+          from wnba_props_model.models.svd_bridge import SVDBridgeEstimator
+          import pandas as pd
+
+          feature_path = "data/processed/wnba_player_game_features_wide.parquet"
+          if not pathlib.Path(feature_path).exists():
+              import glob
+              candidates = glob.glob("data/processed/*.parquet")
+              print(f"Feature parquet not found at {feature_path}. Candidates: {candidates}")
+              sys.exit(0)  # Non-fatal: OOF will fall back to SVD drop
+
+          df = pd.read_parquet(feature_path)
+          svd_cols = [c for c in df.columns if 'svd_dim' in c.lower()]
+          if not svd_cols:
+              print("No SVD columns found in feature parquet. Skipping bridge training.")
+              sys.exit(0)
+
+          bridge = SVDBridgeEstimator()
+          bridge.fit(df, svd_cols)
+          pathlib.Path("artifacts/models").mkdir(parents=True, exist_ok=True)
+          bridge.save("artifacts/models/svd_bridge.pkl")
+          print(f"SVD bridge trained on {len(df)} rows, saved to artifacts/models/svd_bridge.pkl")
+          PYEOF
+
       - name: Build OOF PMFs (Stage 5)
         if: github.event.inputs.skip_oof_build != 'true'
         id: oof-build
         continue-on-error: true
         timeout-minutes: 240
         run: |
+          SVD_BRIDGE_ARG=""
+          if [ -f "artifacts/models/svd_bridge.pkl" ]; then
+            SVD_BRIDGE_ARG="--svd-bridge artifacts/models/svd_bridge.pkl"
+          fi
           timeout 235m python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --features-long data/processed/wnba_player_game_features_long.parquet \
             --manifest data/processed/feature_schema_manifest.json \
             --config config/model/stage5_oof.yaml \
             --out-dir data/oof \
-            --audit-out artifacts/audits/stage5_oof_audit.json
+            --audit-out artifacts/audits/stage5_oof_audit.json \
+            $SVD_BRIDGE_ARG
           echo "OOF_EXIT=$?" >> $GITHUB_ENV
 
       - name: Build OOF PMFs — 2-fold fallback (if 4-fold timed out)
@@ -176,6 +211,10 @@ jobs:
         run: |
           echo "::warning title=OOF Fallback::4-fold OOF timed out or failed. Running 2-fold fallback."
           rm -f data/oof/oof_player_stat_pmfs.parquet data/oof/oof_fold_manifest.parquet
+          SVD_BRIDGE_ARG=""
+          if [ -f "artifacts/models/svd_bridge.pkl" ]; then
+            SVD_BRIDGE_ARG="--svd-bridge artifacts/models/svd_bridge.pkl"
+          fi
           python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --features-long data/processed/wnba_player_game_features_long.parquet \
@@ -183,7 +222,8 @@ jobs:
             --config config/model/stage5_oof.yaml \
             --out-dir data/oof \
             --audit-out artifacts/audits/stage5_oof_audit.json \
-            --max-folds 2
+            --max-folds 2 \
+            $SVD_BRIDGE_ARG
 
       - name: Validate OOF PMFs
         if: github.event.inputs.skip_oof_build != 'true'
