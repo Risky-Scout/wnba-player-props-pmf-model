@@ -634,7 +634,7 @@ def apply_bayesian_shrinkage(
         r["mode"]              = new_mode
         r["p0"]                = round(new_p0, 6)
         r["shrinkage_alpha"]   = round(alpha, 4)
-        r["shrinkage_k"]       = round(k_stat, 4)
+        r["shrinkage_k"]       = round(K_BASE.get(stat, 10.0), 4)
         r["n_games_sample"]    = n_games
         r["posterior_lambda_mean"] = round(new_mean, 4)
         r["credible_interval_width"] = round(ci_width, 4) if math.isfinite(ci_width) else None
