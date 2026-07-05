@@ -79,8 +79,9 @@ if _LEAGUE_PRIORS_PATH.exists():
     except Exception as _lp_exc:
         logger.warning("Failed to load league priors: %s", _lp_exc)
 
-# Minimum games before shrinkage is bypassed entirely
-_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 80  # raised from 25; smooth alpha decay prevents hard cutoff artifacts
+# Kept for backward-compatibility on the function signature; no longer used as a hard cutoff.
+# Continuous effective-n shrinkage (compute_shrinkage_alpha) replaces this threshold.
+_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 80
 
 # Minimum effective k to avoid explosive shrinkage in low-variance stats
 _MIN_K: float = 3.0
@@ -399,6 +400,54 @@ def compute_shrinkage_weight(n_games: int, k: float = _MIN_K) -> float:
     return float(k / (n_games + k))
 
 
+# ---------------------------------------------------------------------------
+# Continuous role-weighted effective-n shrinkage (replaces hard bypass cutoff)
+# ---------------------------------------------------------------------------
+
+def compute_effective_n(n_games: int, mean_minutes: float, starter_minutes: float = 32.0) -> float:
+    """Compute effective sample size weighting games by minutes played.
+
+    Low-minute players (bench, fringe) have less reliable rate estimates, so
+    their games are down-weighted toward the fraction of a starter's minutes.
+    Caps at 1.5× to prevent extreme over-weighting of workhorse outliers.
+    """
+    minutes_ratio = mean_minutes / starter_minutes
+    n_eff = n_games * min(minutes_ratio, 1.5)
+    return max(n_eff, 1.0)
+
+
+# Base k values per stat: how many effective games before shrinkage drops to 50%.
+# Higher k = more shrinkage needed (low-variance stats like blk mislead small samples).
+K_BASE: dict[str, float] = {
+    "pts": 8.0,
+    "reb": 10.0,
+    "ast": 12.0,
+    "fg3m": 15.0,
+    "stl": 12.0,
+    "blk": 18.0,
+    "turnover": 10.0,
+}
+
+
+def compute_shrinkage_alpha(n_eff: float, stat: str, position: str | None = None) -> float:
+    """Compute continuous shrinkage alpha via role-weighted effective-n.
+
+    Replaces the hard `if n_games >= _MIN_GAMES_FOR_FULL_CONFIDENCE: alpha = 0.0`
+    bypass with a smooth k / (k + n_eff) decay.  Position adjustments ensure guards
+    are shrunk harder for blk (rarely block) and centers less so.
+
+    Returns alpha in [0, 1]: 0 = no shrinkage (trust model), 1 = full prior.
+    """
+    k = K_BASE.get(stat, 10.0)
+    if position == "G" and stat == "blk":
+        k *= 2.0
+    elif position == "C" and stat == "blk":
+        k *= 0.5
+    elif position == "C" and stat == "ast":
+        k *= 1.5
+    return k / (k + n_eff)
+
+
 def compute_league_priors_from_data(features: pd.DataFrame) -> dict[str, float]:
     """Compute league-average stat means from the historical feature table."""
     priors = dict(_LEAGUE_PRIORS)
@@ -467,9 +516,11 @@ def apply_bayesian_shrinkage(
     # Enhancement 10: season-phase shrinkage multiplier
     _PHASE_MULTIPLIER: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
 
-    # Build player n_games AND season_phase lookup
-    player_ngames: dict[int, int] = {}
-    player_phase:  dict[int, str] = {}
+    # Build player n_games, season_phase, position, and mean-minutes lookups
+    player_ngames:       dict[int, int]   = {}
+    player_phase:        dict[int, str]   = {}
+    player_position:     dict[int, str]   = {}
+    player_mean_minutes: dict[int, float] = {}
     if features is not None and "player_id" in features.columns:
         for pid, grp in features.groupby("player_id"):
             n = int(grp.get("player_games_prior", pd.Series([0])).max() or 0)
@@ -481,6 +532,19 @@ def apply_bayesian_shrinkage(
                 player_phase[int(pid)] = str(phase_val)
             else:
                 player_phase[int(pid)] = "mid"
+            # Position for role-aware shrinkage alpha
+            if "position" in grp.columns:
+                pos_val = grp["position"].dropna()
+                player_position[int(pid)] = str(pos_val.iloc[-1])[0].upper() if not pos_val.empty else "F"
+            else:
+                player_position[int(pid)] = "F"
+            # Mean minutes for effective-n down-weighting of bench players
+            min_col = next((c for c in ["player_minutes_mean_season", "actual_minutes", "minutes_mean"] if c in grp.columns), None)
+            if min_col:
+                mn = grp[min_col].dropna()
+                player_mean_minutes[int(pid)] = float(mn.mean()) if not mn.empty else 20.0
+            else:
+                player_mean_minutes[int(pid)] = 20.0
 
     # Stat support caps (matching pmf_engine)
     _STAT_CAPS = {"pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12}
@@ -488,20 +552,28 @@ def apply_bayesian_shrinkage(
     rows_modified = 0
     out_rows = []
     for _, row in pmfs_long.iterrows():
-        pid   = int(row["player_id"])
-        stat  = str(row["stat"])
+        pid     = int(row["player_id"])
+        stat    = str(row["stat"])
         n_games = player_ngames.get(pid, 50)
 
-        # Lookup per-stat prior (Gamma parameters)
-        prior = stat_priors.get(stat)
-        k_stat = float(k) if k is not None else (prior.beta if prior else _MIN_K)
-        # Enhancement 10: adjust k by season-phase multiplier
-        phase = player_phase.get(pid, "mid")
-        k_stat = k_stat * _PHASE_MULTIPLIER.get(phase, 1.0)
-        k_stat = max(k_stat, _MIN_K)
-        alpha  = compute_shrinkage_weight(n_games, k_stat)
+        # Continuous role-weighted effective-n shrinkage (replaces hard bypass cutoff).
+        # compute_effective_n down-weights bench players whose games carry less signal.
+        # compute_shrinkage_alpha gives position-adjusted k for the stat.
+        mean_min  = player_mean_minutes.get(pid, 20.0)
+        position  = player_position.get(pid, "F")
+        n_eff     = compute_effective_n(n_games, mean_min)
+        alpha     = compute_shrinkage_alpha(n_eff, stat, position)
 
-        if alpha < 0.05 or n_games >= min_games_full_confidence:
+        # Enhancement 10: adjust k by season-phase multiplier
+        phase   = player_phase.get(pid, "mid")
+        _PHASE_MULTIPLIER: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
+        phase_mult = _PHASE_MULTIPLIER.get(phase, 1.0)
+        # Apply phase multiplier to effective n (more shrinkage early, less late)
+        n_eff_phased = n_eff / phase_mult  # dividing n_eff → higher alpha early
+        alpha = compute_shrinkage_alpha(n_eff_phased, stat, position)
+
+        # No hard bypass — continuous alpha naturally approaches 0 for large n_eff
+        if alpha < 0.005:
             out_rows.append(row.to_dict())
             continue
 
