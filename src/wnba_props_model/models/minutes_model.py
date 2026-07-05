@@ -149,11 +149,12 @@ class MinutesModel:
         X: pd.DataFrame,
         metadata_df: pd.DataFrame,  # noqa: ARG002 — kept for API symmetry
     ) -> np.ndarray:
-        """Return (n, 5) array of quantile minute predictions [q10..q90], clipped [0, 42]."""
+        """Return (n, 5) array of quantile minute predictions [q10..q90], clipped to minutes_clip_max."""
         if not self._fitted:
             raise RuntimeError("MinutesModel not fitted")
         X_aligned = X.reindex(columns=self._usable_cols)
-        clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
+        # Use full clip_max from config (no 42.0 hard cap — stars in OT can play 43-48 min).
+        clip_max = self.cfg.get("minutes_clip_max", 48.0)
         _qm = getattr(self, "_quantile_models", {}) or {}
         cols = []
         for q in _QUANTILES:

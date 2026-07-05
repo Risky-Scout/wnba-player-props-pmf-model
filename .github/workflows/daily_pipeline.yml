@@ -124,13 +124,13 @@ jobs:
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
           echo "yesterday=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
-      - name: Pull BDL history (current season)
+      - name: Pull BDL history (full history 2022–current for rich training data)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
           YEAR=$(date -u +%Y)
           python scripts/pull_bdl_history.py \
-            --start-season $YEAR --end-season $YEAR \
+            --start-season 2022 --end-season $YEAR \
             --out-dir data/raw/bdl
 
       - name: Build canonical tables

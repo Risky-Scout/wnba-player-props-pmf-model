@@ -192,7 +192,7 @@ use_model_ensemble: true
 pi_rating_use_model_baseline: false
 
 minutes_clip_min: 0.0
-minutes_clip_max: 45.0
+minutes_clip_max: 48.0
 min_minutes_sigma: 3.0
 uncertain_sigma_multiplier: 1.5
 min_stat_mean: 0.01

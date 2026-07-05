@@ -99,7 +99,7 @@ pmf_support_caps:
 
 # Minutes model output clipping
 minutes_clip_min: 0.0
-minutes_clip_max: 45.0
+minutes_clip_max: 48.0
 
 # Lower bound on minutes sigma (prevents overconfident projections)
 min_minutes_sigma: 3.0
