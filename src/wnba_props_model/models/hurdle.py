@@ -42,7 +42,7 @@ class SparseHurdleModel:
         self.features = features
         self.zero_model = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
-            ("clf", LogisticRegression(solver="saga", max_iter=1000, class_weight=None)),
+            ("clf", LogisticRegression(solver="saga", max_iter=5000, class_weight=None)),
         ])
         self.pos_model = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
@@ -154,7 +154,7 @@ class ZINBStatModel:
         # Stage 1: π — structural zero probability
         if len(np.unique(is_zero)) >= 2:
             from sklearn.calibration import CalibratedClassifierCV  # noqa: PLC0415
-            _base_lr = LogisticRegression(solver="saga", max_iter=1000, random_state=seed)
+            _base_lr = LogisticRegression(solver="saga", max_iter=5000, random_state=seed)
             # CalibratedClassifierCV with isotonic regression produces well-calibrated
             # P(structural_zero) probabilities. class_weight="balanced" optimizes recall,
             # not calibration — it systematically under-predicts pi for prop-eligible players

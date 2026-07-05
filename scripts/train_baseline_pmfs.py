@@ -314,6 +314,18 @@ def train(
                                                "min_samples_leaf") if k in tp})
             stat_cfg["hgb_classifier"] = hgb_c
 
+        # Inject minutes features into X_played if not already present
+        if "minutes_mean" not in X_played.columns:
+            _min_col = next((c for c in ["minutes_mean", "player_minutes_mean_l5", "player_minutes_mean_season"] if c in wide.columns), None)
+            if _min_col is not None:
+                X_played["minutes_mean"] = wide.loc[played_mask, _min_col].values
+        if "minutes_sigma" not in X_played.columns:
+            _sig_col = next((c for c in ["minutes_sigma", "player_minutes_sigma_season"] if c in wide.columns), None)
+            if _sig_col is not None:
+                X_played["minutes_sigma"] = wide.loc[played_mask, _sig_col].values
+            else:
+                X_played["minutes_sigma"] = 5.0
+
         if stat in sparse_stats:
             model_h = HurdleModel(stat, stat_cfg)
             model_h.fit(X_played, y_stat, sample_weight=sw_played)

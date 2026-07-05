@@ -58,13 +58,13 @@ logger = logging.getLogger(__name__)
 # Fallback league-average stat means — OOF-measured empirical means (blk 0.50→0.38).
 # Updated from data when features_wide is available; these serve as the static fallback.
 _LEAGUE_PRIORS: dict[str, float] = {
-    "pts": 7.95,
-    "reb": 3.80,
-    "ast": 2.03,
-    "fg3m": 0.78,
-    "stl": 0.67,
-    "blk": 0.38,
-    "turnover": 1.36,
+    "pts": 7.156,      # OOF actual mean (was 7.95 — 11% too high)
+    "reb": 2.966,      # OOF actual mean (was 3.80 — 28% too high)
+    "ast": 1.773,      # OOF actual mean (was 2.03 — 14% too high)
+    "fg3m": 0.699,     # OOF actual mean (was 0.78 — 11% too high)
+    "stl": 0.639,      # OOF actual mean (was 0.67 — 5% too high)
+    "blk": 0.348,      # OOF actual mean (was 0.38 — 9% too high)
+    "turnover": 1.131, # OOF actual mean (was 1.36 — 20% too high)
 }
 
 # Load updated league priors from artifacts/models/league_priors.json if available.

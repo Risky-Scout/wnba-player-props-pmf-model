@@ -96,12 +96,14 @@ def hurdle_pmf(
 # ---------------------------------------------------------------------------
 
 def negbinom_pmf_batch(mus: np.ndarray, r: float, cap: int) -> np.ndarray:
-    """Batch NegBinom PMF.  Returns shape (n, cap+1), each row sums to 1."""
+    """Batch NegBinom PMF with log-space arithmetic to prevent Inf/NaN overflow."""
     mus = np.clip(mus.astype(float), 1e-9, None)
     r = max(float(r), 1e-6)
     p = r / (r + mus)  # shape (n,)
     k = np.arange(cap + 1)  # shape (cap+1,)
-    pmf_mat = scipy_nbinom.pmf(k[np.newaxis, :], r, p[:, np.newaxis])  # (n, cap+1)
+    log_pmf = scipy_nbinom.logpmf(k[np.newaxis, :], r, p[:, np.newaxis])
+    log_pmf = np.clip(log_pmf, -700, 0)
+    pmf_mat = np.exp(log_pmf)
     pmf_mat = np.clip(pmf_mat, 0.0, None)
     totals = pmf_mat.sum(axis=1, keepdims=True)
     totals = np.where(totals > 0, totals, 1.0)

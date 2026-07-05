@@ -108,8 +108,14 @@ class MinutesModel:
                 self._dnp_model = Pipeline([
                     ("imp", SimpleImputer(strategy="median")),
                     ("scaler", StandardScaler()),
-                    ("clf", LogisticRegression(solver="saga", max_iter=1000, class_weight="balanced",
-                                               random_state=seed)),
+                    ("clf", LogisticRegression(
+                        max_iter=5000,
+                        class_weight="balanced",
+                        solver="saga",
+                        penalty="l2",
+                        C=0.5,
+                        random_state=seed,
+                    )),
                 ])
                 self._dnp_model.fit(X, dnp_y)
             else:

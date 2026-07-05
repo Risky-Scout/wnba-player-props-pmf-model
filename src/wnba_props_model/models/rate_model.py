@@ -33,6 +33,16 @@ class StatRateModel:
 
     VERSION = "stage4_baseline_v1"
 
+    _ROLE_R_FLOORS: dict[str, dict[str, float]] = {
+        "pts":      {"bench": 2.0, "fringe": 1.5, "rotation": 1.0, "core": 0.8, "starter": 0.5},
+        "reb":      {"bench": 2.5, "fringe": 2.0, "rotation": 1.5, "core": 1.0, "starter": 0.8},
+        "ast":      {"bench": 2.0, "fringe": 1.5, "rotation": 1.0, "core": 0.8, "starter": 0.5},
+        "fg3m":     {"bench": 3.0, "fringe": 2.5, "rotation": 2.0, "core": 1.5, "starter": 1.0},
+        "stl":      {"bench": 4.0, "fringe": 3.0, "rotation": 2.5, "core": 2.0, "starter": 1.5},
+        "blk":      {"bench": 3.0, "fringe": 2.5, "rotation": 2.0, "core": 1.5, "starter": 1.0},
+        "turnover": {"bench": 2.5, "fringe": 2.0, "rotation": 1.5, "core": 1.0, "starter": 0.8},
+    }
+
     def __init__(self, stat: str, cfg: dict[str, Any]) -> None:
         self.stat = stat
         self.cfg = cfg
@@ -121,6 +131,12 @@ class StatRateModel:
                     self._role_dispersion[str(role)] = dispersion_from_moments(
                         float(y_role.mean()), float(y_role.var())
                     )
+
+        _floors = self._ROLE_R_FLOORS.get(self.stat, {})
+        for _role_key in list(self._role_dispersion.keys()):
+            _floor_val = _floors.get(str(_role_key), 1.0)
+            if self._role_dispersion[_role_key] is not None:
+                self._role_dispersion[_role_key] = max(self._role_dispersion[_role_key], _floor_val)
 
         # P3.1: Mean-dependent dispersion r(mu) via log-linear fit
         # r_approx(i) = mu_hat(i)^2 / max(y(i) - mu_hat(i), 0.01)

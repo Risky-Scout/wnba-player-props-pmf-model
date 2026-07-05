@@ -102,7 +102,7 @@ class PtsHurdleModel:
         y_garbage = garbage_mask.astype(int)
         if len(X_gf_base.columns) > 0 and y_garbage.sum() > 20:
             self.garbage_zero_model = LogisticRegression(
-                C=1.0, class_weight="balanced", max_iter=1000, solver="saga"
+                C=1.0, class_weight="balanced", max_iter=5000, solver="saga"
             )
             self.garbage_zero_model.fit(X_gf_base.fillna(0), y_garbage)
             self.garbage_features_ = X_gf_base.columns.tolist()
@@ -127,7 +127,7 @@ class PtsHurdleModel:
         y_sf = (y[meaningful_mask] == 0).astype(int)
         if len(X_sf_base.columns) > 0 and meaningful_mask.sum() > 50:
             self.sampling_zero_model = LogisticRegression(
-                C=1.0, class_weight="balanced", max_iter=1000, solver="saga"
+                C=1.0, class_weight="balanced", max_iter=5000, solver="saga"
             )
             self.sampling_zero_model.fit(X_sf_base.fillna(0), y_sf)
             self.sampling_features_ = X_sf_base.columns.tolist()
