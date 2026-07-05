@@ -109,6 +109,7 @@ def build_all_pmfs(
     cfg: dict[str, Any],
     bb_models: dict[str, Any] | None = None,
     minutes_correction: Any | None = None,
+    pts_hurdle_model: Any | None = None,
 ) -> pd.DataFrame:
     """Build full PMF table (one row per player_id × game_id × stat).
 
@@ -296,6 +297,8 @@ def build_all_pmfs(
                 stat, stat_means, p_nz, pos_mus,
                 stat_models, hurdle_models, cap, roles=roles,
                 bb_models=bb_models, X_stat_df=X_stat_df,
+                pts_hurdle_model=pts_hurdle_model,
+                stat_rows=stat_rows,
             )
 
         # ---- Apply DNP blending -------------------------------------------
@@ -392,6 +395,8 @@ def _build_pmf_matrix(
     roles: np.ndarray | None = None,
     bb_models: dict | None = None,
     X_stat_df: "pd.DataFrame | None" = None,
+    pts_hurdle_model: "Any | None" = None,
+    stat_rows: "pd.DataFrame | None" = None,
 ) -> np.ndarray:
     """Build PMF matrix (n × cap+1) for a stat.
 
@@ -401,7 +406,32 @@ def _build_pmf_matrix(
 
     When ``bb_models`` contains a BetaBinomialStatModel for fg3m and X_stat_df
     is provided, uses the Beta-Binomial PMF instead of NegBinom.
+
+    When ``pts_hurdle_model`` is provided and stat == 'pts', uses the minutes-
+    conditional hurdle model to compute per-player P(nonzero) then builds a
+    truncated-zero NegBinom PMF for each player.
     """
+    # ---- PTS hurdle model (minutes-conditional zero-inflation) ---------------
+    if (stat == "pts" and pts_hurdle_model is not None and stat_rows is not None):
+        try:
+            n = len(stat_means)
+            pmf_mat = np.zeros((n, cap + 1))
+            _p_dnp = stat_rows["p_dnp"].fillna(0.0).values.astype(float) if "p_dnp" in stat_rows.columns else np.zeros(n)
+            _min_mean = stat_rows["minutes_mean"].fillna(20.0).values.astype(float) if "minutes_mean" in stat_rows.columns else np.full(n, 20.0)
+            _min_sigma = stat_rows["minutes_sigma"].fillna(4.0).values.astype(float) if "minutes_sigma" in stat_rows.columns else np.full(n, 4.0)
+            _roles_arr = stat_rows["role_bucket"].fillna("rotation").values if "role_bucket" in stat_rows.columns else np.full(n, "rotation")
+            p_nz_hurdle = pts_hurdle_model.predict_p_nonzero(_p_dnp, _roles_arr, _min_mean, _min_sigma)
+            for i in range(n):
+                role_i = str(_roles_arr[i]) if not pd.isna(_roles_arr[i]) else "rotation"
+                r_i = pts_hurdle_model.role_dispersion.get(role_i, 3.5)
+                pos_mu_i = float(stat_means[i]) / max(float(p_nz_hurdle[i]), 0.01)
+                pos_mu_i = max(pos_mu_i, 0.1)
+                pmf_mat[i] = pts_hurdle_model.build_pmf(float(p_nz_hurdle[i]), pos_mu_i, r_i, cap)
+            return pmf_mat
+        except Exception as _phe:
+            import warnings as _w
+            _w.warn(f"PtsHurdleModel failed, falling back to global NegBinom: {_phe}", stacklevel=3)
+
     # ---- Beta-Binomial for fg3m -----------------------------------------
     if (stat == "fg3m" and bb_models is not None and "fg3m" in bb_models
             and X_stat_df is not None):
