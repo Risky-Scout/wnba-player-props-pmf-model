@@ -72,6 +72,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      - name: Restore git bias_corrections (guard against stale artifact overwrite)
+        # The artifact download can overwrite our git-committed bias_corrections.json
+        # with stale values from a previous weekly_calibration run. Always prefer the
+        # git-committed version, which is manually verified to be safe.
+        run: |
+          git checkout HEAD -- artifacts/models/calibration/bias_corrections.json 2>/dev/null || true
+          python3 - <<'EOF'
+          import json, pathlib
+          bc_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
+          if bc_path.exists():
+              bc = json.loads(bc_path.read_text())
+              print(f"bias_corrections (git version): {bc}")
+              low = {s: v for s, v in bc.items() if v < 0.90}
+              if low:
+                  print(f"WARNING: git bias_corrections still has low values: {low}")
+              else:
+                  print(f"OK: all bias_corrections >= 0.90 (min={min(bc.values()):.3f})")
+          else:
+              print("bias_corrections.json not found — skipping guard")
+          EOF
+
       - name: Download stage4 model (cross-run via GitHub CLI)
         run: |
           mkdir -p artifacts/models/stage4_baseline
