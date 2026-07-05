@@ -417,9 +417,10 @@ def generate_fold_pmfs(
                 _build_marginalized_pmf_matrix, _blend_with_dnp,
             )
             pmf_mat = _build_marginalized_pmf_matrix(
-                stat, quant_mat, quad_weights, p_nz_out, pos_mus_out,
-                fold_model.stat_models, fold_model.hurdle_models, cap, roles=roles
-            )
+                    stat, quant_mat, quad_weights, p_nz_out, pos_mus_out,
+                    fold_model.stat_models, fold_model.hurdle_models, cap, roles=roles,
+                    stat_means=stat_means_out,
+                )
         elif stat == "fg3m" and bb_models_fold.get("fg3m") is not None:
             pmf_mat = bb_models_fold["fg3m"].predict_pmf_matrix(X_stat, cap=cap)
         elif stat in fold_model.hurdle_models:

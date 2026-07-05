@@ -274,7 +274,8 @@ def build_all_pmfs(
             effective_quant = quant_mat_rotation if _use_rotation_quants else quant_mat
             pmf_mat = _build_marginalized_pmf_matrix(
                 stat, effective_quant, quad_weights, p_nz, pos_mus,
-                stat_models, hurdle_models, cap, roles=roles
+                stat_models, hurdle_models, cap, roles=roles,
+                stat_means=stat_means,
             )
         else:
             pmf_mat = _build_pmf_matrix(
@@ -467,16 +468,24 @@ def _build_marginalized_pmf_matrix(
     hurdle_models: dict,
     cap: int,
     roles: np.ndarray | None = None,
+    stat_means: np.ndarray | None = None,
 ) -> np.ndarray:
     """Build minutes-marginalized PMF matrix using Gauss-style quadrature.
 
     For each of the 5 quantile minute points (q10..q90):
-      mu_i = rate_per_min * m_i  (scale the rate-model mean)
+      mu_i = stat_mean * (q_i / q50)  (scale the stat-model predicted count)
       PMF_i = PMF at mu_i
     Final PMF = sum(weight_i * PMF_i)
 
     For hurdle models the p_nz component is held fixed (non-playing probability
     does not change with minute variance); only the positive tail is blended.
+
+    Args:
+        stat_means: Predicted stat counts from the stat model (e.g. 3.5 reb).
+            Must be provided for non-hurdle stats so the scaling uses the actual
+            model output rather than the raw minute quantiles.  When None, falls
+            back to the median-minutes column of quant_mat — this is incorrect
+            for most stats but kept as a safety net.
     """
     n = quant_mat.shape[0]
     n_q = quant_mat.shape[1]  # 5 quantile points
@@ -486,13 +495,14 @@ def _build_marginalized_pmf_matrix(
 
     pmf_acc = np.zeros((n, cap + 1), dtype=float)
 
-    # Compute the baseline mean from the median column (index 2 = q50)
-    q50_means = quant_mat[:, 2].clip(0.001)
+    # Median projected minutes — used only as the denominator for the scale factor
+    # so that scale(q50) == 1 and the stat mean is unmodified at the median.
+    q50_mins = quant_mat[:, 2].clip(0.001)
 
     for qi in range(n_q):
         q_mins = quant_mat[:, qi].clip(0.0)
-        # Scale factor: q_i / q50 (ratio to median)
-        scale = np.where(q50_means > 0, q_mins / q50_means, 1.0)
+        # Scale factor: q_i / q50  (relative deviation from median minutes)
+        scale = np.where(q50_mins > 0, q_mins / q50_mins, 1.0)
 
         if stat in hurdle_models:
             model = hurdle_models[stat]
@@ -501,9 +511,12 @@ def _build_marginalized_pmf_matrix(
             pmf_i = hurdle_pmf_batch(p_nz, scaled_pos_mus, model.pos_dispersion_r, cap)
         else:
             model = stat_models.get(stat)
-            # Retrieve global mean (stat_means from q50 path) — scale it
-            # q50_means serves as the stat_means baseline here
-            scaled_means = (q50_means * scale).clip(1e-9)
+            # Scale the actual stat-model predictions by the minute ratio.
+            # stat_means is the predicted stat count (e.g. 3.5 reb) — NOT minutes.
+            # Using q50_mins here was the bug: it put minutes in the PMF mean slot,
+            # inflating reb/ast/fg3m/turnover predictions by 3–6×.
+            baseline = stat_means if stat_means is not None else q50_mins
+            scaled_means = (baseline * scale).clip(1e-9)
             if model is None:
                 pmf_i = poisson_pmf_batch(scaled_means, cap)
             elif roles is not None and getattr(model, "_role_dispersion", None):
