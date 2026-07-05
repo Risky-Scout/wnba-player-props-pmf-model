@@ -2,59 +2,59 @@
   "24903_383_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.5966
+      "shap_value": -1.5703
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.053
+      "shap_value": -1.0795
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.9904
+      "shap_value": -0.9934
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.6033
+      "shap_value": -0.6054
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.3463
+      "shap_value": -0.3479
     }
   ],
   "24903_541_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.7947
+      "shap_value": -1.9809
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.4352
+      "shap_value": -1.597
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.9004
+      "shap_value": -0.8788
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.4747
+      "shap_value": -0.4611
     },
     {
-      "feature": "player_minutes_mean_l3",
-      "shap_value": -0.3465
+      "feature": "player_svd_dim_4",
+      "shap_value": -0.3296
     }
   ],
   "24903_562_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 1.1952
+      "shap_value": 1.1638
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.147
+      "shap_value": 1.1443
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": 0.5423
+      "shap_value": 0.5518
     },
     {
       "feature": "player_ast_away_mean_l5",
@@ -68,63 +68,63 @@
   "24903_571_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.7253
+      "shap_value": -1.7309
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.6394
+      "shap_value": -1.5943
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -1.0334
+      "shap_value": -1.0375
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.6052
+      "shap_value": -0.6019
     },
     {
-      "feature": "player_minutes_form_delta_ewma3_vs_season",
-      "shap_value": 0.472
+      "feature": "player_svd_dim_4",
+      "shap_value": -0.5009
     }
   ],
   "24903_579_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.1934
-    },
-    {
-      "feature": "player_minutes_last1",
-      "shap_value": 0.5388
-    },
-    {
-      "feature": "player_svd_dim_4",
-      "shap_value": 0.4929
+      "shap_value": 1.198
     },
     {
       "feature": "player_ast_season_zscore",
       "shap_value": -0.4719
     },
     {
+      "feature": "player_svd_dim_4",
+      "shap_value": 0.4597
+    },
+    {
+      "feature": "player_minutes_last1",
+      "shap_value": 0.4565
+    },
+    {
       "feature": "player_pts_season_zscore",
-      "shap_value": 0.3882
+      "shap_value": 0.4076
     }
   ],
   "24903_580_pts": [
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": 2.8035
+      "shap_value": 2.7881
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.0345
+      "shap_value": 1.0162
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.7297
+      "shap_value": 0.7289
     },
     {
       "feature": "opp_ast_allowed_mean_l5",
-      "shap_value": 0.3957
+      "shap_value": 0.4009
     },
     {
       "feature": "player_turnover_vs_opp_career_mean",
@@ -134,107 +134,107 @@
   "24903_590_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.6235
+      "shap_value": -1.6439
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.4909
+      "shap_value": -1.4709
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -1.0774
+      "shap_value": -1.0848
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.4432
+      "shap_value": -0.4344
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.3718
+      "shap_value": -0.353
     }
   ],
   "24903_648_pts": [
     {
-      "feature": "player_svd_dim_0",
-      "shap_value": 1.563
+      "feature": "player_svd_dim_4",
+      "shap_value": -1.3928
     },
     {
-      "feature": "player_svd_dim_4",
-      "shap_value": -1.4109
+      "feature": "player_svd_dim_0",
+      "shap_value": 1.3479
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 0.9841
+      "shap_value": 0.9183
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.7142
+      "shap_value": -0.841
     },
     {
-      "feature": "player_minutes_mean_l3",
-      "shap_value": 0.4603
+      "feature": "player_usage_rate_l5",
+      "shap_value": -0.429
     }
   ],
   "24903_686_pts": [
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -1.1415
+      "shap_value": -1.1441
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.9393
+      "shap_value": -1.0098
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.8339
+      "shap_value": -0.8305
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.5213
+      "shap_value": -0.5402
     },
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": -0.4015
+      "shap_value": -0.4333
     }
   ],
   "24903_687_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 1.4085
+      "shap_value": 1.3429
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.967
+      "shap_value": -1.0108
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.5048
+      "shap_value": -0.442
     },
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": -0.375
+      "shap_value": -0.3204
     },
     {
       "feature": "opp_pts_allowed_mean_l10",
-      "shap_value": 0.292
+      "shap_value": 0.2974
     }
   ],
   "24903_695_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.4172
+      "shap_value": 1.404
     },
     {
       "feature": "expected_minutes_given_script",
-      "shap_value": -1.1004
+      "shap_value": -0.9497
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.8987
+      "shap_value": -0.8976
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.6801
+      "shap_value": -0.6791
     },
     {
       "feature": "player_minutes_std_l10",
@@ -244,107 +244,107 @@
   "24903_734_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.8605
+      "shap_value": -1.989
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.3455
+      "shap_value": -1.333
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -1.0682
+      "shap_value": -1.0517
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.6773
+      "shap_value": -0.6776
     },
     {
       "feature": "player_pts_mean_l5",
-      "shap_value": -0.3462
+      "shap_value": -0.3474
     }
   ],
   "24903_744_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.8739
+      "shap_value": -1.0296
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.7858
+      "shap_value": -0.7653
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.4177
+      "shap_value": -0.4881
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.3768
+      "shap_value": -0.4177
     },
     {
-      "feature": "expected_minutes_given_script",
-      "shap_value": -0.2596
+      "feature": "player_pts_last1",
+      "shap_value": -0.2327
     }
   ],
   "24903_745_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.2292
+      "shap_value": 1.2751
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 1.2238
-    },
-    {
-      "feature": "player_minutes_mean_l3",
-      "shap_value": 0.755
-    },
-    {
-      "feature": "player_usage_rate_l5",
-      "shap_value": 0.5748
+      "shap_value": 1.1689
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": 0.4158
+      "shap_value": 0.6204
+    },
+    {
+      "feature": "player_minutes_mean_l3",
+      "shap_value": 0.515
+    },
+    {
+      "feature": "player_usage_rate_l5",
+      "shap_value": 0.4618
     }
   ],
   "24903_748_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.6003
+      "shap_value": 1.6221
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": 1.4359
+      "shap_value": 1.5207
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 1.0905
+      "shap_value": 1.0973
     },
     {
       "feature": "player_fg3m_form_delta_l5_vs_l10",
-      "shap_value": -0.7688
+      "shap_value": -0.7661
     },
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": 0.621
+      "shap_value": 0.5852
     }
   ],
   "24903_758_pts": [
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": 0.8
+      "shap_value": 0.8166
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 0.741
+      "shap_value": 0.6489
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": 0.6394
+      "shap_value": 0.6383
     },
     {
       "feature": "player_turnover_form_delta_ewma5_vs_season",
-      "shap_value": -0.4676
+      "shap_value": -0.4687
     },
     {
       "feature": "player_turnover_vs_opp_career_mean",
@@ -354,85 +354,85 @@
   "24903_776_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.4069
+      "shap_value": -1.4317
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.9642
+      "shap_value": -0.9729
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.8883
+      "shap_value": -0.8035
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.6648
+      "shap_value": -0.6609
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.3447
+      "shap_value": -0.3454
     }
   ],
   "24903_61828_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.1365
+      "shap_value": -1.1371
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -1.0785
+      "shap_value": -1.0787
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.9946
+      "shap_value": -1.0284
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.4271
+      "shap_value": -0.4292
     },
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": -0.3216
+      "shap_value": -0.2894
     }
   ],
   "24903_66999_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -1.2412
-    },
-    {
-      "feature": "player_minutes_last1",
-      "shap_value": -0.9792
+      "shap_value": -1.3191
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.8832
+      "shap_value": -0.9305
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.8612
+      "shap_value": -0.8773
+    },
+    {
+      "feature": "player_minutes_last1",
+      "shap_value": -0.8518
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.644
+      "shap_value": -0.6308
     }
   ],
   "24903_67076_pts": [
     {
       "feature": "player_turnover_ewma_halflife5",
-      "shap_value": 1.1459
+      "shap_value": 1.1433
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.9864
+      "shap_value": -0.9522
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": 0.8152
+      "shap_value": 0.7677
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": 0.6455
+      "shap_value": 0.6482
     },
     {
       "feature": "player_turnover_form_delta_ewma3_vs_season",
@@ -442,305 +442,305 @@
   "24903_67080_pts": [
     {
       "feature": "player_usage_rate_season",
-      "shap_value": 1.4645
+      "shap_value": 1.4921
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 1.3395
+      "shap_value": 1.253
     },
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": 0.754
+      "shap_value": 0.681
     },
     {
       "feature": "player_ast_away_mean_l5",
-      "shap_value": -0.6839
+      "shap_value": -0.6093
     },
     {
-      "feature": "player_minutes_last1",
-      "shap_value": 0.4226
+      "feature": "player_pts_season_zscore",
+      "shap_value": 0.5405
     }
   ],
   "24903_67186_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.9199
+      "shap_value": -1.9625
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.9083
+      "shap_value": -0.8423
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.5271
+      "shap_value": -0.7192
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": 0.4575
+      "shap_value": 0.5085
     },
     {
-      "feature": "player_usage_rate_l5",
-      "shap_value": -0.3696
+      "feature": "player_minutes_form_delta_ewma3_vs_season",
+      "shap_value": 0.362
     }
   ],
   "24903_67200_pts": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -1.3677
+      "shap_value": -1.424
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": -0.9929
+      "shap_value": -0.9916
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.4967
+      "shap_value": -0.44
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.4318
+      "shap_value": -0.4293
     },
     {
       "feature": "player_minutes_last1",
-      "shap_value": -0.2827
+      "shap_value": -0.2919
     }
   ],
   "24903_75090_pts": [
     {
-      "feature": "player_pts_season_zscore",
-      "shap_value": -1.2126
-    },
-    {
-      "feature": "player_svd_dim_4",
-      "shap_value": -1.1934
+      "feature": "player_usage_rate_season",
+      "shap_value": 1.2872
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 1.1551
+      "shap_value": 1.2236
     },
     {
-      "feature": "player_usage_rate_season",
-      "shap_value": 1.0575
+      "feature": "player_pts_season_zscore",
+      "shap_value": -1.2202
     },
     {
-      "feature": "expected_minutes_given_script",
-      "shap_value": -0.8352
+      "feature": "player_svd_dim_4",
+      "shap_value": -1.1918
+    },
+    {
+      "feature": "player_minutes_last1",
+      "shap_value": -0.7944
     }
   ],
   "24903_383_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.2574
+      "shap_value": 0.2696
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2222
+      "shap_value": -0.2156
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": 0.1394
+      "shap_value": 0.1512
+    },
+    {
+      "feature": "player_pts_std_l10",
+      "shap_value": -0.1427
     },
     {
       "feature": "player_reb_per_min_l5_x_proj_min",
-      "shap_value": -0.1334
-    },
-    {
-      "feature": "player_reb_season_zscore",
-      "shap_value": 0.1239
+      "shap_value": -0.1356
     }
   ],
   "24903_541_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.3852
+      "shap_value": -0.398
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2711
+      "shap_value": -0.2663
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.237
+      "shap_value": -0.2317
     },
     {
       "feature": "player_reb_ewma_halflife3",
-      "shap_value": -0.1998
+      "shap_value": -0.1984
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.1486
+      "shap_value": 0.1424
     }
   ],
   "24903_562_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.454
+      "shap_value": -0.4722
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2606
+      "shap_value": -0.2495
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.1937
+      "shap_value": 0.2174
     },
     {
       "feature": "opp_fg3m_allowed_mean_l10",
-      "shap_value": -0.1376
+      "shap_value": -0.1364
     },
     {
       "feature": "team_fg3m_for_mean_l5",
-      "shap_value": 0.0837
+      "shap_value": 0.0828
     }
   ],
   "24903_571_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.3902
+      "shap_value": -0.3937
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.3705
+      "shap_value": -0.3706
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2614
+      "shap_value": -0.2506
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1856
+      "shap_value": -0.2121
     },
     {
       "feature": "player_reb_ewma_halflife3",
-      "shap_value": 0.1443
+      "shap_value": 0.1427
     }
   ],
   "24903_579_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.6464
+      "shap_value": 0.6354
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.5226
-    },
-    {
-      "feature": "player_reb_mean_season",
-      "shap_value": -0.1602
-    },
-    {
-      "feature": "opp_fg3m_allowed_mean_l10",
-      "shap_value": -0.1569
+      "shap_value": -0.4916
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.1513
+      "shap_value": 0.1887
+    },
+    {
+      "feature": "player_pts_form_delta_ewma3_vs_season",
+      "shap_value": 0.1756
+    },
+    {
+      "feature": "player_reb_mean_season",
+      "shap_value": -0.1501
     }
   ],
   "24903_580_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.6628
+      "shap_value": -0.5736
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.3275
+      "shap_value": 0.4138
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.254
+      "shap_value": -0.2247
     },
     {
-      "feature": "opp_fg3m_allowed_mean_l10",
-      "shap_value": -0.1541
+      "feature": "player_pts_form_delta_ewma3_vs_season",
+      "shap_value": 0.1837
     },
     {
-      "feature": "team_fg3m_for_mean_l5",
-      "shap_value": 0.0914
+      "feature": "player_embed_6",
+      "shap_value": 0.1412
     }
   ],
   "24903_590_reb": [
     {
-      "feature": "player_reb_season_zscore",
-      "shap_value": -0.5226
+      "feature": "player_svd_dim_1",
+      "shap_value": -0.5309
     },
     {
-      "feature": "player_svd_dim_1",
-      "shap_value": -0.4533
+      "feature": "player_reb_season_zscore",
+      "shap_value": -0.4969
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2836
+      "shap_value": -0.2853
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2289
+      "shap_value": -0.2189
     },
     {
-      "feature": "player_reb_ewma_halflife3",
-      "shap_value": -0.1678
+      "feature": "player_usage_rate_season",
+      "shap_value": -0.2006
     }
   ],
   "24903_648_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 1.1309
+      "shap_value": 1.1198
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.5864
+      "shap_value": 0.545
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.3295
+      "shap_value": -0.3299
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.2142
+      "shap_value": -0.2256
     },
     {
       "feature": "player_reb_momentum_ewma3_vs_ewma5",
-      "shap_value": 0.2012
+      "shap_value": 0.2029
     }
   ],
   "24903_686_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.4933
+      "shap_value": 0.5143
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.3677
+      "shap_value": -0.3687
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2694
+      "shap_value": -0.2608
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.2492
+      "shap_value": 0.259
     },
     {
-      "feature": "player_reb_per_min_l5_x_proj_min",
-      "shap_value": -0.1294
+      "feature": "player_blk_form_delta_l5_vs_l10",
+      "shap_value": -0.1589
     }
   ],
   "24903_687_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.3381
+      "shap_value": -0.3512
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2371
+      "shap_value": -0.2257
     },
     {
       "feature": "player_minutes_std_l10",
-      "shap_value": 0.2139
+      "shap_value": 0.2111
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.1916
+      "shap_value": -0.183
     },
     {
       "feature": "player_pts_pi_home_form",
@@ -750,279 +750,279 @@
   "24903_695_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.6397
+      "shap_value": -0.6193
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2499
+      "shap_value": -0.2442
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.222
+      "shap_value": -0.1965
     },
     {
       "feature": "opp_ast_allowed_mean_l10",
-      "shap_value": 0.0927
+      "shap_value": 0.0933
     },
     {
-      "feature": "team_fg3m_for_mean_l5",
-      "shap_value": 0.0746
+      "feature": "usage_shift_abs",
+      "shap_value": -0.074
     }
   ],
   "24903_734_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.6744
+      "shap_value": -0.6719
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.4435
+      "shap_value": -0.4509
     },
     {
       "feature": "player_usage_rate_season",
-      "shap_value": -0.3112
+      "shap_value": -0.2701
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2589
+      "shap_value": -0.2528
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2382
+      "shap_value": -0.2375
     }
   ],
   "24903_744_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.3227
+      "shap_value": 0.3137
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2667
+      "shap_value": -0.2538
     },
     {
       "feature": "player_pts_std_l10",
-      "shap_value": -0.1203
+      "shap_value": -0.1179
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.1137
+      "shap_value": 0.115
     },
     {
-      "feature": "player_minutes_ewma_halflife3",
-      "shap_value": -0.1048
+      "feature": "player_minutes_last1",
+      "shap_value": -0.1107
     }
   ],
   "24903_745_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.4488
+      "shap_value": -0.4607
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.3186
+      "shap_value": 0.3297
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2727
+      "shap_value": -0.2668
     },
     {
       "feature": "opp_fg3m_allowed_mean_l10",
-      "shap_value": -0.2047
+      "shap_value": -0.2041
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.1228
+      "shap_value": -0.1208
     }
   ],
   "24903_748_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.7045
+      "shap_value": -0.6915
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.3573
+      "shap_value": -0.3795
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2629
+      "shap_value": -0.2534
     },
     {
       "feature": "player_pts_pi_home_form",
-      "shap_value": 0.1606
+      "shap_value": 0.1556
     },
     {
       "feature": "opp_ast_allowed_mean_l10",
-      "shap_value": 0.146
+      "shap_value": 0.1465
     }
   ],
   "24903_758_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.892
+      "shap_value": 0.8875
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.6111
+      "shap_value": 0.6372
     },
     {
       "feature": "player_reb_ewma_halflife3",
-      "shap_value": 0.4901
+      "shap_value": 0.479
     },
     {
       "feature": "opp_drop_indicator",
-      "shap_value": 0.3144
+      "shap_value": 0.3145
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2883
+      "shap_value": -0.2966
     }
   ],
   "24903_776_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.4178
+      "shap_value": 0.5051
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.268
-    },
-    {
-      "feature": "player_reb_mean_season",
-      "shap_value": -0.2504
+      "shap_value": 0.3634
     },
     {
       "feature": "player_pts_std_l10",
-      "shap_value": -0.2353
+      "shap_value": -0.2684
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.142
+      "shap_value": -0.2682
+    },
+    {
+      "feature": "player_reb_mean_season",
+      "shap_value": -0.2306
     }
   ],
   "24903_61828_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.591
+      "shap_value": -0.5818
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2709
-    },
-    {
-      "feature": "player_svd_dim_1",
-      "shap_value": 0.1421
+      "shap_value": -0.2621
     },
     {
       "feature": "team_fg3m_for_mean_l5",
-      "shap_value": 0.1395
+      "shap_value": 0.1399
     },
     {
       "feature": "player_reb_ewma_halflife3",
-      "shap_value": -0.1263
+      "shap_value": -0.1293
+    },
+    {
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.1259
     }
   ],
   "24903_66999_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.3425
+      "shap_value": -0.3633
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2564
+      "shap_value": -0.2507
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.1996
+      "shap_value": -0.2058
     },
     {
       "feature": "player_reb_ewma_halflife3",
-      "shap_value": -0.1688
+      "shap_value": -0.1696
     },
     {
       "feature": "player_pts_std_l10",
-      "shap_value": -0.1482
+      "shap_value": -0.1493
     }
   ],
   "24903_67076_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 0.3696
-    },
-    {
-      "feature": "player_svd_dim_1",
-      "shap_value": -0.202
+      "shap_value": 0.3909
     },
     {
       "feature": "player_reb_pi_home_form",
-      "shap_value": 0.1907
+      "shap_value": 0.1896
     },
     {
       "feature": "player_pts_form_delta_ewma3_vs_season",
       "shap_value": 0.1808
     },
     {
+      "feature": "player_svd_dim_1",
+      "shap_value": -0.1729
+    },
+    {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.177
+      "shap_value": -0.1695
     }
   ],
   "24903_67080_reb": [
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": 1.3731
+      "shap_value": 1.3767
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.4256
+      "shap_value": 0.47
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.3354
-    },
-    {
-      "feature": "player_fg3m_home_mean_l5",
-      "shap_value": 0.1465
+      "shap_value": -0.3278
     },
     {
       "feature": "player_usage_rate_l5",
-      "shap_value": 0.1447
+      "shap_value": 0.162
+    },
+    {
+      "feature": "player_fg3m_home_mean_l5",
+      "shap_value": 0.1467
     }
   ],
   "24903_67186_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.626
+      "shap_value": -0.5531
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.543
+      "shap_value": -0.4659
+    },
+    {
+      "feature": "player_embed_5",
+      "shap_value": 0.2817
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2734
+      "shap_value": -0.247
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2118
-    },
-    {
-      "feature": "opp_ast_allowed_mean_l10",
-      "shap_value": 0.1358
+      "shap_value": -0.2034
     }
   ],
   "24903_67200_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.5857
+      "shap_value": 0.6092
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.3452
+      "shap_value": -0.3863
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.2052
+      "shap_value": -0.1951
     },
     {
       "feature": "opp_ast_allowed_mean_l10",
@@ -1030,131 +1030,131 @@
     },
     {
       "feature": "player_pts_mean_l5",
-      "shap_value": -0.1191
+      "shap_value": -0.119
     }
   ],
   "24903_75090_reb": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.5661
+      "shap_value": -0.6257
     },
     {
       "feature": "player_reb_season_zscore",
-      "shap_value": -0.436
+      "shap_value": -0.4734
     },
     {
       "feature": "player_reb_mean_season",
-      "shap_value": -0.3135
+      "shap_value": -0.305
     },
     {
       "feature": "opp_ast_allowed_mean_l10",
-      "shap_value": 0.1282
+      "shap_value": 0.1285
     },
     {
       "feature": "team_fg3m_for_mean_l5",
-      "shap_value": 0.1169
+      "shap_value": 0.1203
     }
   ],
   "24903_383_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3413
+      "shap_value": -0.345
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.2641
+      "shap_value": -0.2576
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.1689
+      "shap_value": -0.1732
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": 0.1094
+      "shap_value": 0.1089
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1086
+      "shap_value": -0.1059
     }
   ],
   "24903_541_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.2974
+      "shap_value": -0.2962
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.2709
+      "shap_value": -0.2693
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1994
+      "shap_value": -0.1989
     },
     {
       "feature": "team_pace_proxy_l5",
-      "shap_value": 0.1002
+      "shap_value": 0.1028
     },
     {
-      "feature": "player_minutes_mean_l3",
-      "shap_value": -0.0742
+      "feature": "player_svd_dim_3",
+      "shap_value": 0.0724
     }
   ],
   "24903_562_ast": [
     {
-      "feature": "player_ast_season_zscore",
-      "shap_value": -0.2883
+      "feature": "player_svd_dim_2",
+      "shap_value": 0.3006
     },
     {
-      "feature": "player_svd_dim_2",
-      "shap_value": 0.2839
+      "feature": "player_ast_season_zscore",
+      "shap_value": -0.2927
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.2402
+      "shap_value": -0.2432
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.1743
+      "shap_value": 0.1598
     },
     {
       "feature": "player_turnover_mean_l10",
-      "shap_value": 0.0819
+      "shap_value": 0.0822
     }
   ],
   "24903_571_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3151
+      "shap_value": -0.3222
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.287
+      "shap_value": -0.288
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1131
+      "shap_value": -0.1186
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.1123
+      "shap_value": -0.1126
     },
     {
-      "feature": "player_minutes_form_vs_season_ratio",
-      "shap_value": -0.087
+      "feature": "player_ast_form_delta_ewma5_vs_season",
+      "shap_value": 0.0877
     }
   ],
   "24903_579_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3141
+      "shap_value": -0.314
     },
     {
       "feature": "player_ast_std_l10",
-      "shap_value": 0.2293
+      "shap_value": 0.2287
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.105
+      "shap_value": -0.1034
     },
     {
       "feature": "player_ast_form_delta_ewma3_vs_season",
@@ -1162,131 +1162,131 @@
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.0908
+      "shap_value": -0.0878
     }
   ],
   "24903_580_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": 1.6454
+      "shap_value": 1.6853
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.2277
+      "shap_value": 0.2469
     },
     {
       "feature": "opp_blk_allowed_mean_l10",
-      "shap_value": -0.2051
+      "shap_value": -0.1847
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": 0.1791
+      "shap_value": 0.1796
     },
     {
       "feature": "player_turnover_home_mean_l5",
-      "shap_value": 0.1759
+      "shap_value": 0.1761
     }
   ],
   "24903_590_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3341
+      "shap_value": -0.3402
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.2792
+      "shap_value": -0.2764
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2081
+      "shap_value": -0.2104
     },
     {
       "feature": "player_fg3m_season_zscore",
-      "shap_value": 0.1763
+      "shap_value": 0.1749
     },
     {
       "feature": "team_pace_proxy_l5",
-      "shap_value": 0.1201
+      "shap_value": 0.1174
     }
   ],
   "24903_648_ast": [
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": 0.3286
+      "shap_value": 0.3266
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.2831
+      "shap_value": -0.2865
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.2768
-    },
-    {
-      "feature": "player_svd_dim_0",
-      "shap_value": 0.1261
+      "shap_value": -0.2746
     },
     {
       "feature": "player_fg3m_form_delta_ewma5_vs_season",
-      "shap_value": 0.1112
+      "shap_value": 0.1321
+    },
+    {
+      "feature": "player_svd_dim_0",
+      "shap_value": 0.1242
     }
   ],
   "24903_686_ast": [
     {
       "feature": "player_ast_std_l10",
-      "shap_value": 0.345
+      "shap_value": 0.3451
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.146
+      "shap_value": -0.1474
     },
     {
       "feature": "player_did_play_rate_l10",
-      "shap_value": 0.1344
+      "shap_value": 0.1341
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.1127
+      "shap_value": -0.1186
     },
     {
       "feature": "player_ast_pi_home_form",
-      "shap_value": 0.1122
+      "shap_value": 0.1111
     }
   ],
   "24903_687_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": 1.0814
+      "shap_value": 1.0282
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.3537
+      "shap_value": 0.3645
     },
     {
       "feature": "opp_blk_allowed_mean_l10",
-      "shap_value": -0.295
+      "shap_value": -0.3019
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.1582
+      "shap_value": -0.1613
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.1371
+      "shap_value": 0.1407
     }
   ],
   "24903_695_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.302
+      "shap_value": -0.3049
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.2842
+      "shap_value": -0.2699
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.0884
+      "shap_value": -0.0803
     },
     {
       "feature": "player_minutes_ewma_halflife3",
@@ -1300,107 +1300,107 @@
   "24903_734_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3462
+      "shap_value": -0.349
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.3294
+      "shap_value": -0.3271
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2466
+      "shap_value": -0.2443
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.2139
+      "shap_value": -0.2121
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.0936
+      "shap_value": -0.0941
     }
   ],
   "24903_744_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3613
+      "shap_value": -0.3605
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.3215
+      "shap_value": -0.3222
     },
     {
       "feature": "team_pace_proxy_l5",
       "shap_value": 0.1019
     },
     {
-      "feature": "player_ast_pi_home_form",
-      "shap_value": -0.0668
+      "feature": "player_minutes_mean_l3",
+      "shap_value": -0.0669
     },
     {
-      "feature": "player_minutes_mean_l3",
-      "shap_value": -0.0665
+      "feature": "player_ast_pi_home_form",
+      "shap_value": -0.0642
     }
   ],
   "24903_745_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.2663
+      "shap_value": -0.2706
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": 0.2601
+      "shap_value": 0.2529
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.1816
+      "shap_value": -0.2061
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.1747
+      "shap_value": 0.1731
     },
     {
       "feature": "player_fta_rate_l10",
-      "shap_value": -0.165
+      "shap_value": -0.1721
     }
   ],
   "24903_748_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": 2.8999
+      "shap_value": 2.8558
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": 0.7424
+      "shap_value": 0.7404
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.3436
+      "shap_value": 0.3971
     },
     {
       "feature": "player_turnover_mean_season",
-      "shap_value": 0.3173
+      "shap_value": 0.318
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": 0.253
+      "shap_value": 0.2673
     }
   ],
   "24903_758_ast": [
     {
-      "feature": "player_svd_dim_2",
-      "shap_value": -0.2329
+      "feature": "player_ast_season_zscore",
+      "shap_value": -0.2262
     },
     {
-      "feature": "player_ast_season_zscore",
-      "shap_value": -0.2243
+      "feature": "player_svd_dim_2",
+      "shap_value": -0.2159
     },
     {
       "feature": "player_minutes_ewma_halflife3",
-      "shap_value": 0.125
+      "shap_value": 0.1652
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": 0.1217
+      "shap_value": 0.132
     },
     {
       "feature": "team_blk_def_pi",
@@ -1410,187 +1410,187 @@
   "24903_776_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3255
+      "shap_value": -0.3241
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.3117
+      "shap_value": -0.3071
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.211
+      "shap_value": -0.1935
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1159
+      "shap_value": -0.115
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.0935
+      "shap_value": -0.0816
     }
   ],
   "24903_61828_ast": [
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.3424
+      "shap_value": -0.3444
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3166
+      "shap_value": -0.3131
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.2131
+      "shap_value": -0.2138
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.1819
+      "shap_value": 0.1798
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.1227
+      "shap_value": -0.1225
     }
   ],
   "24903_66999_ast": [
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.5082
+      "shap_value": 0.5177
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.4748
+      "shap_value": -0.4814
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3156
+      "shap_value": -0.3128
     },
     {
       "feature": "player_turnover_ewma_halflife3",
-      "shap_value": -0.2187
+      "shap_value": -0.2232
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": 0.1959
+      "shap_value": 0.1987
     }
   ],
   "24903_67076_ast": [
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": 0.3405
+      "shap_value": 0.3531
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.2739
+      "shap_value": -0.2761
     },
     {
       "feature": "player_minutes_ewma_halflife3",
-      "shap_value": 0.2223
+      "shap_value": 0.2036
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1851
+      "shap_value": -0.1898
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.1617
+      "shap_value": -0.1627
     }
   ],
   "24903_67080_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.2486
+      "shap_value": -0.2466
     },
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": 0.2444
+      "shap_value": 0.2366
     },
     {
       "feature": "player_minutes_ewma_halflife3",
-      "shap_value": 0.2059
+      "shap_value": 0.1901
     },
     {
-      "feature": "player_fg3m_form_vs_season_ratio",
-      "shap_value": 0.0938
+      "feature": "opp_ast_allowed_per_100_poss_l5",
+      "shap_value": 0.1115
     },
     {
-      "feature": "opp_pts_allowed_mean_l10",
-      "shap_value": 0.0922
+      "feature": "player_minutes_mean_l3",
+      "shap_value": 0.0861
     }
   ],
   "24903_67186_ast": [
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.3083
+      "shap_value": -0.3092
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3029
+      "shap_value": -0.3026
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.1258
+      "shap_value": -0.1387
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": -0.1243
+      "shap_value": -0.1211
     },
     {
-      "feature": "player_svd_dim_0",
-      "shap_value": -0.0866
+      "feature": "player_minutes_mean_l3",
+      "shap_value": 0.0846
     }
   ],
   "24903_67200_ast": [
     {
       "feature": "player_ast_mean_l10",
-      "shap_value": -0.4308
+      "shap_value": -0.4282
     },
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.3218
+      "shap_value": -0.3212
     },
     {
       "feature": "player_fg3m_season_zscore",
-      "shap_value": 0.209
+      "shap_value": 0.2085
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": -0.1532
+      "shap_value": -0.1538
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1523
+      "shap_value": -0.1503
     }
   ],
   "24903_75090_ast": [
     {
       "feature": "player_ast_season_zscore",
-      "shap_value": -0.289
+      "shap_value": -0.2906
     },
     {
       "feature": "opp_fg3a_allowed_mean_l5",
-      "shap_value": 0.2697
+      "shap_value": 0.269
     },
     {
       "feature": "player_svd_dim_3",
-      "shap_value": 0.2146
+      "shap_value": 0.2304
     },
     {
       "feature": "player_svd_dim_2",
-      "shap_value": 0.2045
+      "shap_value": 0.2024
     },
     {
       "feature": "player_fta_rate_l10",
-      "shap_value": -0.1766
+      "shap_value": -0.177
     }
   ],
   "24903_383_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.0911
+      "shap_value": -0.094
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": 0.086
+      "shap_value": 0.0864
     },
     {
       "feature": "opp_ast_allowed_mean_l10",
@@ -1598,7 +1598,7 @@
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.0531
+      "shap_value": -0.0507
     },
     {
       "feature": "player_fg3m_std_l10",
@@ -1608,11 +1608,11 @@
   "24903_541_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1525
+      "shap_value": -0.151
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1219
+      "shap_value": -0.1218
     },
     {
       "feature": "player_ast_pi_away_form",
@@ -1620,21 +1620,21 @@
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": 0.0775
+      "shap_value": 0.0782
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.05
+      "shap_value": -0.0498
     }
   ],
   "24903_562_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": 0.9883
+      "shap_value": 0.9565
     },
     {
       "feature": "player_fg3a_mean_l5",
-      "shap_value": 0.1979
+      "shap_value": 0.2138
     },
     {
       "feature": "team_fg3m_def_pi",
@@ -1646,25 +1646,25 @@
     },
     {
       "feature": "opp_pts_allowed_per_100_poss_l5",
-      "shap_value": -0.1097
+      "shap_value": -0.1096
     }
   ],
   "24903_571_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.2182
+      "shap_value": -0.2373
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1253
-    },
-    {
-      "feature": "player_svd_dim_1",
-      "shap_value": 0.0686
+      "shap_value": -0.1242
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.0606
+      "shap_value": -0.0602
+    },
+    {
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.0595
     },
     {
       "feature": "player_blk_momentum_ewma3_vs_ewma5",
@@ -1674,89 +1674,89 @@
   "24903_579_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": 0.6147
+      "shap_value": 0.6088
     },
     {
       "feature": "player_stl_form_vs_season_ratio",
-      "shap_value": 0.0877
+      "shap_value": 0.0887
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.0817
+      "shap_value": 0.0824
     },
     {
       "feature": "player_ast_form_vs_season_ratio",
-      "shap_value": 0.0524
+      "shap_value": 0.0525
     },
     {
-      "feature": "player_turnover_form_delta_ewma5_vs_season",
-      "shap_value": 0.0502
+      "feature": "player_fta_rate_l10",
+      "shap_value": 0.051
     }
   ],
   "24903_580_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": 0.7498
+      "shap_value": 0.755
     },
     {
       "feature": "player_fg3m_form_delta_l5_vs_l10",
-      "shap_value": 0.1465
+      "shap_value": 0.1478
     },
     {
       "feature": "schedule_fatigue_index",
-      "shap_value": 0.0991
+      "shap_value": 0.0958
+    },
+    {
+      "feature": "player_turnover_form_delta_ewma5_vs_season",
+      "shap_value": 0.0856
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.0805
-    },
-    {
-      "feature": "player_fg3m_momentum_ewma3_vs_ewma5",
-      "shap_value": 0.0677
+      "shap_value": 0.082
     }
   ],
   "24903_590_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.5008
+      "shap_value": -0.5003
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.0945
-    },
-    {
-      "feature": "player_did_play_rate_l10",
-      "shap_value": 0.0785
+      "shap_value": 0.1059
     },
     {
       "feature": "player_fg3a_mean_l5",
-      "shap_value": -0.0697
+      "shap_value": -0.0696
+    },
+    {
+      "feature": "player_did_play_rate_l10",
+      "shap_value": 0.0566
     },
     {
       "feature": "player_pts_season_zscore",
-      "shap_value": 0.055
+      "shap_value": 0.0551
     }
   ],
   "24903_648_fg3m": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.3071
+      "shap_value": -0.3072
     },
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.2378
+      "shap_value": -0.2459
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": 0.0819
+      "shap_value": 0.0874
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.0661
+      "shap_value": 0.0788
     },
     {
       "feature": "player_turnover_form_vs_season_ratio",
-      "shap_value": -0.0489
+      "shap_value": -0.05
     }
   ],
   "24903_686_fg3m": [
@@ -1766,7 +1766,7 @@
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.1514
+      "shap_value": -0.1582
     },
     {
       "feature": "player_minutes_mean_l3",
@@ -1774,95 +1774,95 @@
     },
     {
       "feature": "player_fg3a_mean_l5",
-      "shap_value": -0.047
+      "shap_value": -0.0479
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.0319
+      "shap_value": -0.0367
     }
   ],
   "24903_687_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1382
-    },
-    {
-      "feature": "player_svd_dim_1",
-      "shap_value": 0.0625
+      "shap_value": -0.1667
     },
     {
       "feature": "player_minutes_mean_l3",
       "shap_value": 0.0624
     },
     {
-      "feature": "player_fg3m_per_min_l5_x_opp_fg3m_per_100_l5",
-      "shap_value": -0.0388
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.0533
     },
     {
       "feature": "opp_ast_allowed_mean_l5",
       "shap_value": 0.0383
+    },
+    {
+      "feature": "player_fg3m_per_min_l5_x_opp_fg3m_per_100_l5",
+      "shap_value": -0.0372
     }
   ],
   "24903_695_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1698
+      "shap_value": -0.162
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.0796
+      "shap_value": 0.0889
     },
     {
       "feature": "player_minutes_mean_l3",
-      "shap_value": -0.0622
+      "shap_value": -0.0646
     },
     {
       "feature": "rest_interaction_high_usage",
-      "shap_value": 0.0569
+      "shap_value": 0.0603
     },
     {
       "feature": "opp_ast_allowed_mean_l10",
-      "shap_value": 0.0504
+      "shap_value": 0.0515
     }
   ],
   "24903_734_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.43
-    },
-    {
-      "feature": "player_svd_dim_1",
-      "shap_value": 0.0999
-    },
-    {
-      "feature": "player_svd_dim_0",
-      "shap_value": -0.0869
+      "shap_value": -0.4441
     },
     {
       "feature": "player_pts_per_min_season",
-      "shap_value": 0.0715
+      "shap_value": 0.0969
     },
     {
-      "feature": "player_ast_per_min_l3",
-      "shap_value": -0.0507
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.0917
+    },
+    {
+      "feature": "player_svd_dim_0",
+      "shap_value": -0.086
+    },
+    {
+      "feature": "player_svd_dim_5",
+      "shap_value": 0.0465
     }
   ],
   "24903_744_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1499
+      "shap_value": -0.1443
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.046
-    },
-    {
-      "feature": "player_svd_dim_5",
-      "shap_value": 0.0391
+      "shap_value": 0.0452
     },
     {
       "feature": "team_pts_allowed_mean_l5",
-      "shap_value": 0.0391
+      "shap_value": 0.0396
+    },
+    {
+      "feature": "player_svd_dim_5",
+      "shap_value": 0.0395
     },
     {
       "feature": "player_fg3m_pi_away_form",
@@ -1872,59 +1872,59 @@
   "24903_745_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": 0.4895
-    },
-    {
-      "feature": "player_turnover_form_delta_ewma5_vs_season",
-      "shap_value": 0.0751
+      "shap_value": 0.5156
     },
     {
       "feature": "player_pts_home_mean_l5",
-      "shap_value": 0.0669
+      "shap_value": 0.0666
+    },
+    {
+      "feature": "player_turnover_form_delta_ewma5_vs_season",
+      "shap_value": 0.0643
+    },
+    {
+      "feature": "player_ast_home_mean_l5",
+      "shap_value": 0.0597
     },
     {
       "feature": "player_turnover_ewma_halflife3",
-      "shap_value": 0.0571
-    },
-    {
-      "feature": "opp_fg3m_allowed_mean_l10",
-      "shap_value": -0.0527
+      "shap_value": 0.0568
     }
   ],
   "24903_748_fg3m": [
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.2046
+      "shap_value": 0.1786
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.1676
-    },
-    {
-      "feature": "player_svd_dim_5",
-      "shap_value": -0.0784
-    },
-    {
-      "feature": "player_svd_dim_3",
-      "shap_value": -0.0763
+      "shap_value": 0.1707
     },
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.0715
+      "shap_value": -0.0911
+    },
+    {
+      "feature": "player_svd_dim_5",
+      "shap_value": -0.0807
+    },
+    {
+      "feature": "player_svd_dim_3",
+      "shap_value": -0.0758
     }
   ],
   "24903_758_fg3m": [
     {
       "feature": "player_turnover_form_delta_ewma5_vs_season",
-      "shap_value": 0.1872
+      "shap_value": 0.1832
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.1712
+      "shap_value": -0.1754
     },
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1606
+      "shap_value": -0.1618
     },
     {
       "feature": "player_minutes_mean_l3",
@@ -1932,21 +1932,21 @@
     },
     {
       "feature": "player_turnover_ewma_halflife3",
-      "shap_value": 0.0526
+      "shap_value": 0.0553
     }
   ],
   "24903_776_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.4243
+      "shap_value": -0.4171
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.069
+      "shap_value": -0.0659
     },
     {
       "feature": "player_fg3a_mean_l5",
-      "shap_value": -0.051
+      "shap_value": -0.0503
     },
     {
       "feature": "player_fg3m_season_zscore",
@@ -1954,69 +1954,69 @@
     },
     {
       "feature": "player_ast_per_min_l3",
-      "shap_value": -0.0305
+      "shap_value": -0.0313
     }
   ],
   "24903_61828_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1847
+      "shap_value": -0.1713
+    },
+    {
+      "feature": "player_ts_pct_l10",
+      "shap_value": 0.0496
     },
     {
       "feature": "opp_drop_indicator",
-      "shap_value": 0.0495
+      "shap_value": 0.0477
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.0474
+      "shap_value": -0.0445
     },
     {
       "feature": "player_fg3a_mean_l5",
-      "shap_value": 0.0373
-    },
-    {
-      "feature": "player_reb_form_delta_ewma3_vs_season",
-      "shap_value": 0.0335
+      "shap_value": 0.0379
     }
   ],
   "24903_66999_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.4825
+      "shap_value": -0.4891
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": -0.0972
-    },
-    {
-      "feature": "player_pts_season_zscore",
-      "shap_value": 0.0556
+      "shap_value": -0.0969
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.0471
+      "shap_value": 0.0583
     },
     {
-      "feature": "player_svd_dim_0",
-      "shap_value": -0.0359
+      "feature": "player_pts_season_zscore",
+      "shap_value": 0.0558
+    },
+    {
+      "feature": "player_fg3a_mean_l5",
+      "shap_value": -0.0339
     }
   ],
   "24903_67076_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": 0.5518
-    },
-    {
-      "feature": "player_ast_form_delta_ewma3_vs_season",
-      "shap_value": 0.0972
+      "shap_value": 0.6068
     },
     {
       "feature": "player_turnover_form_delta_ewma5_vs_season",
-      "shap_value": 0.0731
+      "shap_value": 0.0973
+    },
+    {
+      "feature": "player_ast_form_delta_ewma3_vs_season",
+      "shap_value": 0.0952
     },
     {
       "feature": "player_turnover_ewma_halflife3",
-      "shap_value": 0.0669
+      "shap_value": 0.067
     },
     {
       "feature": "schedule_fatigue_index",
@@ -2026,59 +2026,59 @@
   "24903_67080_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": 0.5434
+      "shap_value": 0.5195
     },
     {
       "feature": "player_ast_form_delta_ewma3_vs_season",
-      "shap_value": 0.1113
-    },
-    {
-      "feature": "player_svd_dim_0",
-      "shap_value": 0.0509
-    },
-    {
-      "feature": "player_reb_pi_home_form",
-      "shap_value": 0.0469
+      "shap_value": 0.1171
     },
     {
       "feature": "player_ast_form_vs_season_ratio",
-      "shap_value": 0.0456
+      "shap_value": 0.0473
+    },
+    {
+      "feature": "player_reb_pi_home_form",
+      "shap_value": 0.0473
+    },
+    {
+      "feature": "player_svd_dim_0",
+      "shap_value": 0.0465
     }
   ],
   "24903_67186_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1419
+      "shap_value": -0.14
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.1297
+      "shap_value": -0.1076
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": -0.0717
+      "shap_value": -0.0713
     },
     {
       "feature": "player_stl_form_vs_season_ratio",
-      "shap_value": 0.064
+      "shap_value": 0.0641
     },
     {
-      "feature": "player_ast_form_vs_season_ratio",
-      "shap_value": 0.0393
+      "feature": "player_embed_6",
+      "shap_value": 0.0459
     }
   ],
   "24903_67200_fg3m": [
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.511
+      "shap_value": -0.5195
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0948
+      "shap_value": -0.0982
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": -0.0532
+      "shap_value": -0.0524
     },
     {
       "feature": "player_fg3a_mean_l5",
@@ -2092,19 +2092,19 @@
   "24903_75090_fg3m": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": 0.1824
+      "shap_value": 0.2023
     },
     {
       "feature": "player_fg3a_mean_l10",
-      "shap_value": -0.1763
-    },
-    {
-      "feature": "player_svd_dim_5",
-      "shap_value": -0.1071
+      "shap_value": -0.1695
     },
     {
       "feature": "player_svd_dim_0",
-      "shap_value": 0.1068
+      "shap_value": 0.123
+    },
+    {
+      "feature": "player_svd_dim_5",
+      "shap_value": -0.1077
     },
     {
       "feature": "player_turnover_std_l10",
@@ -2114,7 +2114,7 @@
   "24903_383_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0964
+      "shap_value": -0.0963
     },
     {
       "feature": "player_pts_mean_l3",
@@ -2122,21 +2122,25 @@
     },
     {
       "feature": "opp_ast_allowed_per_100_poss_l5",
-      "shap_value": 0.0385
+      "shap_value": 0.04
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": -0.0314
+      "shap_value": -0.0315
     },
     {
       "feature": "player_minutes_mean_season",
-      "shap_value": -0.0288
+      "shap_value": -0.0289
     }
   ],
   "24903_541_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0697
+      "shap_value": -0.0699
+    },
+    {
+      "feature": "player_turnover_form_delta_l5_vs_l10",
+      "shap_value": 0.0335
     },
     {
       "feature": "opp_pts_allowed_per_100_poss_l5",
@@ -2147,18 +2151,14 @@
       "shap_value": 0.0323
     },
     {
-      "feature": "player_turnover_form_delta_l5_vs_l10",
-      "shap_value": 0.0314
-    },
-    {
       "feature": "player_svd_dim_4",
-      "shap_value": 0.0276
+      "shap_value": 0.0285
     }
   ],
   "24903_562_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": 0.1839
+      "shap_value": 0.1842
     },
     {
       "feature": "player_svd_dim_4",
@@ -2180,125 +2180,125 @@
   "24903_571_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0718
+      "shap_value": -0.0726
     },
     {
       "feature": "player_turnover_form_delta_l5_vs_l10",
-      "shap_value": 0.0572
-    },
-    {
-      "feature": "player_svd_dim_4",
-      "shap_value": 0.0374
+      "shap_value": 0.0691
     },
     {
       "feature": "opp_pts_allowed_per_100_poss_l5",
       "shap_value": 0.0332
     },
     {
+      "feature": "player_svd_dim_4",
+      "shap_value": 0.0331
+    },
+    {
       "feature": "usage_shift",
-      "shap_value": 0.0309
+      "shap_value": 0.0305
     }
   ],
   "24903_579_stl": [
     {
       "feature": "game_number_in_season",
-      "shap_value": 0.1017
+      "shap_value": 0.1019
     },
     {
       "feature": "player_pts_mean_l3",
-      "shap_value": 0.0653
+      "shap_value": 0.0652
     },
     {
       "feature": "player_ast_form_delta_ewma5_vs_season",
-      "shap_value": 0.0445
+      "shap_value": 0.0456
+    },
+    {
+      "feature": "player_minutes_mean_season",
+      "shap_value": -0.0393
     },
     {
       "feature": "usage_shift",
-      "shap_value": 0.0374
-    },
-    {
-      "feature": "opp_reb_allowed_mean_l5",
-      "shap_value": -0.033
+      "shap_value": 0.0373
     }
   ],
   "24903_580_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0764
+      "shap_value": -0.0818
     },
     {
       "feature": "schedule_fatigue_index",
-      "shap_value": -0.0433
+      "shap_value": -0.0456
     },
     {
       "feature": "usage_share_delta",
-      "shap_value": -0.0403
+      "shap_value": -0.0405
     },
     {
       "feature": "team_stl_def_pi",
-      "shap_value": 0.0394
+      "shap_value": 0.0405
     },
     {
-      "feature": "game_number_in_season",
-      "shap_value": 0.0344
+      "feature": "player_fg3m_momentum_ewma3_vs_ewma5",
+      "shap_value": 0.0349
     }
   ],
   "24903_590_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.1008
-    },
-    {
-      "feature": "player_svd_dim_1",
-      "shap_value": -0.0603
+      "shap_value": -0.1116
     },
     {
       "feature": "player_pts_mean_l3",
-      "shap_value": -0.0596
+      "shap_value": -0.0611
+    },
+    {
+      "feature": "player_svd_dim_1",
+      "shap_value": -0.0599
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": -0.0567
+      "shap_value": -0.0591
     },
     {
       "feature": "player_reb_ewma_halflife5",
-      "shap_value": -0.039
+      "shap_value": -0.0409
     }
   ],
   "24903_648_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.1098
+      "shap_value": -0.1104
     },
     {
       "feature": "player_pts_mean_l3",
-      "shap_value": -0.0944
+      "shap_value": -0.0965
     },
     {
       "feature": "game_number_in_season",
-      "shap_value": 0.0621
+      "shap_value": 0.0619
     },
     {
       "feature": "player_blk_ewma_halflife5",
       "shap_value": 0.0487
     },
     {
-      "feature": "player_embed_6",
-      "shap_value": 0.0366
+      "feature": "player_svd_dim_4",
+      "shap_value": 0.0291
     }
   ],
   "24903_686_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0725
+      "shap_value": -0.0753
     },
     {
       "feature": "player_turnover_form_delta_l5_vs_l10",
-      "shap_value": 0.0606
+      "shap_value": 0.0615
     },
     {
       "feature": "opp_ast_allowed_per_100_poss_l5",
-      "shap_value": 0.0522
+      "shap_value": 0.0526
     },
     {
       "feature": "player_stl_season_zscore",
@@ -2306,69 +2306,69 @@
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": 0.0366
+      "shap_value": 0.035
     }
   ],
   "24903_687_stl": [
     {
       "feature": "game_number_in_season",
-      "shap_value": 0.0409
-    },
-    {
-      "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0392
-    },
-    {
-      "feature": "usage_shift",
-      "shap_value": 0.0339
+      "shap_value": 0.0407
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": 0.0316
+      "shap_value": 0.0397
     },
     {
-      "feature": "player_turnover_form_delta_l5_vs_l10",
-      "shap_value": 0.0294
+      "feature": "player_minutes_mean_l10",
+      "shap_value": -0.0386
+    },
+    {
+      "feature": "usage_shift",
+      "shap_value": 0.0338
+    },
+    {
+      "feature": "opp_ast_allowed_mean_l5",
+      "shap_value": 0.0329
     }
   ],
   "24903_695_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0975
+      "shap_value": -0.0999
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0587
+      "shap_value": -0.0586
     },
     {
       "feature": "player_pts_mean_l3",
-      "shap_value": -0.0539
+      "shap_value": -0.054
     },
     {
       "feature": "player_minutes_std_l5",
-      "shap_value": 0.0493
+      "shap_value": 0.0383
     },
     {
-      "feature": "player_minutes_mean_season",
+      "feature": "player_turnover_form_delta_l5_vs_l10",
       "shap_value": -0.0302
     }
   ],
   "24903_734_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.1108
+      "shap_value": -0.1029
     },
     {
       "feature": "player_pts_mean_l3",
-      "shap_value": -0.0683
+      "shap_value": -0.068
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0569
+      "shap_value": -0.0568
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": -0.0425
+      "shap_value": -0.0423
     },
     {
       "feature": "player_turnover_form_delta_l5_vs_l10",
@@ -2378,23 +2378,23 @@
   "24903_744_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0492
+      "shap_value": -0.0545
     },
     {
       "feature": "player_minutes_mean_season",
-      "shap_value": -0.0331
+      "shap_value": -0.0347
+    },
+    {
+      "feature": "player_reb_pi_away_form",
+      "shap_value": 0.0327
     },
     {
       "feature": "opp_pts_allowed_per_100_poss_l5",
       "shap_value": 0.0325
     },
     {
-      "feature": "player_reb_pi_away_form",
-      "shap_value": 0.0267
-    },
-    {
       "feature": "player_stl_std_l10",
-      "shap_value": 0.0261
+      "shap_value": 0.0252
     }
   ],
   "24903_745_stl": [
@@ -2404,7 +2404,7 @@
     },
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": 0.1089
+      "shap_value": 0.1097
     },
     {
       "feature": "team_pts_allowed_mean_l10",
@@ -2412,33 +2412,33 @@
     },
     {
       "feature": "player_ast_std_l10",
-      "shap_value": 0.0586
+      "shap_value": 0.0591
     },
     {
       "feature": "game_number_in_season",
-      "shap_value": 0.0405
+      "shap_value": 0.0406
     }
   ],
   "24903_748_stl": [
     {
       "feature": "game_number_in_season",
-      "shap_value": 0.1333
+      "shap_value": 0.1331
     },
     {
       "feature": "player_pts_mean_l3",
-      "shap_value": 0.0658
+      "shap_value": 0.0674
     },
     {
       "feature": "opp_fg3m_allowed_mean_l10",
-      "shap_value": 0.0631
-    },
-    {
-      "feature": "player_minutes_mean_season",
-      "shap_value": 0.0392
+      "shap_value": 0.0633
     },
     {
       "feature": "player_fg3a_mean_l10",
       "shap_value": 0.0361
+    },
+    {
+      "feature": "player_minutes_min_l10",
+      "shap_value": 0.0277
     }
   ],
   "24903_758_stl": [
@@ -2448,91 +2448,91 @@
     },
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0876
+      "shap_value": -0.0883
     },
     {
       "feature": "rest_interaction_high_usage",
-      "shap_value": 0.0431
+      "shap_value": 0.0425
     },
     {
       "feature": "player_ast_form_vs_season_ratio",
-      "shap_value": 0.0301
+      "shap_value": 0.0298
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": -0.026
+      "shap_value": -0.0262
     }
   ],
   "24903_776_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0808
+      "shap_value": -0.0829
     },
     {
       "feature": "player_turnover_form_delta_l5_vs_l10",
-      "shap_value": 0.0775
+      "shap_value": 0.0787
     },
     {
       "feature": "opp_ast_allowed_per_100_poss_l5",
-      "shap_value": 0.0383
-    },
-    {
-      "feature": "usage_shift",
-      "shap_value": 0.0376
+      "shap_value": 0.0399
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": -0.0366
+      "shap_value": -0.0377
+    },
+    {
+      "feature": "usage_shift",
+      "shap_value": 0.0373
     }
   ],
   "24903_61828_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0825
+      "shap_value": -0.0832
     },
     {
       "feature": "player_turnover_form_delta_l5_vs_l10",
-      "shap_value": 0.0507
+      "shap_value": 0.0526
+    },
+    {
+      "feature": "player_minutes_mean_season",
+      "shap_value": -0.0392
     },
     {
       "feature": "opp_pts_allowed_per_100_poss_l5",
       "shap_value": 0.0334
     },
     {
-      "feature": "opp_ast_allowed_mean_l5",
-      "shap_value": 0.0316
-    },
-    {
-      "feature": "player_minutes_mean_season",
-      "shap_value": -0.0287
+      "feature": "player_svd_dim_4",
+      "shap_value": 0.0294
     }
   ],
   "24903_66999_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.1058
+      "shap_value": -0.1009
     },
     {
       "feature": "usage_shift",
-      "shap_value": -0.0644
+      "shap_value": -0.0648
     },
     {
       "feature": "player_svd_dim_4",
       "shap_value": 0.043
     },
     {
-      "feature": "opp_ast_allowed_mean_l5",
-      "shap_value": 0.031
+      "feature": "player_embed_6",
+      "shap_value": 0.0344
     },
     {
       "feature": "player_stl_std_l10",
-      "shap_value": 0.0258
+      "shap_value": 0.0267
     }
   ],
   "24903_67076_stl": [
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.0548
+      "shap_value": -0.0574
     },
     {
       "feature": "player_minutes_season_zscore",
@@ -2554,29 +2554,29 @@
   "24903_67080_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0733
+      "shap_value": -0.0762
     },
     {
       "feature": "team_stl_def_pi",
-      "shap_value": 0.0406
+      "shap_value": 0.0394
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": -0.0369
+      "shap_value": -0.0362
     },
     {
       "feature": "game_number_in_season",
-      "shap_value": 0.0362
+      "shap_value": 0.0356
     },
     {
       "feature": "player_blk_form_delta_ewma3_vs_season",
-      "shap_value": 0.033
+      "shap_value": 0.0321
     }
   ],
   "24903_67186_stl": [
     {
       "feature": "usage_shift",
-      "shap_value": -0.0804
+      "shap_value": -0.0803
     },
     {
       "feature": "player_reb_momentum_ewma3_vs_ewma5",
@@ -2584,7 +2584,7 @@
     },
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0375
+      "shap_value": -0.0378
     },
     {
       "feature": "opp_ast_allowed_mean_l5",
@@ -2592,17 +2592,21 @@
     },
     {
       "feature": "player_stl_season_zscore",
-      "shap_value": -0.0296
+      "shap_value": -0.0298
     }
   ],
   "24903_67200_stl": [
     {
       "feature": "player_minutes_mean_l10",
-      "shap_value": -0.1008
+      "shap_value": -0.1009
     },
     {
       "feature": "player_reb_momentum_ewma3_vs_ewma5",
       "shap_value": 0.0519
+    },
+    {
+      "feature": "player_stl_season_zscore",
+      "shap_value": -0.0336
     },
     {
       "feature": "opp_ast_allowed_mean_l5",
@@ -2611,86 +2615,82 @@
     {
       "feature": "player_svd_dim_4",
       "shap_value": 0.0333
-    },
-    {
-      "feature": "player_stl_season_zscore",
-      "shap_value": -0.0326
     }
   ],
   "24903_75090_stl": [
     {
-      "feature": "usage_shift",
-      "shap_value": -0.0945
+      "feature": "player_minutes_mean_l10",
+      "shap_value": -0.0919
     },
     {
-      "feature": "player_minutes_mean_l10",
-      "shap_value": -0.0897
+      "feature": "usage_shift",
+      "shap_value": -0.0696
     },
     {
       "feature": "player_svd_dim_4",
-      "shap_value": 0.0446
+      "shap_value": 0.0398
     },
     {
       "feature": "player_stl_season_zscore",
       "shap_value": -0.0362
     },
     {
-      "feature": "player_reb_pi_away_form",
-      "shap_value": -0.021
+      "feature": "player_pts_mean_l3",
+      "shap_value": -0.02
     }
   ],
   "24903_383_blk": [
     {
       "feature": "player_blk_momentum_ewma3_vs_ewma5",
-      "shap_value": 0.0683
+      "shap_value": 0.068
     },
     {
       "feature": "player_blk_form_delta_ewma5_vs_season",
-      "shap_value": 0.0496
-    },
-    {
-      "feature": "team_stl_for_mean_l10",
-      "shap_value": -0.0469
+      "shap_value": 0.0498
     },
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.0312
+      "shap_value": -0.0496
+    },
+    {
+      "feature": "team_stl_for_mean_l10",
+      "shap_value": -0.047
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0299
+      "shap_value": -0.0296
     }
   ],
   "24903_541_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1079
+      "shap_value": -0.0972
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0403
-    },
-    {
-      "feature": "team_pts_allowed_mean_l10",
-      "shap_value": 0.0252
+      "shap_value": -0.0386
     },
     {
       "feature": "player_turnover_home_mean_l5",
       "shap_value": 0.023
     },
     {
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.022
+    },
+    {
       "feature": "player_blk_form_delta_ewma3_vs_season",
-      "shap_value": 0.021
+      "shap_value": 0.0218
     }
   ],
   "24903_562_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1045
+      "shap_value": -0.1354
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0435
+      "shap_value": -0.0453
     },
     {
       "feature": "team_pts_allowed_mean_l10",
@@ -2698,43 +2698,39 @@
     },
     {
       "feature": "team_fg3m_for_mean_l10",
-      "shap_value": -0.0242
+      "shap_value": -0.0249
     },
     {
-      "feature": "player_turnover_home_mean_l5",
-      "shap_value": 0.0229
+      "feature": "player_blk_form_delta_ewma3_vs_season",
+      "shap_value": 0.0235
     }
   ],
   "24903_571_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1221
+      "shap_value": -0.1189
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0443
+      "shap_value": -0.0626
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0364
+      "shap_value": -0.0361
     },
     {
       "feature": "opp_rest_days",
       "shap_value": 0.0304
     },
     {
-      "feature": "player_ast_away_mean_l5",
-      "shap_value": 0.0215
+      "feature": "player_stl_vs_opp_career_mean",
+      "shap_value": -0.0254
     }
   ],
   "24903_579_blk": [
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.044
-    },
-    {
-      "feature": "schedule_fatigue_index",
-      "shap_value": 0.0329
+      "shap_value": -0.0329
     },
     {
       "feature": "player_pts_form_vs_season_ratio",
@@ -2742,21 +2738,25 @@
     },
     {
       "feature": "player_reb_mean_l10",
-      "shap_value": 0.0267
+      "shap_value": 0.0292
     },
     {
-      "feature": "player_turnover_home_mean_l5",
-      "shap_value": 0.0221
+      "feature": "player_blk_season_zscore",
+      "shap_value": 0.0291
+    },
+    {
+      "feature": "schedule_fatigue_index",
+      "shap_value": 0.0228
     }
   ],
   "24903_580_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.0684
+      "shap_value": -0.0782
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.055
+      "shap_value": -0.0548
     },
     {
       "feature": "player_turnover_form_vs_season_ratio",
@@ -2764,7 +2764,7 @@
     },
     {
       "feature": "shot_quality_delta_l10",
-      "shap_value": 0.0233
+      "shap_value": 0.0236
     },
     {
       "feature": "opp_rest_days",
@@ -2774,19 +2774,19 @@
   "24903_590_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1384
+      "shap_value": -0.1317
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0489
+      "shap_value": -0.0496
     },
     {
       "feature": "opp_rest_days",
-      "shap_value": 0.0284
+      "shap_value": 0.0279
     },
     {
       "feature": "player_pts_pi_away_form",
-      "shap_value": 0.0237
+      "shap_value": 0.0265
     },
     {
       "feature": "player_turnover_home_mean_l5",
@@ -2796,11 +2796,11 @@
   "24903_648_blk": [
     {
       "feature": "player_svd_dim_5",
-      "shap_value": 0.3942
+      "shap_value": 0.3946
     },
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": 0.2184
+      "shap_value": 0.24
     },
     {
       "feature": "player_turnover_home_mean_l5",
@@ -2812,127 +2812,127 @@
     },
     {
       "feature": "team_fg3m_for_mean_l10",
-      "shap_value": -0.0309
+      "shap_value": -0.031
     }
   ],
   "24903_686_blk": [
-    {
-      "feature": "player_blk_momentum_ewma3_vs_ewma5",
-      "shap_value": 0.0471
-    },
     {
       "feature": "team_stl_for_mean_l10",
       "shap_value": -0.0467
     },
     {
+      "feature": "player_blk_momentum_ewma3_vs_ewma5",
+      "shap_value": 0.0446
+    },
+    {
       "feature": "opp_drop_indicator",
-      "shap_value": 0.0432
+      "shap_value": 0.0425
+    },
+    {
+      "feature": "player_stl_vs_opp_career_mean",
+      "shap_value": -0.0255
     },
     {
       "feature": "player_fg3_pct_l5",
-      "shap_value": -0.026
-    },
-    {
-      "feature": "player_minutes_std_l5",
-      "shap_value": 0.0231
+      "shap_value": -0.0234
     }
   ],
   "24903_687_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1005
+      "shap_value": -0.0793
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0735
+      "shap_value": -0.074
     },
     {
       "feature": "opp_rest_days",
       "shap_value": 0.0267
     },
     {
-      "feature": "opp_drop_indicator",
-      "shap_value": 0.0264
+      "feature": "player_stl_vs_opp_career_mean",
+      "shap_value": -0.0233
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": -0.0231
+      "shap_value": -0.0224
     }
   ],
   "24903_695_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1045
+      "shap_value": -0.105
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0561
+      "shap_value": -0.0522
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0307
+      "shap_value": -0.0303
     },
     {
       "feature": "opp_reb_allowed_per_100_poss_l5",
-      "shap_value": -0.0246
+      "shap_value": -0.0245
     },
     {
-      "feature": "opp_drop_indicator",
-      "shap_value": 0.0233
+      "feature": "player_reb_per_min_l5_x_proj_min",
+      "shap_value": -0.021
     }
   ],
   "24903_734_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1119
+      "shap_value": -0.1137
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0476
+      "shap_value": -0.0552
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0387
+      "shap_value": -0.0385
+    },
+    {
+      "feature": "opp_reb_allowed_per_100_poss_l5",
+      "shap_value": -0.0212
     },
     {
       "feature": "player_turnover_home_mean_l5",
       "shap_value": 0.021
-    },
-    {
-      "feature": "player_svd_dim_2",
-      "shap_value": 0.0206
     }
   ],
   "24903_744_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1258
-    },
-    {
-      "feature": "player_ast_away_mean_l5",
-      "shap_value": 0.0291
+      "shap_value": -0.0984
     },
     {
       "feature": "team_pts_allowed_mean_l10",
-      "shap_value": 0.0269
+      "shap_value": 0.0262
+    },
+    {
+      "feature": "player_ast_form_vs_season_ratio",
+      "shap_value": -0.026
+    },
+    {
+      "feature": "player_ast_away_mean_l5",
+      "shap_value": 0.0251
     },
     {
       "feature": "player_turnover_home_mean_l5",
       "shap_value": 0.0231
-    },
-    {
-      "feature": "cumulative_minutes_l7",
-      "shap_value": 0.0224
     }
   ],
   "24903_745_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.0964
+      "shap_value": -0.0953
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0516
+      "shap_value": -0.0358
     },
     {
       "feature": "team_pts_allowed_mean_l10",
@@ -2940,7 +2940,7 @@
     },
     {
       "feature": "player_fta_rate_l10",
-      "shap_value": 0.0249
+      "shap_value": 0.0242
     },
     {
       "feature": "player_turnover_home_mean_l5",
@@ -2950,19 +2950,19 @@
   "24903_748_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1012
+      "shap_value": -0.101
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0481
+      "shap_value": -0.0839
     },
     {
       "feature": "player_fta_rate_l10",
-      "shap_value": 0.0356
+      "shap_value": 0.0313
     },
     {
       "feature": "team_pts_allowed_mean_l10",
-      "shap_value": 0.0262
+      "shap_value": 0.0261
     },
     {
       "feature": "player_turnover_home_mean_l5",
@@ -2972,151 +2972,151 @@
   "24903_758_blk": [
     {
       "feature": "player_reb_per_min_l5_x_proj_min",
-      "shap_value": 0.0654
+      "shap_value": 0.065
     },
     {
       "feature": "usage_shift",
-      "shap_value": 0.0595
+      "shap_value": 0.0631
     },
     {
       "feature": "schedule_fatigue_index",
-      "shap_value": 0.058
+      "shap_value": 0.0578
     },
     {
       "feature": "player_stl_vs_opp_career_mean",
-      "shap_value": -0.0508
+      "shap_value": -0.0522
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.047
+      "shap_value": -0.0472
     }
   ],
   "24903_776_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1032
+      "shap_value": -0.0998
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0444
+      "shap_value": -0.0442
     },
     {
       "feature": "player_stl_vs_opp_career_mean",
-      "shap_value": -0.0317
+      "shap_value": -0.0355
     },
     {
-      "feature": "opp_drop_indicator",
-      "shap_value": 0.0276
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.0249
     },
     {
-      "feature": "player_svd_dim_5",
-      "shap_value": -0.0229
+      "feature": "player_ast_form_vs_season_ratio",
+      "shap_value": -0.0239
     }
   ],
   "24903_61828_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.0926
-    },
-    {
-      "feature": "team_pts_allowed_mean_l10",
-      "shap_value": 0.0232
+      "shap_value": -0.0971
     },
     {
       "feature": "player_turnover_home_mean_l5",
       "shap_value": 0.0228
     },
     {
-      "feature": "team_fg3m_for_mean_l10",
-      "shap_value": -0.0197
+      "feature": "team_pts_allowed_mean_l10",
+      "shap_value": 0.0226
     },
     {
-      "feature": "opp_total_score_allowed_mean_l10",
-      "shap_value": -0.0194
+      "feature": "player_svd_dim_1",
+      "shap_value": 0.0223
+    },
+    {
+      "feature": "player_stl_form_delta_l5_vs_l10",
+      "shap_value": 0.0219
     }
   ],
   "24903_66999_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.0947
+      "shap_value": -0.1028
     },
     {
       "feature": "usage_shift",
-      "shap_value": 0.0555
+      "shap_value": 0.0661
     },
     {
       "feature": "usage_shift_abs",
-      "shap_value": 0.0515
+      "shap_value": 0.0513
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.037
+      "shap_value": -0.0361
     },
     {
-      "feature": "player_blk_std_l10",
-      "shap_value": -0.0345
+      "feature": "player_ast_away_mean_l5",
+      "shap_value": 0.0346
     }
   ],
   "24903_67076_blk": [
     {
       "feature": "player_blk_std_l10",
-      "shap_value": 0.0745
-    },
-    {
-      "feature": "player_blk_season_zscore",
-      "shap_value": -0.0262
-    },
-    {
-      "feature": "opp_rest_days",
-      "shap_value": 0.0259
+      "shap_value": 0.0731
     },
     {
       "feature": "player_embed_4",
-      "shap_value": -0.0253
+      "shap_value": -0.0262
     },
     {
-      "feature": "opp_reb_allowed_per_100_poss_l5",
-      "shap_value": -0.0246
+      "feature": "player_blk_season_zscore",
+      "shap_value": -0.0252
+    },
+    {
+      "feature": "opp_rest_days",
+      "shap_value": 0.0251
+    },
+    {
+      "feature": "opp_ast_allowed_per_100_poss_l5",
+      "shap_value": 0.0228
     }
   ],
   "24903_67080_blk": [
     {
-      "feature": "player_embed_4",
-      "shap_value": 0.0462
-    },
-    {
       "feature": "player_embed_6",
-      "shap_value": -0.0373
+      "shap_value": 0.0536
     },
     {
       "feature": "player_blk_form_delta_ewma5_vs_season",
       "shap_value": 0.034
     },
     {
-      "feature": "player_fg3_pct_l5",
-      "shap_value": 0.0308
+      "feature": "player_stl_vs_opp_career_mean",
+      "shap_value": -0.0308
     },
     {
-      "feature": "player_stl_vs_opp_career_mean",
-      "shap_value": -0.0265
+      "feature": "player_embed_4",
+      "shap_value": 0.0277
+    },
+    {
+      "feature": "player_fg3_pct_l5",
+      "shap_value": 0.0266
     }
   ],
   "24903_67186_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1047
+      "shap_value": -0.1048
     },
     {
       "feature": "player_svd_dim_1",
-      "shap_value": -0.0658
+      "shap_value": -0.0655
     },
     {
       "feature": "player_stl_vs_opp_career_mean",
-      "shap_value": -0.0289
+      "shap_value": -0.0288
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0281
+      "shap_value": -0.0274
     },
     {
       "feature": "player_turnover_home_mean_l5",
@@ -3126,45 +3126,45 @@
   "24903_67200_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.0908
-    },
-    {
-      "feature": "player_stl_vs_opp_career_mean",
-      "shap_value": -0.029
-    },
-    {
-      "feature": "player_pts_pi_away_form",
-      "shap_value": 0.0282
+      "shap_value": -0.0894
     },
     {
       "feature": "player_svd_dim_5",
-      "shap_value": -0.0243
+      "shap_value": -0.0245
     },
     {
       "feature": "player_turnover_home_mean_l5",
       "shap_value": 0.0239
+    },
+    {
+      "feature": "player_pts_pi_away_form",
+      "shap_value": 0.0229
+    },
+    {
+      "feature": "player_blk_std_l10",
+      "shap_value": -0.0211
     }
   ],
   "24903_75090_blk": [
     {
       "feature": "player_blk_season_zscore",
-      "shap_value": -0.1037
+      "shap_value": -0.1034
     },
     {
       "feature": "usage_shift",
-      "shap_value": 0.068
+      "shap_value": 0.0756
+    },
+    {
+      "feature": "player_svd_dim_1",
+      "shap_value": -0.0502
     },
     {
       "feature": "player_blk_std_l10",
-      "shap_value": -0.0316
-    },
-    {
-      "feature": "player_embed_1",
-      "shap_value": 0.0242
+      "shap_value": -0.0286
     },
     {
       "feature": "team_pts_allowed_mean_l10",
-      "shap_value": 0.0235
+      "shap_value": 0.0234
     }
   ]
 }
