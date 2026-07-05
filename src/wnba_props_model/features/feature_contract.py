@@ -292,6 +292,18 @@ _CONSTANT_DEGENERATE_FEATURES = frozenset({
     "rotation_minutes_q75",
     "rotation_minutes_q90",
     "rotation_minutes_std",
+    # Dead features: always-null (no WNBA data source populates these columns).
+    # Keeping them inflates the feature matrix without contributing signal and
+    # causes spurious NaN handling in tree splits.
+    "player_defensive_rating_l5",
+    "player_offensive_rating_l5",
+    "player_true_shooting_percentage_l5",
+    "player_rebound_percentage_l5",
+    "player_usage_percentage_l5",
+    "player_assist_percentage_l5",
+    "player_rim_freq_l5",
+    "player_corner3_freq_l5",
+    "player_above_break3_freq_l5",
 })
 
 # Position-level opponent defensive stats (e.g. how many pts does this team
