@@ -549,12 +549,18 @@ def apply_bayesian_shrinkage(
     # Stat support caps (matching pmf_engine)
     _STAT_CAPS = {"pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12}
 
+    # Enhancement 10: season-phase shrinkage multiplier (defined once, not per-row)
+    _PHASE_MULT: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
+
     rows_modified = 0
     out_rows = []
     for _, row in pmfs_long.iterrows():
         pid     = int(row["player_id"])
         stat    = str(row["stat"])
         n_games = player_ngames.get(pid, 50)
+
+        # Lookup per-stat prior (needed for prior PMF construction and CI width)
+        prior = stat_priors.get(stat)
 
         # Continuous role-weighted effective-n shrinkage (replaces hard bypass cutoff).
         # compute_effective_n down-weights bench players whose games carry less signal.
@@ -566,8 +572,7 @@ def apply_bayesian_shrinkage(
 
         # Enhancement 10: adjust k by season-phase multiplier
         phase   = player_phase.get(pid, "mid")
-        _PHASE_MULTIPLIER: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
-        phase_mult = _PHASE_MULTIPLIER.get(phase, 1.0)
+        phase_mult = _PHASE_MULT.get(phase, 1.0)
         # Apply phase multiplier to effective n (more shrinkage early, less late)
         n_eff_phased = n_eff / phase_mult  # dividing n_eff → higher alpha early
         alpha = compute_shrinkage_alpha(n_eff_phased, stat, position)
