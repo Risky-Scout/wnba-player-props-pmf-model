@@ -34,6 +34,34 @@ from wnba_props_model.models.pmf_utils import (
 PMF_SOURCE = "stage4_baseline_uncalibrated_model_only"
 STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
 
+# ---------------------------------------------------------------------------
+# Per-role, per-position REB dispersion (Phase G)
+# ---------------------------------------------------------------------------
+
+_REB_ROLE_DISPERSION: dict[str, float] = {
+    "bench_low":      8.0,
+    "bench_rotation": 6.0,
+    "rotation":       4.5,
+    "starter":        3.5,
+    "workhorse":      3.0,
+    "core":           4.0,
+    "fringe":         9.0,
+}
+
+_REB_POSITION_MODIFIER: dict[str, float] = {"G": 1.5, "F": 1.0, "C": 0.7}
+
+
+def compute_reb_effective_r(role: str, position: str) -> float:
+    """Return position + role adjusted NegBinom dispersion r for REB.
+
+    Higher r = tighter PMF (less overdispersion).
+    - Centers have lower r (more variance relative to mean, spread around role)
+    - Bench/fringe have higher r (tight around zero)
+    """
+    base_r = _REB_ROLE_DISPERSION.get(str(role), 4.0)
+    pos_mod = _REB_POSITION_MODIFIER.get(str(position)[:1].upper(), 1.0)
+    return base_r * pos_mod
+
 
 # ---------------------------------------------------------------------------
 # Feature preparation
@@ -293,12 +321,20 @@ def build_all_pmfs(
                 stat_means=stat_means,
             )
         else:
+            # Extract per-player position for REB dispersion
+            _positions = None
+            if "position" in stat_rows.columns:
+                _positions = stat_rows["position"].fillna("F").values
+            elif "position" in wide_df.columns:
+                _pos_lu = wide_df.set_index(["player_id", "game_id"])["position"]
+                _positions = stat_rows.set_index(["player_id", "game_id"]).index.map(_pos_lu).fillna("F").values
             pmf_mat = _build_pmf_matrix(
                 stat, stat_means, p_nz, pos_mus,
                 stat_models, hurdle_models, cap, roles=roles,
                 bb_models=bb_models, X_stat_df=X_stat_df,
                 pts_hurdle_model=pts_hurdle_model,
                 stat_rows=stat_rows,
+                positions=_positions,
             )
 
         # ---- Apply DNP blending -------------------------------------------
@@ -397,6 +433,7 @@ def _build_pmf_matrix(
     X_stat_df: "pd.DataFrame | None" = None,
     pts_hurdle_model: "Any | None" = None,
     stat_rows: "pd.DataFrame | None" = None,
+    positions: "np.ndarray | None" = None,
 ) -> np.ndarray:
     """Build PMF matrix (n × cap+1) for a stat.
 
@@ -491,6 +528,17 @@ def _build_pmf_matrix(
                 pmf_mat[i] = negbinom_pmf_batch(stat_means[i:i+1], r_i, cap)[0]
             else:
                 pmf_mat[i] = poisson_pmf_batch(stat_means[i:i+1], cap)[0]
+        return pmf_mat
+
+    # Per-role, per-position REB dispersion (Phase G): position adjusts the role-
+    # level base r so centers (low r, wide distribution) and guards (high r, tight)
+    # get appropriately shaped PMFs regardless of whether the model has _role_dispersion.
+    if stat == "reb" and roles is not None and positions is not None:
+        n = len(stat_means)
+        pmf_mat = np.zeros((n, cap + 1))
+        for i in range(n):
+            r_i = compute_reb_effective_r(str(roles[i]), str(positions[i]))
+            pmf_mat[i] = negbinom_pmf_batch(stat_means[i:i+1], r_i, cap)[0]
         return pmf_mat
 
     # Role-aware NegBinom batching: star players have fatter tails than bench.
