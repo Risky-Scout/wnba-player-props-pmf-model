@@ -201,6 +201,30 @@ def apply_beta_calibrators(
         return p_over_series
 
 
+def _apply_protected_mean_bias_correction(
+    model_means: np.ndarray,
+    bias: float,
+) -> np.ndarray:
+    """Apply additive mean bias correction proportionally by deviation from median.
+
+    High performers (large deviation from median) get smaller corrections so that
+    workhorse underprediction is not caused by the global correction pushing their
+    means down. Bench players (small predictions, near median) get the full correction.
+
+    Parameters
+    ----------
+    model_means : Per-player predicted stat means (batch).
+    bias        : OOF-measured additive bias: actual_mean - model_mean.
+                  Positive bias → model underpredicts → shift means up.
+    """
+    if abs(bias) < 1e-6:
+        return model_means
+    deviation = np.abs(model_means - np.median(model_means))
+    max_dev = max(float(deviation.max()), 1.0)
+    weights = 1.0 - 0.7 * np.minimum(deviation / max_dev, 1.0)
+    return model_means + bias * weights
+
+
 def _apply_mean_bias_correction(
     pmf_arr: np.ndarray,
     alpha: float,
@@ -858,20 +882,58 @@ def apply_calibrators(
         logger.info("[calibrate] Applied P(DNP) calibration: mean_raw=%.3f mean_cal=%.3f",
                     float(_raw_pdnp.mean()), float(_cal_pdnp.mean()))
 
+    # Protected mean bias correction (Phase H): apply additive non-uniform correction
+    # per-stat in batch BEFORE the per-row PMF loop.  This prevents the global
+    # correction from over-correcting workhorse players (large predicted means), which
+    # causes the observed -1.22 underprediction gap for elite scorers.
+    # We convert the multiplicative alpha (actual/model ratio) to an additive bias
+    # (actual_mean - model_mean ≈ model_mean * (alpha - 1)) and apply it via
+    # _apply_protected_mean_bias_correction(), which weights corrections by proximity
+    # to the median prediction (high-performers get ~30%, bench gets 100%).
+    _protected_target_means: dict[str, np.ndarray] = {}
+    if "pmf_mean" in out.columns:
+        for _pbc_stat, _pbc_grp in out.groupby("stat"):
+            _pbc_alpha = _bias_corrections_ac.get(str(_pbc_stat), 1.0)
+            if abs(_pbc_alpha - 1.0) > 0.005:
+                _pbc_means = _pbc_grp["pmf_mean"].fillna(0.0).values.astype(float)
+                _pbc_bias = float(np.mean(_pbc_means)) * (_pbc_alpha - 1.0)
+                _protected_target_means[str(_pbc_stat)] = _apply_protected_mean_bias_correction(
+                    _pbc_means, _pbc_bias
+                )
+
+    # Build a row-index → corrected mean map for fast lookup in the loop below
+    _row_corrected_mean: dict[int, float] = {}
+    if _protected_target_means:
+        for _pbc_stat, _pbc_target in _protected_target_means.items():
+            _pbc_idx = out[out["stat"] == _pbc_stat].index.tolist()
+            for _enum_i, _ridx in enumerate(_pbc_idx):
+                if _enum_i < len(_pbc_target):
+                    _row_corrected_mean[_ridx] = float(_pbc_target[_enum_i])
+
     new_pmf_jsons = []
     is_calibrated_flags = []
     cal_sources = []
 
-    for _, row in out.iterrows():
+    for _row_idx, row in out.iterrows():
         stat = row["stat"]
         role = str(row.get("role_bucket", "unknown"))
         player_id = row.get("player_id", None)
         raw_pmf = json_to_pmf(row["pmf_json"])
 
-        # Apply multiplicative mean bias correction before isotonic shape calibration
+        # Apply protected mean bias correction: use per-player corrected target mean
+        # (from _apply_protected_mean_bias_correction) when available; fall back to
+        # standard multiplicative correction otherwise.
         _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
         _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
-        if abs(_alpha_ac - 1.0) > 0.005 or _vc_factor_ac > 1.05:
+        if _row_idx in _row_corrected_mean and abs(_alpha_ac - 1.0) > 0.005:
+            # Recompute alpha for this specific player from the protected target mean
+            _pmf_k = np.arange(len(raw_pmf), dtype=float)
+            _curr_mean = float(np.dot(_pmf_k, raw_pmf / max(raw_pmf.sum(), 1e-9)))
+            _target_mean = _row_corrected_mean[_row_idx]
+            _player_alpha = (_target_mean / _curr_mean) if _curr_mean > 0.01 else _alpha_ac
+            _player_alpha = float(np.clip(_player_alpha, 0.60, 1.40))
+            raw_pmf = _apply_mean_bias_correction(raw_pmf, _player_alpha, variance_compress_factor=_vc_factor_ac)
+        elif abs(_alpha_ac - 1.0) > 0.005 or _vc_factor_ac > 1.05:
             raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac, variance_compress_factor=_vc_factor_ac)
 
         # Per-player variance compression override (applied after global stat-level VC)
