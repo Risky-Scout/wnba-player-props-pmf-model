@@ -387,6 +387,45 @@ jobs:
           destination_dir: .
           keep_files: true
 
+      - name: Sanity gate — block deployment if calibration is catastrophically wrong
+        run: |
+          python - <<'EOF'
+          import json, sys, pathlib
+          import pandas as pd
+
+          # Gate 1: bias_corrections floor check
+          bias_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
+          if bias_path.exists():
+              bias = json.loads(bias_path.read_text())
+              for stat, val in bias.items():
+                  if val < 0.50:
+                      print(f"GATE FAIL: bias_corrections[{stat}]={val:.3f} below 0.50 floor")
+                      sys.exit(1)
+              print(f"Gate 1 PASS: bias_corrections min={min(bias.values()):.3f}")
+          else:
+              print("Gate 1 SKIP: bias_corrections.json not found")
+
+          # Gate 2: mean edge sanity check
+          edges_path = pathlib.Path("artifacts/edge_report/publishable_edges.parquet")
+          if not edges_path.exists():
+              edges_path = pathlib.Path("deliveries/tonight/publishable_edges.parquet")
+          if edges_path.exists():
+              df = pd.read_parquet(edges_path)
+              if "edge_pp" in df.columns and len(df) > 0:
+                  mean_edge = df["edge_pp"].mean()
+                  print(f"Gate 2: mean_edge_pp={mean_edge:.2f} across {len(df)} rows")
+                  if mean_edge < -20.0:
+                      print(f"DEPLOY BLOCKED: mean_edge={mean_edge:.1f}pp — calibration mismatch. Run weekly_calibration before deploying.")
+                      sys.exit(1)
+                  print(f"Gate 2 PASS: mean edge {mean_edge:.1f}pp is above -20pp threshold")
+              else:
+                  print("Gate 2 SKIP: no edge_pp column or empty parquet")
+          else:
+              print("Gate 2 SKIP: publishable_edges.parquet not found")
+
+          print("All sanity gates passed — deployment approved")
+          EOF
+
       - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
