@@ -116,61 +116,54 @@ secondary_no_vig_method: power
 
 dispersion_r_by_role:
   pts:
-    starter: 2.84
-    core: 2.36
-    rotation: 1.92
-    bench: 1.69
-    fringe: 1.50
-    inactive_risk: 1.17
+    bench: 0.6842
+    rotation: 1.1259
+    core: 1.5156
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 1.7984
   reb:
-    starter: 2.73
-    core: 2.53
-    rotation: 2.16
-    bench: 1.90
-    fringe: 1.72
-    inactive_risk: 1.45
+    bench: 0.7228
+    rotation: 1.1928
+    core: 1.4966
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 1.5738
   ast:
-    starter: 2.11
-    core: 1.79
-    rotation: 1.48
-    bench: 1.30
-    fringe: 0.93
-    inactive_risk: 0.55
+    bench: 0.5826
+    rotation: 0.8973
+    core: 1.1635
+    fringe: 0.3945
+    inactive_risk: 0.3
+    starter: 1.3378
   fg3m:
-    starter: 1.23
-    core: 1.04
-    rotation: 0.92
-    bench: 0.81
-    fringe: 0.73
-    inactive_risk: 0.64
+    bench: 0.4259
+    rotation: 0.6532
+    core: 0.7957
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 0.9289
   stl:
-    starter: 2.96
-    core: 2.62
-    rotation: 2.37
-    bench: 2.19
-    fringe: 1.98
-    inactive_risk: 1.75
+    bench: 1.4052
+    rotation: 4.6627
+    core: 8.2648
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 20.0
   blk:
-    starter: 1.61
-    core: 1.32
-    rotation: 0.88
-    bench: 0.63
-    fringe: 0.39
-    inactive_risk: 0.21
+    bench: 0.7422
+    rotation: 1.4958
+    core: 2.2502
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 2.6384
   turnover:
-    starter: 5.78
-    core: 4.90
-    rotation: 4.09
-    bench: 3.57
-    fringe: 2.67
-    inactive_risk: 1.57
-  stocks:
-    starter: 2.50
-    core: 2.20
-    rotation: 1.90
-    bench: 1.70
-    fringe: 1.50
-    inactive_risk: 1.20
+    bench: 0.9709
+    rotation: 1.721
+    core: 2.3078
+    fringe: 0.5249
+    inactive_risk: 0.3
+    starter: 2.6347
 
 # Per-stat configuration overrides (must match stage4_baseline.yaml)
 stat_overrides:
