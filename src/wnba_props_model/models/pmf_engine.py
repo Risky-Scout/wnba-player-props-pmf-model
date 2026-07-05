@@ -439,6 +439,22 @@ def _build_pmf_matrix(
 
     if stat in hurdle_models:
         model = hurdle_models[stat]
+        # PositionStratifiedSparseModel returns per-player r values via predict()
+        from wnba_props_model.models.sparse_stats_v2 import PositionStratifiedSparseModel as _PSSM  # noqa: PLC0415
+        if isinstance(model, _PSSM) and X_stat_df is not None:
+            try:
+                preds = model.predict(X_stat_df)
+                _p_nz   = preds["p_nz"]
+                _pos_mu = preds["pos_mus"]
+                _r_arr  = preds["role_rs"]
+                n = len(_p_nz)
+                pmf_mat = np.zeros((n, cap + 1))
+                for i in range(n):
+                    pmf_mat[i] = model.build_pmf(float(_p_nz[i]), float(_pos_mu[i]), float(_r_arr[i]), cap)
+                return pmf_mat
+            except Exception as _pssm_exc:
+                import warnings as _w
+                _w.warn(f"PositionStratifiedSparseModel failed, falling back: {_pssm_exc}", stacklevel=3)
         pos_r = model.pos_dispersion_r
         return hurdle_pmf_batch(p_nz, pos_mus, pos_r, cap)  # type: ignore[arg-type]
 
