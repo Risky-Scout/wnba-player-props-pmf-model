@@ -55,15 +55,16 @@ from scipy import optimize, special, stats
 
 logger = logging.getLogger(__name__)
 
-# Fallback league-average stat means (updated from data when features_wide available)
+# Fallback league-average stat means — OOF-measured empirical means (blk 0.50→0.38).
+# Updated from data when features_wide is available; these serve as the static fallback.
 _LEAGUE_PRIORS: dict[str, float] = {
-    "pts": 9.5,
-    "reb": 4.2,
-    "ast": 2.1,
-    "fg3m": 1.1,
-    "stl": 0.9,
-    "blk": 0.5,
-    "turnover": 1.7,
+    "pts": 7.95,
+    "reb": 3.80,
+    "ast": 2.03,
+    "fg3m": 0.78,
+    "stl": 0.67,
+    "blk": 0.38,
+    "turnover": 1.36,
 }
 
 # Load updated league priors from artifacts/models/league_priors.json if available.
