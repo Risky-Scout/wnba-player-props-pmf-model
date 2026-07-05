@@ -108,6 +108,7 @@ def build_all_pmfs(
     hurdle_models: dict[str, Any],
     cfg: dict[str, Any],
     bb_models: dict[str, Any] | None = None,
+    minutes_correction: Any | None = None,
 ) -> pd.DataFrame:
     """Build full PMF table (one row per player_id × game_id × stat).
 
@@ -143,6 +144,19 @@ def build_all_pmfs(
     # Minutes predictions
     # ------------------------------------------------------------------ #
     min_means, min_sigmas, p_dnp = minutes_model.predict(X_wide, wide_df)
+
+    # Apply role-aware minutes correction if available (fitted during weekly_calibration).
+    if minutes_correction is not None and getattr(minutes_correction, "fitted", False):
+        try:
+            _role_col = wide_df["role_bucket"].values if "role_bucket" in wide_df.columns else np.full(len(wide_df), "rotation")
+            _corr = minutes_correction.correct(min_means, min_sigmas, p_dnp, _role_col)
+            min_means  = _corr["minutes_mean"]
+            min_sigmas = _corr["minutes_sigma"]
+            p_dnp      = _corr["p_dnp"]
+        except Exception as _mc_exc:
+            import warnings as _w
+            _w.warn(f"minutes_correction.correct() failed: {_mc_exc}; using raw predictions", stacklevel=2)
+
     wide_with_min = wide_df.assign(
         minutes_mean=min_means,
         minutes_sigma=min_sigmas,
