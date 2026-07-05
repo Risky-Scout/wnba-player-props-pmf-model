@@ -19,7 +19,11 @@ import yaml
 
 from wnba_props_model.constants import DOMAIN_MAX
 from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket
-from wnba_props_model.models.bivariate_pmf import _DEFAULT_CORRELATIONS, adjust_combo_pmf_for_correlation
+from wnba_props_model.models.bivariate_pmf import (
+    _DEFAULT_CORRELATIONS,
+    _DEFAULT_CORRELATIONS_BY_POS,
+    adjust_combo_pmf_for_correlation,
+)
 from wnba_props_model.models.pmf_engine import (
     STATS,
     build_all_pmfs,
@@ -388,8 +392,9 @@ def predict_player_pmfs(
         )
         pmfs_long = pmfs_long.merge(_pos_lu, on=["player_id", "game_id"], how="left")
 
-    # P3.5: Load position-stratified combo correlations if artifact exists.
-    _corr_by_pos: dict[str, dict[str, float]] | None = None
+    # P3.5: Load position-stratified combo correlations if artifact exists;
+    # fall back to theory-grounded hardcoded estimates when the file is absent.
+    _corr_by_pos: dict[str, dict[str, float]] = dict(_DEFAULT_CORRELATIONS_BY_POS)
     _corr_by_pos_path = model_dir / "combo_correlations_by_pos.json"
     if _corr_by_pos_path.exists():
         try:
@@ -398,7 +403,9 @@ def predict_player_pmfs(
                 _corr_by_pos = _cjson.load(_cf)
             logger.info("Loaded position-stratified combo correlations from %s", _corr_by_pos_path)
         except Exception as _ce:
-            logger.warning("Failed to load corr_by_pos: %s", _ce)
+            logger.warning("Failed to load corr_by_pos: %s — using hardcoded defaults", _ce)
+    else:
+        logger.info("combo_correlations_by_pos.json not found; using _DEFAULT_CORRELATIONS_BY_POS")
 
     # Build combo-prop PMFs via discrete convolution + bivariate copula correction.
     # These are appended as additional rows so edge reports cover BDL combo markets.
