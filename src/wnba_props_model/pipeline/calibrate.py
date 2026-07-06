@@ -806,6 +806,128 @@ def fit_calibrators(
     return paths
 
 
+def apply_role_stratified_corrections(
+    pmfs_long: pd.DataFrame,
+    cal_dir: str | Path = "artifacts/models/calibration",
+) -> pd.DataFrame:
+    """Apply role-stratified bias corrections and player-level form corrections.
+
+    Replaces the single global bias correction (bias_corrections.json) with
+    per-role corrections (bias_corrections_by_role.json), then applies
+    player-level residual form corrections from the 'flat_corrections' key
+    in player_form_corrections_2026.json.
+
+    Call AFTER apply_calibrators, BEFORE apply_bayesian_shrinkage.
+
+    Parameters
+    ----------
+    pmfs_long : DataFrame with pmf_json, stat, role_bucket, player_name columns
+    cal_dir   : directory containing calibration artifacts
+
+    Returns
+    -------
+    Copy of pmfs_long with corrected pmf_json, pmf_mean, mean, median, mode, p0
+    """
+    cal_dir = Path(cal_dir)
+
+    role_corr_path = cal_dir / "bias_corrections_by_role.json"
+    if not role_corr_path.exists():
+        logger.warning(
+            "[calibrate] bias_corrections_by_role.json not found at %s — "
+            "skipping role-stratified corrections",
+            role_corr_path,
+        )
+        return pmfs_long
+
+    role_corrections: dict[str, dict[str, float]] = json.loads(role_corr_path.read_text())
+
+    global_corrections: dict[str, float] = {}
+    global_corr_path = cal_dir / "bias_corrections.json"
+    if global_corr_path.exists():
+        try:
+            global_corrections = json.loads(global_corr_path.read_text())
+        except Exception as exc:
+            logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc)
+
+    flat_form: dict[str, float] = {}
+    pfc_path = cal_dir / "player_form_corrections_2026.json"
+    if pfc_path.exists():
+        try:
+            pfc_data = json.loads(pfc_path.read_text())
+            # New format: flat_corrections key at top level
+            flat_form = pfc_data.get("flat_corrections", {})
+        except Exception as exc:
+            logger.warning("[calibrate] Could not load flat_corrections from %s: %s", pfc_path, exc)
+
+    _COMBO_STATS: set[str] = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks", "blk_stl"}
+
+    out = pmfs_long.copy()
+    new_pmf_jsons: list[str] = []
+    n_corrected = 0
+
+    for _, row in out.iterrows():
+        stat = str(row.get("stat", ""))
+        if stat in _COMBO_STATS:
+            new_pmf_jsons.append(row["pmf_json"])
+            continue
+
+        role = str(row.get("role_bucket", "rotation"))
+        global_corr = float(global_corrections.get(stat, 1.0))
+        role_corr = float(role_corrections.get(role, {}).get(stat, global_corr))
+
+        # Net multiplier: swap global bias correction for role-specific one
+        net_mult = (role_corr / global_corr) if global_corr > 0.0 else 1.0
+
+        # Player-level residual form correction
+        player_name = str(row.get("player_name", ""))
+        form_key = f"{player_name}|{stat}"
+        form_mult = float(flat_form.get(form_key, 1.0))
+
+        total_mult = net_mult * form_mult
+
+        if abs(total_mult - 1.0) < 0.01:
+            new_pmf_jsons.append(row["pmf_json"])
+            continue
+
+        try:
+            raw_pmf = json_to_pmf(row["pmf_json"])
+            corrected = _apply_mean_bias_correction(
+                raw_pmf,
+                float(np.clip(total_mult, 0.50, 2.50)),
+            )
+            new_pmf_jsons.append(pmf_to_json(corrected))
+            n_corrected += 1
+        except Exception as exc:
+            logger.debug("[calibrate] role_stratified: failed row %s/%s: %s", player_name, stat, exc)
+            new_pmf_jsons.append(row["pmf_json"])
+
+    out["pmf_json"] = new_pmf_jsons
+
+    # Recompute summary stats from updated PMFs
+    def _pmf_stats(pmf_json: str) -> dict:
+        pmf = normalize_pmf(json_to_pmf(pmf_json))
+        ks = np.arange(len(pmf))
+        mean = float(np.dot(ks, pmf))
+        return {
+            "pmf_mean": round(mean, 4),
+            "mean": round(mean, 4),
+            "median": int(np.searchsorted(np.cumsum(pmf), 0.5)),
+            "mode": int(np.argmax(pmf)),
+            "p0": float(pmf[0]),
+        }
+
+    stats_rows = [_pmf_stats(j) for j in out["pmf_json"]]
+    for key in ("pmf_mean", "mean", "median", "mode", "p0"):
+        out[key] = [r[key] for r in stats_rows]
+
+    logger.info(
+        "[calibrate] apply_role_stratified_corrections: corrected %d / %d PMF rows "
+        "(role_corr_roles=%s, form_corrections=%d)",
+        n_corrected, len(out), sorted(role_corrections.keys()), len(flat_form),
+    )
+    return out
+
+
 def apply_calibrators(
     pmfs_df: pd.DataFrame,
     cal_dir: str | Path = "artifacts/models/calibration",

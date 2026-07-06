@@ -1,151 +1,136 @@
 {
-  "_comment": "Per-player per-stat post-calibration multipliers derived from 2026 in-season actuals vs model predictions. Computed: 2026-07-06. Recalibrate weekly with weekly_calibration run. Multipliers > 1.0 indicate under-prediction (model produces too-low pmf_mean relative to 2026 actual averages). Only applied for players with >=10 games and >=30% deviation. Capped at 1.5x.",
+  "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-06. Recalibrate weekly.",
   "generated_at": "2026-07-06",
+  "flat_corrections": {
+    "Cheyenne Parker-Tyus|pts": 1.1948,
+    "Jonquel Jones|pts": 1.2514,
+    "A'ja Wilson|pts": 1.3501,
+    "Brianna Turner|pts": 0.7,
+    "Han Xu|pts": 1.1664,
+    "Jackie Young|pts": 1.2366,
+    "Marine Johannes|pts": 1.2542,
+    "Satou Sabally|pts": 1.1867,
+    "Chennedy Carter|pts": 1.5,
+    "Kierstan Bell|pts": 0.7,
+    "Rebekah Gardner|pts": 0.8111,
+    "Betnijah Laney-Hamilton|reb": 1.1604,
+    "Jewell Loyd|reb": 0.8376,
+    "Jonquel Jones|reb": 1.331,
+    "Brianna Turner|reb": 0.7,
+    "Kierstan Bell|reb": 0.7441,
+    "Chelsea Gray|ast": 1.1711,
+    "Cheyenne Parker-Tyus|ast": 0.7434,
+    "Betnijah Laney-Hamilton|ast": 1.3949,
+    "Jewell Loyd|ast": 0.7363,
+    "Stephanie Talbot|ast": 1.1559,
+    "Brianna Turner|ast": 0.7,
+    "Jackie Young|ast": 1.1818,
+    "Marine Johannes|ast": 0.7,
+    "Satou Sabally|ast": 0.7732,
+    "NaLyssa Smith|ast": 0.7,
+    "Rebekah Gardner|ast": 0.7316,
+    "Pauline Astier|ast": 1.2507,
+    "Cheyenne Parker-Tyus|fg3m": 1.2132,
+    "Jonquel Jones|fg3m": 1.4078,
+    "Stephanie Talbot|fg3m": 1.16,
+    "Jackie Young|fg3m": 1.2954,
+    "Chennedy Carter|fg3m": 1.5,
+    "Kierstan Bell|fg3m": 0.7,
+    "Rebekah Gardner|fg3m": 0.7,
+    "Pauline Astier|fg3m": 0.7,
+    "Cheyenne Parker-Tyus|turnover": 0.7,
+    "Betnijah Laney-Hamilton|turnover": 1.257,
+    "Jonquel Jones|turnover": 0.8375,
+    "Breanna Stewart|turnover": 1.3484,
+    "Stephanie Talbot|turnover": 0.7101,
+    "Brianna Turner|turnover": 0.7,
+    "Chennedy Carter|turnover": 1.2036,
+    "Kierstan Bell|turnover": 0.7,
+    "NaLyssa Smith|turnover": 0.834,
+    "Rebekah Gardner|turnover": 0.7,
+    "Pauline Astier|turnover": 0.7,
+    "Natasha Howard|pts": 1.3049,
+    "Natasha Howard|reb": 1.1976,
+    "Sonia Citron|pts": 1.3877,
+    "Sonia Citron|reb": 1.3078,
+    "Sonia Citron|ast": 1.3039,
+    "Dominique Malonga|pts": 1.5,
+    "Dominique Malonga|reb": 1.2425
+  },
   "players": {
     "714": {
-      "player_name": "Aaliyah Edwards",
-      "stats": {
-        "pts": 1.4304
-      }
+      "player_name": "Aaliyah Edwards"
     },
     "67006": {
-      "player_name": "Angela Dugalic",
-      "stats": {
-        "pts": 1.5
-      }
+      "player_name": "Angela Dugalic"
     },
     "544": {
-      "player_name": "Ariel Atkins",
-      "stats": {
-        "pts": 1.5,
-        "reb": 1.4174
-      }
+      "player_name": "Ariel Atkins"
     },
     "67076": {
-      "player_name": "Awa Fam",
-      "stats": {
-        "reb": 1.4922
-      }
+      "player_name": "Awa Fam"
     },
     "456": {
-      "player_name": "Courtney Williams",
-      "stats": {
-        "reb": 1.3101,
-        "ast": 1.3015
-      }
+      "player_name": "Courtney Williams"
     },
     "411": {
-      "player_name": "Dearica Hamby",
-      "stats": {
-        "reb": 1.3831
-      }
+      "player_name": "Dearica Hamby"
     },
     "528": {
-      "player_name": "Gabby Williams",
-      "stats": {
-        "pts": 1.4185,
-        "reb": 1.4952
-      }
+      "player_name": "Gabby Williams"
     },
     "738": {
-      "player_name": "Georgia Amoore",
-      "stats": {
-        "ast": 1.4876
-      }
+      "player_name": "Georgia Amoore"
     },
     "770": {
-      "player_name": "Janelle Salaun",
-      "stats": {
-        "pts": 1.5,
-        "reb": 1.4684
-      }
+      "player_name": "Janelle Salaun"
     },
     "775": {
-      "player_name": "Kaitlyn Chen",
-      "stats": {
-        "pts": 1.5
-      }
+      "player_name": "Kaitlyn Chen"
     },
     "571": {
-      "player_name": "Katie Lou Samuelson",
-      "stats": {
-        "pts": 1.5
-      }
+      "player_name": "Katie Lou Samuelson"
     },
     "374": {
-      "player_name": "Kayla McBride",
-      "stats": {
-        "ast": 1.4234
-      }
+      "player_name": "Kayla McBride"
     },
     "406": {
-      "player_name": "Kayla Thornton",
-      "stats": {
-        "reb": 1.5
-      }
+      "player_name": "Kayla Thornton"
     },
     "422": {
-      "player_name": "Kiah Stokes",
-      "stats": {
-        "reb": 1.3128
-      }
+      "player_name": "Kiah Stokes"
     },
     "67002": {
-      "player_name": "Lauren Betts",
-      "stats": {
-        "pts": 1.5,
-        "reb": 1.5
-      }
+      "player_name": "Lauren Betts"
     },
     "671": {
-      "player_name": "Maya Caldwell",
-      "stats": {
-        "pts": 1.5
-      }
+      "player_name": "Maya Caldwell"
     },
     "385": {
-      "player_name": "Natasha Howard",
-      "stats": {
-        "pts": 1.5,
-        "reb": 1.5
-      }
+      "player_name": "Natasha Howard"
     },
     "580": {
-      "player_name": "Natisha Hiedeman",
-      "stats": {
-        "reb": 1.329,
-        "fg3m": 1.4727
-      }
+      "player_name": "Natisha Hiedeman"
     },
     "309": {
-      "player_name": "Nneka Ogwumike",
-      "stats": {
-        "reb": 1.5
-      }
+      "player_name": "Nneka Ogwumike"
     },
     "67053": {
-      "player_name": "Olivia Miles",
-      "stats": {
-        "pts": 1.4401
-      }
+      "player_name": "Olivia Miles"
     },
     "659": {
-      "player_name": "Veronica Burton",
-      "stats": {
-        "reb": 1.3062,
-        "ast": 1.3772
-      }
+      "player_name": "Veronica Burton"
     },
     "736": {
       "player_name": "Sonia Citron",
       "minutes_mean_override": 33.0,
       "role_bucket_override": "core",
-      "stats": {
-        "pts": 1.9,
-        "reb": 1.5,
-        "ast": 1.5
-      },
       "_note": "Minutes model predicts 11.8 due to DNP row in BDL; 2026 avg: 31.4 min, 16.4 pts, 3.9 reb, 2.9 ast"
+    },
+    "758": {
+      "player_name": "Dominique Malonga",
+      "role_bucket_override": "starter",
+      "_note": "8 early-season DNPs followed by starter-level production (37 pts, 28 pts). Role override prevents inactive_risk classification."
     }
   }
 }

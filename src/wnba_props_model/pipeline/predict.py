@@ -33,7 +33,7 @@ from wnba_props_model.models.minutes_model import MinutesModel
 from wnba_props_model.models.rate_model import HurdleModel, StatRateModel
 from wnba_props_model.models.shrinkage import apply_bayesian_shrinkage
 from wnba_props_model.models.simulation import build_combo_pmfs, json_to_pmf, pmf_to_json
-from wnba_props_model.pipeline.calibrate import apply_calibrators
+from wnba_props_model.pipeline.calibrate import apply_calibrators, apply_role_stratified_corrections
 
 logger = logging.getLogger(__name__)
 
@@ -491,6 +491,21 @@ def predict_player_pmfs(
                 "run `python scripts/fit_calibrators.py` first.",
                 cal_dir,
             )
+
+    # Role-stratified bias corrections: replace the single global bias correction
+    # (e.g. pts=0.741 for ALL players) with per-role corrections that correctly
+    # account for the fact that starters/core players produce significantly above
+    # the bench-dragged population average that the global correction was fitted on.
+    # Also applies player-level residual form corrections (flat_corrections key in
+    # player_form_corrections_2026.json) for players whose 2026 actual production
+    # differs >15% from role-adjusted model predictions.
+    # Must run AFTER apply_calibrators (so calibrated PMFs are the input) and
+    # BEFORE apply_bayesian_shrinkage (so shrinkage operates on the corrected PMF).
+    if apply_calibration and cal_dir is not None:
+        _role_corr_path = Path(cal_dir) / "bias_corrections_by_role.json"
+        if _role_corr_path.exists():
+            logger.info("[predict] Applying role-stratified bias corrections from %s", _role_corr_path)
+            pmfs_long = apply_role_stratified_corrections(pmfs_long, cal_dir=cal_dir)
 
     # Apply PenaltyBlog-style Bayesian shrinkage AFTER calibration so that the
     # per-player prior blend operates on the already-corrected (calibrated) PMF.
