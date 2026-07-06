@@ -82,7 +82,13 @@ class StatRateModel:
         use_offset = self.cfg.get("use_minutes_offset", False)
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
-        self._model = HistGradientBoostingRegressor(
+        # Use quantile(0.5) loss so the model targets the conditional median,
+        # which matches how sportsbooks set prop lines (not the mean).
+        # For right-skewed WNBA stat distributions mean > median, so MSE
+        # predictions systematically exceed market lines → 116 UNDER / 22 OVER.
+        hgb_loss = hgb_kw.get("loss", "quantile")
+        hgb_mdl_kw: dict = dict(
+            loss=hgb_loss,
             max_iter=hgb_kw.get("max_iter", 200),
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
             learning_rate=hgb_kw.get("learning_rate", 0.1),
@@ -92,6 +98,9 @@ class StatRateModel:
             tol=hgb_kw.get("tol", 1e-7),
             random_state=seed,
         )
+        if hgb_loss == "quantile":
+            hgb_mdl_kw["quantile"] = hgb_kw.get("quantile", 0.5)
+        self._model = HistGradientBoostingRegressor(**hgb_mdl_kw)
         # Drop all-NaN columns to prevent sklearn BinMapper crash on early-season data
         all_nan = [c for c in X.columns if X[c].isna().all()]
         if all_nan:
@@ -408,7 +417,11 @@ class HurdleModel:
         sw_pos = sample_weight[pos_mask] if sample_weight is not None else None
 
         if self._n_pos >= 10:
-            self._reg = HistGradientBoostingRegressor(
+            # Use quantile(0.5) so E[Y | Y > 0] targets the conditional median,
+            # consistent with the StatRateModel fix above.
+            reg_loss = reg_kw.get("loss", "quantile")
+            reg_mdl_kw: dict = dict(
+                loss=reg_loss,
                 max_iter=reg_kw.get("max_iter", 200),
                 max_leaf_nodes=reg_kw.get("max_leaf_nodes", 31),
                 learning_rate=reg_kw.get("learning_rate", 0.1),
@@ -418,6 +431,9 @@ class HurdleModel:
                 tol=reg_kw.get("tol", 1e-7),
                 random_state=seed,
             )
+            if reg_loss == "quantile":
+                reg_mdl_kw["quantile"] = reg_kw.get("quantile", 0.5)
+            self._reg = HistGradientBoostingRegressor(**reg_mdl_kw)
             self._reg.fit(X_pos, y_pos, sample_weight=sw_pos)
             self._pos_mean = float(y_pos.mean())
             self._pos_var = float(y_pos.var())

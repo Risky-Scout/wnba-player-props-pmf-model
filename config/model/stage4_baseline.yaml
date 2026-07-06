@@ -124,6 +124,8 @@ sample_weight_halflife_days: 42
 # min_samples_leaf 20→10: allows finer splits on elite-player sub-populations.
 # max_iter 150: fits OOF within 360min timeout at 63 leaves (lr=0.08).
 hgb_regressor:
+  loss: quantile
+  quantile: 0.5
   max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08
