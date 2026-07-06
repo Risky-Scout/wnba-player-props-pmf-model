@@ -135,6 +135,17 @@
         "reb": 1.3062,
         "ast": 1.3772
       }
+    },
+    "736": {
+      "player_name": "Sonia Citron",
+      "minutes_mean_override": 33.0,
+      "role_bucket_override": "core",
+      "stats": {
+        "pts": 1.5,
+        "reb": 1.35,
+        "ast": 1.4
+      },
+      "_note": "Minutes model predicts 11.8 due to DNP row in BDL; 2026 avg: 31.4 min, 16.4 pts, 3.9 reb, 2.9 ast"
     }
   }
 }

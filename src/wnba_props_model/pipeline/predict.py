@@ -381,8 +381,65 @@ def predict_player_pmfs(
     pmfs_long["is_calibrated"] = False
     pmfs_long["cal_source"] = "uncalibrated"
 
+    # Pre-role-bucket: apply minutes_mean_override and role_bucket_override from
+    # player_form_corrections_2026.json. These fix players whose minutes model
+    # misfires (e.g. due to zero_minute_flag in a recent DNP game row), which
+    # would otherwise cause a wrong role_bucket assignment and catastrophic
+    # calibrator over-correction. Must be applied BEFORE _attach_role_bucket.
+    if cal_dir is not None:
+        _pfc_early_path = Path(cal_dir) / "player_form_corrections_2026.json"
+        if _pfc_early_path.exists():
+            try:
+                import json as _pfc_early_json  # noqa: PLC0415
+                _pfc_early = _pfc_early_json.loads(_pfc_early_path.read_text())
+                _pfc_early_players = _pfc_early.get("players", {})
+                _pfc_early_n = 0
+                for _pfc_pid_str, _pfc_pdata in _pfc_early_players.items():
+                    try:
+                        _pfc_pid_int = int(_pfc_pid_str)
+                    except ValueError:
+                        continue
+                    _pfc_mask = pmfs_long["player_id"] == _pfc_pid_int
+                    if not _pfc_mask.any():
+                        continue
+                    _mm_override = _pfc_pdata.get("minutes_mean_override")
+                    if _mm_override is not None:
+                        pmfs_long = pmfs_long.copy()
+                        pmfs_long.loc[_pfc_mask, "minutes_mean"] = float(_mm_override)
+                        _pfc_early_n += 1
+                        logger.info("[predict] minutes_mean override for player_id=%s (%s): → %.1f",
+                                    _pfc_pid_str, _pfc_pdata.get("player_name", ""), float(_mm_override))
+                if _pfc_early_n > 0:
+                    logger.info("[predict] Applied %d minutes_mean override(s) before role-bucket assignment",
+                                _pfc_early_n)
+            except Exception as _pfc_e_exc:
+                logger.warning("[predict] player_form_corrections minutes override failed (non-fatal): %s", _pfc_e_exc)
+
     # Attach ex-ante role bucket (needed for per-role calibration & dispersion)
     pmfs_long = _attach_role_bucket(pmfs_long)
+
+    # Post-role-bucket: apply role_bucket_override from player_form_corrections_2026.json
+    if cal_dir is not None:
+        _pfc_rb_path = Path(cal_dir) / "player_form_corrections_2026.json"
+        if _pfc_rb_path.exists():
+            try:
+                import json as _pfc_rb_json  # noqa: PLC0415
+                _pfc_rb = _pfc_rb_json.loads(_pfc_rb_path.read_text())
+                for _pfc_rb_pid, _pfc_rb_data in _pfc_rb.get("players", {}).items():
+                    _rb_override = _pfc_rb_data.get("role_bucket_override")
+                    if _rb_override:
+                        try:
+                            _pfc_rb_pid_int = int(_pfc_rb_pid)
+                        except ValueError:
+                            continue
+                        _rb_mask = pmfs_long["player_id"] == _pfc_rb_pid_int
+                        if _rb_mask.any():
+                            pmfs_long = pmfs_long.copy()
+                            pmfs_long.loc[_rb_mask, "role_bucket"] = str(_rb_override)
+                            logger.info("[predict] role_bucket override for player_id=%s (%s): → %s",
+                                        _pfc_rb_pid, _pfc_rb_data.get("player_name", ""), _rb_override)
+            except Exception as _pfc_rb_exc:
+                logger.warning("[predict] role_bucket_override failed (non-fatal): %s", _pfc_rb_exc)
 
     # P3.5: Attach player position so the copula uses position-stratified correlations.
     if "position" in feature_df.columns and "position" not in pmfs_long.columns:
