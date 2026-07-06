@@ -111,10 +111,12 @@ def negbinom_pmf_batch(mus: np.ndarray, r: float, cap: int) -> np.ndarray:
 
 
 def poisson_pmf_batch(mus: np.ndarray, cap: int) -> np.ndarray:
-    """Batch Poisson PMF. Returns shape (n, cap+1)."""
+    """Batch Poisson PMF with log-space arithmetic. Returns shape (n, cap+1)."""
     mus = np.clip(mus.astype(float), 1e-9, None)
     k = np.arange(cap + 1)
-    pmf_mat = scipy_poisson.pmf(k[np.newaxis, :], mus[:, np.newaxis])
+    log_pmf = scipy_poisson.logpmf(k[np.newaxis, :], mus[:, np.newaxis])
+    log_pmf = np.clip(log_pmf, -700, 0)
+    pmf_mat = np.exp(log_pmf)
     pmf_mat = np.clip(pmf_mat, 0.0, None)
     totals = pmf_mat.sum(axis=1, keepdims=True)
     totals = np.where(totals > 0, totals, 1.0)
@@ -138,11 +140,15 @@ def hurdle_pmf_batch(
     if pos_r is not None:
         pos_r_f = max(float(pos_r), 1e-6)
         p_nb = pos_r_f / (pos_r_f + pos_mus)  # (n,)
-        pos_mass = scipy_nbinom.pmf(k_pos[np.newaxis, :], pos_r_f,
-                                    p_nb[:, np.newaxis])  # (n, cap)
+        log_pos = scipy_nbinom.logpmf(k_pos[np.newaxis, :], pos_r_f,
+                                      p_nb[:, np.newaxis])  # (n, cap)
+        log_pos = np.clip(log_pos, -700, 0)
+        pos_mass = np.exp(log_pos)
     else:
-        pos_mass = scipy_poisson.pmf(k_pos[np.newaxis, :],
-                                     pos_mus[:, np.newaxis])  # (n, cap)
+        log_pos = scipy_poisson.logpmf(k_pos[np.newaxis, :],
+                                       pos_mus[:, np.newaxis])  # (n, cap)
+        log_pos = np.clip(log_pos, -700, 0)
+        pos_mass = np.exp(log_pos)
 
     pos_mass = np.clip(pos_mass, 0.0, None)
     pos_totals = pos_mass.sum(axis=1, keepdims=True)

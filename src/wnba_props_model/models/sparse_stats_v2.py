@@ -84,7 +84,7 @@ class PositionStratifiedSparseModel:
             X_zero = df[zero_features].fillna(0).values
             y_zero = (y > 0).astype(int)
             self.zero_model = LogisticRegression(
-                C=0.5, class_weight="balanced", max_iter=5000, solver="saga"
+                C=0.5, class_weight="balanced", max_iter=10000, solver="saga", tol=1e-3
             )
             self.zero_model.fit(X_zero, y_zero)
 

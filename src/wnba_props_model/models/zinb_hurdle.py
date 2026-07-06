@@ -90,7 +90,7 @@ class ZINBHurdleModel:
             if len(np.unique(y_zero)) >= 2:
                 self.zero_model = LogisticRegression(
                     C=1.0, class_weight='balanced',
-                    max_iter=5000, solver='saga',  # MUST be saga, NOT lbfgs
+                    max_iter=10000, solver='saga', tol=1e-3,
                 )
                 self.zero_model.fit(X_zero, y_zero,
                                     sample_weight=sample_weight)

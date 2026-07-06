@@ -109,11 +109,11 @@ class MinutesModel:
                     ("imp", SimpleImputer(strategy="median")),
                     ("scaler", StandardScaler()),
                     ("clf", LogisticRegression(
-                        max_iter=5000,
+                        max_iter=10000,
                         class_weight="balanced",
                         solver="saga",
-                        penalty="l2",
                         C=0.5,
+                        tol=1e-3,
                         random_state=seed,
                     )),
                 ])
