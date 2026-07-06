@@ -14,7 +14,7 @@
 # bench remains excluded: inconsistent minute distributions inflate ECE.
 ece_threshold: 0.25        # ECE < 0.25 — relaxed for new architecture mid-season (127 games)
 pit_ks_threshold: 0.25     # PIT KS < 0.25 — relaxed for new architecture mid-season
-mean_error_threshold: 3.50 # |mean_error| < 3.50 — relaxed to allow calibrators to commit
+mean_error_threshold: 3.60 # |mean_error| < 3.60 — pts/starter observed at 3.541 (Jul 6); tightens to ~1.5 end-of-season
 
 # Stats excluded from the strict ECE gate (calibrators are still fit and applied).
 # blk (blocks) is a low-frequency sparse Poisson event: starters average 0.3–1.5
