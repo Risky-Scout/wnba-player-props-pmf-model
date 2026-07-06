@@ -626,6 +626,71 @@ def predict_player_pmfs(
             except Exception as _pfc_exc:
                 logger.warning("[predict] player_form_corrections_2026 failed (non-fatal): %s", _pfc_exc)
 
+    # Part C.6: Feature-based in-season form correction (computed live from fresh BDL data).
+    # The static player_form_corrections_2026.json is computed locally with stale data.
+    # feature_df is built from fresh BDL data pulled on every pipeline run, so
+    # player_{stat}_mean_season and player_{stat}_mean_l10 reflect July games.
+    # This computes corrections live: blended_actual = 0.6*L10 + 0.4*season,
+    # and applies a multiplier where |blended_actual / pmf_mean| deviates >15%.
+    # Capped at [0.75, 1.60] to prevent overcorrection from small L10 samples.
+    if feature_df is not None and not feature_df.empty:
+        try:
+            from wnba_props_model.models.simulation import json_to_pmf as _fc6_jtpmf, pmf_to_json as _fc6_ptmj  # noqa: PLC0415
+            from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _fc6_abc  # noqa: PLC0415
+            _FEAT_STATS = {"pts": ("player_pts_mean_l10", "player_pts_mean_season"),
+                           "reb": ("player_reb_mean_l10", "player_reb_mean_season"),
+                           "ast": ("player_ast_mean_l10", "player_ast_mean_season"),
+                           "fg3m": ("player_fg3m_mean_l10", "player_fg3m_mean_season"),
+                           "stl": ("player_stl_mean_l10", "player_stl_mean_season"),
+                           "blk": ("player_blk_mean_l10", "player_blk_mean_season"),
+                           "turnover": ("player_turnover_mean_l10", "player_turnover_mean_season")}
+            # Build lookup: player_id → {stat → blended_actual}
+            _fc6_lookup: dict[int, dict[str, float]] = {}
+            for _fc6_pid, _fc6_grp in feature_df.groupby("player_id"):
+                _fc6_row_vals: dict[str, float] = {}
+                for _fc6_stat, (_fc6_l10_col, _fc6_s_col) in _FEAT_STATS.items():
+                    _fc6_l10 = float(_fc6_grp[_fc6_l10_col].dropna().iloc[-1]) if _fc6_l10_col in _fc6_grp.columns and not _fc6_grp[_fc6_l10_col].dropna().empty else None
+                    _fc6_sea = float(_fc6_grp[_fc6_s_col].dropna().iloc[-1]) if _fc6_s_col in _fc6_grp.columns and not _fc6_grp[_fc6_s_col].dropna().empty else None
+                    if _fc6_l10 is not None and _fc6_sea is not None:
+                        _fc6_row_vals[_fc6_stat] = 0.6 * _fc6_l10 + 0.4 * _fc6_sea
+                    elif _fc6_sea is not None:
+                        _fc6_row_vals[_fc6_stat] = _fc6_sea
+                    elif _fc6_l10 is not None:
+                        _fc6_row_vals[_fc6_stat] = _fc6_l10
+                _fc6_lookup[int(_fc6_pid)] = _fc6_row_vals
+
+            _fc6_new_jsons, _fc6_new_means, _fc6_n = [], [], 0
+            for _, _fc6_pmf_row in pmfs_long.iterrows():
+                _fc6_stat = str(_fc6_pmf_row.get("stat", ""))
+                if _fc6_stat not in _FEAT_STATS:
+                    _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
+                    _fc6_new_means.append(_fc6_pmf_row.get("pmf_mean", np.nan))
+                    continue
+                _fc6_pid_int = int(_fc6_pmf_row.get("player_id", 0))
+                _fc6_actual = _fc6_lookup.get(_fc6_pid_int, {}).get(_fc6_stat)
+                _fc6_cur_mean = float(_fc6_pmf_row.get("pmf_mean", 0) or 0)
+                if _fc6_actual is None or _fc6_actual < 0.1 or _fc6_cur_mean < 0.1:
+                    _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
+                    _fc6_new_means.append(_fc6_cur_mean)
+                    continue
+                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.75, 1.60))
+                if abs(_fc6_ratio - 1.0) < 0.15:
+                    _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
+                    _fc6_new_means.append(_fc6_cur_mean)
+                    continue
+                _fc6_arr = _fc6_jtpmf(_fc6_pmf_row["pmf_json"])
+                _fc6_corrected = _fc6_abc(_fc6_arr, _fc6_ratio)
+                _fc6_new_jsons.append(_fc6_ptmj(_fc6_corrected))
+                _fc6_new_mean = float(np.arange(len(_fc6_corrected)) @ _fc6_corrected / max(_fc6_corrected.sum(), 1e-9))
+                _fc6_new_means.append(_fc6_new_mean)
+                _fc6_n += 1
+            pmfs_long = pmfs_long.copy()
+            pmfs_long["pmf_json"] = _fc6_new_jsons
+            pmfs_long["pmf_mean"] = _fc6_new_means
+            logger.info("[predict] Feature-based form correction applied to %d / %d PMF rows", _fc6_n, len(pmfs_long))
+        except Exception as _fc6_exc:
+            logger.warning("[predict] Feature-based form correction failed (non-fatal): %s", _fc6_exc)
+
     # Part D: Apply guaranteed conformal prediction intervals.
     # conformal_predictor.pkl is fitted weekly by fit_calibrators() via ConformalPropPredictor.
     # Without this, conformal_90_ci in the output is merely ±1.645σ (no coverage guarantee).
