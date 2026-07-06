@@ -572,6 +572,18 @@ def predict_player_pmfs(
                             _pfc_new_jsons.append(_pfc_row["pmf_json"])
                     pmfs_long = pmfs_long.copy()
                     pmfs_long["pmf_json"] = _pfc_new_jsons
+                    # Recompute pmf_mean from the corrected PMF JSON so downstream
+                    # columns (mean_disagreement, model_market_ratio, display) are consistent.
+                    _pfc_new_means = []
+                    for _pfc_jstr in _pfc_new_jsons:
+                        try:
+                            _pfc_d = _pfc_json.loads(_pfc_jstr)
+                            _pfc_kk = np.array([float(k) for k in _pfc_d.keys()])
+                            _pfc_vv = np.array(list(_pfc_d.values()), dtype=float)
+                            _pfc_new_means.append(float((_pfc_kk * _pfc_vv).sum() / max(_pfc_vv.sum(), 1e-9)))
+                        except Exception:
+                            _pfc_new_means.append(np.nan)
+                    pmfs_long["pmf_mean"] = _pfc_new_means
                     logger.info("[predict] Applied 2026 form corrections to %d PMF rows from %s",
                                 _pfc_n_applied, _pfc_path)
             except Exception as _pfc_exc:
