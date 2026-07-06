@@ -1,11 +1,6 @@
 {
-<<<<<<< Updated upstream
   "fitted_at": "2026-07-06T13:24:55.291063+00:00",
   "n_rows": 25024,
-=======
-  "fitted_at": "2026-07-06T15:16:23.083381+00:00",
-  "n_rows": 24837,
->>>>>>> Stashed changes
   "stats": [
     "ast",
     "blk",
