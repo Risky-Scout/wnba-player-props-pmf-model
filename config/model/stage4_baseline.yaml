@@ -31,54 +31,54 @@ sparse_stats:
 # Values derived from: r = pmf_mean² / (pmf_variance − pmf_mean) per OOF bucket.
 dispersion_r_by_role:
   pts:
-    rotation: 1.1063
-    bench: 0.709
-    core: 1.5015
+    bench: 0.6807
+    rotation: 1.1027
+    core: 1.4813
     fringe: 0.3
-    starter: 1.8252
     inactive_risk: 0.3
+    starter: 1.8468
   reb:
-    rotation: 1.173
-    bench: 0.7468
-    core: 1.4945
+    bench: 0.7229
+    rotation: 1.1581
+    core: 1.4803
     fringe: 0.3
-    starter: 1.6006
     inactive_risk: 0.3
+    starter: 1.614
   ast:
-    rotation: 0.8838
-    bench: 0.6031
-    core: 1.1582
-    fringe: 0.4042
-    starter: 1.3722
+    bench: 0.5876
+    rotation: 0.884
+    core: 1.1484
+    fringe: 0.4072
     inactive_risk: 0.3
+    starter: 1.3615
   fg3m:
-    rotation: 0.6479
-    bench: 0.4304
-    core: 0.7899
+    bench: 0.4174
+    rotation: 0.6432
+    core: 0.7794
     fringe: 0.3
-    starter: 0.947
     inactive_risk: 0.3
+    starter: 0.9506
   stl:
-    rotation: 4.3645
-    bench: 1.3684
-    core: 9.5356
+    bench: 1.2298
+    rotation: 3.8546
+    core: 8.7136
     fringe: 0.3
-    starter: 18.6982
     inactive_risk: 0.3
+    starter: 17.0304
   blk:
-    rotation: 1.5268
-    bench: 0.7565
-    core: 2.7179
+    bench: 0.6781
+    rotation: 1.3755
+    core: 2.4685
     fringe: 0.3
-    starter: 2.5824
     inactive_risk: 0.3
+    starter: 2.3388
   turnover:
-    rotation: 1.6782
-    bench: 1.0031
-    core: 2.2895
-    fringe: 0.5456
-    starter: 2.7043
+    bench: 0.965
+    rotation: 1.671
+    core: 2.2541
+    fringe: 0.5529
     inactive_risk: 0.3
+    starter: 2.697
 pmf_support_caps:
   pts: 60
   reb: 30
