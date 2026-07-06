@@ -472,6 +472,53 @@ def predict_player_pmfs(
         logger.info("Added %d combo PMF rows (%s)", len(combo_rows),
                     sorted(combo_rows["stat"].unique().tolist()))
 
+    # Diagnostic: validate combo stat means against component base stat sums.
+    # Logs a WARNING when a combo mean deviates >25% from the expected component sum.
+    # Never raises — purely informational so the pipeline always continues.
+    _COMBO_COMPONENTS: dict[str, list[str]] = {
+        "pts_reb": ["pts", "reb"],
+        "pts_ast": ["pts", "ast"],
+        "pts_reb_ast": ["pts", "reb", "ast"],
+        "reb_ast": ["reb", "ast"],
+        "stocks": ["stl", "blk"],
+        "blk_stl": ["blk", "stl"],
+    }
+    try:
+        _base_means = (
+            pmfs_long[~pmfs_long["stat"].isin(_COMBO_COMPONENTS)]
+            .groupby(["player_id", "game_id", "stat"])["pmf_mean"]
+            .first()
+        )
+        _combo_df = pmfs_long[pmfs_long["stat"].isin(_COMBO_COMPONENTS)]
+        for _, _row in _combo_df.iterrows():
+            _combo_stat = _row["stat"]
+            _components = _COMBO_COMPONENTS.get(_combo_stat, [])
+            _pid, _gid = _row["player_id"], _row["game_id"]
+            _combo_mean = _row["pmf_mean"]
+            _component_sum = 0.0
+            _missing = False
+            for _comp in _components:
+                try:
+                    _component_sum += float(_base_means.loc[(_pid, _gid, _comp)])
+                except KeyError:
+                    _missing = True
+                    break
+            if _missing or _component_sum <= 0:
+                continue
+            _deviation = abs(_combo_mean - _component_sum) / _component_sum
+            if _deviation > 0.25:
+                logger.warning(
+                    "[combo_validation] %s %s: combo_mean=%.3f, component_sum=%.3f "
+                    "(deviation=%.1f%% > 25%%)",
+                    _row.get("player_name", _pid),
+                    _combo_stat,
+                    _combo_mean,
+                    _component_sum,
+                    _deviation * 100,
+                )
+    except Exception as _diag_exc:
+        logger.debug("[combo_validation] Diagnostic skipped: %s", _diag_exc)
+
     # CALIBRATION must run on the raw (unshrunk) model PMFs so the isotonic
     # calibrators see the same distribution they were trained on (OOF predictions
     # have no shrinkage applied).  Shrinkage is applied AFTER calibration so it
