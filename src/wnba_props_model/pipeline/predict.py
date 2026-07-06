@@ -478,6 +478,48 @@ def predict_player_pmfs(
             except Exception as _ae:
                 logger.warning("[predict] Archetype shrinkage failed (non-fatal): %s", _ae)
 
+    # Part C.5: Apply per-player 2026 in-season form corrections.
+    # player_form_corrections_2026.json stores per-stat multipliers for players whose
+    # 2026 actual averages significantly exceed calibrated model predictions (ratio >= 1.30).
+    # These corrections are recomputed weekly alongside OOF calibration to track form changes.
+    # Applied AFTER calibration and shrinkage, BEFORE conformal intervals.
+    if cal_dir is not None:
+        _pfc_path = Path(cal_dir) / "player_form_corrections_2026.json"
+        if _pfc_path.exists():
+            try:
+                import json as _pfc_json  # noqa: PLC0415
+                from wnba_props_model.models.simulation import json_to_pmf as _pfc_jtpmf, pmf_to_json as _pfc_ptmj  # noqa: PLC0415
+                _pfc_data = _pfc_json.loads(_pfc_path.read_text())
+                _pfc_players: dict[str, dict] = _pfc_data.get("players", {})
+                if _pfc_players:
+                    _pfc_new_jsons = []
+                    _pfc_n_applied = 0
+                    for _, _pfc_row in pmfs_long.iterrows():
+                        _pfc_pid = str(int(_pfc_row.get("player_id", 0)))
+                        _pfc_stat = str(_pfc_row.get("stat", ""))
+                        _pfc_entry = _pfc_players.get(_pfc_pid, {})
+                        _pfc_mult = _pfc_entry.get("stats", {}).get(_pfc_stat)
+                        if _pfc_mult is not None and float(_pfc_mult) > 1.0:
+                            _pfc_arr = _pfc_jtpmf(_pfc_row["pmf_json"])
+                            _pfc_k = float(np.arange(len(_pfc_arr), dtype=float) @ _pfc_arr / max(_pfc_arr.sum(), 1e-9))
+                            if _pfc_k > 0.01:
+                                _pfc_target = _pfc_k * float(_pfc_mult)
+                                _pfc_alpha = _pfc_target / _pfc_k
+                                from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _pfc_abc  # noqa: PLC0415
+                                _pfc_corrected = _pfc_abc(_pfc_arr, float(np.clip(_pfc_alpha, 1.0, 2.0)))
+                                _pfc_new_jsons.append(_pfc_ptmj(_pfc_corrected))
+                                _pfc_n_applied += 1
+                            else:
+                                _pfc_new_jsons.append(_pfc_row["pmf_json"])
+                        else:
+                            _pfc_new_jsons.append(_pfc_row["pmf_json"])
+                    pmfs_long = pmfs_long.copy()
+                    pmfs_long["pmf_json"] = _pfc_new_jsons
+                    logger.info("[predict] Applied 2026 form corrections to %d PMF rows from %s",
+                                _pfc_n_applied, _pfc_path)
+            except Exception as _pfc_exc:
+                logger.warning("[predict] player_form_corrections_2026 failed (non-fatal): %s", _pfc_exc)
+
     # Part D: Apply guaranteed conformal prediction intervals.
     # conformal_predictor.pkl is fitted weekly by fit_calibrators() via ConformalPropPredictor.
     # Without this, conformal_90_ci in the output is merely ±1.645σ (no coverage guarantee).

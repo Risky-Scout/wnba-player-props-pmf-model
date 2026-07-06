@@ -1,0 +1,140 @@
+{
+  "_comment": "Per-player per-stat post-calibration multipliers derived from 2026 in-season actuals vs model predictions. Computed: 2026-07-06. Recalibrate weekly with weekly_calibration run. Multipliers > 1.0 indicate under-prediction (model produces too-low pmf_mean relative to 2026 actual averages). Only applied for players with >=10 games and >=30% deviation. Capped at 1.5x.",
+  "generated_at": "2026-07-06",
+  "players": {
+    "714": {
+      "player_name": "Aaliyah Edwards",
+      "stats": {
+        "pts": 1.4304
+      }
+    },
+    "67006": {
+      "player_name": "Angela Dugalic",
+      "stats": {
+        "pts": 1.5
+      }
+    },
+    "544": {
+      "player_name": "Ariel Atkins",
+      "stats": {
+        "pts": 1.5,
+        "reb": 1.4174
+      }
+    },
+    "67076": {
+      "player_name": "Awa Fam",
+      "stats": {
+        "reb": 1.4922
+      }
+    },
+    "456": {
+      "player_name": "Courtney Williams",
+      "stats": {
+        "reb": 1.3101,
+        "ast": 1.3015
+      }
+    },
+    "411": {
+      "player_name": "Dearica Hamby",
+      "stats": {
+        "reb": 1.3831
+      }
+    },
+    "528": {
+      "player_name": "Gabby Williams",
+      "stats": {
+        "pts": 1.4185,
+        "reb": 1.4952
+      }
+    },
+    "738": {
+      "player_name": "Georgia Amoore",
+      "stats": {
+        "ast": 1.4876
+      }
+    },
+    "770": {
+      "player_name": "Janelle Salaun",
+      "stats": {
+        "pts": 1.5,
+        "reb": 1.4684
+      }
+    },
+    "775": {
+      "player_name": "Kaitlyn Chen",
+      "stats": {
+        "pts": 1.5
+      }
+    },
+    "571": {
+      "player_name": "Katie Lou Samuelson",
+      "stats": {
+        "pts": 1.5
+      }
+    },
+    "374": {
+      "player_name": "Kayla McBride",
+      "stats": {
+        "ast": 1.4234
+      }
+    },
+    "406": {
+      "player_name": "Kayla Thornton",
+      "stats": {
+        "reb": 1.5
+      }
+    },
+    "422": {
+      "player_name": "Kiah Stokes",
+      "stats": {
+        "reb": 1.3128
+      }
+    },
+    "67002": {
+      "player_name": "Lauren Betts",
+      "stats": {
+        "pts": 1.5,
+        "reb": 1.5
+      }
+    },
+    "671": {
+      "player_name": "Maya Caldwell",
+      "stats": {
+        "pts": 1.5
+      }
+    },
+    "385": {
+      "player_name": "Natasha Howard",
+      "stats": {
+        "pts": 1.5,
+        "reb": 1.5
+      }
+    },
+    "580": {
+      "player_name": "Natisha Hiedeman",
+      "stats": {
+        "reb": 1.329,
+        "fg3m": 1.4727
+      }
+    },
+    "309": {
+      "player_name": "Nneka Ogwumike",
+      "stats": {
+        "reb": 1.5
+      }
+    },
+    "67053": {
+      "player_name": "Olivia Miles",
+      "stats": {
+        "pts": 1.4401
+      }
+    },
+    "659": {
+      "player_name": "Veronica Burton",
+      "stats": {
+        "reb": 1.3062,
+        "ast": 1.3772
+      }
+    }
+  }
+}
