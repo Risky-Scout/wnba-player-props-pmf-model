@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-06. Recalibrate weekly.",
+  "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-06. Recalibrate weekly. Updated Phase 6: Malonga form correction raised; global bias updated to role-weighted.",
   "generated_at": "2026-07-06",
   "flat_corrections": {
     "Cheyenne Parker-Tyus|pts": 1.1948,
@@ -54,8 +54,8 @@
     "Sonia Citron|pts": 1.3877,
     "Sonia Citron|reb": 1.3078,
     "Sonia Citron|ast": 1.3039,
-    "Dominique Malonga|pts": 1.5,
-    "Dominique Malonga|reb": 1.2425
+    "Dominique Malonga|pts": 1.8432,
+    "Dominique Malonga|reb": 1.3
   },
   "players": {
     "714": {
