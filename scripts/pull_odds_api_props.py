@@ -1,8 +1,8 @@
 """Pull today's WNBA player props from The Odds API v4.
 
-Fetches all available player prop markets (20+ market keys) for every WNBA
-event on the target date and writes a normalized parquet that build_edge_report.py
-consumes.
+Fetches all CORE_PROP_MARKETS (20 market keys: 9 individual stats, 5 combo stats,
+3 Q1 quarter props, 3 alternate lines) for every WNBA event on the target date
+and writes a normalized parquet that build_edge_report.py consumes.
 
 Includes bookmaker deep links (event / market / outcome level) for wizardofodds.com.
 
