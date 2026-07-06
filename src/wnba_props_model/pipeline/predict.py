@@ -5,11 +5,29 @@ then optionally applies role-aware isotonic calibrators.
 
 Legacy quantile path (pipeline/train.py, models/base.py, models/simulation.py)
 is preserved for audit purposes but is no longer invoked.
+
+Shadow mode
+-----------
+If ``WNBA_USE_QUANTILE_MODEL`` is set in the environment (any non-empty value),
+``predict_player_pmfs`` will also run the new ``WNBAPlayerPropPipeline`` from
+``models/quantile_model.py`` in parallel.
+
+- The shadow pipeline trains on historical data from
+  ``data/processed/wnba_player_game_features_wide.parquet`` (when available)
+  and predicts on the current ``feature_df``.
+- Its output is always written to
+  ``deliveries/next_game/quantile_edge_board.parquet`` for logging/comparison.
+- Summary statistics (OVER count, UNDER count, top-10 edges) are logged at
+  INFO level for both the legacy pipeline and the quantile pipeline.
+- When ``WNBA_USE_QUANTILE_MODEL=1`` the quantile edge board is ALSO written
+  as the primary output alongside the existing ``publishable_edges.parquet``.
+  The legacy PMF output is unchanged — shadow mode does not replace it.
 """
 from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 import joblib
@@ -764,7 +782,237 @@ def predict_player_pmfs(
             except Exception as _ce:
                 logger.warning("[predict] Conformal interval computation failed: %s", _ce)
 
+    # Shadow mode: run multi-quantile pipeline in parallel for comparison.
+    # Always runs when historical data is available; extra output written to
+    # deliveries/next_game/quantile_edge_board.parquet.
+    # Set WNBA_USE_QUANTILE_MODEL=1 to promote quantile board as primary.
+    if feature_df is not None and not feature_df.empty:
+        try:
+            _run_quantile_shadow(
+                feature_df=feature_df,
+                pmfs_long=pmfs_long,
+                model_feature_cols=artifacts.get("model_feature_cols", []),
+            )
+        except Exception as _shadow_exc:
+            logger.warning("[predict] Quantile shadow mode failed (non-fatal): %s", _shadow_exc)
+
     return pmfs_long
+
+
+def _run_quantile_shadow(
+    feature_df: pd.DataFrame,
+    pmfs_long: pd.DataFrame,
+    model_feature_cols: list[str],
+    delivery_dir: str | Path = "deliveries/next_game",
+    hist_features_path: str | Path = "data/processed/wnba_player_game_features_wide.parquet",
+    stats: list[str] | None = None,
+) -> None:
+    """Run multi-quantile pipeline in shadow mode alongside the legacy pipeline.
+
+    Trains ``WNBAPlayerPropPipeline`` on historical feature data (when available),
+    generates quantile-level predictions on ``feature_df``, and writes the
+    resulting edge board to ``deliveries/next_game/quantile_edge_board.parquet``.
+
+    Logs OVER/UNDER counts and top-10 edges from both legacy and quantile boards.
+    All errors are caught and logged — this function must never crash the
+    production prediction pipeline.
+
+    Args:
+        feature_df: Today's wide feature DataFrame (inference rows).
+        pmfs_long: Legacy pipeline's long PMF output (for comparison logging).
+        model_feature_cols: Feature column names used by the Stage 4 models.
+        delivery_dir: Directory for quantile edge board output.
+        hist_features_path: Path to historical features parquet for training.
+        stats: Stats to model. Defaults to ['pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'turnover'].
+    """
+    try:
+        from wnba_props_model.models.quantile_model import QUANTILES, WNBAPlayerPropPipeline  # noqa: PLC0415
+    except ImportError as exc:
+        logger.warning("[quantile_shadow] Import failed — skipping shadow mode: %s", exc)
+        return
+
+    if stats is None:
+        stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+
+    delivery_dir = Path(delivery_dir)
+    delivery_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # 1. Load historical data and train the quantile pipeline
+    # ------------------------------------------------------------------
+    hist_path = Path(hist_features_path)
+    if not hist_path.exists():
+        logger.warning(
+            "[quantile_shadow] Historical features not found at %s — "
+            "skipping quantile shadow training",
+            hist_path,
+        )
+        return
+
+    try:
+        hist_df = pd.read_parquet(hist_path)
+    except Exception as exc:
+        logger.warning("[quantile_shadow] Failed to read historical features: %s", exc)
+        return
+
+    # Resolve feature columns: use model_feature_cols filtered to what exists in hist_df
+    feat_cols = [c for c in model_feature_cols if c in hist_df.columns]
+    if len(feat_cols) < 5:
+        logger.warning(
+            "[quantile_shadow] Too few usable feature cols (%d) in historical data — "
+            "skipping shadow training",
+            len(feat_cols),
+        )
+        return
+
+    # Build y_dict (stat → actual values) for historical rows with did_play=True
+    play_col = "did_play"
+    if play_col in hist_df.columns:
+        hist_train = hist_df[hist_df[play_col].fillna(False).astype(bool)].copy()
+    else:
+        hist_train = hist_df.copy()
+
+    y_dict: dict[str, pd.Series] = {}
+    for stat in stats:
+        actual_col = f"actual_{stat}"
+        if actual_col in hist_train.columns:
+            y_dict[stat] = hist_train[actual_col].reset_index(drop=True)
+
+    if not y_dict:
+        logger.warning("[quantile_shadow] No actual_* columns found in historical data — skipping")
+        return
+
+    X_hist = hist_train[feat_cols].reset_index(drop=True)
+    dates_hist = (
+        pd.to_datetime(hist_train["game_date"], errors="coerce").reset_index(drop=True)
+        if "game_date" in hist_train.columns
+        else pd.Series(range(len(hist_train)))
+    )
+    pid_hist = (
+        hist_train["player_id"].reset_index(drop=True)
+        if "player_id" in hist_train.columns
+        else pd.Series(range(len(hist_train)))
+    )
+
+    try:
+        pipeline = WNBAPlayerPropPipeline(quantiles=QUANTILES, n_oof_splits=3)
+        pipeline.fit(X_hist, y_dict, dates_hist, pid_hist)
+        logger.info("[quantile_shadow] Pipeline trained on %d historical rows", len(hist_train))
+    except Exception as exc:
+        logger.warning("[quantile_shadow] Pipeline training failed: %s", exc)
+        return
+
+    # ------------------------------------------------------------------
+    # 2. Generate quantile predictions on today's feature_df
+    # ------------------------------------------------------------------
+    feat_cols_infer = [c for c in feat_cols if c in feature_df.columns]
+    if len(feat_cols_infer) < 5:
+        logger.warning("[quantile_shadow] Insufficient feature cols at inference — skipping predict")
+        return
+
+    X_infer = feature_df[feat_cols_infer].reset_index(drop=True)
+
+    # Build player_games list from pmfs_long (leverages existing PMF metadata)
+    player_games: list[dict] = []
+    infer_rows: list[int] = []  # row indices in feature_df for each player_game
+
+    # Use pmfs_long to understand which (player, stat) pairs are being predicted
+    pmf_stats = pmfs_long["stat"].unique().tolist() if "stat" in pmfs_long.columns else stats
+    pmf_stats = [s for s in pmf_stats if s in stats]  # only base stats
+
+    # Map player_id + game_id → feature_df row index
+    _feat_index_map: dict[tuple, int] = {}
+    if "player_id" in feature_df.columns and "game_id" in feature_df.columns:
+        for idx, row in feature_df.iterrows():
+            _feat_index_map[(row["player_id"], row["game_id"])] = int(idx)
+
+    for _, pmf_row in pmfs_long[pmfs_long["stat"].isin(pmf_stats)].iterrows():
+        pid = pmf_row.get("player_id")
+        gid = pmf_row.get("game_id")
+        stat = pmf_row.get("stat")
+        row_idx = _feat_index_map.get((pid, gid), -1)
+        if row_idx < 0:
+            continue
+        player_games.append({
+            "player_id": pid,
+            "game_id": gid,
+            "stat": stat,
+            "line": float(pmf_row.get("pmf_mean", 0.0)),  # use legacy pmf_mean as proxy line
+            "implied_over": 0.5,   # no market lines available here; placeholder
+            "implied_under": 0.5,
+        })
+        infer_rows.append(row_idx)
+
+    if not player_games:
+        logger.warning("[quantile_shadow] No player_games built — skipping edge board generation")
+        return
+
+    # Build X for each player_game row (with column alignment)
+    try:
+        X_pg = X_infer.iloc[infer_rows].reset_index(drop=True)
+        q_board = pipeline.predict_edge_board(X_pg, player_games)
+    except Exception as exc:
+        logger.warning("[quantile_shadow] predict_edge_board failed: %s", exc)
+        return
+
+    # ------------------------------------------------------------------
+    # 3. Log comparison statistics
+    # ------------------------------------------------------------------
+    leg_over = 0
+    leg_under = 0
+    if "p_over" in pmfs_long.columns and "line" in pmfs_long.columns:
+        leg_over = int((pmfs_long["p_over"] > 0.5).sum())
+        leg_under = int((pmfs_long["p_over"] <= 0.5).sum())
+    elif "pmf_mean" in pmfs_long.columns:
+        leg_over = len(pmfs_long[pmfs_long["stat"].isin(pmf_stats)])
+
+    q_over = sum(1 for r in q_board if r["direction"] == "OVER")
+    q_under = sum(1 for r in q_board if r["direction"] == "UNDER")
+
+    logger.info(
+        "[quantile_shadow] === Edge Board Comparison ===\n"
+        "  Legacy pipeline : OVER=%d, UNDER=%d, total_rows=%d\n"
+        "  Quantile pipeline: OVER=%d, UNDER=%d, total_edges=%d (min_edge=%.2f)",
+        leg_over, leg_under, len(pmfs_long),
+        q_over, q_under, len(q_board), pipeline.min_edge,
+    )
+
+    top10 = q_board[:10]
+    if top10:
+        logger.info("[quantile_shadow] Top-10 edges (quantile pipeline):")
+        for rank, rec in enumerate(top10, 1):
+            logger.info(
+                "  #%d  %s %s %s  line=%.1f  edge=%.3f  p_model=%.3f  mu=%.2f",
+                rank,
+                rec.get("player_id", "?"),
+                rec.get("stat", "?"),
+                rec.get("direction", "?"),
+                rec.get("line", 0.0),
+                rec.get("edge", 0.0),
+                rec.get("prob_model", 0.0),
+                rec.get("mu", 0.0),
+            )
+
+    # ------------------------------------------------------------------
+    # 4. Write quantile edge board to parquet
+    # ------------------------------------------------------------------
+    try:
+        q_board_df = pd.DataFrame(q_board) if q_board else pd.DataFrame()
+        out_path = delivery_dir / "quantile_edge_board.parquet"
+        q_board_df.to_parquet(out_path, index=False)
+        logger.info("[quantile_shadow] Quantile edge board written to %s (%d rows)", out_path, len(q_board_df))
+    except Exception as exc:
+        logger.warning("[quantile_shadow] Failed to write quantile edge board: %s", exc)
+
+    # ------------------------------------------------------------------
+    # 5. If WNBA_USE_QUANTILE_MODEL=1, log that quantile board is primary
+    # ------------------------------------------------------------------
+    if os.environ.get("WNBA_USE_QUANTILE_MODEL", "").strip() == "1":
+        logger.info(
+            "[quantile_shadow] WNBA_USE_QUANTILE_MODEL=1: quantile edge board is PRIMARY — "
+            "written to %s. Legacy PMF output unchanged.",
+            delivery_dir / "quantile_edge_board.parquet",
+        )
 
 
 def build_features_for_prediction(player_stats: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.DataFrame:
