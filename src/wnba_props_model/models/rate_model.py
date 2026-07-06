@@ -275,8 +275,12 @@ class StatRateModel:
         """P3.3: Blend HGB prediction with Gamma-Poisson posterior mean.
 
         Weight by player support (games played):
-            w = clip(support / 10, 0, 1)
+            w = clip(support / 5, 0, 1)  — trusts HGB fully at 5 L5 games
             result = w * mu_hgb + (1-w) * mu_bayes
+
+        NaN fallback for obs_mean uses season mean then HGB prediction,
+        NOT global mean — prevents low-season-data players from being
+        pulled to league-wide all-player average.
         """
         mu_hgb = self.predict_mean(X)
         alpha = getattr(self, "_league_prior_alpha", None)
@@ -286,12 +290,22 @@ class StatRateModel:
 
         support_col = f"player_{self.stat}_l5_support"
         support = wide_df[support_col].fillna(0).astype(float).values if support_col in wide_df.columns else np.zeros(len(mu_hgb))
-        w = np.clip(support / 10.0, 0.0, 1.0)
+        # Halved divisor: fully trusts HGB at 5 L5 games (was 10).
+        w = np.clip(support / 5.0, 0.0, 1.0)
 
         # Gamma-Poisson posterior mean = (alpha + obs_sum) / (beta + n_games)
-        # Approximation: use support count and HGB prediction as obs_sum proxy
+        # Fallback chain: L5 mean → season mean → HGB prediction.
+        # Using HGB (not global mean) prevents players with missing L5 data
+        # from being unfairly collapsed to the all-player league average.
         stat_col = f"player_{self.stat}_mean_l5"
-        obs_mean = wide_df[stat_col].fillna(float(self._global_mean)).values if stat_col in wide_df.columns else np.full(len(mu_hgb), self._global_mean)
+        season_col = f"player_{self.stat}_mean_season"
+        if stat_col in wide_df.columns:
+            obs_mean_series = wide_df[stat_col]
+            if season_col in wide_df.columns:
+                obs_mean_series = obs_mean_series.fillna(wide_df[season_col])
+            obs_mean = obs_mean_series.fillna(pd.Series(mu_hgb, index=wide_df.index)).values.astype(float)
+        else:
+            obs_mean = mu_hgb  # pure HGB fallback
         obs_sum = obs_mean * support
         mu_bayes = (alpha + obs_sum) / (beta + support)
         return w * mu_hgb + (1.0 - w) * mu_bayes

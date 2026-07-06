@@ -417,15 +417,18 @@ def compute_effective_n(n_games: int, mean_minutes: float, starter_minutes: floa
 
 
 # Base k values per stat: how many effective games before shrinkage drops to 50%.
-# Higher k = more shrinkage needed (low-variance stats like blk mislead small samples).
+# Halved from original (8/10/12/15/12/18/10) — the prior was over-weighting
+# low-season-data players toward the all-player league mean, which is far below
+# actual starter-level production (starters avg 2-3x bench players).
+# At k=4, a starter with 10 games gets alpha=4/(4+10)=0.286 (was 0.50).
 K_BASE: dict[str, float] = {
-    "pts": 8.0,
-    "reb": 10.0,
-    "ast": 12.0,
-    "fg3m": 15.0,
-    "stl": 12.0,
-    "blk": 18.0,
-    "turnover": 10.0,
+    "pts": 4.0,
+    "reb": 5.0,
+    "ast": 6.0,
+    "fg3m": 7.0,
+    "stl": 6.0,
+    "blk": 8.0,
+    "turnover": 5.0,
 }
 
 
@@ -516,10 +519,19 @@ def apply_bayesian_shrinkage(
     # Enhancement 10: season-phase shrinkage multiplier
     _PHASE_MULTIPLIER: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
 
-    # Build player n_games, season_phase, position, and mean-minutes lookups
+    # Role-stratified prior means: pull starters toward starter-level production,
+    # not all-player averages (which include many bench/fringe players).
+    _ROLE_PRIORS: dict[str, dict[str, float]] = {
+        "starter": {"pts": 13.5, "reb": 6.0, "ast": 3.5, "fg3m": 1.2, "stl": 1.0, "blk": 0.6, "turnover": 2.0},
+        "core":    {"pts": 10.5, "reb": 4.8, "ast": 2.8, "fg3m": 1.0, "stl": 0.85, "blk": 0.45, "turnover": 1.7},
+        "rotation":{"pts": 7.5,  "reb": 3.2, "ast": 1.8, "fg3m": 0.65,"stl": 0.60, "blk": 0.30, "turnover": 1.2},
+    }
+
+    # Build player n_games, season_phase, position, role, and mean-minutes lookups
     player_ngames:       dict[int, int]   = {}
     player_phase:        dict[int, str]   = {}
     player_position:     dict[int, str]   = {}
+    player_role:         dict[int, str]   = {}
     player_mean_minutes: dict[int, float] = {}
     if features is not None and "player_id" in features.columns:
         for pid, grp in features.groupby("player_id"):
@@ -538,6 +550,12 @@ def apply_bayesian_shrinkage(
                 player_position[int(pid)] = str(pos_val.iloc[-1])[0].upper() if not pos_val.empty else "F"
             else:
                 player_position[int(pid)] = "F"
+            # Role status for stratified priors
+            if "role_status" in grp.columns:
+                role_val = grp["role_status"].dropna()
+                player_role[int(pid)] = str(role_val.iloc[-1]).lower() if not role_val.empty else "rotation"
+            else:
+                player_role[int(pid)] = "rotation"
             # Mean minutes for effective-n down-weighting of bench players
             min_col = next((c for c in ["player_minutes_mean_season", "actual_minutes", "minutes_mean"] if c in grp.columns), None)
             if min_col:
@@ -570,8 +588,13 @@ def apply_bayesian_shrinkage(
         n_eff     = compute_effective_n(n_games, mean_min)
         alpha     = compute_shrinkage_alpha(n_eff, stat, position)
 
-        # Enhancement 10: adjust k by season-phase multiplier
-        phase   = player_phase.get(pid, "mid")
+        # Enhancement 10: adjust k by season-phase multiplier.
+        # Force "mid" phase if the season has enough games played (>25 total team
+        # games) even if the player's own game_number_in_season looks small due
+        # to absences — prevents double-penalizing returning/injured players.
+        phase = player_phase.get(pid, "mid")
+        if phase == "early" and n_games >= 25:
+            phase = "mid"
         phase_mult = _PHASE_MULT.get(phase, 1.0)
         # Apply phase multiplier to effective n (more shrinkage early, less late)
         n_eff_phased = n_eff / phase_mult  # dividing n_eff → higher alpha early
@@ -595,8 +618,15 @@ def apply_bayesian_shrinkage(
             out_rows.append(row.to_dict())
             continue
 
-        # Build prior PMF
-        league_mean = (prior.mu if prior else static_league_means.get(stat, 5.0))
+        # Build prior PMF using role-stratified mean when available.
+        # Starters and core players should shrink toward starter-level production,
+        # not the all-player league average (which includes bench/fringe players).
+        role = player_role.get(pid, "rotation")
+        role_priors = _ROLE_PRIORS.get(role)
+        if role_priors is not None and stat in role_priors:
+            league_mean = role_priors[stat]
+        else:
+            league_mean = (prior.mu if prior else static_league_means.get(stat, 5.0))
         cap         = _STAT_CAPS.get(stat, 30)
         prior_pmf   = _poisson_pmf(league_mean, cap)
 
