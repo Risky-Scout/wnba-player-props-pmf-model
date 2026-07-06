@@ -231,6 +231,10 @@ jobs:
             --region us
         continue-on-error: true
 
+      - name: Compute empirical role bias corrections
+        run: python scripts/compute_role_bias_corrections.py
+        continue-on-error: true
+
       - name: Build edge report (Shin no-vig)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}

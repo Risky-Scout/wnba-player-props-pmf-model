@@ -479,6 +479,10 @@ jobs:
                 f"saved to artifacts/models/archetype_shrinkage.pkl")
           PYEOF
 
+      - name: Compute empirical role bias corrections
+        run: python scripts/compute_role_bias_corrections.py
+        continue-on-error: true
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
