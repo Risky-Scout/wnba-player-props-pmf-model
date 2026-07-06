@@ -551,56 +551,78 @@ def predict_player_pmfs(
                 logger.warning("[predict] Archetype shrinkage failed (non-fatal): %s", _ae)
 
     # Part C.5: Apply per-player 2026 in-season form corrections.
-    # player_form_corrections_2026.json stores per-stat multipliers for players whose
-    # 2026 actual averages significantly exceed calibrated model predictions (ratio >= 1.30).
-    # These corrections are recomputed weekly alongside OOF calibration to track form changes.
-    # Applied AFTER calibration and shrinkage, BEFORE conformal intervals.
+    # player_form_corrections_2026.json has TWO correction sources:
+    #   1. flat_corrections: {"PlayerName|stat": multiplier} — residual corrections
+    #      applied POST-shrinkage so shrinkage does not dampen individual form signals.
+    #      These are for players whose in-season actuals exceed role-adjusted model
+    #      predictions by >15%.
+    #   2. players: {"player_id": {"stats": {...}}} — legacy format (now empty of stats
+    #      since role-stratified corrections handle population-level bias).
+    # Applied AFTER calibration + shrinkage, BEFORE conformal intervals.
     if cal_dir is not None:
         _pfc_path = Path(cal_dir) / "player_form_corrections_2026.json"
         if _pfc_path.exists():
             try:
                 import json as _pfc_json  # noqa: PLC0415
                 from wnba_props_model.models.simulation import json_to_pmf as _pfc_jtpmf, pmf_to_json as _pfc_ptmj  # noqa: PLC0415
+                from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _pfc_abc  # noqa: PLC0415
                 _pfc_data = _pfc_json.loads(_pfc_path.read_text())
+
+                # --- Source 1: flat_corrections (player_name|stat keys) ---
+                _pfc_flat: dict[str, float] = _pfc_data.get("flat_corrections", {})
+
+                # --- Source 2: legacy players dict (backward compat; stats may be empty) ---
                 _pfc_players: dict[str, dict] = _pfc_data.get("players", {})
-                if _pfc_players:
-                    _pfc_new_jsons = []
-                    _pfc_n_applied = 0
-                    for _, _pfc_row in pmfs_long.iterrows():
-                        _pfc_pid = str(int(_pfc_row.get("player_id", 0)))
-                        _pfc_stat = str(_pfc_row.get("stat", ""))
-                        _pfc_entry = _pfc_players.get(_pfc_pid, {})
-                        _pfc_mult = _pfc_entry.get("stats", {}).get(_pfc_stat)
-                        if _pfc_mult is not None and float(_pfc_mult) > 1.0:
-                            _pfc_arr = _pfc_jtpmf(_pfc_row["pmf_json"])
-                            _pfc_k = float(np.arange(len(_pfc_arr), dtype=float) @ _pfc_arr / max(_pfc_arr.sum(), 1e-9))
-                            if _pfc_k > 0.01:
-                                _pfc_target = _pfc_k * float(_pfc_mult)
-                                _pfc_alpha = _pfc_target / _pfc_k
-                                from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _pfc_abc  # noqa: PLC0415
-                                _pfc_corrected = _pfc_abc(_pfc_arr, float(np.clip(_pfc_alpha, 1.0, 2.0)))
-                                _pfc_new_jsons.append(_pfc_ptmj(_pfc_corrected))
-                                _pfc_n_applied += 1
-                            else:
-                                _pfc_new_jsons.append(_pfc_row["pmf_json"])
+
+                _pfc_new_jsons = []
+                _pfc_n_applied = 0
+                for _, _pfc_row in pmfs_long.iterrows():
+                    _pfc_pid = str(int(_pfc_row.get("player_id", 0)))
+                    _pfc_stat = str(_pfc_row.get("stat", ""))
+                    _pfc_name = str(_pfc_row.get("player_name", ""))
+
+                    # Resolve multiplier: flat_corrections takes priority over legacy stats dict
+                    _pfc_flat_key = f"{_pfc_name}|{_pfc_stat}"
+                    _pfc_mult: float | None = None
+                    if _pfc_flat_key in _pfc_flat:
+                        _pfc_mult = float(_pfc_flat[_pfc_flat_key])
+                    else:
+                        _legacy_mult = _pfc_players.get(_pfc_pid, {}).get("stats", {}).get(_pfc_stat)
+                        if _legacy_mult is not None:
+                            _pfc_mult = float(_legacy_mult)
+
+                    if _pfc_mult is not None and abs(_pfc_mult - 1.0) > 0.01:
+                        _pfc_arr = _pfc_jtpmf(_pfc_row["pmf_json"])
+                        _pfc_k = float(np.arange(len(_pfc_arr), dtype=float) @ _pfc_arr / max(_pfc_arr.sum(), 1e-9))
+                        if _pfc_k > 0.01:
+                            _pfc_corrected = _pfc_abc(_pfc_arr, float(np.clip(_pfc_mult, 0.50, 2.50)))
+                            _pfc_new_jsons.append(_pfc_ptmj(_pfc_corrected))
+                            _pfc_n_applied += 1
                         else:
                             _pfc_new_jsons.append(_pfc_row["pmf_json"])
-                    pmfs_long = pmfs_long.copy()
-                    pmfs_long["pmf_json"] = _pfc_new_jsons
-                    # Recompute pmf_mean from the corrected PMF JSON so downstream
-                    # columns (mean_disagreement, model_market_ratio, display) are consistent.
-                    _pfc_new_means = []
-                    for _pfc_jstr in _pfc_new_jsons:
-                        try:
-                            _pfc_d = _pfc_json.loads(_pfc_jstr)
-                            _pfc_kk = np.array([float(k) for k in _pfc_d.keys()])
-                            _pfc_vv = np.array(list(_pfc_d.values()), dtype=float)
-                            _pfc_new_means.append(float((_pfc_kk * _pfc_vv).sum() / max(_pfc_vv.sum(), 1e-9)))
-                        except Exception:
-                            _pfc_new_means.append(np.nan)
-                    pmfs_long["pmf_mean"] = _pfc_new_means
-                    logger.info("[predict] Applied 2026 form corrections to %d PMF rows from %s",
-                                _pfc_n_applied, _pfc_path)
+                    else:
+                        _pfc_new_jsons.append(_pfc_row["pmf_json"])
+
+                pmfs_long = pmfs_long.copy()
+                pmfs_long["pmf_json"] = _pfc_new_jsons
+                # Recompute pmf_mean from the corrected PMF JSON so downstream
+                # columns (mean_disagreement, model_market_ratio, display) are consistent.
+                _pfc_new_means = []
+                for _pfc_jstr in _pfc_new_jsons:
+                    try:
+                        _pfc_d = _pfc_json.loads(_pfc_jstr)
+                        _pfc_kk = np.array([float(k) for k in _pfc_d.keys()])
+                        _pfc_vv = np.array(list(_pfc_d.values()), dtype=float)
+                        _pfc_new_means.append(float((_pfc_kk * _pfc_vv).sum() / max(_pfc_vv.sum(), 1e-9)))
+                    except Exception:
+                        _pfc_new_means.append(np.nan)
+                pmfs_long["pmf_mean"] = _pfc_new_means
+                if _pfc_n_applied > 0:
+                    logger.info("[predict] Applied 2026 form corrections to %d PMF rows from %s "
+                                "(%d flat, %d legacy)",
+                                _pfc_n_applied, _pfc_path,
+                                sum(1 for k in _pfc_flat if k),
+                                sum(1 for v in _pfc_players.values() if v.get("stats")))
             except Exception as _pfc_exc:
                 logger.warning("[predict] player_form_corrections_2026 failed (non-fatal): %s", _pfc_exc)
 

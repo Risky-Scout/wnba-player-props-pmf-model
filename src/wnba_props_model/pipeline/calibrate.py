@@ -810,12 +810,14 @@ def apply_role_stratified_corrections(
     pmfs_long: pd.DataFrame,
     cal_dir: str | Path = "artifacts/models/calibration",
 ) -> pd.DataFrame:
-    """Apply role-stratified bias corrections and player-level form corrections.
+    """Apply ONLY role-stratified bias corrections (no player-level form corrections here).
 
     Replaces the single global bias correction (bias_corrections.json) with
-    per-role corrections (bias_corrections_by_role.json), then applies
-    player-level residual form corrections from the 'flat_corrections' key
-    in player_form_corrections_2026.json.
+    per-role corrections (bias_corrections_by_role.json).
+
+    IMPORTANT: Player-level flat form corrections are applied AFTER Bayesian
+    shrinkage (in predict.py) to prevent shrinkage from dampening individual
+    player corrections that exceed the population prior by a large margin.
 
     Call AFTER apply_calibrators, BEFORE apply_bayesian_shrinkage.
 
@@ -826,7 +828,7 @@ def apply_role_stratified_corrections(
 
     Returns
     -------
-    Copy of pmfs_long with corrected pmf_json, pmf_mean, mean, median, mode, p0
+    Copy of pmfs_long with role-corrected pmf_json, pmf_mean, mean, median, mode, p0
     """
     cal_dir = Path(cal_dir)
 
@@ -849,16 +851,6 @@ def apply_role_stratified_corrections(
         except Exception as exc:
             logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc)
 
-    flat_form: dict[str, float] = {}
-    pfc_path = cal_dir / "player_form_corrections_2026.json"
-    if pfc_path.exists():
-        try:
-            pfc_data = json.loads(pfc_path.read_text())
-            # New format: flat_corrections key at top level
-            flat_form = pfc_data.get("flat_corrections", {})
-        except Exception as exc:
-            logger.warning("[calibrate] Could not load flat_corrections from %s: %s", pfc_path, exc)
-
     _COMBO_STATS: set[str] = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks", "blk_stl"}
 
     out = pmfs_long.copy()
@@ -875,25 +867,21 @@ def apply_role_stratified_corrections(
         global_corr = float(global_corrections.get(stat, 1.0))
         role_corr = float(role_corrections.get(role, {}).get(stat, global_corr))
 
-        # Net multiplier: swap global bias correction for role-specific one
+        # Net multiplier: swap global bias correction for role-specific one.
+        # For starters: net_mult ≈ 1.15 (pts), 1.25 (reb) → increases calibrated mean.
+        # For fringe/rotation: net_mult ≈ 1.0 (no change from global).
         net_mult = (role_corr / global_corr) if global_corr > 0.0 else 1.0
 
-        # Player-level residual form correction
-        player_name = str(row.get("player_name", ""))
-        form_key = f"{player_name}|{stat}"
-        form_mult = float(flat_form.get(form_key, 1.0))
-
-        total_mult = net_mult * form_mult
-
-        if abs(total_mult - 1.0) < 0.01:
+        if abs(net_mult - 1.0) < 0.01:
             new_pmf_jsons.append(row["pmf_json"])
             continue
 
+        player_name = str(row.get("player_name", ""))
         try:
             raw_pmf = json_to_pmf(row["pmf_json"])
             corrected = _apply_mean_bias_correction(
                 raw_pmf,
-                float(np.clip(total_mult, 0.50, 2.50)),
+                float(np.clip(net_mult, 0.50, 2.50)),
             )
             new_pmf_jsons.append(pmf_to_json(corrected))
             n_corrected += 1
@@ -922,8 +910,8 @@ def apply_role_stratified_corrections(
 
     logger.info(
         "[calibrate] apply_role_stratified_corrections: corrected %d / %d PMF rows "
-        "(role_corr_roles=%s, form_corrections=%d)",
-        n_corrected, len(out), sorted(role_corrections.keys()), len(flat_form),
+        "(role_corr_roles=%s)",
+        n_corrected, len(out), sorted(role_corrections.keys()),
     )
     return out
 
