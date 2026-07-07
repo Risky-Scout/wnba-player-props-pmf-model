@@ -265,6 +265,32 @@ def build(
                 pmf_frame = generate_fold_pmfs(
                     fold_model, val_wide_df, val_long_df, fold_meta, cfg
                 )
+
+                # Fix minutes-offset stats in OOF: use forward-looking minutes instead of lagging feature
+                _MINUTES_OFFSET_STATS = ["turnover", "ast"]
+                for _stat in _MINUTES_OFFSET_STATS:
+                    _mask = pmf_frame["stat"] == _stat
+                    if _mask.any() and "minutes_mean" in pmf_frame.columns:
+                        if "player_minutes_mean_l5" in val_wide_df.columns:
+                            try:
+                                _feat_mins = val_wide_df.set_index(["player_id", "game_id"])["player_minutes_mean_l5"]
+                                _pg = pmf_frame[_mask].set_index(["player_id", "game_id"])
+                                _feat_min_vals = _feat_mins.reindex(_pg.index).values
+                                _safe_feat = np.where(_feat_min_vals > 1.0, _feat_min_vals, 1.0)
+                                _model_mins = pmf_frame.loc[_mask, "minutes_mean"].values
+                                _old_means = pmf_frame.loc[_mask, "stat_mean"].values.copy()
+                                _rate_per_min = _old_means / _safe_feat
+                                pmf_frame.loc[_mask, "stat_mean"] = _rate_per_min * np.clip(_model_mins, 0, 45)
+                                import logging as _log
+                                _log.getLogger(__name__).info(
+                                    "[OOF] Minutes-offset fix %s: %d rows, mean %.2f -> %.2f",
+                                    _stat, int(_mask.sum()), float(np.nanmean(_old_means)),
+                                    float(np.nanmean(pmf_frame.loc[_mask, "stat_mean"].values)),
+                                )
+                            except Exception as _mof_exc:
+                                import logging as _log
+                                _log.getLogger(__name__).warning("[OOF] Minutes-offset fix failed for %s: %s", _stat, _mof_exc)
+
                 status = "model_oof"
                 errmsg = ""
                 print(f"    → model_oof  PMF rows={len(pmf_frame):,}")
