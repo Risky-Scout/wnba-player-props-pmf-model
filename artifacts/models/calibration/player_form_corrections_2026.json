@@ -76,6 +76,12 @@
       "player_name": "Dominique Malonga",
       "role_bucket_override": "starter",
       "_note": "8 early-season DNPs followed by starter-level production (37 pts, 28 pts). Role override prevents inactive_risk classification."
+    },
+    "373": {
+      "player_name": "Alyssa Thomas",
+      "minutes_mean_override": 32.0,
+      "role_bucket_override": "starter",
+      "_note": "Model predicts 21 min / rotation due to feature corruption. Market lines pts=15.5/reb=7.5/ast=8.5 confirm starter-level production. Force starter role and 32 min override."
     }
   }
 }
