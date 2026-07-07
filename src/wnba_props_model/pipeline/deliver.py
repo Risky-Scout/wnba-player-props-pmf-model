@@ -554,10 +554,10 @@ def write_delivery(
         # truly degenerate predictions (e.g. pts_reb=0.016), not rotation
         # players with legitimate small projections (e.g. pts_reb=6.5).
         _COMBO_PHANTOM_FLOOR: dict[str, float] = {
-            "pts_reb":     2.0,
-            "pts_ast":     2.0,
-            "pts_reb_ast": 3.0,
-            "reb_ast":     1.5,
+            "pts_reb":     1.0,
+            "pts_ast":     1.0,
+            "pts_reb_ast": 2.0,
+            "reb_ast":     0.8,
             "stocks":      0.3,
             "blk_stl":     0.3,
         }
