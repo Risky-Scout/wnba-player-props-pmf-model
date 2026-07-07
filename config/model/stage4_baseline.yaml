@@ -13,54 +13,54 @@ sparse_stats:
 - blk
 dispersion_r_by_role:
   pts:
-    bench: 0.684
-    rotation: 1.0867
-    core: 1.4623
+    rotation: 1.1071
+    bench: 0.671
+    core: 1.4751
     fringe: 0.3
+    starter: 1.8247
     inactive_risk: 0.3
-    starter: 1.7453
   reb:
-    bench: 0.7257
-    rotation: 1.1518
-    core: 1.4469
+    rotation: 1.1557
+    bench: 0.7019
+    core: 1.4477
     fringe: 0.3
+    starter: 1.6012
     inactive_risk: 0.3
-    starter: 1.523
   ast:
-    bench: 0.5358
-    rotation: 0.8171
-    core: 1.0901
-    fringe: 0.3595
+    rotation: 0.8325
+    bench: 0.5554
+    core: 1.096
+    fringe: 0.3512
+    starter: 1.3628
     inactive_risk: 0.3
-    starter: 1.3161
   fg3m:
-    bench: 0.3
     rotation: 0.3
+    bench: 0.3
     core: 0.3
     fringe: 0.3
-    inactive_risk: 0.3
     starter: 0.3
+    inactive_risk: 0.3
   stl:
-    bench: 1.3683
-    rotation: 4.4206
-    core: 7.6529
+    rotation: 4.0743
+    bench: 1.2749
+    core: 7.6617
     fringe: 0.3
+    starter: 14.125
     inactive_risk: 0.3
-    starter: 20.0
   blk:
-    bench: 0.7148
-    rotation: 1.5217
-    core: 2.192
+    rotation: 1.4779
+    bench: 0.661
+    core: 2.1295
     fringe: 0.3
+    starter: 2.3836
     inactive_risk: 0.3
-    starter: 2.7365
   turnover:
-    bench: 0.922
-    rotation: 1.5633
-    core: 2.1045
-    fringe: 0.501
+    rotation: 1.5948
+    bench: 0.9365
+    core: 2.119
+    fringe: 0.4986
+    starter: 2.5688
     inactive_risk: 0.3
-    starter: 2.4542
 pmf_support_caps:
   pts: 60
   reb: 30
