@@ -883,7 +883,14 @@ def apply_role_stratified_corrections(
         )
         return pmfs_long
 
-    role_corrections: dict[str, dict[str, float]] = json.loads(role_corr_path.read_text())
+    _role_corr_raw: dict = json.loads(role_corr_path.read_text())
+    # Support two JSON formats:
+    #   1. Nested:  {"starter": {"pts": 0.9557}}  → role_corrections["starter"]["pts"]
+    #   2. Flat:    {"corrections": {"starter|pts": 0.9557}}  → corrections["starter|pts"]
+    _corrections_flat: dict[str, float] = {}
+    if "corrections" in _role_corr_raw and isinstance(_role_corr_raw["corrections"], dict):
+        _corrections_flat = {k: float(v) for k, v in _role_corr_raw["corrections"].items()}
+    role_corrections: dict[str, dict[str, float]] = _role_corr_raw  # kept for legacy nested path
 
     global_corrections: dict[str, float] = {}
     global_corr_path = cal_dir / "bias_corrections.json"
@@ -907,7 +914,12 @@ def apply_role_stratified_corrections(
 
         role = str(row.get("role_bucket", "rotation"))
         global_corr = float(global_corrections.get(stat, 1.0))
-        role_corr = float(role_corrections.get(role, {}).get(stat, global_corr))
+        # Flat format lookup first ("starter|pts"), fall back to nested then global
+        _flat_key = f"{role}|{stat}"
+        if _flat_key in _corrections_flat:
+            role_corr = _corrections_flat[_flat_key]
+        else:
+            role_corr = float(role_corrections.get(role, {}).get(stat, global_corr))
 
         # Net multiplier: swap global bias correction for role-specific one.
         # For starters: net_mult ≈ 1.15 (pts), 1.25 (reb) → increases calibrated mean.
