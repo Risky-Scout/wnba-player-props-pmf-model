@@ -2,6 +2,8 @@
   "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-07. Updated Phase 9: AT flat corrections recalibrated from run 28848281771 pre-flat values (pts=0.638, reb=0.393, ast=0.769). Base stats target 90-93% of market. Combo stats capped at 25x (reach ~40% of market due to near-zero raw model output).",
   "generated_at": "2026-07-07",
   "flat_corrections": {
+    "Paige Bueckers|pts": 1.10,
+    "Kahleah Copper|pts": 1.10,
     "Alyssa Thomas|pts": 22.0,
     "Alyssa Thomas|reb": 16.5,
     "Alyssa Thomas|ast": 10.0,
