@@ -1,14 +1,14 @@
 {
-  "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-06. Recalibrate weekly. Updated Phase 7: AT flat corrections recalibrated for uniform (non-protected) global correction. Protected mechanism disabled in calibrate.py.",
-  "generated_at": "2026-07-06",
+  "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-07. Updated Phase 8: AT flat corrections recalibrated from run 28847710430 pre-flat values. Base stats target 90% of market; combo stats at max 25x clip.",
+  "generated_at": "2026-07-07",
   "flat_corrections": {
-    "Alyssa Thomas|pts": 9.0,
-    "Alyssa Thomas|reb": 8.5,
-    "Alyssa Thomas|ast": 6.5,
-    "Alyssa Thomas|pts_reb": 14.5,
-    "Alyssa Thomas|pts_ast": 12.0,
-    "Alyssa Thomas|reb_ast": 13.0,
-    "Alyssa Thomas|pts_reb_ast": 7.5
+    "Alyssa Thomas|pts": 14.0,
+    "Alyssa Thomas|reb": 12.0,
+    "Alyssa Thomas|ast": 8.0,
+    "Alyssa Thomas|pts_reb": 25.0,
+    "Alyssa Thomas|pts_ast": 25.0,
+    "Alyssa Thomas|reb_ast": 25.0,
+    "Alyssa Thomas|pts_reb_ast": 22.0
   },
   "players": {
     "714": {

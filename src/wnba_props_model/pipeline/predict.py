@@ -666,9 +666,11 @@ def predict_player_pmfs(
                         _pfc_arr = _pfc_jtpmf(_pfc_row["pmf_json"])
                         _pfc_k = float(np.arange(len(_pfc_arr), dtype=float) @ _pfc_arr / max(_pfc_arr.sum(), 1e-9))
                         if _pfc_k > 0.01:
-                            # Wide clip: flat_corrections can be 0.1–15x for players with
+                            # Wide clip: flat_corrections can be 0.1–25x for players with
                             # severely broken features (e.g. Alyssa Thomas, wrong minutes).
-                            _pfc_corrected = _pfc_abc(_pfc_arr, float(np.clip(_pfc_mult, 0.10, 15.0)))
+                            # Combo stats for AT need corrections up to 25x since the raw
+                            # model outputs near-zero due to corrupted feature inputs.
+                            _pfc_corrected = _pfc_abc(_pfc_arr, float(np.clip(_pfc_mult, 0.10, 25.0)))
                             _pfc_new_jsons.append(_pfc_ptmj(_pfc_corrected))
                             _pfc_n_applied += 1
                         else:
