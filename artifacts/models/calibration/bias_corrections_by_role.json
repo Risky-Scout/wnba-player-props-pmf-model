@@ -1,10 +1,10 @@
 {
-  "_comment": "Role-stratified bias corrections v3. Recalibrated after disabling protected correction mechanism (run 28847710430). Base stats boosted for starters+core; combo globals reduced since uniform global now applies fully. net_mult = role_corr / global_corr applied in apply_role_stratified_corrections.",
-  "generated_at": "2026-07-07T09:00:00Z",
+  "_comment": "Role-stratified bias corrections v4. Recalibrated from run 28848281771 per-role analysis. starter|pts raised to 1.74 to bring elite starters (Bueckers, Stewart, Copper) to market. Core corrections kept flat since uniform global already places core at ratio 1.0. net_mult = role_corr / global_corr applied in apply_role_stratified_corrections.",
+  "generated_at": "2026-07-07T10:00:00Z",
   "corrections": {
-    "starter|pts": 1.55,
+    "starter|pts": 1.74,
     "core|pts": 1.508,
-    "rotation|pts": 1.35,
+    "rotation|pts": 1.39,
     "bench|pts": 1.150,
     "fringe|pts": 1.150,
     "inactive_risk|pts": 1.150,
