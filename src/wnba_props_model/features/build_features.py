@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -1581,6 +1582,49 @@ def build_wide_table(
         right_on=["game_id", "_opp_team_id"],
         how="left",
     ).drop(columns=["_opp_team_id"], errors="ignore")
+
+    # ------------------------------------------------------------------ #
+    # Vegas game total and team total features (F7e)
+    # Joins consensus game total (total_value) and spread from wnba_odds.
+    # Only applied when the odds parquet is accessible (silent fallback).
+    # ------------------------------------------------------------------ #
+    try:
+        _odds_path = Path(__file__).parents[3] / "data" / "processed" / "wnba_odds.parquet"
+        if _odds_path.exists():
+            _odds_df = pd.read_parquet(_odds_path)
+            # Pick best bookmaker per game_id (prefer DraftKings, then FanDuel, then any)
+            _bk_priority = {"draftkings": 0, "fanduel": 1, "betmgm": 2, "betrivers": 3}
+            _odds_df["_bk_rank"] = _odds_df.get(
+                "book", pd.Series([""] * len(_odds_df))
+            ).apply(lambda b: _bk_priority.get(str(b).lower(), 99))
+            _odds_df = _odds_df.sort_values(["game_id", "_bk_rank"])
+            _odds_best = _odds_df.groupby("game_id", as_index=False).first()
+            _odds_best = _odds_best[["game_id", "total_value", "spread_home_value"]].rename(
+                columns={"total_value": "game_total", "spread_home_value": "game_spread_home"}
+            ).dropna(subset=["game_total"])
+            if not _odds_best.empty:
+                wide = wide.merge(_odds_best, on="game_id", how="left")
+                # Implied team total from player's perspective
+                # Home team implied = (total + home_spread) / 2
+                # Away team implied = (total - home_spread) / 2
+                is_home_flag = wide.get("is_home", pd.Series(False, index=wide.index)).fillna(False).astype(bool)
+                spread_home = wide["game_spread_home"].fillna(0.0)
+                game_total = wide["game_total"].fillna(0.0)
+                wide["implied_team_total"] = np.where(
+                    is_home_flag,
+                    (game_total + spread_home) / 2.0,
+                    (game_total - spread_home) / 2.0,
+                )
+                # Blowout risk: binary flag when |spread| > 10
+                wide["blowout_risk"] = (spread_home.abs() > 10.0).astype(int)
+                audit_notes["vegas_game_total_joined"] = True
+                audit_notes["vegas_game_total_rows"] = int(wide["game_total"].notna().sum())
+    except Exception as _ve:
+        audit_notes["vegas_game_total_joined"] = False
+        audit_notes["vegas_game_total_error"] = str(_ve)
+        for _vc in ["game_total", "implied_team_total", "blowout_risk"]:
+            if _vc not in wide.columns:
+                wide[_vc] = np.nan
 
     # ------------------------------------------------------------------ #
     # Pace-adjusted opponent defensive ratings (F7b)
