@@ -1572,6 +1572,8 @@ def build_wide_table(
     # Add pace proxy alias
     if "opp_total_score_allowed_mean_l5" in ctx_opp.columns:
         ctx_opp["opp_pace_proxy_l5"] = ctx_opp["opp_total_score_allowed_mean_l5"]
+    if "opp_total_score_allowed_mean_l10" in ctx_opp.columns:
+        ctx_opp["opp_pace_proxy_l10"] = ctx_opp["opp_total_score_allowed_mean_l10"]
 
     wide = wide.merge(
         ctx_opp,
@@ -1591,6 +1593,22 @@ def build_wide_table(
                 wide[f"opp_{s}_allowed_per_100_poss_l5"] = (
                     wide[raw_col] / denom
                 ).replace([np.inf, -np.inf], np.nan)
+
+    # L10 pace-adjusted opponent defensive ratings
+    if "opp_pace_proxy_l10" in wide.columns:
+        denom_l10 = wide["opp_pace_proxy_l10"].clip(lower=50.0) / 100.0
+        for s in STATS:
+            raw_col_l10 = f"opp_{s}_allowed_mean_l10"
+            if raw_col_l10 in wide.columns:
+                wide[f"opp_{s}_allowed_per_100_poss_l10"] = (
+                    wide[raw_col_l10] / denom_l10
+                ).replace([np.inf, -np.inf], np.nan)
+        # Explicit defensive rating alias (pts allowed per 100 possessions, L10)
+        if "opp_pts_allowed_mean_l10" in wide.columns:
+            wide["opp_defensive_rating_l10"] = wide.get(
+                "opp_pts_allowed_per_100_poss_l10",
+                wide["opp_pts_allowed_mean_l10"] / denom_l10,
+            ).replace([np.inf, -np.inf], np.nan)
 
     # ------------------------------------------------------------------ #
     # Rate × pace-adjusted opponent interaction features (F7c)
