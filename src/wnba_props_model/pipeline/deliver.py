@@ -546,24 +546,30 @@ def write_delivery(
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path
 
-        # Production floor: suppress combo edges for bench players whose model
-        # mean is too low to have meaningful signal. These generate phantom
-        # UNDER edges because the market line exists but our PMF is near-zero.
-        _COMBO_MIN_MEANS: dict[str, float] = {
-            "pts_reb":     8.0,
-            "pts_ast":     7.0,
-            "pts_reb_ast": 10.0,
-            "reb_ast":     5.0,
-            "stocks":      1.5,
-            "blk_stl":     1.5,
+        # Production floor: suppress combo UNDER edges only for bench players
+        # whose model mean is near-zero (phantom UNDER = market line exists but
+        # PMF has no meaningful signal). OVER edges are always kept — if the
+        # model projects more than the line, that is real signal regardless of
+        # the absolute level. Floors are intentionally low to only catch
+        # truly degenerate predictions (e.g. pts_reb=0.016), not rotation
+        # players with legitimate small projections (e.g. pts_reb=6.5).
+        _COMBO_PHANTOM_FLOOR: dict[str, float] = {
+            "pts_reb":     2.0,
+            "pts_ast":     2.0,
+            "pts_reb_ast": 3.0,
+            "reb_ast":     1.5,
+            "stocks":      0.3,
+            "blk_stl":     0.3,
         }
         _edge_mask = (comp["edge_over"].abs() >= 0.04) | (comp["edge_under"].abs() >= 0.04)
-        # Apply combo production floor
-        if "stat" in comp.columns and "pmf_mean" in comp.columns:
-            for _combo_stat, _floor in _COMBO_MIN_MEANS.items():
+        # Suppress only UNDER edges below the phantom floor — keep all OVER edges
+        if "stat" in comp.columns and "pmf_mean" in comp.columns and "edge_under" in comp.columns:
+            for _combo_stat, _floor in _COMBO_PHANTOM_FLOOR.items():
                 _is_combo = comp["stat"] == _combo_stat
                 _below_floor = comp["pmf_mean"].fillna(0) < _floor
-                _edge_mask = _edge_mask & ~(_is_combo & _below_floor)
+                # An UNDER edge = model_mean < market line → edge_under is positive
+                _is_under_dominant = comp["edge_under"].fillna(0) > comp["edge_over"].fillna(0)
+                _edge_mask = _edge_mask & ~(_is_combo & _below_floor & _is_under_dominant)
         # Also respect combo_suppressed flag set by _build_combo_pmf_rows
         if "combo_suppressed" in comp.columns:
             _edge_mask = _edge_mask & ~comp["combo_suppressed"].fillna(False)

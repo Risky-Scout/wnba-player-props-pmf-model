@@ -289,18 +289,19 @@ def _build_combo_pmf_rows(
             pmf_var  = float((ks ** 2) @ pmf_arr - pmf_mean ** 2)
             p0       = float(pmf_arr[0]) if len(pmf_arr) > 0 else 0.0
 
-            # Production floor: bench players with near-zero combo means generate
-            # phantom UNDER edges because the market line exists but our model has
-            # no meaningful signal. Suppress rows below the floor.
-            _COMBO_MEAN_FLOOR: dict[str, float] = {
-                "pts_reb":     8.0,
-                "pts_ast":     7.0,
-                "pts_reb_ast": 10.0,
-                "reb_ast":     5.0,
-                "stocks":      1.5,
-                "blk_stl":     1.5,
+            # Phantom floor: only suppress truly degenerate near-zero predictions
+            # (e.g. pmf_mean=0.016). Legitimate rotation/bench projections (e.g.
+            # pts_reb=6.5) are NOT suppressed — OVER/UNDER signals at those levels
+            # are real. Suppression is enforced in deliver.py only for UNDER edges.
+            _COMBO_PHANTOM_FLOOR: dict[str, float] = {
+                "pts_reb":     2.0,
+                "pts_ast":     2.0,
+                "pts_reb_ast": 3.0,
+                "reb_ast":     1.5,
+                "stocks":      0.3,
+                "blk_stl":     0.3,
             }
-            _suppressed = pmf_mean < _COMBO_MEAN_FLOOR.get(canonical_stat, 0.0)
+            _suppressed = pmf_mean < _COMBO_PHANTOM_FLOOR.get(canonical_stat, 0.0)
 
             row_dict = {
                 k: v for k, v in tmpl.items()
