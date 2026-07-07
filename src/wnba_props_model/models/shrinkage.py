@@ -65,6 +65,12 @@ _LEAGUE_PRIORS: dict[str, float] = {
     "stl": 0.639,      # OOF actual mean (was 0.67 — 5% too high)
     "blk": 0.348,      # OOF actual mean (was 0.38 — 9% too high)
     "turnover": 1.131, # OOF actual mean (was 1.36 — 20% too high)
+    # Combo stats: sum of component league means (all-player population incl. bench)
+    "pts_reb":     10.122,   # pts (7.156) + reb (2.966)
+    "pts_ast":      8.929,   # pts (7.156) + ast (1.773)
+    "reb_ast":      4.739,   # reb (2.966) + ast (1.773)
+    "pts_reb_ast": 11.895,   # pts + reb + ast
+    "stocks":       0.987,   # stl (0.639) + blk (0.348)
 }
 
 # Load updated league priors from artifacts/models/league_priors.json if available.
@@ -429,6 +435,13 @@ K_BASE: dict[str, float] = {
     "stl": 6.0,
     "blk": 8.0,
     "turnover": 5.0,
+    # Combo stats get lower k (= less shrinkage) because they are sums of 2-3 base
+    # stats and their inter-player variance is higher — the prior matters less.
+    "pts_reb":     3.0,
+    "pts_ast":     3.0,
+    "reb_ast":     3.0,
+    "pts_reb_ast": 3.0,
+    "stocks":      5.0,
 }
 
 
@@ -521,10 +534,26 @@ def apply_bayesian_shrinkage(
 
     # Role-stratified prior means: pull starters toward starter-level production,
     # not all-player averages (which include many bench/fringe players).
+    # Combo stats priors = sum of component role priors.
     _ROLE_PRIORS: dict[str, dict[str, float]] = {
-        "starter": {"pts": 13.5, "reb": 6.0, "ast": 3.5, "fg3m": 1.2, "stl": 1.0, "blk": 0.6, "turnover": 2.0},
-        "core":    {"pts": 10.5, "reb": 4.8, "ast": 2.8, "fg3m": 1.0, "stl": 0.85, "blk": 0.45, "turnover": 1.7},
-        "rotation":{"pts": 7.5,  "reb": 3.2, "ast": 1.8, "fg3m": 0.65,"stl": 0.60, "blk": 0.30, "turnover": 1.2},
+        "starter": {
+            "pts": 13.5, "reb": 6.0, "ast": 3.5, "fg3m": 1.2,
+            "stl": 1.0, "blk": 0.6, "turnover": 2.0,
+            "pts_reb": 19.5, "pts_ast": 17.0, "reb_ast": 9.5,
+            "pts_reb_ast": 23.0, "stocks": 1.6,
+        },
+        "core":    {
+            "pts": 10.5, "reb": 4.8, "ast": 2.8, "fg3m": 1.0,
+            "stl": 0.85, "blk": 0.45, "turnover": 1.7,
+            "pts_reb": 15.3, "pts_ast": 13.3, "reb_ast": 7.6,
+            "pts_reb_ast": 18.1, "stocks": 1.3,
+        },
+        "rotation": {
+            "pts": 7.5, "reb": 3.2, "ast": 1.8, "fg3m": 0.65,
+            "stl": 0.60, "blk": 0.30, "turnover": 1.2,
+            "pts_reb": 10.7, "pts_ast": 9.3, "reb_ast": 5.0,
+            "pts_reb_ast": 12.5, "stocks": 0.9,
+        },
     }
 
     # Build player n_games, season_phase, position, role, and mean-minutes lookups
@@ -565,7 +594,11 @@ def apply_bayesian_shrinkage(
                 player_mean_minutes[int(pid)] = 20.0
 
     # Stat support caps (matching pmf_engine)
-    _STAT_CAPS = {"pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12}
+    _STAT_CAPS = {
+        "pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12,
+        # Combo stat caps = sum of component caps
+        "pts_reb": 90, "pts_ast": 85, "reb_ast": 55, "pts_reb_ast": 105, "stocks": 20,
+    }
 
     # Enhancement 10: season-phase shrinkage multiplier (defined once, not per-row)
     _PHASE_MULT: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
