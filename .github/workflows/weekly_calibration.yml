@@ -499,6 +499,28 @@ jobs:
         run: python scripts/compute_role_bias_corrections.py
         continue-on-error: true
 
+      - name: Estimate OOF stat correlations for combo PMFs
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pandas as pd
+          import json
+          from pathlib import Path
+          from wnba_props_model.models.simulation import estimate_oof_correlations
+
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print("[WARN] OOF parquet not found — skipping correlation estimation")
+              exit(0)
+          oof = pd.read_parquet(oof_path)
+          corrs = estimate_oof_correlations(oof)
+          out_path = Path("config/model/combo_correlations.json")
+          out_path.parent.mkdir(parents=True, exist_ok=True)
+          with open(out_path, "w") as f:
+              json.dump(corrs, f, indent=2)
+          print("Combo correlations estimated:", corrs)
+          PYEOF
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
@@ -697,7 +719,7 @@ jobs:
           git stash --include-untracked
           git pull --rebase origin main
           git stash pop || true
-          git add -f artifacts/models/calibration/
+          git add -f artifacts/models/calibration/ config/model/combo_correlations.json
           if ! git diff --cached --quiet; then
             git commit -m "chore: update calibration artifacts from refit run ${{ github.run_id }} [skip ci]"
             git push
