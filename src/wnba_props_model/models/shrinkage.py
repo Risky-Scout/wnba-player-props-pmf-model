@@ -58,23 +58,19 @@ logger = logging.getLogger(__name__)
 # Fallback league-average stat means — OOF-measured empirical means (blk 0.50→0.38).
 # Updated from data when features_wide is available; these serve as the static fallback.
 _LEAGUE_PRIORS: dict[str, float] = {
-    # Updated to market-eligible player medians (players with active market lines).
-    # The original population-wide means (pts=7.156 incl. bench) caused shrinkage to
-    # drag market-eligible starters/core down by 10-17%. Using market-eligible medians
-    # ensures any residual shrinkage blends toward a reasonable prediction level.
-    "pts": 13.75,      # market-eligible median (was 7.156 all-player)
-    "reb": 5.55,       # market-eligible median (was 2.966)
-    "ast": 3.22,       # market-eligible median (was 1.773)
-    "fg3m": 1.77,      # market-eligible median (was 0.699)
-    "stl": 0.639,      # keep population mean (few market lines)
-    "blk": 0.348,      # keep population mean (few market lines)
-    "turnover": 1.131, # keep population mean
-    # Combo stats: market-eligible medians
-    "pts_reb":     19.14,    # market-eligible median
-    "pts_ast":     17.67,    # market-eligible median
-    "reb_ast":     10.34,    # market-eligible median
-    "pts_reb_ast": 26.36,    # market-eligible median
-    "stocks":       0.987,   # stl + blk
+    "pts": 7.156,      # OOF actual mean (was 7.95 — 11% too high)
+    "reb": 2.966,      # OOF actual mean (was 3.80 — 28% too high)
+    "ast": 1.773,      # OOF actual mean (was 2.03 — 14% too high)
+    "fg3m": 0.699,     # OOF actual mean (was 0.78 — 11% too high)
+    "stl": 0.639,      # OOF actual mean (was 0.67 — 5% too high)
+    "blk": 0.348,      # OOF actual mean (was 0.38 — 9% too high)
+    "turnover": 1.131, # OOF actual mean (was 1.36 — 20% too high)
+    # Combo stats: sum of component league means (all-player population incl. bench)
+    "pts_reb":     10.122,   # pts (7.156) + reb (2.966)
+    "pts_ast":      8.929,   # pts (7.156) + ast (1.773)
+    "reb_ast":      4.739,   # reb (2.966) + ast (1.773)
+    "pts_reb_ast": 11.895,   # pts + reb + ast
+    "stocks":       0.987,   # stl (0.639) + blk (0.348)
 }
 
 # Load updated league priors from artifacts/models/league_priors.json if available.
@@ -432,25 +428,25 @@ def compute_effective_n(n_games: int, mean_minutes: float, starter_minutes: floa
 # actual starter-level production (starters avg 2-3x bench players).
 # At k=4, a starter with 10 games gets alpha=4/(4+10)=0.286 (was 0.50).
 K_BASE: dict[str, float] = {
-    # Reduced 4x from previous values to prevent shrinkage from absorbing market-derived
-    # bias corrections. Root cause: calibrators trained on un-shrunk OOF PMFs; shrinkage
-    # applied after calibration + corrections compresses them back down by 10-17% for
-    # players with n≈20 games (alpha was 4/24=0.167). Reducing k to 1.0 cuts alpha to
-    # 1/21=0.048, allowing corrections to actually reach the final prediction.
-    # k=1.0 still provides meaningful prior blending for very new players (n=3→alpha=0.25).
-    "pts": 1.0,
-    "reb": 1.25,
-    "ast": 1.5,
-    "fg3m": 1.75,
-    "stl": 1.5,
-    "blk": 2.0,
-    "turnover": 1.25,
-    # Combo stats: even lower k since they aggregate multiple stats
-    "pts_reb":     0.75,
-    "pts_ast":     0.75,
-    "reb_ast":     0.75,
-    "pts_reb_ast": 0.75,
-    "stocks":      1.25,
+    # Base k values per stat: how many effective games before shrinkage drops to 50%.
+    # Halved from original (8/10/12/15/12/18/10) — the prior was over-weighting
+    # low-season-data players toward the all-player league mean, which is far below
+    # actual starter-level production (starters avg 2-3x bench players).
+    # At k=4, a starter with 10 games gets alpha=4/(4+10)=0.286 (was 0.50).
+    "pts": 4.0,
+    "reb": 5.0,
+    "ast": 6.0,
+    "fg3m": 7.0,
+    "stl": 6.0,
+    "blk": 8.0,
+    "turnover": 5.0,
+    # Combo stats get lower k (= less shrinkage) because they are sums of 2-3 base
+    # stats and their inter-player variance is higher — the prior matters less.
+    "pts_reb":     3.0,
+    "pts_ast":     3.0,
+    "reb_ast":     3.0,
+    "pts_reb_ast": 3.0,
+    "stocks":      5.0,
 }
 
 

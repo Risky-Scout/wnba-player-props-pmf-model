@@ -83,6 +83,7 @@ jobs:
         run: |
           git checkout HEAD -- artifacts/models/calibration/bias_corrections.json 2>/dev/null || true
           git checkout HEAD -- artifacts/models/calibration/bias_corrections_by_role.json 2>/dev/null || true
+          git checkout HEAD -- artifacts/models/calibration/player_form_corrections_2026.json 2>/dev/null || true
           python3 - <<'EOF'
           import json, pathlib
           bc_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
