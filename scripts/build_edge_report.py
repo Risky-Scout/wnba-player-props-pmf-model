@@ -168,6 +168,23 @@ def main(
         comp = comp[comp["stat"].isin(PUBLISHABLE_STATS)].copy()
         typer.echo(f"[filter] Filtered to publishable stats {PUBLISHABLE_STATS}: {len(comp):,} rows remain")
 
+    # ── Shin-z convergence diagnostic ─────────────────────────────────────────
+    import logging as _shin_log
+    _shin_logger = _shin_log.getLogger(__name__)
+    if "shin_z" in comp.columns:
+        n_total = len(comp)
+        n_converged = comp["shin_z"].notna().sum()
+        n_fallback = n_total - n_converged
+        shin_vals = comp["shin_z"].dropna()
+        _shin_logger.info(
+            "[Shin diagnostic] %d/%d rows converged (%.1f%%), %d fell back to multiplicative. "
+            "Shin z: median=%.4f, p95=%.4f, pct_above_threshold=%.1f%%",
+            n_converged, n_total, 100 * n_converged / max(n_total, 1), n_fallback,
+            float(shin_vals.median()) if len(shin_vals) > 0 else float("nan"),
+            float(shin_vals.quantile(0.95)) if len(shin_vals) > 0 else float("nan"),
+            100 * (shin_vals > 0.15).mean() if len(shin_vals) > 0 else 0.0,
+        )
+
     # Annotate with calibration status
     for col in ("is_calibrated", "cal_source", "model_version"):
         if col not in comp.columns and col in pmfs_df.columns:

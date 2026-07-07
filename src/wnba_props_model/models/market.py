@@ -68,6 +68,10 @@ def shin_no_vig_two_way_with_z(
         logger.debug("shin_no_vig_two_way_with_z failed (%s)", exc)
     # Fallback: multiplicative, z=None
     p_o, p_u = _multiplicative_no_vig(over_odds, under_odds)
+    logger.debug(
+        "shin_no_vig_two_way_with_z: fell back to multiplicative (over=%s, under=%s)",
+        over_odds, under_odds,
+    )
     return p_o, p_u, None
 
 
