@@ -520,8 +520,12 @@ def fit_calibrators(
         "reb_ast":      4.0,
         "pts_reb_ast": 10.0,
     }
+    # Canonical combo stat names used in the OOF delivery files (predict.py uses
+    # these names; SUPPORTED_STATS still uses legacy keys pa/pr/ra/pra).
+    _CANONICAL_COMBO_STATS: set[str] = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast"}
     _bias_corrections: dict[str, float] = {}
-    for _bc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
+    _bc_stat_universe = sorted(set(oof_eligible["stat"].dropna()) & (set(SUPPORTED_STATS) | _CANONICAL_COMBO_STATS))
+    for _bc_stat in _bc_stat_universe:
         _bc_sub = oof_eligible[oof_eligible["stat"] == _bc_stat].dropna(
             subset=["pmf_mean", "actual_outcome"]
         )
@@ -542,8 +546,14 @@ def fit_calibrators(
         _actual_mean_bc = float(_bc_sub["actual_outcome"].mean())
         if _model_mean_bc > 0.01:
             _raw_ratio = _actual_mean_bc / _model_mean_bc
-            # Cap correction to ±40% to prevent runaway corrections on thin stats
-            _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.60, 1.40))
+            # Combo stats built from convolved uncorrected PMFs often need corrections
+            # well outside the ±40% cap used for base stats (e.g., pts_reb needs ~1.50).
+            # Use a wider cap [0.40, 2.50] for combo stats.
+            if _bc_stat in _CANONICAL_COMBO_STATS:
+                _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.40, 2.50))
+            else:
+                # Cap correction to ±40% to prevent runaway corrections on thin stats
+                _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.60, 1.40))
         else:
             _bias_corrections[_bc_stat] = 1.0
     (out / "bias_corrections.json").write_text(json.dumps(_bias_corrections, indent=2))
@@ -1067,13 +1077,18 @@ def apply_calibrators(
         # standard multiplicative correction otherwise.
         _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
         _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
+        _is_combo_stat = stat in {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast"}
+        # Combo stats need wider alpha range because their corrections can exceed ±40%
+        # (they are built from uncorrected raw PMFs and calibrated independently).
+        _alpha_clip_lo = 0.40 if _is_combo_stat else 0.60
+        _alpha_clip_hi = 2.50 if _is_combo_stat else 1.40
         if _row_idx in _row_corrected_mean and abs(_alpha_ac - 1.0) > 0.005:
             # Recompute alpha for this specific player from the protected target mean
             _pmf_k = np.arange(len(raw_pmf), dtype=float)
             _curr_mean = float(np.dot(_pmf_k, raw_pmf / max(raw_pmf.sum(), 1e-9)))
             _target_mean = _row_corrected_mean[_row_idx]
             _player_alpha = (_target_mean / _curr_mean) if _curr_mean > 0.01 else _alpha_ac
-            _player_alpha = float(np.clip(_player_alpha, 0.60, 1.40))
+            _player_alpha = float(np.clip(_player_alpha, _alpha_clip_lo, _alpha_clip_hi))
             raw_pmf = _apply_mean_bias_correction(raw_pmf, _player_alpha, variance_compress_factor=_vc_factor_ac)
         elif abs(_alpha_ac - 1.0) > 0.005 or _vc_factor_ac > 1.05:
             raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac, variance_compress_factor=_vc_factor_ac)
