@@ -198,6 +198,54 @@ jobs:
             --out-dir deliveries/next_game
         continue-on-error: true
 
+      - name: Compute daily drift correction from yesterday's results
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pandas as pd
+          from pathlib import Path
+          from wnba_props_model.pipeline.daily_drift import (
+              compute_daily_drift, load_bias_corrections, save_bias_corrections
+          )
+
+          yesterday_preds_path = Path("deliveries/archive/yesterday_pmfs.parquet")
+          actuals_path = Path("data/processed/wnba_player_game_stats.parquet")
+          bias_path = Path("artifacts/models/calibration/bias_corrections.json")
+
+          if not yesterday_preds_path.exists():
+              print("No yesterday PMF archive -- skipping daily drift")
+              exit(0)
+          if not actuals_path.exists():
+              print("No actuals parquet -- skipping daily drift")
+              exit(0)
+
+          yesterday_pmfs = pd.read_parquet(yesterday_preds_path)
+          actuals_df = pd.read_parquet(actuals_path)
+
+          from datetime import date, timedelta
+          yesterday_date = (date.today() - timedelta(days=1)).isoformat()
+          date_col = next((c for c in ["game_date", "date"] if c in actuals_df.columns), None)
+          if date_col:
+              actuals_df = actuals_df[actuals_df[date_col].astype(str).str[:10] == yesterday_date]
+
+          if actuals_df.empty:
+              print(f"No actuals found for {yesterday_date} -- skipping daily drift")
+              exit(0)
+
+          stat_cols = [c for c in ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+                       if c in actuals_df.columns]
+          id_col = "player_id" if "player_id" in actuals_df.columns else "bdl_player_id"
+          actuals_long = actuals_df.melt(
+              id_vars=[id_col], value_vars=stat_cols,
+              var_name="stat", value_name="actual_value"
+          ).rename(columns={id_col: "player_id"}).dropna(subset=["actual_value"])
+
+          current = load_bias_corrections(bias_path)
+          updated = compute_daily_drift(yesterday_pmfs, actuals_long, current)
+          save_bias_corrections(updated, bias_path)
+          print("Daily drift applied:", {k: v for k, v in updated.items() if not k.startswith("_")})
+          PYEOF
+
       - name: Predict D+1 projections (HGB + calibration)
         run: |
           # Use the D+1 slate if it was built; fall back to full feature table with date filter
@@ -495,6 +543,25 @@ jobs:
             ls -la deliveries/tonight/ | head -20
           else
             echo "[bridge] target_date=$TARGET == today=$TODAY or next_game absent — no bridge needed"
+          fi
+
+      - name: Archive today's PMFs for daily drift (tomorrow)
+        continue-on-error: true
+        run: |
+          mkdir -p deliveries/archive
+          # Prefer the full PMF long table; fall back to publishable edges (has pmf_mean)
+          PARQUET_PATH=$(find deliveries/tonight -name "*.parquet" 2>/dev/null | grep -v "publishable\|market_comp\|edge\|quantile" | head -1)
+          if [ -f "$PARQUET_PATH" ]; then
+            cp "$PARQUET_PATH" deliveries/archive/yesterday_pmfs.parquet
+            echo "Archived PMFs: $PARQUET_PATH"
+          else
+            FALLBACK=$(find deliveries/tonight -name "publishable_edges.parquet" 2>/dev/null | head -1)
+            if [ -f "$FALLBACK" ]; then
+              cp "$FALLBACK" deliveries/archive/yesterday_pmfs.parquet
+              echo "Archived publishable edges as PMF archive"
+            else
+              echo "[WARN] No parquet found to archive for drift"
+            fi
           fi
 
       - name: Trigger pregame dashboard publish (explicit dispatch)
