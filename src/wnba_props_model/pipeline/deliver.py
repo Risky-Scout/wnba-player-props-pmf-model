@@ -12,6 +12,29 @@ from wnba_props_model.models.pmf_grid import WNBAPMFGrid, pmfs_df_to_grids
 from wnba_props_model.models.simulation import json_to_pmf
 
 
+def no_vig_prob(over_odds_decimal: float, under_odds_decimal: float) -> tuple[float, float]:
+    """Remove vig from a two-sided market to get true implied probabilities.
+
+    Uses additive normalization (power method approximation). For a proper
+    Shin-model de-vig, use shin_no_vig_two_way_with_z from models.market.
+
+    Args:
+        over_odds_decimal: Decimal odds for the over side (e.g. 1.91).
+        under_odds_decimal: Decimal odds for the under side (e.g. 1.91).
+
+    Returns:
+        Tuple (no_vig_over_prob, no_vig_under_prob) summing to 1.0.
+    """
+    if over_odds_decimal <= 1.0 or under_odds_decimal <= 1.0:
+        return 0.5, 0.5
+    p_over_raw = 1.0 / over_odds_decimal
+    p_under_raw = 1.0 / under_odds_decimal
+    total = p_over_raw + p_under_raw
+    if total <= 0:
+        return 0.5, 0.5
+    return p_over_raw / total, p_under_raw / total
+
+
 def add_pge_ladder(pmfs: pd.DataFrame, kmax: int = 20) -> pd.DataFrame:
     out = pmfs.copy()
     for k in range(1, kmax + 1):
@@ -285,6 +308,10 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     joined["edge_under"] = joined["market_prob_over_no_vig"] - joined["model_prob_over"]
     joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
     joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
+
+    # Explicit no-vig probability columns for downstream reporting
+    joined["no_vig_over_prob"] = joined["market_prob_over_no_vig"]
+    joined["no_vig_under_prob"] = 1.0 - joined["market_prob_over_no_vig"]
 
     # Market-implied Poisson mean (Phase 4b)
     from wnba_props_model.models.market import market_implied_mean as _mim  # noqa: PLC0415
