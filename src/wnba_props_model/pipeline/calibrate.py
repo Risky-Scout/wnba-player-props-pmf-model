@@ -1046,24 +1046,15 @@ def apply_calibrators(
         logger.info("[calibrate] Applied P(DNP) calibration: mean_raw=%.3f mean_cal=%.3f",
                     float(_raw_pdnp.mean()), float(_cal_pdnp.mean()))
 
-    # Protected mean bias correction (Phase H): apply additive non-uniform correction
-    # per-stat in batch BEFORE the per-row PMF loop.  This prevents the global
-    # correction from over-correcting workhorse players (large predicted means), which
-    # causes the observed -1.22 underprediction gap for elite scorers.
-    # We convert the multiplicative alpha (actual/model ratio) to an additive bias
-    # (actual_mean - model_mean ≈ model_mean * (alpha - 1)) and apply it via
-    # _apply_protected_mean_bias_correction(), which weights corrections by proximity
-    # to the median prediction (high-performers get ~30%, bench gets 100%).
+    # Protected mean bias correction (Phase H): DISABLED.
+    # The protected mechanism redistributed corrections non-uniformly: bench/low-producers
+    # received 100% of the bias while elite starters received only ~30%. This caused
+    # market-eligible high producers to be systematically under-corrected while bench
+    # players (who have no market lines) were over-corrected.  Net effect: the edge board
+    # was consistently UNDER-biased for players that actually appear in prop markets.
+    # We now apply the global alpha uniformly to all players so that every prediction
+    # receives the full multiplicative correction.
     _protected_target_means: dict[str, np.ndarray] = {}
-    if "pmf_mean" in out.columns:
-        for _pbc_stat, _pbc_grp in out.groupby("stat"):
-            _pbc_alpha = _bias_corrections_ac.get(str(_pbc_stat), 1.0)
-            if abs(_pbc_alpha - 1.0) > 0.005:
-                _pbc_means = _pbc_grp["pmf_mean"].fillna(0.0).values.astype(float)
-                _pbc_bias = float(np.mean(_pbc_means)) * (_pbc_alpha - 1.0)
-                _protected_target_means[str(_pbc_stat)] = _apply_protected_mean_bias_correction(
-                    _pbc_means, _pbc_bias
-                )
 
     # Build a row-index → corrected mean map for fast lookup in the loop below
     _row_corrected_mean: dict[int, float] = {}
@@ -1084,9 +1075,7 @@ def apply_calibrators(
         player_id = row.get("player_id", None)
         raw_pmf = json_to_pmf(row["pmf_json"])
 
-        # Apply protected mean bias correction: use per-player corrected target mean
-        # (from _apply_protected_mean_bias_correction) when available; fall back to
-        # standard multiplicative correction otherwise.
+        # Apply global mean bias correction uniformly to all players.
         _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
         _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
         _is_combo_stat = stat in {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast"}
