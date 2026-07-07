@@ -497,11 +497,43 @@ def fit_calibrators(
     # by a multiplicative factor (ratio of actual to model mean on prop-eligible OOF),
     # then let isotonic correct residual shape. This prevents the calibrator from
     # over-correcting the tails to compensate for a mean shift.
+    #
+    # CRITICAL: bias corrections must be computed on MARKET-LEVEL rows only
+    # (players the sportsbook actually offers lines for). Using the wider
+    # prop-eligible floor (pmf_mean >= 5.0 for pts) includes many rotation/bench
+    # players who are predicted 5-9 pts but score 4-7 pts on average — their over-
+    # prediction ratio (1.30-1.50) is much larger than for featured players (1.15-1.25).
+    # The blended correction (0.76 for pts) over-corrects for featured starters,
+    # pulling all market predictions 10-15% below market lines → systematic UNDER bias.
+    # Market-level floors match the minimum line offered by sportsbooks mid-season.
+    _MARKET_LEVEL_PMF_MIN: dict[str, float] = {
+        "pts":         10.0,  # sportsbooks offer pts lines for 10+ projected scorers
+        "reb":          3.5,  # reb lines for 3.5+ projected
+        "ast":          2.5,  # ast lines for 2.5+ projected
+        "fg3m":         0.5,  # fg3m lines for moderate shooters (0.5+ projected)
+        "stl":          0.5,  # stl lines for active defenders
+        "blk":          0.25, # blk lines for shot-blockers
+        "turnover":     1.5,  # turnover lines for primary ballhandlers
+        "stocks":       0.8,  # stocks = stl + blk combined
+        "pts_ast":      8.0,
+        "pts_reb":      8.0,
+        "reb_ast":      4.0,
+        "pts_reb_ast": 10.0,
+    }
     _bias_corrections: dict[str, float] = {}
     for _bc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
         _bc_sub = oof_eligible[oof_eligible["stat"] == _bc_stat].dropna(
             subset=["pmf_mean", "actual_outcome"]
         )
+        # Apply market-level floor for bias correction computation only
+        _ml_floor = _MARKET_LEVEL_PMF_MIN.get(_bc_stat)
+        if _ml_floor is not None and "pmf_mean" in _bc_sub.columns:
+            _bc_sub_market = _bc_sub[_bc_sub["pmf_mean"] >= _ml_floor]
+            if len(_bc_sub_market) >= 100:
+                _bc_sub = _bc_sub_market
+                print(f"[calibrate] Bias correction stat={_bc_stat}: using market-level floor {_ml_floor} ({len(_bc_sub)} rows)")
+            else:
+                print(f"[calibrate] Bias correction stat={_bc_stat}: market-level floor {_ml_floor} too few rows ({len(_bc_sub_market)}) — using prop-eligible floor")
         if len(_bc_sub) < 200:
             logger.warning("[calibrate] Too few rows (%d) for bias correction stat=%s; using 1.0", len(_bc_sub), _bc_stat)
             _bias_corrections[_bc_stat] = 1.0
