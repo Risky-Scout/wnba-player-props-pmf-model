@@ -201,6 +201,12 @@ GAME_SCRIPT_FEATURES: list[str] = [
     "team_timezone_diff",            # |home_tz - away_tz| proxy for travel fatigue
     "team_3in4_flag",                # Player's team on 3-in-4 schedule
     "opp_3in4_flag",                 # Opponent on 3-in-4 schedule
+    # Vegas game totals and implied team scoring (Enhancement: game context)
+    # These features do NOT start with safe prefixes so must be registered here.
+    "implied_team_total",            # Vegas-implied team score = (game_total ± spread) / 2
+    "game_total",                    # Vegas over/under game total (raw)
+    "game_spread_home",              # Home team point spread
+    "blowout_risk",                  # Binary: |spread| > 10 (starters likely sit late)
 ]
 
 # Parts B+F: Prior-game market features — lagged by 1 game to avoid leakage.
