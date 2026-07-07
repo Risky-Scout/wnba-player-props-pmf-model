@@ -31,9 +31,11 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import nbinom, norm
 from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.impute import SimpleImputer
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import StandardScaler
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +167,8 @@ class StackedQuantilePropModel:
         self.ridge_alpha = ridge_alpha
         self.hgb_params = hgb_params or {}
         self._ridge: Ridge | None = None
+        self._scaler: StandardScaler | None = None
+        self._imputer: SimpleImputer | None = None
         self._hgb_models: dict[float, HistGradientBoostingRegressor] = {}
         self._fitted = False
 
@@ -174,6 +178,11 @@ class StackedQuantilePropModel:
         y: np.ndarray | pd.Series,
     ) -> "StackedQuantilePropModel":
         """Fit Ridge baseline then HGB residual quantile stack.
+
+        Ridge does not handle NaN natively, so an imputer (median strategy)
+        and a standard scaler are applied before Ridge. HGB receives the raw
+        (un-scaled, NaN-tolerant) augmented matrix so its native NaN handling
+        is unaffected.
 
         Args:
             X: Feature matrix.
@@ -185,13 +194,18 @@ class StackedQuantilePropModel:
         X_arr = np.asarray(X, dtype=float)
         y_arr = np.asarray(y, dtype=float)
 
-        # Layer 1: Ridge baseline
+        # Layer 1: impute → scale → Ridge baseline
+        self._imputer = SimpleImputer(strategy="median")
+        self._scaler = StandardScaler()
+        X_imputed = self._imputer.fit_transform(X_arr)
+        X_scaled = self._scaler.fit_transform(X_imputed)
         self._ridge = Ridge(alpha=self.ridge_alpha)
-        self._ridge.fit(X_arr, y_arr)
-        ridge_pred = self._ridge.predict(X_arr).reshape(-1, 1)
+        self._ridge.fit(X_scaled, y_arr)
+        ridge_pred = self._ridge.predict(X_scaled).reshape(-1, 1)
         residuals = y_arr - ridge_pred.ravel()
 
-        # Layer 2: HGB on residuals with ridge_pred as extra feature
+        # Layer 2: HGB on residuals with ridge_pred as extra feature.
+        # HGB handles NaN natively, so pass the original (un-scaled) X_arr.
         X_aug = np.hstack([X_arr, ridge_pred])
         base_params = {**_BASE_HGB_PARAMS, **self.hgb_params}
         for q in self.quantiles:
@@ -214,10 +228,12 @@ class StackedQuantilePropModel:
             - ``preds``: (n_samples, n_quantiles) monotone-corrected array.
             - ``q_vals``: Quantile levels in column order.
         """
-        if not self._fitted or self._ridge is None:
+        if not self._fitted or self._ridge is None or self._imputer is None or self._scaler is None:
             raise RuntimeError("StackedQuantilePropModel is not fitted")
         X_arr = np.asarray(X, dtype=float)
-        ridge_pred = self._ridge.predict(X_arr).reshape(-1, 1)
+        X_imputed = self._imputer.transform(X_arr)
+        X_scaled = self._scaler.transform(X_imputed)
+        ridge_pred = self._ridge.predict(X_scaled).reshape(-1, 1)
         X_aug = np.hstack([X_arr, ridge_pred])
 
         q_vals = sorted(self._hgb_models.keys())
