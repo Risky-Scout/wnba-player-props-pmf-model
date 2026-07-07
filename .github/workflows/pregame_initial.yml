@@ -82,6 +82,7 @@ jobs:
         # Hard floor is 0.50 (see sanity gate below); values between 0.50-0.90 are valid.
         run: |
           git checkout HEAD -- artifacts/models/calibration/bias_corrections.json 2>/dev/null || true
+          git checkout HEAD -- artifacts/models/calibration/bias_corrections_by_role.json 2>/dev/null || true
           python3 - <<'EOF'
           import json, pathlib
           bc_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
@@ -95,6 +96,11 @@ jobs:
                   print(f"OK: all bias_corrections >= 0.50 (min={min(bc.values()):.3f})")
           else:
               print("bias_corrections.json not found — skipping guard")
+          br_path = pathlib.Path("artifacts/models/calibration/bias_corrections_by_role.json")
+          if br_path.exists():
+              br = json.loads(br_path.read_text())
+              starters = {k: v for k, v in br.get("corrections", {}).items() if k.startswith("starter|")}
+              print(f"bias_corrections_by_role starter corrections (git version): {starters}")
           EOF
 
       - name: Download stage4 model (cross-run via GitHub CLI)
