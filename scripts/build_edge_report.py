@@ -88,11 +88,11 @@ def main(
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
     max_shin_z: float = typer.Option(
-        0.12,
+        0.15,
         help=(
             "Shin-z soft filter threshold. Edges where shin_z > max_shin_z are flagged as "
             "'high_adversity' (sharp market, higher adverse-selection risk) but NOT removed. "
-            "Lower z = softer market = better for retail bettor. Default 0.12."
+            "Lower z = softer market = better for retail bettor. Default 0.15."
         ),
     ),
     odds_api_props: str = typer.Option(
