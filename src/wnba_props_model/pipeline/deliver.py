@@ -432,6 +432,8 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
             decay_edges.append(round(edge * decay_factor, 4))
         joined["kelly_fraction"] = kelly_vals
         joined["clv_decay_adjusted_edge"] = decay_edges
+        # kelly_units: Quarter-Kelly fraction expressed as % of bankroll (e.g. 2.5 = 2.5%)
+        joined["kelly_units"] = (joined["kelly_fraction"] * 100).round(2)
 
     # reverse_line_movement_flag: line moved opposite to model's suggested direction
     if "line_delta" in joined.columns and "edge_over" in joined.columns:
