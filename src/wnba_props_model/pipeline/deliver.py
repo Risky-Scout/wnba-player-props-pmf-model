@@ -516,9 +516,30 @@ def write_delivery(
         comp_path = out / "market_comparison.parquet"
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path
-        edges = comp[
-            (comp["edge_over"].abs() >= 0.04) | (comp["edge_under"].abs() >= 0.04)
-        ].copy()
+
+        # Production floor: suppress combo edges for bench players whose model
+        # mean is too low to have meaningful signal. These generate phantom
+        # UNDER edges because the market line exists but our PMF is near-zero.
+        _COMBO_MIN_MEANS: dict[str, float] = {
+            "pts_reb":     8.0,
+            "pts_ast":     7.0,
+            "pts_reb_ast": 10.0,
+            "reb_ast":     5.0,
+            "stocks":      1.5,
+            "blk_stl":     1.5,
+        }
+        _edge_mask = (comp["edge_over"].abs() >= 0.04) | (comp["edge_under"].abs() >= 0.04)
+        # Apply combo production floor
+        if "stat" in comp.columns and "pmf_mean" in comp.columns:
+            for _combo_stat, _floor in _COMBO_MIN_MEANS.items():
+                _is_combo = comp["stat"] == _combo_stat
+                _below_floor = comp["pmf_mean"].fillna(0) < _floor
+                _edge_mask = _edge_mask & ~(_is_combo & _below_floor)
+        # Also respect combo_suppressed flag set by _build_combo_pmf_rows
+        if "combo_suppressed" in comp.columns:
+            _edge_mask = _edge_mask & ~comp["combo_suppressed"].fillna(False)
+
+        edges = comp[_edge_mask].copy()
         edges_path = out / "publishable_edges.parquet"
         edges.to_parquet(edges_path, index=False)
         paths["publishable_edges"] = edges_path

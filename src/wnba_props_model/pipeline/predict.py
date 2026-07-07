@@ -289,6 +289,19 @@ def _build_combo_pmf_rows(
             pmf_var  = float((ks ** 2) @ pmf_arr - pmf_mean ** 2)
             p0       = float(pmf_arr[0]) if len(pmf_arr) > 0 else 0.0
 
+            # Production floor: bench players with near-zero combo means generate
+            # phantom UNDER edges because the market line exists but our model has
+            # no meaningful signal. Suppress rows below the floor.
+            _COMBO_MEAN_FLOOR: dict[str, float] = {
+                "pts_reb":     8.0,
+                "pts_ast":     7.0,
+                "pts_reb_ast": 10.0,
+                "reb_ast":     5.0,
+                "stocks":      1.5,
+                "blk_stl":     1.5,
+            }
+            _suppressed = pmf_mean < _COMBO_MEAN_FLOOR.get(canonical_stat, 0.0)
+
             row_dict = {
                 k: v for k, v in tmpl.items()
                 if k not in ("stat", "pmf_json", "mean", "pmf_mean", "pmf_variance",
@@ -307,6 +320,7 @@ def _build_combo_pmf_rows(
                 "pmf_support_max": cap,
                 "pmf_source":     "combo_convolution",
                 "actual_outcome": np.nan,
+                "combo_suppressed": _suppressed,
             })
             combo_rows.append(row_dict)
 
