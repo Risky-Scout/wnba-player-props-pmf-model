@@ -256,6 +256,10 @@ jobs:
         continue-on-error: true
 
       - name: Generate pre-game PMF projections
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          WNBA_USE_QUANTILE_MODEL: "1"
         run: |
           SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
           if [ -f "$SLATE" ]; then
