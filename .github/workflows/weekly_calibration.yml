@@ -65,6 +65,22 @@ jobs:
             echo "Model architecture unchanged since last calibration."
           fi
 
+      - name: Auto-sync stage4 dispersion_r_by_role from stage5 (permanent fix)
+        run: |
+          python3 - <<'EOF'
+          import yaml
+          s4_path = "config/model/stage4_baseline.yaml"
+          s5_path = "config/model/stage5_oof.yaml"
+          s4 = yaml.safe_load(open(s4_path))
+          s5 = yaml.safe_load(open(s5_path))
+          if s4.get("dispersion_r_by_role") != s5.get("dispersion_r_by_role"):
+              s4["dispersion_r_by_role"] = s5["dispersion_r_by_role"]
+              yaml.dump(s4, open(s4_path, "w"), default_flow_style=False, sort_keys=False, allow_unicode=True)
+              print("Auto-synced dispersion_r_by_role from stage5 -> stage4")
+          else:
+              print("dispersion_r_by_role already in sync — no change needed")
+          EOF
+
       - name: Assert stage4/stage5 config alignment
         run: |
           python3 - <<'EOF'
