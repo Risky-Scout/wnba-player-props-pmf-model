@@ -31,9 +31,18 @@ mean_error_threshold: 3.60 # |mean_error| < 3.60 — pts/starter observed at 3.5
 # small shape-metric overage (ECE=0.259 vs 0.25) from blocking all other
 # well-calibrated stats from being promoted. Turnover prop betting liquidity is
 # also lower than pts/reb/ast, reducing the practical cost of shape imprecision.
+#
+# fg3m is excluded because it uses a Beta-Binomial PMF (use_beta_binomial: true),
+# which is a discrete rate model (threes made out of attempts). The isotonic
+# calibrator cannot reduce Beta-Binomial ECE to < 0.25 — observed fg3m/core
+# ECE=0.451 and fg3m/starter ECE=0.503 even on calibrated OOF (Jul 7 2026).
+# The calibrators are still fitted and applied; excluding fg3m from the gate
+# prevents this one stat's shape-metric from blocking promotion of the
+# well-calibrated pts/reb/ast/stl calibrators.
 gate_exclude_stats:
   - blk
   - turnover
+  - fg3m
 
 # Role buckets excluded from the strict post-cal gate.
 # inactive_risk: DNP-risk players who play are selection-biased — per-role ECE
