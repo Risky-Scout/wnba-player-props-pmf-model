@@ -1127,7 +1127,18 @@ def apply_calibrators(
                 is_calibrated_flags.append(False)
                 cal_sources.append("calibration_error")
         else:
-            new_pmf_jsons.append(row["pmf_json"])
+            # No isotonic calibrator for this stat (e.g. combo stats like pts_reb).
+            # Still persist the bias-corrected raw_pmf so that corrections in
+            # bias_corrections.json (e.g. pts_reb=1.491) are not silently discarded.
+            _needs_save = (
+                abs(_alpha_ac - 1.0) > 0.005
+                or _vc_factor_ac > 1.05
+                or (_player_vc_factor is not None and abs(_player_vc_factor - 1.0) > 0.05)
+            )
+            if _needs_save:
+                new_pmf_jsons.append(pmf_to_json(raw_pmf))
+            else:
+                new_pmf_jsons.append(row["pmf_json"])
             is_calibrated_flags.append(False)
             cal_sources.append("no_calibrator")
 
