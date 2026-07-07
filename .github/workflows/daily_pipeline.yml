@@ -240,6 +240,26 @@ jobs:
               var_name="stat", value_name="actual_value"
           ).rename(columns={id_col: "player_id"}).dropna(subset=["actual_value"])
 
+          # Derive combo actuals from base actuals for drift tracking
+          combo_map = {
+              "pts_reb": ["pts", "reb"],
+              "pts_ast": ["pts", "ast"],
+              "reb_ast": ["reb", "ast"],
+              "pts_reb_ast": ["pts", "reb", "ast"],
+              "stocks": ["stl", "blk"],
+          }
+          combo_rows = []
+          for combo_stat, components in combo_map.items():
+              if not all(c in actuals_df.columns for c in components):
+                  continue
+              combo_df = actuals_df[[id_col] + components].copy()
+              combo_df = combo_df.rename(columns={id_col: "player_id"})
+              combo_df["actual_value"] = combo_df[components].sum(axis=1)
+              combo_df["stat"] = combo_stat
+              combo_rows.append(combo_df[["player_id", "stat", "actual_value"]])
+          if combo_rows:
+              actuals_long = pd.concat([actuals_long] + combo_rows, ignore_index=True)
+
           current = load_bias_corrections(bias_path)
           updated = compute_daily_drift(yesterday_pmfs, actuals_long, current)
           save_bias_corrections(updated, bias_path)
