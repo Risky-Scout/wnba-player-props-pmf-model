@@ -294,10 +294,10 @@ def _build_combo_pmf_rows(
             # pts_reb=6.5) are NOT suppressed — OVER/UNDER signals at those levels
             # are real. Suppression is enforced in deliver.py only for UNDER edges.
             _COMBO_PHANTOM_FLOOR: dict[str, float] = {
-                "pts_reb":     2.0,
-                "pts_ast":     2.0,
-                "pts_reb_ast": 3.0,
-                "reb_ast":     1.5,
+                "pts_reb":     1.0,
+                "pts_ast":     1.0,
+                "pts_reb_ast": 2.0,
+                "reb_ast":     0.8,
                 "stocks":      0.3,
                 "blk_stl":     0.3,
             }
@@ -358,6 +358,17 @@ def predict_player_pmfs(
       player_id, game_id, game_date, stat, pmf_json, mean, median, mode, p0,
       is_calibrated, cal_source, role_bucket, pmf_source, model_version
     """
+    import os as _os
+    _QUANTILE_MODE = _os.environ.get("WNBA_USE_QUANTILE_MODEL", "0") == "1"
+    if _QUANTILE_MODE:
+        try:
+            from wnba_props_model.models.quantile_model import WNBAPlayerPropPipeline  # noqa: PLC0415
+            logger.info("QUANTILE MODE ACTIVE — using WNBAPlayerPropPipeline")
+            _q_pipeline = WNBAPlayerPropPipeline(cfg if "cfg" in dir() else {})
+            return _q_pipeline.predict(feature_df)
+        except Exception as _qm_exc:
+            logger.warning("Quantile model failed (%s) — falling back to PMF pipeline", _qm_exc)
+
     cfg: dict = {}
     if config_path and Path(config_path).exists():
         with open(config_path) as f:
@@ -413,6 +424,32 @@ def predict_player_pmfs(
     pmfs_long["model_version"] = "wnba_pmf_v1.0_hgb_calibrated"
     pmfs_long["is_calibrated"] = False
     pmfs_long["cal_source"] = "uncalibrated"
+
+    # Fix minutes-offset stats: use MinutesModel prediction instead of lagging feature
+    # The StatRateModel fits on per-minute rate and re-multiplies by player_minutes_mean_l5
+    # (a lagging feature). Re-multiply by MinutesModel prediction instead.
+    _MINUTES_OFFSET_STATS = ["turnover", "ast"]
+    for _stat in _MINUTES_OFFSET_STATS:
+        _mask = pmfs_long["stat"] == _stat
+        if _mask.any() and "minutes_mean" in pmfs_long.columns:
+            if "player_minutes_mean_l5" in feature_df.columns:
+                try:
+                    _feat_mins = feature_df.set_index(["player_id", "game_id"])["player_minutes_mean_l5"]
+                    _pg = pmfs_long[_mask].set_index(["player_id", "game_id"])
+                    _feat_min_vals = _feat_mins.reindex(_pg.index).values
+                    _safe_feat = np.where(_feat_min_vals > 1.0, _feat_min_vals, 1.0)
+                    _model_mins = pmfs_long.loc[_mask, "minutes_mean"].values
+                    _old_means = pmfs_long.loc[_mask, "stat_mean"].values.copy()
+                    _rate_per_min = _old_means / _safe_feat
+                    pmfs_long.loc[_mask, "stat_mean"] = _rate_per_min * np.clip(_model_mins, 0, 45)
+                    logger.info(
+                        "Minutes-offset fix %s: %d rows, old_mean=%.2f → new_mean=%.2f",
+                        _stat, int(_mask.sum()),
+                        float(np.nanmean(_old_means)),
+                        float(np.nanmean(pmfs_long.loc[_mask, "stat_mean"].values)),
+                    )
+                except Exception as _mof_exc:
+                    logger.warning("Minutes-offset fix failed for %s: %s", _stat, _mof_exc)
 
     # Pre-role-bucket: apply minutes_mean_override and role_bucket_override from
     # player_form_corrections_2026.json. These fix players whose minutes model
