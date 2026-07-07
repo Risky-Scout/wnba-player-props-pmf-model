@@ -80,7 +80,7 @@ input_long_path: data/processed/wnba_player_game_features_long.parquet
 output_dir: data/model_outputs/stage4_baseline
 model_artifact_dir: artifacts/models/stage4_baseline
 pmf_source: stage4_baseline_uncalibrated_model_only
-sample_weight_halflife_days: 42
+sample_weight_halflife_days: 45
 hgb_regressor:
   loss: quantile
   quantile: 0.5

@@ -29,7 +29,7 @@ pmf_support_caps:
 calibration_eligible_prediction_types:
 - model_oof
 pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
-sample_weight_halflife_days: 42
+sample_weight_halflife_days: 45
 hgb_regressor:
   loss: quantile
   quantile: 0.5
