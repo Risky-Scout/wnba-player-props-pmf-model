@@ -259,8 +259,8 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
     # Columns to pull from the edge report (market line + edge signal).
     _edge_payload_cols = [
         "edge_over", "kelly_fraction", "model_prob_over",
-        "market_prob_over_no_vig", "line", "bookmaker",
-        "over_odds", "under_odds",
+        "market_prob_over_no_vig", "no_vig_over_prob", "no_vig_under_prob",
+        "line", "bookmaker", "over_odds", "under_odds",
     ]
     edge_join_cols = [c for c in _edge_payload_cols if c in edges_df.columns]
     merge_keys = [k for k in ["player_id", "stat"] if k in base_df.columns and k in edges_df.columns]
@@ -274,6 +274,59 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
         )
     else:
         merged = base_df.copy()
+
+    # Try to load last-5 actual averages from the features parquet for the actuals overlay
+    _last5_lookup: dict[tuple, float] = {}
+    _STAT_TO_L5_COL = {
+        "pts": "player_pts_mean_l5",
+        "reb": "player_reb_mean_l5",
+        "ast": "player_ast_mean_l5",
+        "fg3m": "player_fg3m_mean_l5",
+        "stl": "player_stl_mean_l5",
+        "blk": "player_blk_mean_l5",
+        "turnover": "player_turnover_mean_l5",
+    }
+    try:
+        import glob as _glob
+        import pathlib as _pathlib
+        _feat_path = _pathlib.Path("data/processed/wnba_player_game_features_wide.parquet")
+        if _feat_path.exists():
+            _feat_df = pd.read_parquet(_feat_path)
+            for _stat, _l5_col in _STAT_TO_L5_COL.items():
+                if _l5_col in _feat_df.columns and "player_id" in _feat_df.columns:
+                    _latest = (
+                        _feat_df.sort_values("game_date")
+                        .groupby("player_id")[_l5_col]
+                        .last()
+                    )
+                    for _pid, _val in _latest.items():
+                        if pd.notna(_val):
+                            _last5_lookup[(_pid, _stat)] = round(float(_val), 2)
+    except Exception:
+        pass
+
+    # Load calibration 30-day hit rate if available
+    _cal_over_hit_rate: float | None = None
+    _cal_under_hit_rate: float | None = None
+    try:
+        _results_path = _pathlib.Path("data/clv_tracking/results.parquet")
+        if _results_path.exists():
+            _res = pd.read_parquet(_results_path)
+            if not _res.empty and "actual_outcome" in _res.columns and "line" in _res.columns:
+                _res["date"] = pd.to_datetime(_res.get("game_date", pd.Series(dtype="object")), errors="coerce")
+                _cutoff = pd.Timestamp(game_date) - pd.Timedelta(days=30) if game_date else None
+                if _cutoff is not None:
+                    _res_30 = _res[_res["date"] >= _cutoff]
+                else:
+                    _res_30 = _res
+                if len(_res_30) >= 10:
+                    _res_30 = _res_30.copy()
+                    _res_30["_went_over"] = _res_30["actual_outcome"] > _res_30["line"]
+                    _cal_over_hit_rate = round(float(_res_30["_went_over"].mean()), 4)
+                    _cal_under_hit_rate = round(1.0 - _cal_over_hit_rate, 4)
+    except Exception:
+        pass
+
     props = []
     for _, r in merged.iterrows():
         raw_pmf = r.get("pmf_json", None)
@@ -289,32 +342,54 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
         # only when pmf_mean is absent (e.g. very old artifacts).
         _cal_mean = r.get("pmf_mean") or r.get("pmf_mean_proj")
         _display_mean = round(float(_cal_mean), 2) if _cal_mean is not None and float(_cal_mean) > 0 else round(mu, 2)
+        market_line = round(float(r.get("line", 0) or 0), 1)
+        model_p_over = round(float(r.get("model_prob_over", 0) or 0), 4)
+        market_p_over = round(float(r.get("market_prob_over_no_vig", 0) or 0), 4)
+        no_vig_over = round(float(r.get("no_vig_over_prob", market_p_over) or market_p_over), 4)
+        no_vig_under = round(float(r.get("no_vig_under_prob", 1.0 - market_p_over) or (1.0 - market_p_over)), 4)
+        # Last 5 avg actual for this player × stat
+        _pid = r.get("player_id")
+        _stat_raw = str(r.get("stat", ""))
+        last_5_avg = _last5_lookup.get((_pid, _stat_raw)) if _pid is not None else None
         props.append({
             "player": r["player_name"],
             "stat": str(r["stat"]).upper(),
-            "stat_raw": str(r["stat"]),
-            "line": round(float(r.get("line", 0) or 0), 1),
+            "stat_raw": _stat_raw,
+            "line": market_line,
             "mean": _display_mean,
             "median": round(median_k, 1),
             "mode": mode_k,
+            "median_vs_line": round(median_k - market_line, 2) if market_line > 0 else None,
             "variance": round(var, 3),
             "std_dev": round(std, 3),
             "skewness": round(skew, 3),
             "excess_kurtosis": round(kurt, 3),
-            "model_p_over": round(float(r.get("model_prob_over", 0) or 0), 4),
-            "market_p_over": round(float(r.get("market_prob_over_no_vig", 0) or 0), 4),
+            "model_p_over": model_p_over,
+            "model_p_over_pct": round(model_p_over * 100, 1),
+            "model_p_under_pct": round((1.0 - model_p_over) * 100, 1),
+            "market_p_over": market_p_over,
+            "no_vig_over_prob": no_vig_over,
+            "no_vig_under_prob": no_vig_under,
             "edge": round(edge, 4),
             "kelly_pct": round(float(r.get("kelly_fraction", 0) or 0) * 100, 2),
+            "last_5_avg": last_5_avg,
             "pmf": pairs,
         })
     props.sort(key=lambda x: -abs(x["edge"]))
-    return {
-        "schema_version": "2.0",
+    result = {
+        "schema_version": "2.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "game_date": game_date,
         "total_props": len(props),
         "props": props,
     }
+    if _cal_over_hit_rate is not None:
+        result["calibration_30d"] = {
+            "over_hit_rate": _cal_over_hit_rate,
+            "under_hit_rate": _cal_under_hit_rate,
+            "note": "30-day empirical hit rate from results tracking",
+        }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -766,6 +841,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
     <div class="legend-item"><svg width="22" height="3"><line x1="0" y1="1.5" x2="22" y2="1.5" stroke="#599ce7" stroke-width="2" stroke-dasharray="4 2"/></svg>Mean</div>
     <div class="legend-item"><svg width="22" height="3"><line x1="0" y1="1.5" x2="22" y2="1.5" stroke="#f1b467" stroke-width="2" stroke-dasharray="4 2"/></svg>Median</div>
     <div class="legend-item"><svg width="22" height="3"><line x1="0" y1="1.5" x2="22" y2="1.5" stroke="#81a1c1" stroke-width="2" stroke-dasharray="4 2"/></svg>Mode</div>
+    <div class="legend-item"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#a3e635" fill-opacity="0.85"/></svg>Last 5 Avg</div>
     <div class="legend-item"><svg width="14" height="10"><rect x="0" y="1" width="14" height="8" fill="#3fa266" fill-opacity="0.5"/></svg>Over region</div>
     <div class="legend-item"><svg width="14" height="10"><rect x="0" y="1" width="14" height="8" fill="#d08770" fill-opacity="0.45"/></svg>Under region</div>
   </div>
@@ -830,13 +906,22 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       return `<rect x="${(x+0.5).toFixed(1)}" y="${(PT+ph-h).toFixed(1)}" width="${Math.max(bw-1,1).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" fill-opacity="${opacity}"/>`;
     }).join('');
 
-    const line = `<line x1="${vx(prop.line).toFixed(1)}" y1="${PT}" x2="${vx(prop.line).toFixed(1)}" y2="${PT+ph}" stroke="#e05a6a" stroke-width="2" stroke-dasharray="5 3"/>`;
+    // Market line (bold red dashed)
+    const line = prop.line > 0 ? `<line x1="${vx(prop.line).toFixed(1)}" y1="${PT}" x2="${vx(prop.line).toFixed(1)}" y2="${PT+ph}" stroke="#e05a6a" stroke-width="2" stroke-dasharray="5 3"/>` : '';
     const meanX = (vx(prop.mean)+bw/2).toFixed(1);
     const meanL = `<line x1="${meanX}" y1="${PT}" x2="${meanX}" y2="${PT+ph}" stroke="#599ce7" stroke-width="1.5" stroke-dasharray="4 2"/>`;
     const medX = (vx(prop.median)+bw/2).toFixed(1);
     const medL = `<line x1="${medX}" y1="${PT}" x2="${medX}" y2="${PT+ph}" stroke="#f1b467" stroke-width="1.5" stroke-dasharray="4 2"/>`;
     const modeX = (vx(prop.mode)+bw/2).toFixed(1);
     const modeL = `<line x1="${modeX}" y1="${PT}" x2="${modeX}" y2="${PT+ph}" stroke="#81a1c1" stroke-width="1.5" stroke-dasharray="4 2"/>`;
+
+    // Last 5 avg dot (green diamond)
+    let l5dot = '';
+    if (prop.last_5_avg != null && prop.last_5_avg >= kMin && prop.last_5_avg <= kMax + 1) {
+      const lx = (vx(prop.last_5_avg)+bw/2).toFixed(1);
+      const ly = (PT + 10).toFixed(1);
+      l5dot = `<circle cx="${lx}" cy="${ly}" r="4" fill="#a3e635" fill-opacity="0.85"/><text x="${lx}" y="${(PT+7).toFixed(1)}" text-anchor="middle" font-size="7" fill="#a3e635" font-family="system-ui">L5</text>`;
+    }
 
     const axis = `<line x1="${PL}" y1="${PT+ph}" x2="${W-PR}" y2="${PT+ph}" stroke="#2a2d3e" stroke-width="0.5"/>`;
 
@@ -849,10 +934,10 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       if (!seen.has(key)) { seen.add(key); labels.push(`<text x="${x}" y="${H-5}" text-anchor="middle" font-size="8" fill="#666" font-family="system-ui">${txt}</text>`); }
     };
     addLabel(kMin, kMin);
-    addLabel(prop.line, prop.line);
+    if (prop.line > 0) addLabel(prop.line, prop.line);
     addLabel(kMax, kMax);
 
-    return `<svg width="${W}" height="${H}" style="display:block">${bars}${line}${meanL}${medL}${modeL}${axis}${labels.join('')}</svg>`;
+    return `<svg width="${W}" height="${H}" style="display:block">${bars}${line}${meanL}${medL}${modeL}${l5dot}${axis}${labels.join('')}</svg>`;
   }
 
   function pct(v) { return (v*100).toFixed(1)+'%'; }
@@ -865,10 +950,12 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
     const skewFlagged = Math.abs(p.skewness) > 1;
     const kurtFlagged = Math.abs(p.excess_kurtosis) > 3;
     const svg = buildSVG(p);
+    const medVsLine = p.median_vs_line != null ? `${p.median_vs_line >= 0 ? '+' : ''}${p.median_vs_line.toFixed(2)}` : '—';
+    const l5str = p.last_5_avg != null ? p.last_5_avg.toFixed(1) : '—';
 
     return `<div class="card">
       <div class="card-header">
-        <div><span class="card-title">${p.player}</span><span class="stat-tag">${st} ${p.line}</span></div>
+        <div><span class="card-title">${p.player}</span><span class="stat-tag">${st} ${p.line > 0 ? p.line : '—'}</span></div>
         <span class="edge-badge ${isOver?'edge-over':'edge-under'}">${isOver?'OVER':'UNDER'} ${sign(p.edge)}${edgePct}%</span>
       </div>
       <div class="card-body">
@@ -876,15 +963,13 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
         <div class="stats-panel">
           <div class="stat-row"><span class="stat-label">EV (mean)</span><span class="stat-value">${p.mean.toFixed(2)}</span></div>
           <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${p.median.toFixed(1)}</span></div>
-          <div class="stat-row"><span class="stat-label">Mode</span><span class="stat-value">${p.mode}</span></div>
+          <div class="stat-row"><span class="stat-label">Median vs Line</span><span class="stat-value ${p.median_vs_line > 0 ? 'green' : p.median_vs_line < 0 ? 'red' : ''}">${medVsLine}</span></div>
+          <div class="stat-row"><span class="stat-label">Last 5 avg</span><span class="stat-value blue">${l5str}</span></div>
           <div class="divider"></div>
-          <div class="stat-row"><span class="stat-label">Variance</span><span class="stat-value">${p.variance.toFixed(2)}</span></div>
-          <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${p.std_dev.toFixed(2)}</span></div>
-          <div class="stat-row"><span class="stat-label">Skewness</span><span class="stat-value ${skewFlagged?'amber':''}">${p.skewness.toFixed(3)}</span></div>
-          <div class="stat-row"><span class="stat-label">Ex. Kurtosis</span><span class="stat-value ${kurtFlagged?'amber':''}">${p.excess_kurtosis.toFixed(3)}</span></div>
-          <div class="divider"></div>
-          <div class="stat-row"><span class="stat-label">Mdl P(over)</span><span class="stat-value ${isOver?'green':'red'}">${pct(p.model_p_over)}</span></div>
-          <div class="stat-row"><span class="stat-label">Mkt P(over)</span><span class="stat-value">${pct(p.market_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">P(over) mdl</span><span class="stat-value ${isOver?'green':'red'}">${p.model_p_over_pct != null ? p.model_p_over_pct.toFixed(1)+'%' : pct(p.model_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">P(under) mdl</span><span class="stat-value ${!isOver?'green':'red'}">${p.model_p_under_pct != null ? p.model_p_under_pct.toFixed(1)+'%' : pct(1-p.model_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">Mkt no-vig P(O)</span><span class="stat-value">${p.no_vig_over_prob != null ? (p.no_vig_over_prob*100).toFixed(1)+'%' : pct(p.market_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">Mkt no-vig P(U)</span><span class="stat-value">${p.no_vig_under_prob != null ? (p.no_vig_under_prob*100).toFixed(1)+'%' : pct(1-p.market_p_over)}</span></div>
           <div class="stat-row"><span class="stat-label">Edge</span><span class="stat-value ${isOver?'green':'red'}">${sign(p.edge)}${(p.edge*100).toFixed(1)}%</span></div>
           ${p.kelly_pct>0?`<div class="stat-row"><span class="stat-label">Kelly %</span><span class="stat-value blue">${p.kelly_pct.toFixed(1)}%</span></div>`:''}
         </div>
