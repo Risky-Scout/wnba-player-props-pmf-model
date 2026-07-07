@@ -1,10 +1,5 @@
 random_seed: 42
-
-# Use LogLinearStatModel (Dixon-Coles style opp-adj) instead of plain StatRateModel.
-# Applies multiplicative opponent-defense and pace adjustments post-prediction.
-# Set to false to fall back to vanilla HGB StatRateModel.
 use_log_linear: true
-
 stats:
 - pts
 - reb
@@ -13,72 +8,59 @@ stats:
 - stl
 - blk
 - turnover
-
-# Hurdle model (explicit P(Y>0)) for structurally zero-inflated sparse stats.
-# blk: var/mean≈1.30, blocks are bursty/positional — structural zeros modeled explicitly.
-# stl: var/mean=1.21, near-Poisson — modeled via NegBinom in StatRateModel (no hurdle).
 sparse_stats:
 - stl
 - blk
-
-# Role-aware NegBinom dispersion r override (calibration-aligned).
-# The stage4 model was trained with global r=1.6265, but the calibrators
-# were fitted on OOF PMFs that used higher r values for starters/core
-# (because the OOF model learned role-aware dispersion during training).
-# Injecting these OOF-inferred r values ensures the daily PMF shapes match
-# the calibrator's training distribution, eliminating the ~40% over-correction
-# that caused 98% UNDER bias on the betting sheet.
-# Values derived from: r = pmf_mean² / (pmf_variance − pmf_mean) per OOF bucket.
 dispersion_r_by_role:
   pts:
-    rotation: 1.0868
-    core: 1.4663
+    bench: 0.6807
+    rotation: 1.1027
+    core: 1.4813
     fringe: 0.3
-    bench: 0.666
     inactive_risk: 0.3
-    starter: 1.7428
+    starter: 1.8468
   reb:
-    rotation: 1.1435
-    core: 1.4611
+    bench: 0.7229
+    rotation: 1.1581
+    core: 1.4803
     fringe: 0.3
-    bench: 0.7067
     inactive_risk: 0.3
-    starter: 1.5511
+    starter: 1.614
   ast:
-    rotation: 0.8759
-    core: 1.1274
-    fringe: 0.399
-    bench: 0.5778
+    bench: 0.5876
+    rotation: 0.884
+    core: 1.1484
+    fringe: 0.4072
     inactive_risk: 0.3
-    starter: 1.315
+    starter: 1.3615
   fg3m:
-    rotation: 0.635
-    core: 0.7653
+    bench: 0.4174
+    rotation: 0.6432
+    core: 0.7794
     fringe: 0.3
-    bench: 0.4069
     inactive_risk: 0.3
-    starter: 0.9141
+    starter: 0.9506
   stl:
-    rotation: 4.5561
-    core: 7.9889
+    bench: 1.2298
+    rotation: 3.8546
+    core: 8.7136
     fringe: 0.3
-    bench: 1.2817
     inactive_risk: 0.3
-    starter: 18.6266
+    starter: 17.0304
   blk:
-    rotation: 1.5306
-    core: 2.3939
+    bench: 0.6781
+    rotation: 1.3755
+    core: 2.4685
     fringe: 0.3
-    bench: 0.6519
     inactive_risk: 0.3
-    starter: 2.6477
+    starter: 2.3388
   turnover:
-    rotation: 1.6478
-    core: 2.2071
-    fringe: 0.535
-    bench: 0.9511
+    bench: 0.965
+    rotation: 1.671
+    core: 2.2541
+    fringe: 0.5529
     inactive_risk: 0.3
-    starter: 2.5501
+    starter: 2.697
 pmf_support_caps:
   pts: 60
   reb: 30
@@ -87,42 +69,18 @@ pmf_support_caps:
   stl: 10
   blk: 10
   turnover: 12
-
-# Minutes model output clipping
 minutes_clip_min: 0.0
 minutes_clip_max: 48.0
-
-# Lower bound on minutes sigma (prevents overconfident projections)
 min_minutes_sigma: 3.0
-
-# Minutes sigma multiplier for uncertain/injury-dependent roles
 uncertain_sigma_multiplier: 1.5
-
-# Minimum predicted stat mean for PMF generation (avoids degenerate near-zero PMFs)
 min_stat_mean: 0.01
-
-# Paths (can be overridden via CLI args)
 model_feature_manifest_path: data/processed/feature_schema_manifest.json
 input_wide_path: data/processed/wnba_player_game_features_wide.parquet
 input_long_path: data/processed/wnba_player_game_features_long.parquet
 output_dir: data/model_outputs/stage4_baseline
 model_artifact_dir: artifacts/models/stage4_baseline
-
-# Stage identifier written to all PMF rows
 pmf_source: stage4_baseline_uncalibrated_model_only
-
-# Exponential decay sample weighting: games from halflife days ago have weight 0.5.
-# Reduces systematic mean_error bias caused by scoring trend shifts across seasons.
-# Set to null to disable.
 sample_weight_halflife_days: 42
-
-# HistGradientBoosting model hyperparameters
-# max_leaf_nodes 31→63: allows form_delta × matchup interaction splits without
-#   exhausting tree capacity on basic rolling-average splits.
-# learning_rate 0.1→0.08: slower learning compensates for increased capacity
-#   (reduces overfitting on older down-weighted data).
-# min_samples_leaf 20→10: allows finer splits on elite-player sub-populations.
-# max_iter 150: fits OOF within 360min timeout at 63 leaves (lr=0.08).
 hgb_regressor:
   loss: quantile
   quantile: 0.5
@@ -132,8 +90,7 @@ hgb_regressor:
   min_samples_leaf: 10
   early_stopping: true
   n_iter_no_change: 10
-  tol: 1.0e-3
-
+  tol: 0.001
 hgb_classifier:
   max_iter: 150
   max_leaf_nodes: 63
@@ -141,47 +98,23 @@ hgb_classifier:
   min_samples_leaf: 10
   early_stopping: true
   n_iter_no_change: 10
-  tol: 1.0e-3
-
-# --------------------------------------------------------------------------
-# F1: Minutes distribution marginalization
-# --------------------------------------------------------------------------
-# Marginalize over the full minutes distribution (5-point quadrature) instead
-# of conditioning on the point-estimate mean. Increases PMF variance for players
-# with uncertain playing time, improving calibration at the tails.
+  tol: 0.001
 use_minutes_marginalization: true
 minutes_marginalization_quadrature_points:
-- 0.10
+- 0.1
 - 0.25
-- 0.50
+- 0.5
 - 0.75
-- 0.90
+- 0.9
 minutes_marginalization_weights:
-- 0.10
+- 0.1
 - 0.15
-- 0.50
+- 0.5
 - 0.15
-- 0.10
-
-# --------------------------------------------------------------------------
-# F3: ZINB for sparse stats
-# --------------------------------------------------------------------------
-# Replace HurdleModel with ZINBStatModel for stl + blk.
-# ZINB is theoretically superior for structural zero-inflation: it jointly
-# models the zero-inflation probability (π) and the NegBinom mean (μ).
+- 0.1
 use_zinb_for_sparse_stats: true
-
-# --------------------------------------------------------------------------
-# F5: Vig-removal method for market benchmark
-# --------------------------------------------------------------------------
 no_vig_method: shin
 secondary_no_vig_method: power
-
-# --------------------------------------------------------------------------
-# Per-stat configuration overrides — merged on top of global config for each stat.
-# use_minutes_offset: fit on per-minute rate, multiply by projected minutes at predict.
-# This gives sparse / bursty stats (turnover, ast) exposure-correct NegBinom distributions.
-# use_beta_binomial: use Beta-Binomial model for fg3m (requires fg3a in data).
 stat_overrides:
   fg3m:
     use_beta_binomial: true
@@ -189,64 +122,18 @@ stat_overrides:
     use_minutes_offset: true
   ast:
     use_minutes_offset: true
-
-# --------------------------------------------------------------------------
-# P2.2: Positional defense matchup features
-# --------------------------------------------------------------------------
 use_positional_defense_features: true
-
-# --------------------------------------------------------------------------
-# P2.4: EWMA rolling features (halflife 3 and 5)
-# --------------------------------------------------------------------------
 use_ewma_features: true
-
-# --------------------------------------------------------------------------
-# P2.5: Player-vs-specific-opponent matchup history
-# --------------------------------------------------------------------------
 use_matchup_features: true
-
-# --------------------------------------------------------------------------
-# P3.1: Mean-dependent NegBinom dispersion r(mu)
-# --------------------------------------------------------------------------
 use_mean_dependent_dispersion: true
-
-# --------------------------------------------------------------------------
-# P3.2: Hyperparameter tuning via Optuna
-# --------------------------------------------------------------------------
 use_tuned_hyperparams: true
 hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
-
-# --------------------------------------------------------------------------
-# P3.3: HGB + Bayesian shrinkage ensemble
-# --------------------------------------------------------------------------
 use_model_ensemble: true
-
-# --------------------------------------------------------------------------
-# Part C: Dual-signal architecture — edge/Kelly use pure model signal.
-# Edge/Kelly use pure model signal (market_prior_lambda=0.0 for bet sizing).
-# A display-only consensus uses market_prior_lambda_display=0.15 in output_schema.py for the UI.
-# 0 = pure model signal; 1 = pure market signal.
-# --------------------------------------------------------------------------
 market_prior_lambda: 0.0
 market_prior_lambda_display: 0.15
-
-# --------------------------------------------------------------------------
-# Part I: Use separate live calibrators for in-game PMF predictions.
-# Requires data/processed/live_calibration_data.parquet to exist.
-# --------------------------------------------------------------------------
-use_live_calibrators: false  # set true once build_live_calibration_data.py runs
-
-# --------------------------------------------------------------------------
-# P3.4: Pi rating baseline from OOF model predictions
-# --------------------------------------------------------------------------
-pi_rating_use_model_baseline: false  # set true after first OOF run produces predictions
-
-# --------------------------------------------------------------------------
-# Advanced features — Item 2 of Production Blueprint
-# 24 new columns from BDL extended endpoints
-# --------------------------------------------------------------------------
+use_live_calibrators: false
+pi_rating_use_model_baseline: false
 use_advanced_features: true
-
 new_features:
 - player_usage_pct
 - player_usage_pct_ewma10
@@ -264,7 +151,6 @@ new_features:
 - game_pace_predicted
 - team_playoff_seed
 - team_games_behind
-  # season_phase removed: categorical string — excluded from FEATURE_FAMILIES
 - player_efg_pct
 - player_ft_rate
 - player_tov_pct
