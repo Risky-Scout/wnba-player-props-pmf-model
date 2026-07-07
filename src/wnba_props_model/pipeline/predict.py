@@ -358,16 +358,9 @@ def predict_player_pmfs(
       player_id, game_id, game_date, stat, pmf_json, mean, median, mode, p0,
       is_calibrated, cal_source, role_bucket, pmf_source, model_version
     """
-    import os as _os
-    _QUANTILE_MODE = _os.environ.get("WNBA_USE_QUANTILE_MODEL", "0") == "1"
-    if _QUANTILE_MODE:
-        try:
-            from wnba_props_model.models.quantile_model import WNBAPlayerPropPipeline  # noqa: PLC0415
-            logger.info("QUANTILE MODE ACTIVE — using WNBAPlayerPropPipeline")
-            _q_pipeline = WNBAPlayerPropPipeline(cfg if "cfg" in dir() else {})
-            return _q_pipeline.predict(feature_df)
-        except Exception as _qm_exc:
-            logger.warning("Quantile model failed (%s) — falling back to PMF pipeline", _qm_exc)
+    # WNBA_USE_QUANTILE_MODEL=1: shadow mode will run below and promote quantile
+    # board as the primary publishable_edges.parquet output. The PMF pipeline
+    # still runs to completion — the quantile board is copied on top at the end.
 
     cfg: dict = {}
     if config_path and Path(config_path).exists():
@@ -1067,14 +1060,29 @@ def _run_quantile_shadow(
         logger.warning("[quantile_shadow] Failed to write quantile edge board: %s", exc)
 
     # ------------------------------------------------------------------
-    # 5. If WNBA_USE_QUANTILE_MODEL=1, log that quantile board is primary
+    # 5. If WNBA_USE_QUANTILE_MODEL=1, promote quantile board as primary output
     # ------------------------------------------------------------------
     if os.environ.get("WNBA_USE_QUANTILE_MODEL", "").strip() == "1":
-        logger.info(
-            "[quantile_shadow] WNBA_USE_QUANTILE_MODEL=1: quantile edge board is PRIMARY — "
-            "written to %s. Legacy PMF output unchanged.",
-            delivery_dir / "quantile_edge_board.parquet",
-        )
+        try:
+            import shutil
+            q_src = delivery_dir / "quantile_edge_board.parquet"
+            q_dst = delivery_dir / "publishable_edges.parquet"
+            if q_src.exists() and len(q_board_df) > 0:
+                shutil.copy2(str(q_src), str(q_dst))
+                n_over  = int((q_board_df.get("edge_over", pd.Series(dtype=float)).fillna(0) > 0).sum())
+                n_under = int((q_board_df.get("edge_under", pd.Series(dtype=float)).fillna(0) > 0).sum())
+                logger.info(
+                    "[quantile_shadow] QUANTILE MODEL PROMOTED as primary edge board — "
+                    "%d edges (%d OVER / %d UNDER) → %s",
+                    len(q_board_df), n_over, n_under, q_dst,
+                )
+            else:
+                logger.warning(
+                    "[quantile_shadow] WNBA_USE_QUANTILE_MODEL=1 but quantile board is empty "
+                    "or missing — legacy PMF output retained as primary"
+                )
+        except Exception as _promote_exc:
+            logger.warning("[quantile_shadow] Failed to promote quantile board: %s", _promote_exc)
 
 
 def build_features_for_prediction(player_stats: pd.DataFrame, games: pd.DataFrame | None = None) -> pd.DataFrame:
