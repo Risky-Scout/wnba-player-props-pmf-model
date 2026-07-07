@@ -495,6 +495,7 @@ def apply_bayesian_shrinkage(
     k: float | None = None,
     min_games_full_confidence: int = _MIN_GAMES_FOR_FULL_CONFIDENCE,
     league_priors: dict[str, float] | None = None,
+    player_role_overrides: dict[int, str] | None = None,
 ) -> pd.DataFrame:
     """Apply hierarchical Bayesian shrinkage to PMFs for small-sample players.
 
@@ -592,11 +593,17 @@ def apply_bayesian_shrinkage(
                 player_role[int(pid)] = "rotation"
             # Mean minutes for effective-n down-weighting of bench players
             min_col = next((c for c in ["player_minutes_mean_season", "actual_minutes", "minutes_mean"] if c in grp.columns), None)
-            if min_col:
+            if min_col: 
                 mn = grp[min_col].dropna()
                 player_mean_minutes[int(pid)] = float(mn.mean()) if not mn.empty else 20.0
             else:
                 player_mean_minutes[int(pid)] = 20.0
+
+    # Apply player_role_overrides (e.g. from role_bucket_override in player_form_corrections)
+    # so that the shrinkage prior uses the correct role-stratified mean, not the raw features value.
+    if player_role_overrides:
+        for pid_override, role_override in player_role_overrides.items():
+            player_role[int(pid_override)] = str(role_override).lower()
 
     # Stat support caps (matching pmf_engine)
     _STAT_CAPS = {

@@ -436,7 +436,11 @@ def predict_player_pmfs(
     # Attach ex-ante role bucket (needed for per-role calibration & dispersion)
     pmfs_long = _attach_role_bucket(pmfs_long)
 
-    # Post-role-bucket: apply role_bucket_override from player_form_corrections_2026.json
+    # Post-role-bucket: apply role_bucket_override from player_form_corrections_2026.json.
+    # Also collect overrides into _shrinkage_role_overrides so that apply_bayesian_shrinkage
+    # uses the corrected role prior (shrinkage reads role from features["role_status"], not
+    # from pmfs_long["role_bucket"], so it needs the override passed explicitly).
+    _shrinkage_role_overrides: dict[int, str] = {}
     if cal_dir is not None:
         _pfc_rb_path = Path(cal_dir) / "player_form_corrections_2026.json"
         if _pfc_rb_path.exists():
@@ -454,6 +458,7 @@ def predict_player_pmfs(
                         if _rb_mask.any():
                             pmfs_long = pmfs_long.copy()
                             pmfs_long.loc[_rb_mask, "role_bucket"] = str(_rb_override)
+                            _shrinkage_role_overrides[_pfc_rb_pid_int] = str(_rb_override)
                             logger.info("[predict] role_bucket override for player_id=%s (%s): → %s",
                                         _pfc_rb_pid, _pfc_rb_data.get("player_name", ""), _rb_override)
             except Exception as _pfc_rb_exc:
@@ -582,6 +587,7 @@ def predict_player_pmfs(
             pmfs_long,
             features=feature_df,
             k=shrinkage_k,  # None → use per-stat Gamma prior.beta
+            player_role_overrides=_shrinkage_role_overrides,
         )
 
     # Archetype-conditioned shrinkage (Phase 4): augments the single-prior
