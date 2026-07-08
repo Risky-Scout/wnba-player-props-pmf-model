@@ -144,17 +144,6 @@ def train_fold(
         train_wide = train_wide.copy()
         train_wide = add_ex_ante_role_bucket(train_wide, minutes_col="player_minutes_mean_l5")
 
-    # #region agent log - debug 3f8dcc
-    import json as _json, time as _time
-    _rb_present = "role_bucket" in train_wide.columns
-    _rb_sample = train_wide["role_bucket"].value_counts().to_dict() if _rb_present else {}
-    try:
-        with open("/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log", "a") as _f:
-            _f.write(_json.dumps({"sessionId": "3f8dcc", "location": "training.py:train_fold_entry", "message": "role_bucket status in train_wide", "data": {"role_bucket_present": _rb_present, "n_rows": len(train_wide), "role_counts": _rb_sample}, "hypothesisId": "H1", "timestamp": int(_time.time() * 1000)}) + "\n")
-    except Exception:
-        pass
-    # #endregion
-
     # ---- Feature encoding ------------------------------------------------
     X_train, pos_encoder = encode_features(train_wide, model_feature_cols, fit_encoder=True)
 
@@ -221,6 +210,10 @@ def train_fold(
         and "actual_fg3a" in train_wide.columns  # fg3a must be available
     )
 
+    # played_ctx needed by StatRateModel (per-role dispersion) and HurdleModel
+    # (role-stratified Stage B). Defined once here so it's available in all branches.
+    played_ctx = train_wide[played_mask].reset_index(drop=True)
+
     for stat in stats:
         target_col = f"actual_{stat}"
         if target_col not in train_wide.columns:
@@ -264,13 +257,13 @@ def train_fold(
                 m.fit(X_played, y_stat, sample_weight=sample_weight_played)
             else:
                 m = HurdleModel(stat, cfg)
-                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
+                # Pass context_df so role-stratified Stage B regressors can fire.
+                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             hurdle_models[stat] = m
             summaries[stat] = m.get_training_summary()
         elif stat == "fg3m" and use_beta_binomial_fg3m:
             # Beta-Binomial model for fg3m (uses fg3a as attempt count)
             from wnba_props_model.models.beta_binomial import BetaBinomialStatModel  # noqa: PLC0415
-            played_ctx = train_wide[played_mask].reset_index(drop=True)
             fg3a_col = "actual_fg3a" if "actual_fg3a" in played_ctx.columns else None
             y_attempts = played_ctx[fg3a_col] if fg3a_col else None
             stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
@@ -287,8 +280,6 @@ def train_fold(
             m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             stat_models[stat] = m
         else:
-            # Pass context_df so StatRateModel can compute per-role dispersion.
-            played_ctx = train_wide[played_mask].reset_index(drop=True)
             # Merge global config with per-stat overrides (stat_overrides.{stat})
             stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
             if cfg.get("use_log_linear", False):

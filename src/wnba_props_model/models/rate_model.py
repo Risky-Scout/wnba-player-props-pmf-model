@@ -163,16 +163,6 @@ class StatRateModel:
                 role_mdl.fit(X_role, y_role_fit, sample_weight=sw_role)
                 self._role_models[str(role_name)] = role_mdl
 
-        # #region agent log - debug 3f8dcc
-        import json as _json_rm, time as _time_rm
-        _rb_ctx = "role_bucket" in (context_df.columns if context_df is not None else [])
-        try:
-            with open("/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log", "a") as _f_rm:
-                _f_rm.write(_json_rm.dumps({"sessionId": "3f8dcc", "location": "rate_model.py:after_role_stratified_fit", "message": "role-stratified training result", "data": {"stat": self.stat, "role_bucket_in_ctx": _rb_ctx, "n_role_models_fitted": len(self._role_models), "roles_fitted": list(self._role_models.keys()), "flag_enabled": self.cfg.get("use_role_stratified_training", False)}, "hypothesisId": "H1", "timestamp": int(_time_rm.time() * 1000)}) + "\n")
-        except Exception:
-            pass
-        # #endregion
-
         # Per-role dispersion: stratify by role_bucket for fatter tails on stars,
         # narrower tails on bench players (fixes PIT KS underdispersion for pts).
         self._role_dispersion: dict[str, float | None] = {}

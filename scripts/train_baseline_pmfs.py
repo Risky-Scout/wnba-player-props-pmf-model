@@ -333,15 +333,45 @@ def train(
             else:
                 X_played["minutes_sigma"] = 5.0
 
+        # played_ctx needed for role-stratified HurdleModel / StatRateModel fits.
+        played_ctx = wide[played_mask].reset_index(drop=True)
+
         if stat in sparse_stats:
-            model_h = HurdleModel(stat, stat_cfg)
-            model_h.fit(X_played, y_stat, sample_weight=sw_played)
-            hurdle_models[stat] = model_h
-            s = model_h.get_training_summary()
-            print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
-                  f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+            use_zinb = cfg.get("use_zinb_for_sparse_stats", False)
+            if use_zinb:
+                from wnba_props_model.models.hurdle import ZINBStatModel  # noqa: PLC0415
+                _zinb_actual_min = (
+                    wide.loc[played_mask, "actual_minutes"]
+                    .fillna(0)
+                    .reset_index(drop=True)
+                    .values
+                    if "actual_minutes" in wide.columns
+                    else None
+                )
+                model_h = ZINBStatModel(stat, stat_cfg)
+                model_h.fit(X_played, y_stat, sample_weight=sw_played,
+                            actual_minutes=_zinb_actual_min)
+                hurdle_models[stat] = model_h
+                s = model_h.get_training_summary()
+                print(f"  ZINBStatModel  P(Y>0)≈{1-zero_rate:.3f}  "
+                      f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+            elif stat in {"stl", "blk"}:
+                from wnba_props_model.models.zinb_hurdle import ZINBHurdleModel  # noqa: PLC0415
+                model_h = ZINBHurdleModel(stat=stat)
+                model_h.fit(X_played, y_stat, sample_weight=sw_played)
+                hurdle_models[stat] = model_h
+                s = model_h.get_training_summary()
+                print(f"  ZINBHurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
+                      f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+            else:
+                model_h = HurdleModel(stat, stat_cfg)
+                # Pass context_df so role-stratified Stage B regressors can fire.
+                model_h.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
+                hurdle_models[stat] = model_h
+                s = model_h.get_training_summary()
+                print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
+                      f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
         else:
-            played_ctx = wide[played_mask].reset_index(drop=True)
             model_r = StatRateModel(stat, stat_cfg)
             model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
             stat_models[stat] = model_r
