@@ -1,14 +1,5 @@
 {
-  "fitted_at": "2026-07-07T19:03:57.247543+00:00",
-  "n_rows": 22813,
-  "stats": [
-    "ast",
-    "blk",
-    "fg3m",
-    "pts",
-    "reb",
-    "stl",
-    "stocks",
-    "turnover"
-  ]
+  "fitted_at": "2026-07-08T02:00:30.530807+00:00",
+  "n_rows": 0,
+  "stats": []
 }
