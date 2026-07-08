@@ -51,6 +51,12 @@ class StatRateModel:
         self._global_mean: float = 0.0
         self._global_var: float = 0.0
         self._fitted = False
+        # Role-stratified HGB models: {"starter": HGB, "bench": HGB, ...}
+        self._role_models: dict[str, HistGradientBoostingRegressor] = {}
+        # Per-player std for dispersion scaling: {player_id: float}
+        self._player_std_map: dict[str, float] = {}
+        # Per-role mean std (for scaling denominator): {"starter": float, ...}
+        self._role_mean_std: dict[str, float] = {}
         # Part 3: feature-based learned dispersion model (predicts log(r) from features)
         # Trained after main HGB; replaces role-lookup at inference when available.
         self.dispersion_model: HistGradientBoostingRegressor | None = None
@@ -60,6 +66,12 @@ class StatRateModel:
         self.__dict__.update(state)
         if "dispersion_model" not in self.__dict__:
             self.dispersion_model = None
+        if "_role_models" not in self.__dict__:
+            self._role_models = {}
+        if "_player_std_map" not in self.__dict__:
+            self._player_std_map = {}
+        if "_role_mean_std" not in self.__dict__:
+            self._role_mean_std = {}
 
     def fit(
         self,
@@ -128,6 +140,29 @@ class StatRateModel:
 
         self._dispersion_r = dispersion_from_moments(self._global_mean, self._global_var)
 
+        # Role-stratified training: fit a separate HGB for each role_bucket.
+        # Fixes structural over-prediction caused by a single all-player model
+        # whose mean is pulled toward high-volume starters, inflating bench predictions.
+        if self.cfg.get("use_role_stratified_training", False) and context_df is not None and "role_bucket" in context_df.columns:
+            ctx_rst = context_df.reset_index(drop=True)
+            y_rst = y.reset_index(drop=True)
+            X_rst = X.reset_index(drop=True)
+            for role_name, role_grp in ctx_rst.groupby("role_bucket"):
+                role_idx = role_grp.index
+                if len(role_idx) < 30:
+                    continue  # not enough data for a separate model
+                X_role = X_rst.loc[role_idx].reindex(columns=self._usable_cols)
+                y_role = y_rst.loc[role_idx]
+                sw_role = sample_weight[role_idx] if sample_weight is not None else None
+                if use_offset and context_df is not None and "actual_minutes" in context_df.columns:
+                    minutes_role = ctx_rst.loc[role_idx, "actual_minutes"].clip(lower=1.0)
+                    y_role_fit = y_role / minutes_role.values
+                else:
+                    y_role_fit = y_role
+                role_mdl = HistGradientBoostingRegressor(**hgb_mdl_kw)
+                role_mdl.fit(X_role, y_role_fit, sample_weight=sw_role)
+                self._role_models[str(role_name)] = role_mdl
+
         # Per-role dispersion: stratify by role_bucket for fatter tails on stars,
         # narrower tails on bench players (fixes PIT KS underdispersion for pts).
         self._role_dispersion: dict[str, float | None] = {}
@@ -146,6 +181,24 @@ class StatRateModel:
             _floor_val = _floors.get(str(_role_key), 1.0)
             if self._role_dispersion[_role_key] is not None:
                 self._role_dispersion[_role_key] = max(self._role_dispersion[_role_key], _floor_val)
+
+        # Per-player dispersion scaling: build player_id → individual std lookup.
+        # player_{stat}_std_l10 captures individual volatility; players with
+        # higher vol than the role mean get wider NegBinom tails (lower r).
+        if self.cfg.get("use_per_player_dispersion", False) and context_df is not None:
+            std_col = f"player_{self.stat}_std_l10"
+            if "player_id" in context_df.columns and std_col in context_df.columns:
+                ctx_ppd = context_df.reset_index(drop=True)
+                ctx_ppd = ctx_ppd[["player_id", "role_bucket", std_col]].dropna(subset=[std_col])
+                # Per-player median std (stable across their games in training)
+                self._player_std_map = (
+                    ctx_ppd.groupby("player_id")[std_col].median().to_dict()
+                )
+                # Role mean std (denominator for scaling)
+                if "role_bucket" in ctx_ppd.columns:
+                    self._role_mean_std = (
+                        ctx_ppd.groupby("role_bucket")[std_col].median().to_dict()
+                    )
 
         # P3.1: Mean-dependent dispersion r(mu) via log-linear fit
         # r_approx(i) = mu_hat(i)^2 / max(y(i) - mu_hat(i), 0.01)
@@ -229,18 +282,33 @@ class StatRateModel:
         self._fitted = True
         return self
 
-    def predict_mean(self, X: pd.DataFrame) -> np.ndarray:
+    def predict_mean(self, X: pd.DataFrame, role_series: "pd.Series | None" = None) -> np.ndarray:
         """Predict E[Y], clipped to >= min_stat_mean.
 
         When ``use_minutes_offset`` was active at fit time, the model predicts
         the per-minute rate.  We multiply by the projected minutes feature
         (``player_minutes_mean_l5``) to recover the expected count.
+
+        When ``role_series`` is provided and role-stratified models exist,
+        routes each player's prediction to the appropriate role-specific model,
+        falling back to the global model for unknown roles.
         """
         if not self._fitted or self._model is None:
             raise RuntimeError(f"StatRateModel({self.stat}) not fitted")
         X_pred = X.reindex(columns=getattr(self, "_usable_cols", X.columns))
         min_mean = self.cfg.get("min_stat_mean", 0.01)
-        raw = self._model.predict(X_pred)
+
+        role_models = getattr(self, "_role_models", {})
+        if (role_series is not None and role_models
+                and self.cfg.get("use_role_stratified_training", False)):
+            role_arr = role_series.reset_index(drop=True).values
+            raw = self._model.predict(X_pred)  # global as fallback
+            for role_name, role_mdl in role_models.items():
+                mask = role_arr == role_name
+                if mask.any():
+                    raw[mask] = role_mdl.predict(X_pred.iloc[mask] if hasattr(X_pred, 'iloc') else X_pred[mask])
+        else:
+            raw = self._model.predict(X_pred)
 
         if getattr(self, "_use_minutes_offset", False):
             minutes_col = getattr(self, "_minutes_offset_col", "player_minutes_mean_l5")
@@ -258,12 +326,15 @@ class StatRateModel:
     def dispersion_r(self) -> float | None:
         return self._dispersion_r
 
-    def get_dispersion(self, role: str, mu: float | None = None) -> float | None:
+    def get_dispersion(self, role: str, mu: float | None = None, player_id: str | None = None) -> float | None:
         """Return dispersion r for NegBinom PMF generation.
 
-        When ``mu`` is provided and mean-dependent dispersion is fitted,
-        returns r(mu) = exp(intercept + slope * log(mu)) clamped to [0.5, 50].
-        Otherwise falls back to per-role or global r.
+        Priority order:
+        1. Feature-based dispersion model (per-instance r from HGB)
+        2. Mean-dependent dispersion r(mu)
+        3. Per-player scaling of role r based on individual rolling std
+        4. Per-role r
+        5. Global r
         """
         # P3.1: mean-dependent dispersion takes priority when mu is provided
         slope = getattr(self, "_dispersion_slope", None)
@@ -272,14 +343,27 @@ class StatRateModel:
                 and self.cfg.get("use_mean_dependent_dispersion", False)):
             r_mu = np.exp(intercept + slope * np.log(max(mu, 0.01)))
             return float(np.clip(r_mu, 0.5, 50.0))
-        # Per-role fallback
+        # Per-player dispersion scaling: adjust role r by individual volatility ratio
         role_disp = getattr(self, "_role_dispersion", {})
-        return role_disp.get(role, self._dispersion_r)
+        base_r = role_disp.get(role, self._dispersion_r)
+        if (player_id is not None
+                and self.cfg.get("use_per_player_dispersion", False)
+                and base_r is not None):
+            player_std = self._player_std_map.get(str(player_id))
+            role_mean_std = self._role_mean_std.get(str(role))
+            if player_std is not None and role_mean_std is not None and role_mean_std > 0.01:
+                # Higher individual std → wider PMF (lower r); scale inversely
+                # Clamp ratio to [0.5, 2.0] to avoid extreme adjustments
+                vol_ratio = float(np.clip(player_std / role_mean_std, 0.5, 2.0))
+                adjusted_r = float(np.clip(base_r / vol_ratio, 0.3, 50.0))
+                return adjusted_r
+        return base_r
 
     def predict_with_shrinkage(
         self,
         X: pd.DataFrame,
         wide_df: pd.DataFrame,
+        role_series: "pd.Series | None" = None,
     ) -> np.ndarray:
         """P3.3: Blend HGB prediction with Gamma-Poisson posterior mean.
 
@@ -291,7 +375,7 @@ class StatRateModel:
         NOT global mean — prevents low-season-data players from being
         pulled to league-wide all-player average.
         """
-        mu_hgb = self.predict_mean(X)
+        mu_hgb = self.predict_mean(X, role_series=role_series)
         alpha = getattr(self, "_league_prior_alpha", None)
         beta  = getattr(self, "_league_prior_beta", None)
         if alpha is None or beta is None:
@@ -369,6 +453,7 @@ class HurdleModel:
         self._pos_var: float = 0.0
         self._n_pos: int = 0
         self._fitted = False
+        self._role_regs: dict[str, HistGradientBoostingRegressor] = {}
 
     def fit(
         self,
@@ -438,6 +523,20 @@ class HurdleModel:
             self._pos_mean = float(y_pos.mean())
             self._pos_var = float(y_pos.var())
             self._pos_dispersion_r = dispersion_from_moments(self._pos_mean, self._pos_var)
+
+            # Role-stratified Stage B: fit separate positive-tail regressors per role.
+            if self.cfg.get("use_role_stratified_training", False) and context_df is not None and "role_bucket" in context_df.columns:
+                ctx_pos = context_df.reset_index(drop=True).loc[pos_mask.reset_index(drop=True).values]
+                for role_name, role_grp in ctx_pos.groupby("role_bucket"):
+                    role_idx_local = role_grp.index
+                    if len(role_idx_local) < 15:
+                        continue
+                    X_rpos = X_pos.reset_index(drop=True).loc[role_idx_local].reindex(columns=self._usable_cols)
+                    y_rpos = y_pos.reset_index(drop=True).loc[role_idx_local]
+                    sw_rpos = sw_pos[role_idx_local] if sw_pos is not None else None
+                    r_reg_mdl = HistGradientBoostingRegressor(**reg_mdl_kw)
+                    r_reg_mdl.fit(X_rpos, y_rpos, sample_weight=sw_rpos)
+                    self._role_regs[str(role_name)] = r_reg_mdl
         else:
             # Fall back to global positive-count mean if too few positive samples
             self._pos_mean = float(y_pos.mean()) if self._n_pos > 0 else 1.0
@@ -448,7 +547,7 @@ class HurdleModel:
         return self
 
     def predict(
-        self, X: pd.DataFrame
+        self, X: pd.DataFrame, role_series: "pd.Series | None" = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return (p_nonzero, pos_mu) arrays.
 
@@ -469,12 +568,28 @@ class HurdleModel:
 
         # E[Y | Y > 0]
         min_mean = self.cfg.get("min_stat_mean", 0.01)
-        if self._reg is not None:
+        role_regs = getattr(self, "_role_regs", {})
+        if (role_series is not None and role_regs
+                and self.cfg.get("use_role_stratified_training", False)
+                and self._reg is not None):
+            pos_mu = np.clip(self._reg.predict(X), min_mean, None)
+            role_arr_h = role_series.reset_index(drop=True).values
+            for role_name, role_reg in role_regs.items():
+                mask_h = role_arr_h == role_name
+                if mask_h.any():
+                    pos_mu[mask_h] = np.clip(role_reg.predict(X.iloc[mask_h] if hasattr(X, 'iloc') else X[mask_h]), min_mean, None)
+        elif self._reg is not None:
             pos_mu = np.clip(self._reg.predict(X), min_mean, None)
         else:
             pos_mu = np.full(len(X), max(self._pos_mean, min_mean))
 
         return p_nz, pos_mu
+
+    def __setstate__(self, state: dict) -> None:
+        """Backward-compatible unpickling: add new fields if missing."""
+        self.__dict__.update(state)
+        if "_role_regs" not in self.__dict__:
+            self._role_regs = {}
 
     @property
     def pos_dispersion_r(self) -> float | None:

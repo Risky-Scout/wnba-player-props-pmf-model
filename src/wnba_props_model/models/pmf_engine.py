@@ -229,16 +229,18 @@ def build_all_pmfs(
         # ---- Predict stat ------------------------------------------------
         if stat in hurdle_models:
             model = hurdle_models[stat]
-            p_nz, pos_mus = model.predict(X_stat_df)
+            _role_series_hurdle = stat_rows["role_bucket"] if "role_bucket" in stat_rows.columns else None
+            p_nz, pos_mus = model.predict(X_stat_df, role_series=_role_series_hurdle)
             stat_means = p_nz * pos_mus  # E[Y] = P(Y>0) * E[Y|Y>0]
         else:
             model = stat_models[stat]
             # P3.3: use Bayesian shrinkage ensemble when enabled
             use_ensemble = cfg.get("use_model_ensemble", False)
+            _role_series_pmf = stat_rows["role_bucket"] if "role_bucket" in stat_rows.columns else None
             if use_ensemble and hasattr(model, "predict_with_shrinkage"):
-                stat_means = model.predict_with_shrinkage(X_stat_df, X_stat)
+                stat_means = model.predict_with_shrinkage(X_stat_df, X_stat, role_series=_role_series_pmf)
             else:
-                stat_means = model.predict_mean(X_stat_df)
+                stat_means = model.predict_mean(X_stat_df, role_series=_role_series_pmf)
             p_nz = None
             pos_mus = None
 
