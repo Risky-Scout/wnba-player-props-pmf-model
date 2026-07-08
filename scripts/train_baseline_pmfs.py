@@ -75,6 +75,13 @@ def _load_and_validate(
     wide = pd.read_parquet(wide_path)
     print(f"  {len(wide):,} rows, {wide.shape[1]} columns")
 
+    # Derive role_bucket from player_minutes_mean_l5 — not stored in features parquet.
+    # Required so role-stratified HGB training fires in StatRateModel.fit().
+    if "role_bucket" not in wide.columns and "player_minutes_mean_l5" in wide.columns:
+        from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket
+        wide = add_ex_ante_role_bucket(wide, minutes_col="player_minutes_mean_l5")
+        print(f"  role_bucket derived: {wide['role_bucket'].value_counts().to_dict()}")
+
     print(f"Loading long features: {long_path}")
     long = pd.read_parquet(long_path)
     print(f"  {len(long):,} rows")
