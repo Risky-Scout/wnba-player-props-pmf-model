@@ -189,7 +189,10 @@ class StatRateModel:
             std_col = f"player_{self.stat}_std_l10"
             if "player_id" in context_df.columns and std_col in context_df.columns:
                 ctx_ppd = context_df.reset_index(drop=True)
-                ctx_ppd = ctx_ppd[["player_id", "role_bucket", std_col]].dropna(subset=[std_col])
+                _ppd_cols = ["player_id", std_col]
+                if "role_bucket" in ctx_ppd.columns:
+                    _ppd_cols = ["player_id", "role_bucket", std_col]
+                ctx_ppd = ctx_ppd[_ppd_cols].dropna(subset=[std_col])
                 # Per-player median std (stable across their games in training)
                 self._player_std_map = (
                     ctx_ppd.groupby("player_id")[std_col].median().to_dict()
