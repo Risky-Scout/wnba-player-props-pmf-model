@@ -209,8 +209,10 @@ class ZINBStatModel:
         self._fitted = True
         return self
 
-    def predict(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    def predict(self, X: pd.DataFrame, role_series=None) -> tuple[np.ndarray, np.ndarray]:
         """Return (p_nz, pos_mus) compatible with hurdle_pmf_batch interface.
+
+        role_series is accepted for API symmetry with HurdleModel but unused.
 
         p_nz = 1 - π  (probability of a non-structural zero, i.e. plays)
         pos_mus = μ   (NegBinom mean; dispersion r stored in self._r)

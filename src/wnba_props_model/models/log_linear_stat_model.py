@@ -171,8 +171,10 @@ class LogLinearStatModel:
     # Inference alias: callers use predict_mean() not predict()
     # ------------------------------------------------------------------
 
-    def predict_mean(self, X: pd.DataFrame) -> np.ndarray:
+    def predict_mean(self, X: pd.DataFrame, role_series=None) -> np.ndarray:
         """Return adjusted Poisson λ per row.
+
+        role_series is accepted for API symmetry with StatRateModel but unused.
 
         Passes *X* itself as context_df so the Dixon-Coles opponent-defense
         and pace adjustments fire automatically — opp/pace columns are already

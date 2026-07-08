@@ -133,8 +133,10 @@ class ZINBHurdleModel:
 
         return self
 
-    def predict(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-        """Return (p_nz, pos_mus) compatible with hurdle_pmf_batch interface."""
+    def predict(self, X: pd.DataFrame, role_series=None) -> tuple[np.ndarray, np.ndarray]:
+        """Return (p_nz, pos_mus) compatible with hurdle_pmf_batch interface.
+
+        role_series is accepted for API symmetry with HurdleModel but unused."""
         df = self._add_engineered_features(X.copy())
         n = len(df)
 
