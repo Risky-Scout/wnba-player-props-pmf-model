@@ -136,6 +136,25 @@ def train_fold(
     Returns:
         FoldModel containing all fitted models and metadata.
     """
+    # ---- Derive role_bucket from minutes if not already present ----------
+    # role_bucket is NOT stored in the features parquet; it must be derived
+    # on-the-fly from player_minutes_mean_l5 so that role-stratified HGB
+    # training and per-player dispersion scaling can fire.
+    if "role_bucket" not in train_wide.columns and "player_minutes_mean_l5" in train_wide.columns:
+        train_wide = train_wide.copy()
+        train_wide = add_ex_ante_role_bucket(train_wide, minutes_col="player_minutes_mean_l5")
+
+    # #region agent log - debug 3f8dcc
+    import json as _json, time as _time
+    _rb_present = "role_bucket" in train_wide.columns
+    _rb_sample = train_wide["role_bucket"].value_counts().to_dict() if _rb_present else {}
+    try:
+        with open("/Users/josephshackelford/worldcup2026-model/.cursor/debug-3f8dcc.log", "a") as _f:
+            _f.write(_json.dumps({"sessionId": "3f8dcc", "location": "training.py:train_fold_entry", "message": "role_bucket status in train_wide", "data": {"role_bucket_present": _rb_present, "n_rows": len(train_wide), "role_counts": _rb_sample}, "hypothesisId": "H1", "timestamp": int(_time.time() * 1000)}) + "\n")
+    except Exception:
+        pass
+    # #endregion
+
     # ---- Feature encoding ------------------------------------------------
     X_train, pos_encoder = encode_features(train_wide, model_feature_cols, fit_encoder=True)
 
