@@ -1,0 +1,18 @@
+invalidated: 2026-07-06
+reason: switching HGB loss from squared_error to quantile(0.5) — old calibrators incompatible
+
+The StatRateModel and HurdleModel._reg HistGradientBoostingRegressor instances
+previously used loss='squared_error' (default), which trains to predict the
+conditional mean E[Y|X]. Sportsbook prop lines are set at the conditional median
+(50th percentile). For right-skewed WNBA stat distributions, mean > median,
+causing the isotonic calibrators to learn a systematic downward correction
+(pts: 0.746, reb: 0.678), which produced 116 UNDER / 22 OVER imbalance.
+
+Fix: loss='quantile', quantile=0.5 directly targets the conditional median,
+collapsing the calibration correction to near 1.0 and normalizing OVER/UNDER balance.
+
+All .pkl calibrator files in this directory were trained on MSE-predicted OOF
+and are incompatible with the new quantile-predicted OOF. The weekly_calibration
+workflow architecture-change guard will detect the rate_model.py commit is newer
+than bias_corrections.json, set ARCHITECTURE_CHANGED=true, and force a full
+OOF rebuild with fresh calibrators.
