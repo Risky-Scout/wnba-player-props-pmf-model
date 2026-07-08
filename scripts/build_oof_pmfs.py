@@ -205,6 +205,13 @@ def build(
         train_long_df = long[train_mask_long].reset_index(drop=True)
         val_long_df   = long[val_mask_long].reset_index(drop=True)
 
+        # Derive role_bucket for both splits — not stored in the features parquet.
+        # Without it, role-stratified HGB predictions and per-role dispersion are
+        # silently bypassed (role_series=None falls back to global model for all rows).
+        from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket as _add_rb  # noqa: PLC0415
+        if "role_bucket" not in val_wide_df.columns and "player_minutes_mean_l5" in val_wide_df.columns:
+            val_wide_df = _add_rb(val_wide_df, minutes_col="player_minutes_mean_l5")
+
         # SVD bridge: predict SVD dims from leak-free features, or drop them
         _svd_cols = [c for c in train_wide_df.columns if c.startswith("player_svd_dim_")]
         if _svd_cols and svd_bridge_model is not None:

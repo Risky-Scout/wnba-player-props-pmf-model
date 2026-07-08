@@ -339,6 +339,13 @@ def generate_fold_pmfs(
     Returns:
         Long PMF DataFrame with all OOF output columns.
     """
+    # Derive role_bucket for validation wide table if not present.
+    # role_bucket is not stored in the features parquet — it must be derived
+    # from player_minutes_mean_l5 so the role-stratified HGB models actually
+    # get used during OOF prediction (not silently bypassed with global model).
+    if "role_bucket" not in val_wide.columns and "player_minutes_mean_l5" in val_wide.columns:
+        val_wide = add_ex_ante_role_bucket(val_wide, minutes_col="player_minutes_mean_l5")
+
     X_val, _ = encode_features(
         val_wide, fold_model.feature_cols,
         pos_encoder=fold_model.pos_encoder, fit_encoder=False
@@ -395,9 +402,20 @@ def generate_fold_pmfs(
         p_nz_out = None
         pos_mus_out = None
 
+        # Role series for routing predictions to role-specific HGB models
+        _role_series_fold = (
+            stat_rows["role_bucket"].reset_index(drop=True)
+            if "role_bucket" in stat_rows.columns
+            else (
+                aligned_wide["role_bucket"].reset_index(drop=True)
+                if "role_bucket" in aligned_wide.columns
+                else None
+            )
+        )
+
         if stat in fold_model.hurdle_models:
             model = fold_model.hurdle_models[stat]
-            p_nz, pos_mus = model.predict(X_stat)
+            p_nz, pos_mus = model.predict(X_stat, role_series=_role_series_fold)
             stat_means_out = p_nz * pos_mus
             stat_var_out = np.full(len(stat_rows), float(model._pos_var))
             stat_model_type = "hurdle"
@@ -405,12 +423,18 @@ def generate_fold_pmfs(
             pos_mus_out = pos_mus
         elif stat in fold_model.stat_models:
             model = fold_model.stat_models[stat]
-            stat_means_out = model.predict_mean(X_stat)
+            stat_means_out = model.predict_mean(X_stat, role_series=_role_series_fold)
             stat_var_out = np.full(len(stat_rows), float(model._global_var))
             stat_model_type = "rate"
 
         # ---- Build PMF matrix --------------------------------------------
-        roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
+        # role_bucket comes from aligned_wide (derived from val_wide) since val_long
+        # (stat_rows) does not carry this column.
+        roles = (
+            stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns
+            else aligned_wide["role_bucket"].values if "role_bucket" in aligned_wide.columns
+            else None
+        )
         use_marginalization = cfg.get("use_minutes_marginalization", False)
         bb_models_fold = getattr(fold_model, "bb_models", {})
 
