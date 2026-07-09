@@ -414,7 +414,12 @@ def generate_fold_pmfs(
             pos_mus_out = pos_mus
         elif stat in fold_model.stat_models:
             model = fold_model.stat_models[stat]
-            stat_means_out = model.predict_mean(X_stat, role_series=_role_series_fold)
+            # Mirror live build_all_pmfs ensemble path so calibrators are fit on the same distribution
+            _use_ensemble_fold = cfg.get("use_model_ensemble", False)
+            if _use_ensemble_fold and hasattr(model, "predict_with_shrinkage"):
+                stat_means_out = model.predict_with_shrinkage(X_stat, aligned_wide, role_series=_role_series_fold)
+            else:
+                stat_means_out = model.predict_mean(X_stat, role_series=_role_series_fold)
             stat_var_out = np.full(len(stat_rows), float(model._global_var))
             stat_model_type = "rate"
 
@@ -459,7 +464,14 @@ def generate_fold_pmfs(
             pmf_mat = bb_models_fold["fg3m"].predict_pmf_matrix(X_stat, cap=cap)
         elif stat in fold_model.hurdle_models:
             model = fold_model.hurdle_models[stat]
-            pmf_mat = hurdle_pmf_batch(p_nz_out, pos_mus_out, model.pos_dispersion_r, cap)
+            # ZINBStatModel has ZINB semantics (unconditional mean) — use zinb_pmf_batch
+            from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBFold  # noqa: PLC0415
+            if isinstance(model, _ZINBFold):
+                from wnba_props_model.models.pmf_utils import zinb_pmf_batch as _zinb_fold  # noqa: PLC0415
+                _pi_fold = np.clip(1.0 - p_nz_out, 0.0, 1.0)
+                pmf_mat = _zinb_fold(_pi_fold, pos_mus_out, model._r, cap)
+            else:
+                pmf_mat = hurdle_pmf_batch(p_nz_out, pos_mus_out, model.pos_dispersion_r, cap)
         elif stat in fold_model.stat_models:
             model = fold_model.stat_models[stat]
             # Role-aware NegBinom: batch by role so stars get fatter tails

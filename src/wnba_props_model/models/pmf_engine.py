@@ -28,7 +28,9 @@ from wnba_props_model.models.pmf_utils import (
     pmf_mean_var,
     pmf_pge,
     poisson_pmf_batch,
+    sanitize_pmf_matrix,
     validate_pmf_matrix,
+    zinb_pmf_batch,
 )
 
 PMF_SOURCE = "stage4_baseline_uncalibrated_model_only"
@@ -350,6 +352,14 @@ def build_all_pmfs(
         if use_marginalization and np.any(p_dnp_arr > 0.0):
             pmf_mat = _blend_with_dnp(pmf_mat, p_dnp_arr)
 
+        # Sanitize before validation — prevents single-row numerical issues aborting pipeline
+        pmf_mat, _n_fixed = sanitize_pmf_matrix(pmf_mat)
+        if _n_fixed > 0:
+            import warnings as _w_san
+            _w_san.warn(
+                f"[pmf_engine] {stat}: {_n_fixed} PMF row(s) sanitized (non-finite/zero-sum) before validation",
+                stacklevel=2,
+            )
         validate_pmf_matrix(pmf_mat)
 
         # ---- Extract summary statistics -----------------------------------
@@ -500,6 +510,12 @@ def _build_pmf_matrix(
             except Exception as _pssm_exc:
                 import warnings as _w
                 _w.warn(f"PositionStratifiedSparseModel failed, falling back: {_pssm_exc}", stacklevel=3)
+        # ZINB semantics differ from Hurdle: pos_mus is the *unconditional* NegBinom mean
+        # (not E[Y|Y>0]), and p_nz = 1 - π.  Use zinb_pmf_batch to avoid wrong PMF shape.
+        from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBStatModel  # noqa: PLC0415
+        if isinstance(model, _ZINBStatModel):
+            _pi_arr = np.clip(1.0 - p_nz, 0.0, 1.0)  # type: ignore[arg-type]
+            return zinb_pmf_batch(_pi_arr, pos_mus, model._r, cap)  # type: ignore[arg-type]
         pos_r = model.pos_dispersion_r
         return hurdle_pmf_batch(p_nz, pos_mus, pos_r, cap)  # type: ignore[arg-type]
 
@@ -622,9 +638,14 @@ def _build_marginalized_pmf_matrix(
 
         if stat in hurdle_models:
             model = hurdle_models[stat]
-            # Scale pos_mus by the minute ratio; p_nz unchanged
+            # Scale pos_mus/mu by the minute ratio; p_nz / π unchanged
             scaled_pos_mus = np.clip(pos_mus * scale, 1e-9, None)  # type: ignore[operator]
-            pmf_i = hurdle_pmf_batch(p_nz, scaled_pos_mus, model.pos_dispersion_r, cap)
+            from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBStatModel  # noqa: PLC0415
+            if isinstance(model, _ZINBStatModel):
+                _pi_arr = np.clip(1.0 - p_nz, 0.0, 1.0)  # type: ignore[arg-type]
+                pmf_i = zinb_pmf_batch(_pi_arr, scaled_pos_mus, model._r, cap)
+            else:
+                pmf_i = hurdle_pmf_batch(p_nz, scaled_pos_mus, model.pos_dispersion_r, cap)
         else:
             model = stat_models.get(stat)
             # Scale the actual stat-model predictions by the minute ratio.

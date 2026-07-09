@@ -143,6 +143,7 @@ class LogLinearStatModel:
         self,
         X: pd.DataFrame,
         context_df: pd.DataFrame | None = None,
+        role_series=None,
     ) -> np.ndarray:
         """Return adjusted Poisson λ per row.
 
@@ -153,7 +154,7 @@ class LogLinearStatModel:
         context_df columns.  If context_df is None, falls back to the
         base model unmodified.
         """
-        base_lambda = self._base_model.predict_mean(X)
+        base_lambda = self._base_model.predict_mean(X, role_series=role_series)
 
         if context_df is None or context_df.empty:
             return base_lambda
@@ -200,13 +201,13 @@ class LogLinearStatModel:
     def predict_mean(self, X: pd.DataFrame, role_series=None) -> np.ndarray:
         """Return adjusted Poisson λ per row.
 
-        role_series is accepted for API symmetry with StatRateModel but unused.
+        Forwards role_series to StatRateModel so role-stratified HGB models fire.
 
         Passes *X* itself as context_df so the Dixon-Coles opponent-defense
         and pace adjustments fire automatically — opp/pace columns are already
         part of the feature matrix, so no separate context_df is needed.
         """
-        return self.predict(X, context_df=X)
+        return self.predict(X, context_df=X, role_series=role_series)
 
     def __setstate__(self, state: dict) -> None:
         """Backward-compatible unpickling for models trained before _league_avg_opp_allowed."""
@@ -232,9 +233,9 @@ class LogLinearStatModel:
     def _dispersion_r(self) -> float | None:
         return self._base_model._dispersion_r
 
-    def get_dispersion(self, role: str = "all") -> float | None:
-        """Return per-role (or global) NegBinom dispersion r."""
-        return self._base_model.get_dispersion(role)
+    def get_dispersion(self, role: str = "all", **kwargs) -> float | None:
+        """Return per-role (or global) NegBinom dispersion r, forwarding mu/player_id."""
+        return self._base_model.get_dispersion(role, **kwargs)
 
     @property
     def _role_dispersion(self) -> dict[str, float | None]:

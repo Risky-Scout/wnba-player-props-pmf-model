@@ -273,6 +273,7 @@ def train(
 
     stat_models: dict[str, StatRateModel] = {}
     hurdle_models: dict[str, HurdleModel] = {}
+    bb_models: dict = {}
     stat_summaries: dict[str, dict] = {}
 
     # P3.2: Load tuned hyperparameters when use_tuned_hyperparams is set
@@ -374,6 +375,28 @@ def train(
                 s = model_h.get_training_summary()
                 print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
                       f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+        elif stat == "fg3m" and stat_cfg.get("use_beta_binomial"):
+            # Beta-Binomial model for fg3m — mirrors training.py OOF path
+            from wnba_props_model.models.beta_binomial import BetaBinomialStatModel  # noqa: PLC0415
+            fg3a_col = "actual_fg3a" if "actual_fg3a" in played_ctx.columns else None
+            y_attempts = played_ctx[fg3a_col] if fg3a_col else None
+            bb_m = BetaBinomialStatModel(stat_cfg)
+            bb_m.fit(X_played, y_stat, y_attempts, sample_weight=sw_played)
+            bb_models["fg3m"] = bb_m
+            s = {
+                "stat": "fg3m", "model_type": "BetaBinomial",
+                "alpha": bb_m.alpha_, "beta": bb_m.beta_,
+                "global_mean": float(y_stat.mean()), "global_var": float(y_stat.var()),
+            }
+            print(f"  BetaBinomialStatModel  alpha={bb_m.alpha_:.4f}  beta={bb_m.beta_:.4f}")
+            # Also fit a standard fallback model stored in stat_models
+            if cfg.get("use_log_linear", False):
+                from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel  # noqa: PLC0415
+                model_r = LogLinearStatModel(stat, stat_cfg)
+            else:
+                model_r = StatRateModel(stat, stat_cfg)
+            model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
+            stat_models[stat] = model_r
         else:
             if cfg.get("use_log_linear", False):
                 from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel  # noqa: PLC0415
@@ -458,6 +481,10 @@ def train(
     joblib.dump(hurdle_models, str(hurdle_path))
     print(f"\nSaved stat models: {stat_path}")
     print(f"Saved hurdle models: {hurdle_path}")
+    if bb_models:
+        bb_path = model_dir / "bb_models.joblib"
+        joblib.dump(bb_models, str(bb_path))
+        print(f"Saved Beta-Binomial models: {bb_path}")
 
     # Model manifest
     model_manifest = {
@@ -489,7 +516,8 @@ def train(
     print("\nGenerating PMFs...")
     pmf_df = build_all_pmfs(
         wide, long, model_cols,
-        minutes_mdl, stat_models, hurdle_models, cfg
+        minutes_mdl, stat_models, hurdle_models, cfg,
+        bb_models=bb_models if bb_models else None,
     )
     print(f"  PMF rows: {len(pmf_df):,}")
     print(f"  Rows by stat:")

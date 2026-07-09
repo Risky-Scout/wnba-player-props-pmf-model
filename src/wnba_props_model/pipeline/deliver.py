@@ -402,10 +402,18 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         kelly_vals = []
         decay_edges = []
         for _, r in joined.iterrows():
-            p = float(r["model_prob_over"])
+            edge_ov = float(r.get("edge_over", 0.0))
+            if edge_ov >= 0:
+                # OVER bet: use model P(over) and over_odds
+                p = float(r["model_prob_over"])
+                raw_odds = r.get("over_odds")
+                edge = edge_ov
+            else:
+                # UNDER bet: use model P(under) = 1 - P(over) and under_odds
+                p = 1.0 - float(r["model_prob_over"])
+                raw_odds = r.get("under_odds")
+                edge = float(r.get("edge_under", 0.0))
             p = max(1e-6, min(1.0 - 1e-6, p))
-            raw_odds = r.get("over_odds")
-            edge = float(r.get("edge_over", 0.0))
             # Convert American odds to decimal odds - 1
             try:
                 raw_odds = float(raw_odds)
