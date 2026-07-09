@@ -188,6 +188,6 @@ class ZINBHurdleModel:
     @classmethod
     def load(cls, path: str) -> 'ZINBHurdleModel':
         data = joblib.load(path)
-        obj = cls(stat_name=data.get('stat', 'stl'))
+        obj = cls(stat=data.get('stat', 'stl'))
         obj.__dict__.update(data)
         return obj

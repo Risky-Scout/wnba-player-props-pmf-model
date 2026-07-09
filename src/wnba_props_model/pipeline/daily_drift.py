@@ -5,10 +5,12 @@ a small multiplicative correction to today's PMFs. This keeps
 calibration fresh between weekly OOF rebuilds.
 
 Design principles:
-- Multiplicative only (never shifts a PMF mean by more than 15%)
+- Multiplicative only (never shifts a PMF mean by more than 15% per day)
 - Per-stat, not per-player (too noisy at player level)
 - Decays automatically: if no games played yesterday, correction = 1.0
-- Capped at 0.85-1.15 to prevent runaway corrections
+- Cap applies to the DAILY CHANGE FACTOR (±15%), not the absolute value.
+  This preserves large corrections like pts=1.278 — capping the absolute
+  value at 1.15 would silently erode them to 1.15 every single day.
 """
 from __future__ import annotations
 
@@ -24,8 +26,12 @@ from wnba_props_model.models.simulation import normalize_pmf
 
 logger = logging.getLogger(__name__)
 
-DRIFT_CAP_LO = 0.85
-DRIFT_CAP_HI = 1.15
+# Maximum daily CHANGE FACTOR (multiplicative), not absolute cap.
+# A cap of 0.85-1.15 on the absolute value would silently erode any
+# correction above 1.15 (e.g. pts=1.278 → 1.278*0.7+1.0*0.3=1.195 → clipped
+# to 1.15 every day). Instead we cap the *per-day change* at ±15%.
+DRIFT_CHANGE_FACTOR_LO = 0.85   # max -15% per day from current
+DRIFT_CHANGE_FACTOR_HI = 1.15   # max +15% per day from current
 DRIFT_BLEND_WEIGHT = 0.3
 MIN_GAMES_FOR_DRIFT = 3
 
@@ -68,12 +74,20 @@ def compute_daily_drift(
         ratio = ratio.clip(0.1, 10.0)
         drift = float(ratio.median())
         current = current_bias_corrections.get(str(stat), 1.0)
-        blended = current * (1.0 - DRIFT_BLEND_WEIGHT) + drift * DRIFT_BLEND_WEIGHT
-        blended = float(np.clip(blended, DRIFT_CAP_LO, DRIFT_CAP_HI))
+        # drift is actual/pmf_mean where pmf_mean is already calibrated.
+        # When predictions are perfect, drift ≈ 1.0 and correction should stay
+        # unchanged.  The multiplicative formula:
+        #   change_factor = 1 + BLEND_WEIGHT * (drift - 1)
+        # produces change_factor=1.0 when drift=1.0 ✓ and ≠0 sensitivity.
+        # We cap the *daily change factor*, not the absolute value, so large
+        # corrections like pts=1.278 are preserved across days.
+        change_factor = 1.0 + DRIFT_BLEND_WEIGHT * (drift - 1.0)
+        change_factor = float(np.clip(change_factor, DRIFT_CHANGE_FACTOR_LO, DRIFT_CHANGE_FACTOR_HI))
+        blended = current * change_factor
         drift_per_stat[str(stat)] = round(blended, 4)
         logger.info(
-            "Daily drift %s: yesterday_ratio=%.3f, current=%.3f -> updated=%.3f",
-            stat, drift, current, blended,
+            "Daily drift %s: yesterday_ratio=%.3f, current=%.3f, change_factor=%.4f -> updated=%.3f",
+            stat, drift, current, change_factor, blended,
         )
 
     for stat, val in current_bias_corrections.items():

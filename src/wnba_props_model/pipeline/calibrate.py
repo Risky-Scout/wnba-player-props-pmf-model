@@ -552,8 +552,12 @@ def fit_calibrators(
             if _bc_stat in _CANONICAL_COMBO_STATS:
                 _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.40, 2.50))
             else:
-                # Cap correction to ±40% to prevent runaway corrections on thin stats
-                _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.60, 1.40))
+                # Cap correction to [0.40, 2.50] — same range as combo stats.
+                # The original ±40% cap ([0.60, 1.40]) blocked corrections >1.40 that
+                # are now structurally valid after the LogLinear opp-adj fix
+                # (e.g. fg3m ≈ 1.658, pts ≈ 1.278).  Clamping to 1.40 would silently
+                # under-correct fg3m by ~18% on every weekly refit.
+                _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.40, 2.50))
         else:
             _bias_corrections[_bc_stat] = 1.0
     (out / "bias_corrections.json").write_text(json.dumps(_bias_corrections, indent=2))
@@ -1079,10 +1083,12 @@ def apply_calibrators(
         _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
         _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
         _is_combo_stat = stat in {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast"}
-        # Combo stats need wider alpha range because their corrections can exceed ±40%
-        # (they are built from uncorrected raw PMFs and calibrated independently).
-        _alpha_clip_lo = 0.40 if _is_combo_stat else 0.60
-        _alpha_clip_hi = 2.50 if _is_combo_stat else 1.40
+        # Use the same wide clip range for all stats — after the LogLinear
+        # opp-adj fix, base-stat corrections can legitimately exceed 1.40
+        # (fg3m ≈ 1.658).  Restricting base stats to ±40% would silently
+        # under-correct them at inference time.
+        _alpha_clip_lo = 0.40
+        _alpha_clip_hi = 2.50
         if _row_idx in _row_corrected_mean and abs(_alpha_ac - 1.0) > 0.005:
             # Recompute alpha for this specific player from the protected target mean
             _pmf_k = np.arange(len(raw_pmf), dtype=float)

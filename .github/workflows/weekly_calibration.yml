@@ -54,6 +54,9 @@ jobs:
             src/wnba_props_model/models/minutes_correction.py \
             src/wnba_props_model/models/rate_model.py \
             src/wnba_props_model/models/pmf_engine.py \
+            src/wnba_props_model/models/log_linear_stat_model.py \
+            src/wnba_props_model/models/hurdle.py \
+            src/wnba_props_model/models/zinb_hurdle.py \
             2>/dev/null || echo "0")
           echo "Calibrator last committed: $(date -d @${CALIB_DATE} -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -r ${CALIB_DATE} +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo epoch=${CALIB_DATE})"
           echo "Model files last committed: $(date -d @${MODEL_DATE} -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -r ${MODEL_DATE} +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo epoch=${MODEL_DATE})"

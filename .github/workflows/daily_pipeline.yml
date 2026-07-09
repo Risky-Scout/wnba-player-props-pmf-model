@@ -588,13 +588,28 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p deliveries/archive
-          # Prefer the full PMF long table; fall back to publishable edges (has pmf_mean)
-          PARQUET_PATH=$(find deliveries/tonight -name "*.parquet" 2>/dev/null | grep -v "publishable\|market_comp\|edge\|quantile" | head -1)
+          # Always prefer next_game/ (canonical output dir) first, then tonight/
+          # as fallback (populated by the bridge step on off-days). Previously this
+          # only searched tonight/, so on game days (target_date == today, no bridge)
+          # the archive was always empty and daily drift was a no-op every game day.
+          PARQUET_PATH=""
+          # 1. next_game: prefer the full PMF wide table
+          if [ -f "deliveries/next_game/full_pmfs_wide.parquet" ]; then
+            PARQUET_PATH="deliveries/next_game/full_pmfs_wide.parquet"
+          fi
+          # 2. next_game: any non-edge parquet
+          if [ -z "$PARQUET_PATH" ]; then
+            PARQUET_PATH=$(find deliveries/next_game -name "*.parquet" 2>/dev/null | grep -v "publishable\|market_comp\|edge\|quantile" | head -1)
+          fi
+          # 3. tonight/ fallback (bridge populated on off-days)
+          if [ -z "$PARQUET_PATH" ]; then
+            PARQUET_PATH=$(find deliveries/tonight -name "*.parquet" 2>/dev/null | grep -v "publishable\|market_comp\|edge\|quantile" | head -1)
+          fi
           if [ -f "$PARQUET_PATH" ]; then
             cp "$PARQUET_PATH" deliveries/archive/yesterday_pmfs.parquet
             echo "Archived PMFs: $PARQUET_PATH"
           else
-            FALLBACK=$(find deliveries/tonight -name "publishable_edges.parquet" 2>/dev/null | head -1)
+            FALLBACK=$(find deliveries/next_game deliveries/tonight -name "publishable_edges.parquet" 2>/dev/null | head -1)
             if [ -f "$FALLBACK" ]; then
               cp "$FALLBACK" deliveries/archive/yesterday_pmfs.parquet
               echo "Archived publishable edges as PMF archive"

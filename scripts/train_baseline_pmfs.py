@@ -307,8 +307,11 @@ def train(
         if sw_played is not None:
             sw_played = sw_played[: len(X_played)]  # guard against index mismatch
 
-        # P3.2: merge tuned hyperparams for this stat into config copy
-        stat_cfg = dict(cfg)
+        # P3.2: merge per-stat overrides then tuned hyperparams into config copy.
+        # This mirrors training.py:269 so Stage-4 live models use the same
+        # architecture as OOF folds (e.g. fg3m→Beta-Binomial, ast/turnover→minutes_offset).
+        stat_overrides_cfg = cfg.get("stat_overrides", {})
+        stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
         if stat in tuned_params:
             tp = tuned_params[stat]
             hgb_r = dict(stat_cfg.get("hgb_regressor", {}))
