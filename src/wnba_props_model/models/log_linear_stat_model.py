@@ -211,3 +211,9 @@ class LogLinearStatModel:
     @property
     def _usable_cols(self) -> list[str]:
         return getattr(self._base_model, "_usable_cols", [])
+
+    def get_training_summary(self) -> dict:
+        """Delegate to the underlying StatRateModel's training summary."""
+        s = self._base_model.get_training_summary()
+        s["model_type"] = "LogLinearStatModel"
+        return s

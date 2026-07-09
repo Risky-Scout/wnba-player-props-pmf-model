@@ -372,11 +372,15 @@ def train(
                 print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
                       f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
         else:
-            model_r = StatRateModel(stat, stat_cfg)
+            if cfg.get("use_log_linear", False):
+                from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel  # noqa: PLC0415
+                model_r = LogLinearStatModel(stat, stat_cfg)
+            else:
+                model_r = StatRateModel(stat, stat_cfg)
             model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
             stat_models[stat] = model_r
             s = model_r.get_training_summary()
-            print(f"  StatRateModel  mean={s['global_mean']:.3f}  "
+            print(f"  {type(model_r).__name__}  mean={s['global_mean']:.3f}  "
                   f"var={s['global_var']:.3f}  "
                   f"type={s['pmf_type']}  r={s['dispersion_r']}  "
                   f"role_buckets={len(s.get('role_dispersion', {}))}")
