@@ -237,6 +237,8 @@ class ZINBStatModel:
             "model_type": "ZINBStatModel",
             "global_pi": self._global_pi,
             "global_mu": self._global_mu,
+            "pos_mean": self._global_mu,           # alias for HurdleModel compat
             "dispersion_r": self._r,
+            "pos_dispersion_r": self._r,           # alias for HurdleModel compat
             "version": self.VERSION,
         }

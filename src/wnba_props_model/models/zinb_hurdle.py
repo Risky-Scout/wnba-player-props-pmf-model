@@ -39,6 +39,7 @@ class ZINBHurdleModel:
             "model_type": "ZINBHurdleModel",
             "global_dispersion": self.global_dispersion,
             "pos_dispersion_r": self.pos_dispersion_r,
+            "pos_mean": self._pos_mean,            # alias for HurdleModel compat
             "zero_features": self.zero_features_,
             "count_features": self.count_features_,
         }
