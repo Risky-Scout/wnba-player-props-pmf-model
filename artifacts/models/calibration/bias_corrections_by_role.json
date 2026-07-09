@@ -1,6 +1,6 @@
 {
-  "_comment": "Role-stratified bias corrections v4. Recalibrated from run 28848281771 per-role analysis. starter|pts raised to 1.74 to bring elite starters (Bueckers, Stewart, Copper) to market. Core corrections kept flat since uniform global already places core at ratio 1.0. net_mult = role_corr / global_corr applied in apply_role_stratified_corrections.",
-  "generated_at": "2026-07-07T10:00:00Z",
+  "_comment": "Role-stratified bias corrections v5. Updated 2026-07-09 after LogLinear opp-adj unit-mismatch fix changed global corrections. Turnover role corrections updated from 0.658 to 1.264 (new global) to restore net_mult≈1.0 (no role differentiation for TO). All other role corrections unchanged — they represent absolute total multipliers (final = raw * role_corr) independent of the global value. net_mult = role_corr / global_corr applied in apply_role_stratified_corrections.",
+  "generated_at": "2026-07-09T16:07:00Z",
   "corrections": {
     "starter|pts": 1.74,
     "core|pts": 1.508,
@@ -32,8 +32,8 @@
     "starter|blk": 1.190,
     "core|blk": 1.190,
     "rotation|blk": 1.190,
-    "starter|turnover": 0.658,
-    "core|turnover": 0.658,
-    "rotation|turnover": 0.658
+    "starter|turnover": 1.264,
+    "core|turnover": 1.264,
+    "rotation|turnover": 1.264
   }
 }
