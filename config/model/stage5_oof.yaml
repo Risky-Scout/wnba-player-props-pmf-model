@@ -119,8 +119,6 @@ stat_overrides:
     use_beta_binomial: true
   turnover:
     use_minutes_offset: true
-  ast:
-    use_minutes_offset: true
 use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true
