@@ -315,13 +315,18 @@ class StatRateModel:
 
         if getattr(self, "_use_minutes_offset", False):
             minutes_col = getattr(self, "_minutes_offset_col", "player_minutes_mean_l5")
+            _fallback_min = max(getattr(self, "_global_mean", 1.0) / 0.5, 20.0)
             if minutes_col in X.columns:
                 projected_min = X[minutes_col].values.astype(float)
+                # Replace NaN/inf with fallback before clip so NaN doesn't propagate
+                projected_min = np.where(np.isfinite(projected_min), projected_min, _fallback_min)
                 projected_min = np.clip(projected_min, 1.0, None)
             else:
-                # Fallback: use column-agnostic average if feature not available
-                projected_min = np.full(len(raw), max(self._global_mean / 0.5, 20.0))
-            return np.clip(raw * projected_min, min_mean, None)
+                projected_min = np.full(len(raw), _fallback_min)
+            result = raw * projected_min
+            # Final safety net: replace any remaining non-finite with floor
+            result = np.where(np.isfinite(result), result, min_mean)
+            return np.clip(result, min_mean, None)
 
         return np.clip(raw, min_mean, None)
 

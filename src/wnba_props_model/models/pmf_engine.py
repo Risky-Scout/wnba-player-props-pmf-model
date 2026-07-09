@@ -241,6 +241,12 @@ def build_all_pmfs(
                 stat_means = model.predict_with_shrinkage(X_stat_df, X_stat, role_series=_role_series_pmf)
             else:
                 stat_means = model.predict_mean(X_stat_df, role_series=_role_series_pmf)
+            # Guard: replace any NaN/inf stat_means with minimum floor before PMF generation
+            if not np.isfinite(stat_means).all():
+                import warnings
+                _n_bad = (~np.isfinite(stat_means)).sum()
+                warnings.warn(f"[pmf_engine] {stat}: {_n_bad} non-finite stat_means replaced with floor 0.1", stacklevel=2)
+                stat_means = np.where(np.isfinite(stat_means), stat_means, 0.1)
             p_nz = None
             pos_mus = None
 
