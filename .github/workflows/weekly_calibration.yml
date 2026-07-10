@@ -500,7 +500,7 @@ jobs:
 
       - name: Compute empirical role bias corrections
         run: python scripts/compute_role_bias_corrections.py
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Estimate OOF stat correlations for combo PMFs
         continue-on-error: true
