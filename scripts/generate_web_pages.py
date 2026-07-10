@@ -265,6 +265,9 @@ def _build_edge_json(
             "no_vig_over_prob": round(float(r.get("no_vig_over_prob", r.get("market_prob_over_no_vig", 0)) or 0), 4),
             "no_vig_under_prob": round(float(r.get("no_vig_under_prob", 1.0 - float(r.get("market_prob_over_no_vig", 0) or 0)) or 0), 4),
             "edge": round(edge, 4),
+            # edge_pp mirrors Distributions page format: percentage points (e.g. -37.44 means -37.44pp).
+            # This allows downstream consumers to compare edge values across both pages using the same unit.
+            "edge_pp": round(edge * 100, 2),
             "kelly_pct": round(kelly_pct, 2),
             "kelly_units": round(kelly_pct, 2),
             "abs_edge": abs_edge,

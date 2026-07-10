@@ -53,7 +53,14 @@ _STAT_LABELS: dict[str, str] = {
 
 
 def _build_json(pmf_path: Path, game_date: str) -> dict:
-    """Read PMF-Distributions/latest.json, emit cleaned schema."""
+    """Read PMF-Distributions/latest.json, emit cleaned schema.
+
+    After building props from the PMF data, merges in any Edge Board rows that
+    have a real market line but are absent from the Distributions at that exact
+    (player, stat, line) triple.  The PMF shape is borrowed from the matching
+    player/stat entry (distributions don't change with the line — only the
+    reference cut-point changes).
+    """
     try:
         pmf_data = json.loads(pmf_path.read_text())
     except Exception as exc:
@@ -70,6 +77,7 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
         # edge_pp is only meaningful when there is a real sportsbook line.
         # Props with line=0/None have no market reference; setting edge=0 is
         # misleading (model trivially has P(over 0)≈100%), so we null it out.
+        # edge_pp is stored as PERCENTAGE POINTS (e.g. -37.44 means -37.44pp).
         raw_edge = p.get("edge")
         if has_market_line and raw_edge is not None:
             edge_pp: float | None = round(float(raw_edge) * 100, 2)
@@ -92,10 +100,102 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
             "excess_kurtosis": p.get("excess_kurtosis"),
             "model_p_over": round(float(p.get("model_p_over") or 0), 4),
             "market_p_over": round(float(p.get("market_p_over") or 0), 4),
+            "no_vig_over_prob": round(float(p.get("no_vig_over_prob") or p.get("market_p_over") or 0), 4),
+            "no_vig_under_prob": round(float(p.get("no_vig_under_prob") or 0), 4),
             "edge_pp": edge_pp,
             "kelly_pct": round(float(p.get("kelly_pct") or 0), 2),
             "pmf": p.get("pmf", []),
         })
+
+    # ── Merge missing Edge Board rows ─────────────────────────────────────────
+    # The Edge Board may contain rows for (player, stat, market_line) triples
+    # that don't appear in PMF-Distributions because build_edge_report picks up
+    # market lines that the PMF merge step missed (e.g. when drop_duplicates on
+    # player_id+stat discards alternate lines).  Ensure every Edge Board row
+    # that has a real market line is represented in this page at that exact line.
+    edge_json_path = pmf_path.parent.parent / "Edge" / "latest.json"
+    try:
+        edge_data = json.loads(edge_json_path.read_text())
+        edge_props = edge_data.get("props", [])
+    except Exception as exc:
+        typer.echo(f"[WARN] Could not load Edge/latest.json for merge: {exc}")
+        edge_props = []
+
+    if edge_props:
+        # Index distributions by (player, stat, line) for fast lookup
+        dist_keys: set[tuple] = {(p["player"], p["stat"], p["line"]) for p in props}
+
+        # Also index by (player, stat) → first matching dist prop index (for PMF clone)
+        player_stat_idx: dict[tuple, int] = {}
+        for i, p in enumerate(props):
+            key = (p["player"], p["stat"])
+            if key not in player_stat_idx:
+                player_stat_idx[key] = i
+
+        merged_count = 0
+        for ep in edge_props:
+            player = ep.get("player", "")
+            stat   = ep.get("stat", "")
+            market_line = float(ep.get("market_line") or 0)
+
+            if market_line <= 0:
+                continue  # no real market line on this edge row — skip
+            if (player, stat, market_line) in dist_keys:
+                continue  # already present — nothing to do
+
+            # edge is stored as decimal in Edge Board JSON (e.g. -0.374 = -37.4pp)
+            raw_edge_decimal = float(ep.get("edge") or 0)
+            edge_pp_val: float | None = round(raw_edge_decimal * 100, 2)
+
+            ps_key = (player, stat)
+            if ps_key in player_stat_idx:
+                # Clone the matching distribution entry and patch the line/edge fields.
+                # The PMF shape is line-independent — only the rendering cut-point changes.
+                base = dict(props[player_stat_idx[ps_key]])
+                base["line"]           = market_line
+                base["has_market_line"] = True
+                base["edge_pp"]        = edge_pp_val
+                base["model_p_over"]   = round(float(ep.get("model_p_over") or 0), 4)
+                base["market_p_over"]  = round(float(ep.get("no_vig_over_prob") or ep.get("market_p_over") or 0), 4)
+                base["no_vig_over_prob"] = base["market_p_over"]
+                base["no_vig_under_prob"] = round(1.0 - base["market_p_over"], 4)
+                # Recompute median_vs_line if median is available
+                median = base.get("median")
+                if median is not None:
+                    base["median_vs_line"] = round(float(median) - market_line, 2)
+                base["kelly_pct"] = round(float(ep.get("kelly_pct") or 0), 2)
+            else:
+                # No PMF entry at all — create a minimal row with edge-board data.
+                # pmf will be empty so the chart won't render, but the row is present.
+                base = {
+                    "player":          player,
+                    "stat":            stat,
+                    "stat_label":      _STAT_LABELS.get(stat, stat),
+                    "stat_raw":        stat.lower(),
+                    "line":            market_line,
+                    "has_market_line": True,
+                    "mean":            ep.get("model_mean"),
+                    "median":          ep.get("median"),
+                    "mode":            None,
+                    "std_dev":         None,
+                    "variance":        None,
+                    "skewness":        None,
+                    "excess_kurtosis": None,
+                    "model_p_over":    round(float(ep.get("model_p_over") or 0), 4),
+                    "market_p_over":   round(float(ep.get("no_vig_over_prob") or 0), 4),
+                    "no_vig_over_prob": round(float(ep.get("no_vig_over_prob") or 0), 4),
+                    "no_vig_under_prob": round(1.0 - float(ep.get("no_vig_over_prob") or 0), 4),
+                    "edge_pp":         edge_pp_val,
+                    "kelly_pct":       round(float(ep.get("kelly_pct") or 0), 2),
+                    "pmf":             [],
+                }
+
+            props.append(base)
+            dist_keys.add((player, stat, market_line))
+            merged_count += 1
+
+        if merged_count:
+            typer.echo(f"  [merge] Added {merged_count} Edge Board rows missing from Distributions")
 
     return {
         "schema_version": "3.1",
