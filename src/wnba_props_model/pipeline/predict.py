@@ -572,7 +572,56 @@ def predict_player_pmfs(
 
     # Build combo-prop PMFs via discrete convolution + bivariate copula correction.
     # These are appended as additional rows so edge reports cover BDL combo markets.
-    combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
+    #
+    # PRE-CORRECTION: Apply global bias corrections to base-stat PMFs BEFORE combo
+    # convolution.  Without this, combo means are 27-30% below market because the
+    # convolution uses raw (uncalibrated) component distributions.  After combo rows
+    # are built, the original pmf_json values are restored so the main calibration
+    # stack still applies correctly to base stats.
+    _combo_feed_stats = {"pts", "reb", "ast", "stl", "blk"}
+    _pmfs_long_for_combo = pmfs_long  # default: no pre-correction
+    try:
+        _bias_corr_path = Path(cal_dir) / "bias_corrections.json" if cal_dir else None
+        if _bias_corr_path and _bias_corr_path.exists():
+            import json as _bc_json  # noqa: PLC0415
+            from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _bc_abc  # noqa: PLC0415
+            _bias_corr = _bc_json.loads(_bias_corr_path.read_text())
+            _corrected_jsons = []
+            _any_corrected = False
+            for _, _bc_row in pmfs_long.iterrows():
+                _bc_stat = str(_bc_row.get("stat", ""))
+                _bc_mult = _bias_corr.get(_bc_stat)
+                if (
+                    _bc_mult is not None
+                    and not str(_bc_stat).startswith("_")
+                    and abs(float(_bc_mult) - 1.0) > 0.01
+                    and _bc_stat in _combo_feed_stats
+                ):
+                    _bc_arr = json_to_pmf(_bc_row["pmf_json"])
+                    _bc_corrected = _bc_abc(_bc_arr, float(_bc_mult))
+                    _corrected_jsons.append(pmf_to_json(_bc_corrected))
+                    _any_corrected = True
+                else:
+                    _corrected_jsons.append(_bc_row["pmf_json"])
+            if _any_corrected:
+                _pmfs_long_for_combo = pmfs_long.copy()
+                _pmfs_long_for_combo["pmf_json"] = _corrected_jsons
+                logger.info(
+                    "[combo_pre_correction] Applied bias corrections to base-stat PMFs "
+                    "before combo convolution (stats: %s)",
+                    sorted(_combo_feed_stats),
+                )
+    except Exception as _combo_precorr_exc:
+        logger.warning(
+            "[combo_pre_correction] Pre-correction failed (non-fatal), "
+            "using uncorrected PMFs for combo build: %s",
+            _combo_precorr_exc,
+        )
+        _pmfs_long_for_combo = pmfs_long
+
+    combo_rows = _build_combo_pmf_rows(_pmfs_long_for_combo, corr_map_by_pos=_corr_by_pos)
+    # _pmfs_long_for_combo was a temporary copy; pmfs_long is unchanged (base stats
+    # will go through the main calibration stack below without double-correction).
     if not combo_rows.empty:
         pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
         logger.info("Added %d combo PMF rows (%s)", len(combo_rows),
