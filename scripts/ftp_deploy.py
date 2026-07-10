@@ -88,7 +88,7 @@ def _upload_file(ftp: ftplib.FTP, local_path: Path, remote_path: str) -> None:
     print(f"  ✓ {remote_path} ({len(content) / 1024:.1f} KB)")
 
 
-def deploy() -> None:
+def deploy(dirs: list[str] | None = None) -> None:
     host = os.environ.get("FTP_HOST", "").strip()
     user = os.environ.get("FTP_USER", "").strip()
     password = os.environ.get("FTP_PASS", "").strip()
@@ -97,7 +97,10 @@ def deploy() -> None:
         print("ERROR: FTP_HOST, FTP_USER, and FTP_PASS must be set in .env or environment")
         sys.exit(1)
 
+    deploy_dirs = dirs if dirs is not None else DEPLOY_DIRS
+
     print(f"Connecting to {host}…")
+    print(f"Deploying dirs: {deploy_dirs}")
     with ftplib.FTP(host, timeout=60) as ftp:
         ftp.login(user, password)
         print(f"  Connected: {ftp.getwelcome()[:80]}")
@@ -105,7 +108,7 @@ def deploy() -> None:
         uploaded = 0
         skipped = 0
 
-        for subdir in DEPLOY_DIRS:
+        for subdir in deploy_dirs:
             local_dir = LOCAL_BASE / Path(subdir)
             remote_dir = f"{REMOTE_BASE}/{subdir}"
 
@@ -129,4 +132,14 @@ def deploy() -> None:
 
 
 if __name__ == "__main__":
-    deploy()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="FTP deploy WNBA prediction pages")
+    parser.add_argument(
+        "--dirs",
+        nargs="*",
+        default=None,
+        help="Subdirs to deploy (default: all). E.g. --dirs In-Play/Edges In-Play/Pricer",
+    )
+    args = parser.parse_args()
+    deploy(dirs=args.dirs)

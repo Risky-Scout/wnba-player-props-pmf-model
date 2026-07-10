@@ -330,7 +330,8 @@ jobs:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
-        run: python scripts/ftp_deploy.py
+        # Only deploy In-Play directories — never overwrite Pre-Game pages mid-game
+        run: python scripts/ftp_deploy.py --dirs In-Play/Edges In-Play/Pricer
         continue-on-error: true
 
       - name: Post-game archive (runs when all games final)
