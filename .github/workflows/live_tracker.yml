@@ -316,7 +316,18 @@ jobs:
             echo "Outside WNBA game window (UTC hour $HOUR) — not self-chaining."
             exit 0
           fi
-          echo "Self-chaining live tracker for game IDs: $GAME_IDS"
+          # Also verify at least one BDL game still exists for today before re-queuing.
+          ET_DATE=$(TZ=America/New_York date +%Y-%m-%d)
+          GAMES_LIVE=$(curl -sf \
+            "https://api.balldontlie.io/wnba/v1/games?dates[]=$ET_DATE&per_page=10" \
+            -H "Authorization: ${{ secrets.BDL_API_KEY }}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); live=[g for g in d.get('data',[]) if g.get('status') not in ('Final','Post Game','','canceled','postponed')]; print(len(live))" \
+            2>/dev/null || echo "0")
+          if [ "$GAMES_LIVE" = "0" ]; then
+            echo "No live games found for $ET_DATE — not self-chaining to prevent runaway loop."
+            exit 0
+          fi
+          echo "Self-chaining live tracker for game IDs: $GAME_IDS ($GAMES_LIVE live games)"
           gh workflow run live_tracker.yml \
             --ref ${{ github.ref_name }} \
             --field game_ids="$GAME_IDS" \

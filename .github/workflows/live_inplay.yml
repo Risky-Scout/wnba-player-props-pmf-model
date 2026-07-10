@@ -124,11 +124,22 @@ jobs:
             fi
           fi
 
-      # Only continue if there are active games
+      # Only continue if there are active games AND we are in the game window.
+      # Even if game_ids is provided via workflow_dispatch, verify the game is
+      # actually live right now so we don't run during pre-game hours.
       - name: Check active games
         run: |
-          if [ -z "$ACTIVE_GAME_IDS" ] && [ -z "${{ github.event.inputs.game_ids }}" ]; then
-            echo "No active games -- exiting early"
+          HOUR=$(date -u +%H)
+          IN_WINDOW=false
+          if [ "$HOUR" -ge 22 ] || [ "$HOUR" -lt 4 ]; then
+            IN_WINDOW=true
+          fi
+          INPUT_IDS="${{ github.event.inputs.game_ids }}"
+          if [ -z "$ACTIVE_GAME_IDS" ] && [ -z "$INPUT_IDS" ]; then
+            echo "No active game IDs found — exiting early"
+            echo "NO_GAMES=true" >> $GITHUB_ENV
+          elif [ -z "$ACTIVE_GAME_IDS" ] && [ -n "$INPUT_IDS" ] && [ "$IN_WINDOW" = "false" ]; then
+            echo "Explicit game_ids=$INPUT_IDS provided but UTC hour $HOUR is outside game window (22-04) — exiting early"
             echo "NO_GAMES=true" >> $GITHUB_ENV
           fi
 
@@ -378,7 +389,17 @@ jobs:
             exit 0
           fi
 
+          # Hard stop: never self-chain outside WNBA game hours (22:00–04:00 UTC).
+          # This prevents runaway loops when a game ends and the file is cleaned up.
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" -ge 4 ] && [ "$HOUR" -lt 22 ]; then
+            echo "Outside WNBA game window (UTC hour $HOUR) — refusing self-chain."
+            exit 0
+          fi
+
           # Check each tracked game's latest JSON to see if it is still live.
+          # IMPORTANT: if no output file exists we treat the game as DONE, not live.
+          # Missing files are expected on a fresh ephemeral runner after archival.
           STILL_LIVE=""
           for GID in $(echo "$IDS" | tr ',' ' '); do
             GAME_FILE="tools/odds-scanner/predictions/WNBA/Inplay-Edge/game_${GID}_latest.json"
@@ -390,7 +411,7 @@ jobs:
               t = {"final", "final/ot", "final_ot", "canceled", "postponed", "post"}
               print("done" if s in t else "live")
           except Exception:
-              print("live")
+              print("done")
           PYEOF
               )
               if [ "$GAME_STATUS" = "live" ]; then
@@ -399,8 +420,7 @@ jobs:
                 echo "Game $GID finished (game_status=$GAME_STATUS) — not re-queuing"
               fi
             else
-              echo "Game $GID — no output file found, including in self-chain as precaution"
-              STILL_LIVE="$STILL_LIVE,$GID"
+              echo "Game $GID — no output file on this runner; assuming game is done — not re-queuing"
             fi
           done
           STILL_LIVE="${STILL_LIVE#,}"  # strip leading comma
