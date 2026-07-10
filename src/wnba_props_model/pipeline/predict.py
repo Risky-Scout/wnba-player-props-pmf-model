@@ -172,19 +172,43 @@ def _load_stage4_models(model_dir: str | Path) -> dict:
     }
 
 
-def _attach_role_bucket(pmfs_long: pd.DataFrame) -> pd.DataFrame:
+def _attach_role_bucket(pmfs_long: pd.DataFrame, feature_df: pd.DataFrame | None = None) -> pd.DataFrame:
     """Attach ex-ante role_bucket to PMF rows based on predicted minutes_mean.
 
     role_bucket drives per-role calibration (isotonic calibrators are fitted
     per stat × role).  Without this wiring, all predictions use the global
     calibrator, losing the per-role precision.
+
+    Uses max(minutes_mean_l5, minutes_mean_season * 0.85) so that players with
+    recent DNP/injury games (which depress their L5 average) are not wrongly
+    demoted to bench/fringe role — which would collapse their predictions.
     """
     if "minutes_mean" not in pmfs_long.columns:
         pmfs_long["role_bucket"] = "all"
         return pmfs_long
 
-    # Compute per player-game (minutes_mean is the same for all stats in a row)
-    unique_pg = pmfs_long[["player_id", "game_id", "minutes_mean"]].drop_duplicates()
+    unique_pg = pmfs_long[["player_id", "game_id", "minutes_mean"]].drop_duplicates().copy()
+
+    # Stabilise role bucket: use max(L5 minutes, 85% of season average).
+    # This prevents a few DNP/injury games from wrongly demoting starters to bench.
+    if feature_df is not None and not feature_df.empty:
+        _season_col = next(
+            (c for c in ["player_minutes_mean_season", "player_minutes_mean_l20", "player_minutes_mean_l15"]
+             if c in feature_df.columns),
+            None,
+        )
+        if _season_col is not None:
+            try:
+                _feat_idx = feature_df.set_index("player_id")[_season_col]
+                _season_mins = unique_pg["player_id"].map(_feat_idx)
+                # Take the higher of L5 vs 85% of season average to prevent injury-driven demotion
+                unique_pg["minutes_mean"] = np.maximum(
+                    unique_pg["minutes_mean"].fillna(0),
+                    (_season_mins.fillna(0) * 0.85),
+                )
+            except Exception:
+                pass
+
     unique_pg = add_ex_ante_role_bucket(unique_pg, minutes_col="minutes_mean")
     rb_map = unique_pg.set_index(["player_id", "game_id"])["role_bucket"]
 
@@ -490,8 +514,10 @@ def predict_player_pmfs(
             except Exception as _pfc_e_exc:
                 logger.warning("[predict] player_form_corrections minutes override failed (non-fatal): %s", _pfc_e_exc)
 
-    # Attach ex-ante role bucket (needed for per-role calibration & dispersion)
-    pmfs_long = _attach_role_bucket(pmfs_long)
+    # Attach ex-ante role bucket (needed for per-role calibration & dispersion).
+    # Pass feature_df so the role bucket uses max(L5, 85%×season) minutes,
+    # preventing recent DNP/injury games from wrongly demoting starters to bench.
+    pmfs_long = _attach_role_bucket(pmfs_long, feature_df=feature_df)
 
     # Post-role-bucket: apply role_bucket_override from player_form_corrections_2026.json.
     # Also collect overrides into _shrinkage_role_overrides so that apply_bayesian_shrinkage
@@ -802,8 +828,8 @@ def predict_player_pmfs(
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
                     continue
-                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.80, 1.25))
-                if abs(_fc6_ratio - 1.0) < 0.15:
+                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.75, 1.55))
+                if abs(_fc6_ratio - 1.0) < 0.10:
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
                     continue
