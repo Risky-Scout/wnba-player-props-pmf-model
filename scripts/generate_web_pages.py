@@ -221,6 +221,36 @@ def _build_edge_json(
                 best_book = best_book or v1_rec.get("bookmaker")
                 best_odds = best_odds if best_odds is not None else v1_rec.get("odds_american")
 
+        # Model vs Market plain-English signal text
+        model_p = float(r.get("model_prob_over", 0) or 0)
+        market_p_val = float(r.get("market_prob_over_no_vig", 0) or 0)
+        model_pct = round(model_p * 100)
+        market_pct = round(market_p_val * 100)
+        edge_abs_pp = abs_edge * 100
+        if edge_abs_pp >= 15:
+            strength = "Strong signal"
+        elif edge_abs_pp >= 8:
+            strength = "Signal"
+        else:
+            strength = "Lean"
+        direction_word = direction  # "OVER" or "UNDER"
+        signal_text = (
+            f"{strength}: Model {model_pct}% vs Market {market_pct}% \u2192 {direction_word}"
+        )
+
+        # Best Odds display: "DraftKings -108" format
+        best_odds_display: str | None = None
+        if best_book and best_odds is not None:
+            odds_str = (
+                f"+{int(best_odds)}" if best_odds > 0 else str(int(best_odds))
+            )
+            best_odds_display = f"{best_book} {odds_str}"
+        elif best_odds is not None:
+            odds_str = (
+                f"+{int(best_odds)}" if best_odds > 0 else str(int(best_odds))
+            )
+            best_odds_display = odds_str
+
         rows.append({
             "player": r["player_name"],
             "stat": str(r["stat"]).upper(),
@@ -244,7 +274,9 @@ def _build_edge_json(
             "model_market_ratio": round(float(r.get("model_market_ratio", 1) or 1), 3),
             "best_bookmaker": best_book,
             "best_odds_american": best_odds,
+            "best_odds_display": best_odds_display,
             "best_deep_link": best_link,
+            "signal_text": signal_text,
         })
 
     rows.sort(key=lambda x: -x["abs_edge"])
