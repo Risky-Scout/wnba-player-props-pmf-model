@@ -152,12 +152,23 @@ def _load_stage4_models(model_dir: str | Path) -> dict:
             "predictions (global mean). Run train_baseline_pmfs.py to rebuild artifacts."
         )
 
+    # --- Beta-Binomial models (fg3m) ---
+    bb_models: dict = {}
+    bb_path = model_dir / "bb_models.joblib"
+    if bb_path.exists():
+        try:
+            bb_models = joblib.load(bb_path)
+            logger.info("Loaded bb_models from %s (stats: %s)", bb_path, list(bb_models.keys()))
+        except Exception as _bb_exc:
+            logger.warning("Could not load bb_models.joblib: %s", _bb_exc)
+
     return {
         "minutes": minutes,
         "pos_encoder": pos_encoder,
         "rate_models": rate_models,
         "hurdle_models": hurdle_models,
         "model_feature_cols": model_feature_cols,
+        "bb_models": bb_models,
     }
 
 
@@ -412,6 +423,7 @@ def predict_player_pmfs(
         stat_models=artifacts["rate_models"],
         hurdle_models=artifacts["hurdle_models"],
         cfg=cfg,
+        bb_models=artifacts.get("bb_models") or None,
     )
 
     pmfs_long["model_version"] = "wnba_pmf_v1.0_hgb_calibrated"

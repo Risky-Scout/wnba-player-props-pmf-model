@@ -526,11 +526,14 @@ def _build_pmf_matrix(
             except Exception as _pssm_exc:
                 import warnings as _w
                 _w.warn(f"PositionStratifiedSparseModel failed, falling back: {_pssm_exc}", stacklevel=3)
-        # ZINB semantics differ from Hurdle: pos_mus is the *unconditional* NegBinom mean
-        # (not E[Y|Y>0]), and p_nz = 1 - π.  Use zinb_pmf_batch to avoid wrong PMF shape.
+        # ZINB: use the conditional mean E[Y|Y>0] = stat_means / p_nz for the NegBinom
+        # component rather than the raw unconditional mean (pos_mus from predict()).
+        # stat_means = E[Y] = p_nz * mu_negbinom; dividing recovers E[Y|Y>0].
         from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBStatModel  # noqa: PLC0415
         if isinstance(model, _ZINBStatModel):
             _pi_arr = np.clip(1.0 - p_nz, 0.0, 1.0)  # type: ignore[arg-type]
+            _p_nz_zinb = np.clip(p_nz, 1e-6, 1.0)  # type: ignore[arg-type]
+            pos_mus = stat_means / _p_nz_zinb  # conditional mean E[Y|Y>0]
             return zinb_pmf_batch(_pi_arr, pos_mus, model._r, cap)  # type: ignore[arg-type]
         pos_r = model.pos_dispersion_r
         return hurdle_pmf_batch(p_nz, pos_mus, pos_r, cap)  # type: ignore[arg-type]
