@@ -43,8 +43,12 @@ _STAT_LABELS: dict[str, str] = {
     "PTS": "Points", "REB": "Rebounds", "AST": "Assists",
     "FG3M": "3-Pointers Made", "STL": "Steals", "BLK": "Blocks",
     "TURNOVER": "Turnovers", "STOCKS": "Stl + Blk",
+    # Short-form aliases
     "PA": "Pts + Ast", "PR": "Pts + Reb",
     "RA": "Reb + Ast", "PRA": "Pts + Reb + Ast",
+    # Pipeline stat keys (underscore-separated)
+    "PTS_REB": "Pts + Reb", "PTS_AST": "Pts + Ast",
+    "REB_AST": "Reb + Ast", "PTS_REB_AST": "Pts + Reb + Ast",
 }
 
 
@@ -59,13 +63,26 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
     props = []
     for p in pmf_data.get("props", []):
         stat_up = p.get("stat", "").upper()
-        edge_frac = float(p.get("edge") or 0)
+        raw_line = p.get("line")
+        market_line = float(raw_line) if raw_line is not None else 0.0
+        has_market_line = market_line > 0
+
+        # edge_pp is only meaningful when there is a real sportsbook line.
+        # Props with line=0/None have no market reference; setting edge=0 is
+        # misleading (model trivially has P(over 0)≈100%), so we null it out.
+        raw_edge = p.get("edge")
+        if has_market_line and raw_edge is not None:
+            edge_pp: float | None = round(float(raw_edge) * 100, 2)
+        else:
+            edge_pp = None
+
         props.append({
             "player": p.get("player", ""),
             "stat": stat_up,
             "stat_label": _STAT_LABELS.get(stat_up, stat_up),
             "stat_raw": p.get("stat_raw", stat_up.lower()),
-            "line": float(p.get("line") or 0),
+            "line": market_line,
+            "has_market_line": has_market_line,
             "mean": p.get("mean"),
             "median": p.get("median"),
             "mode": p.get("mode"),
@@ -75,7 +92,7 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
             "excess_kurtosis": p.get("excess_kurtosis"),
             "model_p_over": round(float(p.get("model_p_over") or 0), 4),
             "market_p_over": round(float(p.get("market_p_over") or 0), 4),
-            "edge_pp": round(edge_frac * 100, 2),
+            "edge_pp": edge_pp,
             "kelly_pct": round(float(p.get("kelly_pct") or 0), 2),
             "pmf": p.get("pmf", []),
         })
@@ -167,7 +184,8 @@ main{max-width:1400px;margin:20px auto;padding:0 20px}
 .player-name{font-family:'Fraunces',serif;font-size:1rem;font-weight:600;color:var(--text)}
 .edge-badge{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:5px;white-space:nowrap;flex-shrink:0}
 .edge-pos{background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)}
-.edge-neg{background:var(--red-dim);border:1px solid var(--red-border);color:var(--red)}
+.edge-neg{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
+.edge-none{background:var(--surface3);border:1px solid var(--border2);color:var(--text3)}
 .card-meta{display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--text3)}
 .stat-chip{background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:1px 8px;font-size:.68rem;font-weight:600;color:var(--text2)}
 .line-chip{background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:4px;padding:1px 8px;font-size:.68rem;font-weight:600;color:var(--gold)}
@@ -184,7 +202,7 @@ main{max-width:1400px;margin:20px auto;padding:0 20px}
 .prob-model{color:var(--green)}
 .prob-mkt{color:var(--text3)}
 .prob-edge-pos{color:var(--green)}
-.prob-edge-neg{color:var(--red)}
+.prob-edge-neg{color:var(--amber)}
 
 /* Stats grid */
 .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
@@ -247,7 +265,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
       <button class="pill" data-stat="FG3M">3PM</button>
       <button class="pill" data-stat="STL">STL</button>
       <button class="pill" data-stat="BLK">BLK</button>
-      <button class="pill" data-stat="PRA">PRA</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
     </div>
     <div class="filter-row" id="dirPills">
       <button class="pill active" data-dir="">Both</button>
@@ -277,7 +295,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
 <footer>
   <div>WNBA Pre-Game Probability Distributions — WizardOfOdds Sports Analytics</div>
   <div>PMF computed from Bayesian hierarchical model with isotonic distribution regression (IDR) calibration</div>
-  <div>Bars: green = over market line · red = under · dashed line = market line · Edge = Model P(over) − Market P(no-vig)</div>
+  <div>Bars: green = over market line · red = under · gold dashed = market line · blue dashed = slider query threshold · Edge = Model P(over) − Market P(no-vig) · UNDER edge = amber</div>
   <div style="margin-top:4px;color:var(--text3)">For entertainment and research purposes only. Gamble responsibly. 21+</div>
 </footer>
 
@@ -305,7 +323,7 @@ function load() {
 
 function updateKPIs(data) {
   document.getElementById('kTotal').textContent = data.total_props ?? ALL.length;
-  const pos = ALL.filter(p => p.edge_pp > 0).length;
+  const pos = ALL.filter(p => p.edge_pp !== null && p.edge_pp > 0).length;
   document.getElementById('kPos').textContent = pos;
   const statTypes = new Set(ALL.map(p => p.stat)).size;
   document.getElementById('kGames').textContent = statTypes;
@@ -321,6 +339,8 @@ function filtered() {
   return ALL.filter(p => {
     if (statFilt && p.stat !== statFilt) return false;
     if (dirFilt) {
+      // Props with no market line have no edge signal — exclude from directional filters
+      if (!p.has_market_line || p.edge_pp === null) return false;
       const isOver = p.edge_pp >= 0;
       if (dirFilt === 'OVER' && !isOver) return false;
       if (dirFilt === 'UNDER' && isOver) return false;
@@ -366,18 +386,19 @@ function render() {
 }
 
 function buildCard(p, i) {
-  const ep = p.edge_pp || 0;
-  const epCls = ep >= 0 ? 'edge-pos' : 'edge-neg';
-  const epLabel = (ep >= 0 ? '+' : '') + ep.toFixed(1) + '% edge';
+  const hasEdge = p.has_market_line && p.edge_pp !== null;
+  const ep = hasEdge ? p.edge_pp : 0;
+  const epCls = !hasEdge ? 'edge-none' : ep >= 0 ? 'edge-pos' : 'edge-neg';
+  const epLabel = !hasEdge ? 'No market line' : (ep >= 0 ? '+' : '') + ep.toFixed(1) + '% edge';
   const statLabel = p.stat_label || p.stat;
 
   const f2 = v => v != null ? (+v).toFixed(2) : '—';
   const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
 
   const modelP = pct(p.model_p_over);
-  const mktP = pct(p.market_p_over);
-  const edgePctLabel = (ep >= 0 ? '+' : '') + ep.toFixed(1) + '%';
-  const edgePCls = ep >= 0 ? 'prob-edge-pos' : 'prob-edge-neg';
+  const mktP = hasEdge ? pct(p.market_p_over) : '—';
+  const edgePctLabel = !hasEdge ? '—' : (ep >= 0 ? '+' : '') + ep.toFixed(1) + '%';
+  const edgePCls = !hasEdge ? 'prob-mkt' : ep >= 0 ? 'prob-edge-pos' : 'prob-edge-neg';
 
   const minK = p.pmf.length ? p.pmf[0][0] : 0;
   const maxK = p.pmf.length ? p.pmf[p.pmf.length - 1][0] : 30;
@@ -444,6 +465,9 @@ function updateSlider(inp) {
   const vsLine = n === Math.ceil(line) ? ' (at line)' : n > line ? ' (above)' : ' (below)';
   document.getElementById('cr_' + i).textContent =
     'P(X ≥ ' + n + ') = ' + (prob * 100).toFixed(1) + '%' + vsLine;
+  // ── Bug 4: move the slider query line on the chart ──
+  const ch = charts['ch_' + i];
+  if (ch) { ch.options._sliderLine = n; ch.update('none'); }
 }
 
 // ── Chart drawing ──────────────────────────────────────────────────
@@ -475,7 +499,7 @@ function drawCharts(rows) {
     const lineIdx = labels.findIndex(k => k >= line);
 
     try {
-      charts['ch_' + i] = new Chart(canvas.getContext('2d'), {
+      const ch = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
           labels,
@@ -495,6 +519,7 @@ function drawCharts(rows) {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
+          _sliderLine: null,  // updated by updateSlider on user interaction
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -527,39 +552,50 @@ function drawCharts(rows) {
         plugins: [{
           id: 'linemarker',
           afterDraw(chart) {
-            // Draw dashed vertical line at market line
-            const { ctx, chartArea, scales } = chart;
-            if (lineIdx < 0) return;
-            const xScale = scales.x;
-            // find pixel for the first bar at or above line
-            let xPos = null;
-            for (let li = 0; li < labels.length; li++) {
-              if (labels[li] >= line) {
-                const meta = chart.getDatasetMeta(0);
-                if (meta.data[li]) {
-                  xPos = meta.data[li].x - (meta.data[li].width || 8) / 2;
+            const { ctx, chartArea } = chart;
+            const meta = chart.getDatasetMeta(0);
+
+            // Helper: resolve pixel x for a given threshold value
+            const xPosFor = v => {
+              for (let li = 0; li < labels.length; li++) {
+                if (labels[li] >= v) {
+                  if (meta.data[li]) return meta.data[li].x - (meta.data[li].width || 8) / 2;
+                  break;
                 }
-                break;
               }
+              return null;
+            };
+
+            const drawVLine = (v, color, labelText) => {
+              const xPos = xPosFor(v);
+              if (xPos === null) return;
+              ctx.save();
+              ctx.strokeStyle = color;
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([4, 3]);
+              ctx.beginPath();
+              ctx.moveTo(xPos, chartArea.top);
+              ctx.lineTo(xPos, chartArea.bottom);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.fillStyle = color;
+              ctx.font = '9px JetBrains Mono';
+              ctx.fillText(labelText, xPos + 3, chartArea.top + 9);
+              ctx.restore();
+            };
+
+            // Gold dashed line = fixed market line
+            if (line > 0) drawVLine(line, 'rgba(212,175,55,.85)', 'Line ' + line);
+
+            // Blue dashed line = slider query threshold (only when different from market line)
+            const sliderLine = chart.options._sliderLine;
+            if (sliderLine != null && sliderLine !== Math.ceil(line)) {
+              drawVLine(sliderLine, 'rgba(99,179,237,.9)', 'n=' + sliderLine);
             }
-            if (xPos === null) return;
-            ctx.save();
-            ctx.strokeStyle = 'rgba(212,175,55,.8)';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([4, 3]);
-            ctx.beginPath();
-            ctx.moveTo(xPos, chartArea.top);
-            ctx.lineTo(xPos, chartArea.bottom);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            // Label
-            ctx.fillStyle = 'rgba(212,175,55,.9)';
-            ctx.font = '9px JetBrains Mono';
-            ctx.fillText('Line ' + line, xPos + 3, chartArea.top + 9);
-            ctx.restore();
           }
         }]
       });
+      charts['ch_' + i] = ch;
     } catch(e) {
       console.warn('[WOO] Chart error:', e);
     }

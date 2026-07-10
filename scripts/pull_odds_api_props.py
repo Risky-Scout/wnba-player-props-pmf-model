@@ -121,7 +121,12 @@ def main(
     df["pulled_at_utc"] = datetime.now(timezone.utc).isoformat()
     df["source"] = "odds_api_v4"
 
-    # Deduplicate: keep the best line per player-stat (highest over_odds for over bets)
+    # Deduplication: retain one row per (event, player, stat, line) keeping the best
+    # over_odds at each line.  ALL distinct lines across bookmakers are preserved so
+    # the edge pipeline can evaluate edges at every available number — the "best line
+    # for bettors" (lowest for OVER, highest for UNDER) naturally floats to the top
+    # of the edge report when sorted by absolute edge magnitude.
+    # Fair-odds filter (≥ -120 American) is applied per-side in build_edge_report.py.
     best = (
         df.dropna(subset=["over_odds", "under_odds"])
         .sort_values("over_odds", ascending=False)

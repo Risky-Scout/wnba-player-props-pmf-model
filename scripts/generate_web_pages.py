@@ -441,6 +441,7 @@ main{max-width:1500px;margin:20px auto;padding:0 20px}
 .kpi .val.gold{color:var(--gold)}
 .kpi .val.green{color:var(--green)}
 .kpi .val.red{color:var(--red)}
+.kpi .val.amber{color:var(--amber)}
 .kpi .lbl{font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
 
 /* Filters */
@@ -478,9 +479,9 @@ tr.row-b td{background:rgba(212,175,55,.02)}
 .rlm-badge{background:rgba(123,79,207,.12);border:1px solid rgba(123,79,207,.35);color:#9386f2;border-radius:3px;font-size:.6rem;padding:1px 5px}
 .stat-chip{background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:1px 7px;font-size:.67rem;font-weight:600;color:var(--text2)}
 .dir-over{color:var(--green);font-weight:700}
-.dir-under{color:var(--red);font-weight:700}
+.dir-under{color:var(--amber);font-weight:700}
 .edge-pos{color:var(--green);font-weight:700}
-.edge-neg{color:var(--red);font-weight:700}
+.edge-neg{color:var(--amber);font-weight:700}
 .prob-val{color:var(--text2)}
 
 /* Action badges */
@@ -538,7 +539,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
   <div class="kpis">
     <div class="kpi"><div class="val" id="kTotal">—</div><div class="lbl">Props Analyzed</div></div>
     <div class="kpi"><div class="val green" id="kOver">—</div><div class="lbl">Over Signals</div></div>
-    <div class="kpi"><div class="val red" id="kUnder">—</div><div class="lbl">Under Signals</div></div>
+    <div class="kpi"><div class="val amber" id="kUnder">—</div><div class="lbl">Under Signals</div></div>
     <div class="kpi"><div class="val gold" id="kBet">—</div><div class="lbl">BET Signals</div></div>
     <div class="kpi"><div class="val" id="kTopEdge">—</div><div class="lbl">Best Edge</div></div>
   </div>
@@ -553,7 +554,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
       <button class="pill" data-stat="FG3M">3PM</button>
       <button class="pill" data-stat="STL">STL</button>
       <button class="pill" data-stat="BLK">BLK</button>
-      <button class="pill" data-stat="PRA">PRA</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
     </div>
     <div id="dirPills">
       <button class="pill active" data-dir="">Both</button>
@@ -640,9 +641,14 @@ function updateKPIs(data) {
     : '';
 }
 
+const _STAT_DISPLAY = {
+  'FG3M':'3PM','PTS_REB':'Pts+Reb','PTS_AST':'Pts+Ast',
+  'REB_AST':'Reb+Ast','PTS_REB_AST':'Pts+Reb+Ast','STOCKS':'Stl+Blk','TURNOVER':'TO'
+};
+
 function filtered() {
   return ALL.filter(p => {
-    if (statFilt) { const st = p.stat === 'FG3M' ? '3PM' : p.stat; if (st !== statFilt && p.stat !== statFilt) return false; }
+    if (statFilt && p.stat !== statFilt) return false;
     if (dirFilt && p.direction !== dirFilt) return false;
     if (actionFilt && p.action !== actionFilt) return false;
     if (searchFilt && !p.player.toLowerCase().includes(searchFilt)) return false;
@@ -682,7 +688,7 @@ function render() {
     const tierCls = p.confidence === 'A' ? 'tier-a' : p.confidence === 'B' ? 'tier-b' : p.confidence === 'C' ? 'tier-c' : 'tier-d';
 
     const rlm = p.reverse_line_movement ? '<span class="rlm-badge">RLM</span>' : '';
-    const st = p.stat === 'FG3M' ? '3PM' : p.stat;
+    const st = _STAT_DISPLAY[p.stat] || p.stat;
 
     // Best odds cell
     let oddsCell;
@@ -801,7 +807,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 .stat-tag{background:#1e2130;border:1px solid #2a2d3e;border-radius:4px;padding:1px 7px;font-size:.72rem;font-weight:700;color:#aaa;margin-left:6px}
 .edge-badge{font-size:.78rem;font-weight:700;padding:2px 10px;border-radius:100px}
 .edge-over{background:#3fa26622;color:#3fa266;border:1px solid #3fa26644}
-.edge-under{background:#e05a6a22;color:#e05a6a;border:1px solid #e05a6a44}
+.edge-under{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44}
 .card-body{display:flex;gap:0;padding:12px 14px 14px}
 .chart-area{flex:0 0 auto;position:relative}
 .stats-panel{flex:1 1 0;min-width:0;padding-left:14px;border-left:1px solid #1e2130}
@@ -810,6 +816,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 .stat-value{font-weight:500;color:#e4e4e4;font-variant-numeric:tabular-nums}
 .stat-value.green{color:#3fa266}
 .stat-value.red{color:#e05a6a}
+.stat-value.amber-edge{color:#f59e0b}
 .stat-value.blue{color:#599ce7}
 .stat-value.amber{color:#f1b467}
 .divider{height:1px;background:#1e2130;margin:5px 0}
@@ -831,7 +838,8 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       <button class="pill" data-stat="PTS">PTS</button>
       <button class="pill" data-stat="REB">REB</button>
       <button class="pill" data-stat="AST">AST</button>
-      <button class="pill" data-stat="3PM">3PM</button>
+      <button class="pill" data-stat="FG3M">3PM</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
     </div>
     <input class="search" type="text" placeholder="Filter player..." id="searchInput">
   </div>
@@ -876,10 +884,14 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       document.getElementById('pmfGrid').innerHTML = `<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ${err.message}</div>`;
     });
 
+  const _PMF_STAT_DISPLAY = {
+    'FG3M':'3PM','PTS_REB':'Pts+Reb','PTS_AST':'Pts+Ast',
+    'REB_AST':'Reb+Ast','PTS_REB_AST':'Pts+Reb+Ast','STOCKS':'Stl+Blk','TURNOVER':'TO'
+  };
+
   function filtered() {
     return allProps.filter(p => {
-      const st = p.stat === 'FG3M' ? '3PM' : p.stat;
-      if (statFilter !== 'ALL' && st !== statFilter) return false;
+      if (statFilter !== 'ALL' && p.stat !== statFilter) return false;
       if (searchFilter && !p.player.toLowerCase().includes(searchFilter)) return false;
       return true;
     });
@@ -946,7 +958,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
   function buildCard(p) {
     const isOver = p.edge >= 0;
     const edgePct = (Math.abs(p.edge)*100).toFixed(1);
-    const st = p.stat === 'FG3M' ? '3PM' : p.stat;
+    const st = _PMF_STAT_DISPLAY[p.stat] || p.stat;
     const skewFlagged = Math.abs(p.skewness) > 1;
     const kurtFlagged = Math.abs(p.excess_kurtosis) > 3;
     const svg = buildSVG(p);
@@ -966,11 +978,11 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
           <div class="stat-row"><span class="stat-label">Median vs Line</span><span class="stat-value ${p.median_vs_line > 0 ? 'green' : p.median_vs_line < 0 ? 'red' : ''}">${medVsLine}</span></div>
           <div class="stat-row"><span class="stat-label">Last 5 avg</span><span class="stat-value blue">${l5str}</span></div>
           <div class="divider"></div>
-          <div class="stat-row"><span class="stat-label">P(over) mdl</span><span class="stat-value ${isOver?'green':'red'}">${p.model_p_over_pct != null ? p.model_p_over_pct.toFixed(1)+'%' : pct(p.model_p_over)}</span></div>
-          <div class="stat-row"><span class="stat-label">P(under) mdl</span><span class="stat-value ${!isOver?'green':'red'}">${p.model_p_under_pct != null ? p.model_p_under_pct.toFixed(1)+'%' : pct(1-p.model_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">P(over) mdl</span><span class="stat-value ${isOver?'green':'amber-edge'}">${p.model_p_over_pct != null ? p.model_p_over_pct.toFixed(1)+'%' : pct(p.model_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">P(under) mdl</span><span class="stat-value ${!isOver?'green':'amber-edge'}">${p.model_p_under_pct != null ? p.model_p_under_pct.toFixed(1)+'%' : pct(1-p.model_p_over)}</span></div>
           <div class="stat-row"><span class="stat-label">Mkt no-vig P(O)</span><span class="stat-value">${p.no_vig_over_prob != null ? (p.no_vig_over_prob*100).toFixed(1)+'%' : pct(p.market_p_over)}</span></div>
           <div class="stat-row"><span class="stat-label">Mkt no-vig P(U)</span><span class="stat-value">${p.no_vig_under_prob != null ? (p.no_vig_under_prob*100).toFixed(1)+'%' : pct(1-p.market_p_over)}</span></div>
-          <div class="stat-row"><span class="stat-label">Edge</span><span class="stat-value ${isOver?'green':'red'}">${sign(p.edge)}${(p.edge*100).toFixed(1)}%</span></div>
+          <div class="stat-row"><span class="stat-label">Edge</span><span class="stat-value ${isOver?'green':'amber-edge'}">${sign(p.edge)}${(p.edge*100).toFixed(1)}%</span></div>
           ${p.kelly_pct>0?`<div class="stat-row"><span class="stat-label">Kelly %</span><span class="stat-value blue">${p.kelly_pct.toFixed(1)}%</span></div>`:''}
         </div>
       </div>
