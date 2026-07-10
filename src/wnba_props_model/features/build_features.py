@@ -1130,10 +1130,29 @@ def _build_player_features(
     # ------------------------------------------------------------------ #
     if "player_rest_days" in df.columns:
         df["player_back_to_back_flag"] = (df["player_rest_days"] == 1).astype(int)
+        # player_is_b2b: canonical contract name for back-to-back indicator.
+        # B2B (rest_days=1) is associated with ~5-8% decline in counting stats.
+        df["player_is_b2b"] = df["player_back_to_back_flag"].astype(float)
         # Heavy-minutes back-to-back: B2B AND played heavy minutes prior game
         df["player_heavy_minutes_b2b"] = (
             df["player_back_to_back_flag"] & (df["player_minutes_last1"].fillna(0) > 30)
         ).astype(int)
+
+    # Rest advantage: player rest days minus mean opponent rest for this game.
+    # Positive = player is fresher than opponents; negative = player is more fatigued.
+    if "player_rest_days" in df.columns and "game_id" in df.columns:
+        try:
+            _game_mean_rest = (
+                df.groupby("game_id")["player_rest_days"].transform("mean")
+            )
+            df["rest_advantage"] = df["player_rest_days"].fillna(0) - _game_mean_rest.fillna(0)
+        except Exception:
+            df["rest_advantage"] = 0.0
+
+    # player_is_confirmed_starter: 1 if player is in confirmed starting 5, 0 otherwise.
+    # Default 0 (unknown). Daily pipeline updates this from BDL lineup data if available.
+    if "player_is_confirmed_starter" not in df.columns:
+        df["player_is_confirmed_starter"] = 0.0
 
     # ------------------------------------------------------------------ #
     # 8b. Fatigue features (P2.3): 3-in-4, weekly load, cumulative minutes

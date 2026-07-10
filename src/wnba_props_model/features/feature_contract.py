@@ -191,6 +191,10 @@ FATIGUE_FEATURES: list[str] = [
     "player_minutes_l3_sum",    # Total minutes in last 3 games (cumulative load)
     "player_games_in_last_7d",  # Games played in last 7 calendar days
     "player_load_index",        # player_minutes_l3_sum / 120.0 (normalized 0-1)
+    # Rest / B2B / confirmed-starter features
+    "player_is_b2b",            # 1 if back-to-back game (rest_days <= 1)
+    "rest_advantage",           # player_rest_days minus game-mean rest (freshness delta)
+    "player_is_confirmed_starter",  # 1 if confirmed in starting 5 from lineup data
 ]
 
 # Shot quality / efficiency regression features (Enhancement 4)
