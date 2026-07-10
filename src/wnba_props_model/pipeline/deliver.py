@@ -210,7 +210,7 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
             "player_name": r.get("player_name"),
-            "vendor": r.get("vendor"),
+            "vendor": r.get("vendor") or r.get("bookmaker"),
             "prop_type": r.get("prop_type"),
             "stat": stat,
             "line": line_val,
