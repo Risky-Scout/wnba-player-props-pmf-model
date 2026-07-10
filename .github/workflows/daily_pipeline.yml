@@ -335,6 +335,13 @@ jobs:
             --cal-dir artifacts/models/calibration
         continue-on-error: true
 
+      - name: Track CLV (Closing Line Value)
+        run: |
+          python scripts/track_clv.py --date "${{ steps.date.outputs.target_date }}" \
+            --predictions deliveries/next_game/pmf_edges.parquet \
+            --output data/clv_tracking.parquet
+        continue-on-error: true
+
       - name: CI Variance Gate — reject degenerate predictions
         id: variance-gate
         run: |

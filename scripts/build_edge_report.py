@@ -32,6 +32,20 @@ import numpy as np
 import pandas as pd
 import typer
 
+# ---------------------------------------------------------------------------
+# Adaptive Shin-z threshold: load from shrinkage_params.json if available.
+# ---------------------------------------------------------------------------
+_shin_params_path = Path("artifacts/models/shrinkage_params.json")
+if _shin_params_path.exists():
+    try:
+        with open(_shin_params_path) as _f:
+            _shin_params = json.load(_f)
+        SHIN_Z_THRESHOLD = float(_shin_params.get("shin_z_optimal", 0.15))
+    except Exception:
+        SHIN_Z_THRESHOLD = 0.15
+else:
+    SHIN_Z_THRESHOLD = 0.15
+
 from wnba_props_model.pipeline.deliver import build_market_comparison, normalize_player_props_snapshot
 from wnba_props_model.models.market import fair_american, prob_over_from_pmf
 from wnba_props_model.models.simulation import json_to_pmf
@@ -89,11 +103,11 @@ def main(
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
     max_shin_z: float = typer.Option(
-        0.15,
+        SHIN_Z_THRESHOLD,
         help=(
-            "Shin-z soft filter threshold. Edges where shin_z > max_shin_z are flagged as "
-            "'high_adversity' (sharp market, higher adverse-selection risk) but NOT removed. "
-            "Lower z = softer market = better for retail bettor. Default 0.15."
+            "Shin-z soft filter threshold (loaded from artifacts/models/shrinkage_params.json "
+            "if shin_z_optimal key exists, else 0.15). Edges where shin_z > max_shin_z are "
+            "flagged as 'high_adversity' but NOT removed."
         ),
     ),
     odds_api_props: str = typer.Option(
@@ -354,6 +368,35 @@ def main(
         )
     else:
         edges = edges.sort_values(_sort_col, key=np.abs, ascending=False)
+
+    # Line movement Kelly adjustment: boost Kelly when sharp money is on our side,
+    # cut when sharp money faded us (line moved against the model's edge direction).
+    if "line_movement_prev" in edges.columns and "kelly_fraction" in edges.columns and "direction" in edges.columns:
+        _dir_col = edges["direction"].fillna("")
+        _lm_col = edges["line_movement_prev"].fillna(0.0)
+        line_move_boost = np.where(
+            (_dir_col == "OVER") & (_lm_col > 0.5),
+            1.20,  # Sharp buying OVER same side: boost Kelly 20%
+            np.where(
+                (_dir_col == "OVER") & (_lm_col < -0.5),
+                0.50,  # Sharp faded OVER: cut Kelly 50%
+                np.where(
+                    (_dir_col == "UNDER") & (_lm_col < -0.5),
+                    1.20,  # Sharp buying UNDER same side: boost
+                    np.where(
+                        (_dir_col == "UNDER") & (_lm_col > 0.5),
+                        0.50,  # Sharp faded UNDER: cut
+                        1.0,
+                    ),
+                ),
+            ),
+        )
+        edges = edges.copy()
+        edges["kelly_fraction"] = edges["kelly_fraction"] * line_move_boost
+        edges["line_movement_boost"] = line_move_boost
+        if "kelly_units" in edges.columns:
+            edges["kelly_units"] = (edges["kelly_fraction"] * 100).round(2)
+        typer.echo(f"[line_movement] Kelly adjustments applied: boost_1.2={int((line_move_boost == 1.2).sum())}, cut_0.5={int((line_move_boost == 0.5).sum())}")
 
     # Portfolio Kelly: discount correlated same-player bets to avoid overexposure.
     # Same-player props are correlated (minutes, usage), so raw per-prop Kelly
