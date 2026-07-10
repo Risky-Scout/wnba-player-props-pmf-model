@@ -35,6 +35,7 @@ import typer
 from wnba_props_model.pipeline.deliver import build_market_comparison, normalize_player_props_snapshot
 from wnba_props_model.models.market import fair_american, prob_over_from_pmf
 from wnba_props_model.models.simulation import json_to_pmf
+from wnba_props_model.pipeline.calibrate import apply_venn_abers_calibration
 
 app = typer.Typer(add_completion=False)
 
@@ -155,6 +156,30 @@ def main(
         typer.echo("[WARN] No player/game overlap between PMFs and props")
         _write_empty(out, today, edge_threshold)
         return
+
+    # Apply Venn-Abers calibration to model P(over) when calibrators exist.
+    # Writes p_over_va column; falls back to raw model_prob_over when no
+    # calibrator is found for a (stat, role) pair.
+    if "model_prob_over" in comp.columns and "stat" in comp.columns:
+        try:
+            comp = apply_venn_abers_calibration(comp, cal_dir=cal_dir)
+            # Prefer VA-calibrated probability for edge computation when it differs
+            # from the raw PMF probability (i.e. a calibrator existed).
+            if "p_over_va" in comp.columns:
+                _va_mask = comp["p_over_va"] != comp["model_prob_over"]
+                if _va_mask.any():
+                    comp.loc[_va_mask, "model_prob_over"] = comp.loc[_va_mask, "p_over_va"]
+                    comp.loc[_va_mask, "edge_over"] = (
+                        comp.loc[_va_mask, "model_prob_over"]
+                        - comp.loc[_va_mask, "market_prob_over_no_vig"]
+                    )
+                    comp.loc[_va_mask, "edge_under"] = (
+                        comp.loc[_va_mask, "market_prob_over_no_vig"]
+                        - comp.loc[_va_mask, "model_prob_over"]
+                    )
+                    typer.echo(f"[venn_abers] Applied VA calibration to {_va_mask.sum()} rows")
+        except Exception as _va_exc:
+            typer.echo(f"[WARN] Venn-Abers calibration failed (non-fatal): {_va_exc}", err=True)
 
     # Filter to sensible market lines (avoid very thin edge markets)
     comp = comp[comp["market_prob_over_no_vig"].notna()]
@@ -329,6 +354,24 @@ def main(
         )
     else:
         edges = edges.sort_values(_sort_col, key=np.abs, ascending=False)
+
+    # Portfolio Kelly: discount correlated same-player bets to avoid overexposure.
+    # Same-player props are correlated (minutes, usage), so raw per-prop Kelly
+    # over-allocates when a player appears in N bets.  Dividing by sqrt(N) gives
+    # the approximate portfolio-optimal fraction under moderate positive correlation.
+    if "player_id" in edges.columns and "kelly_fraction" in edges.columns:
+        player_bet_counts = edges.groupby("player_id")["kelly_fraction"].transform("count")
+        edges = edges.copy()
+        edges["kelly_fraction"] = edges["kelly_fraction"] / np.sqrt(player_bet_counts.clip(lower=1))
+        # Cap total per-player Kelly exposure at 1.5 × the largest single-bet fraction
+        player_max_kelly = edges.groupby("player_id")["kelly_fraction"].transform("max")
+        player_total = edges.groupby("player_id")["kelly_fraction"].transform("sum")
+        cap_ratio = (1.5 * player_max_kelly) / player_total.clip(lower=1e-9)
+        edges["kelly_fraction"] = (edges["kelly_fraction"] * cap_ratio.clip(upper=1.0)).round(4)
+        # Recompute kelly_units to stay in sync
+        if "kelly_units" in edges.columns:
+            edges["kelly_units"] = (edges["kelly_fraction"] * 100).round(2)
+
     edges_path = out / "publishable_edges.parquet"
     edges.to_parquet(edges_path, index=False)
 

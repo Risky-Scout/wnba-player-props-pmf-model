@@ -31,8 +31,7 @@ calibration_eligible_prediction_types:
 pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
 sample_weight_halflife_days: 45
 hgb_regressor:
-  loss: quantile
-  quantile: 0.5
+  loss: squared_error
   max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08

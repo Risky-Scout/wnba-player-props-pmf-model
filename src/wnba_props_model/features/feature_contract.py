@@ -251,8 +251,11 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
     "advanced_opponent": ADVANCED_OPPONENT_FEATURES,
     "advanced_standings": ADVANCED_STANDINGS_FEATURES,
     "advanced_four_factors": ADVANCED_FOUR_FACTORS_FEATURES,
-    # SVD player quality embeddings (Enhancement 12a — latent skill-mix profile)
-    "player_embeddings": PLAYER_EMBEDDING_FEATURES,
+    # SVD player quality embeddings (Enhancement 12a) are EXCLUDED from FEATURE_FAMILIES
+    # and added to FORBIDDEN_MODEL_FEATURES below.  The SVD infrastructure is not
+    # rebuilt on every pipeline run, so including these features creates a
+    # live-training / OOF mismatch.  Dropping them is the correct fix until a
+    # full SVD rebuild pipeline is wired into the daily run.
     # Usage Transfer Matrix (Enhancement 1 — previously excluded by prefix gate)
     "usage_transfer": USAGE_TRANSFER_FEATURES,
     # Schedule fatigue (Enhancement 3 — previously excluded by prefix gate)
@@ -363,6 +366,10 @@ FORBIDDEN_MODEL_FEATURES: frozenset[str] = (
     | _OUTCOME_LEAKAGE
     | _CONSTANT_DEGENERATE_FEATURES
     | _WRONG_GRANULARITY_FEATURES
+    # SVD features excluded: live pipeline does not rebuild SVD on each run,
+    # so including them creates an OOF/live mismatch.  Forbidden so the leakage
+    # gate catches accidental re-inclusion via the manifest or config.
+    | frozenset(PLAYER_EMBEDDING_FEATURES)
 )
 
 

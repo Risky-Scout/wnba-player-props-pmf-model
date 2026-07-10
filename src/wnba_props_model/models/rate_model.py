@@ -94,11 +94,11 @@ class StatRateModel:
         use_offset = self.cfg.get("use_minutes_offset", False)
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
-        # Use quantile(0.5) loss so the model targets the conditional median,
-        # which matches how sportsbooks set prop lines (not the mean).
-        # For right-skewed WNBA stat distributions mean > median, so MSE
-        # predictions systematically exceed market lines → 116 UNDER / 22 OVER.
-        hgb_loss = hgb_kw.get("loss", "quantile")
+        # Use squared_error loss so Stage A predicts E[Y] (the mean), which is
+        # the correct parameterisation for the NegBinom PMF generation.  The old
+        # quantile(0.5) targeted the conditional median, causing systematic
+        # under-prediction for right-skewed WNBA distributions (mean > median).
+        hgb_loss = hgb_kw.get("loss", "squared_error")
         hgb_mdl_kw: dict = dict(
             loss=hgb_loss,
             max_iter=hgb_kw.get("max_iter", 200),
@@ -510,9 +510,9 @@ class HurdleModel:
         sw_pos = sample_weight[pos_mask] if sample_weight is not None else None
 
         if self._n_pos >= 10:
-            # Use quantile(0.5) so E[Y | Y > 0] targets the conditional median,
-            # consistent with the StatRateModel fix above.
-            reg_loss = reg_kw.get("loss", "quantile")
+            # Use squared_error so Stage B predicts E[Y | Y > 0] (the mean), which
+            # is the correct parameterisation for NegBinom PMF generation.
+            reg_loss = reg_kw.get("loss", "squared_error")
             reg_mdl_kw: dict = dict(
                 loss=reg_loss,
                 max_iter=reg_kw.get("max_iter", 200),

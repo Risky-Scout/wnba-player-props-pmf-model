@@ -1172,6 +1172,90 @@ def apply_calibrators(
     return out
 
 
+
+# ---------------------------------------------------------------------------
+# Venn-Abers calibration for P(over) — applied at edge-report time
+# ---------------------------------------------------------------------------
+
+
+def apply_venn_abers_calibration(
+    comp_df: "pd.DataFrame",
+    cal_dir: "str | Path" = "artifacts/models/calibration",
+    model_prob_col: str = "model_prob_over",
+    stat_col: str = "stat",
+    role_col: str = "role_bucket",
+) -> "pd.DataFrame":
+    """Apply per-(stat, role) Venn-Abers calibrators to model P(over).
+
+    Reads ``venn_abers_{stat}_{role}.pkl`` artifacts from *cal_dir* and writes
+    calibrated probabilities to a ``p_over_va`` column.  Falls back to the raw
+    PMF P(over) when no calibrator exists for a (stat, role) pair.
+
+    Parameters
+    ----------
+    comp_df          : Market-comparison DataFrame with model_prob_over, stat, role_bucket.
+    cal_dir          : Directory containing calibration artifacts.
+    model_prob_col   : Column name for the raw model P(over). Default ``model_prob_over``.
+    stat_col         : Column name for the stat label. Default ``stat``.
+    role_col         : Column name for role bucket. Default ``role_bucket``.
+
+    Returns
+    -------
+    Copy of *comp_df* with ``p_over_va`` column added (calibrated when calibrator
+    exists, otherwise equal to ``model_prob_over``).
+    """
+    import joblib as _jl_va  # noqa: PLC0415
+
+    cal_dir = Path(cal_dir)
+    out = comp_df.copy()
+    # Initialise with raw model probability as fallback
+    out["p_over_va"] = out[model_prob_col].copy()
+
+    if model_prob_col not in comp_df.columns:
+        logger.warning("[calibrate] apply_venn_abers: column '%s' not found — skipping", model_prob_col)
+        return out
+
+    # Cache loaded calibrators to avoid repeated disk reads within this call
+    _va_cache: dict[str, object] = {}
+
+    for idx, row in out.iterrows():
+        stat = str(row.get(stat_col, ""))
+        role = str(row.get(role_col, "all"))
+        role_safe = role.replace("/", "_").replace(" ", "_")
+        cache_key = f"{stat}_{role_safe}"
+
+        if cache_key not in _va_cache:
+            va_path = cal_dir / f"venn_abers_{stat}_{role_safe}.pkl"
+            if va_path.exists():
+                try:
+                    _va_cache[cache_key] = _jl_va.load(va_path)
+                except Exception as exc:
+                    logger.debug("[calibrate] Venn-Abers load failed for %s: %s", va_path, exc)
+                    _va_cache[cache_key] = None
+            else:
+                _va_cache[cache_key] = None
+
+        cal = _va_cache.get(cache_key)
+        if cal is None:
+            continue  # leave raw model prob as fallback
+
+        raw_p = float(row.get(model_prob_col, 0.5))
+        if not (0.0 < raw_p < 1.0):
+            continue
+        try:
+            cal_p = float(cal.predict(np.array([raw_p]))[0])
+            out.at[idx, "p_over_va"] = float(np.clip(cal_p, 1e-6, 1 - 1e-6))
+        except Exception as exc:
+            logger.debug("[calibrate] Venn-Abers predict failed for %s/%s: %s", stat, role, exc)
+
+    n_calibrated = int((out["p_over_va"] != out[model_prob_col]).sum())
+    logger.info(
+        "[calibrate] apply_venn_abers: %d/%d rows received VA calibration",
+        n_calibrated, len(out),
+    )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Part I: Live calibrators — fitted on in-game (live) PMF data
 # ---------------------------------------------------------------------------

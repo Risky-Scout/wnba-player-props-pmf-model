@@ -88,6 +88,13 @@ class LogLinearStatModel:
         per-minute rate and scales at prediction time by projected minutes.
         The league_avg_rate is set accordingly.
         """
+        # Remove opp_*_allowed columns from HGB feature matrix — these are already
+        # captured by the post-hoc multiplicative opponent adjustment in predict().
+        # Including them in the HGB AND applying the multiplier double-counts opponent quality.
+        _opp_cols_to_drop = [c for c in X.columns if "opp_" in c and "_allowed" in c]
+        if _opp_cols_to_drop:
+            X = X.drop(columns=_opp_cols_to_drop)
+
         self._base_model.fit(X, y, context_df=context_df, sample_weight=sample_weight)
 
         # League average stat rate (stat per minute) from training context

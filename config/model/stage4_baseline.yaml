@@ -82,8 +82,7 @@ model_artifact_dir: artifacts/models/stage4_baseline
 pmf_source: stage4_baseline_uncalibrated_model_only
 sample_weight_halflife_days: 45
 hgb_regressor:
-  loss: quantile
-  quantile: 0.5
+  loss: squared_error
   max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08

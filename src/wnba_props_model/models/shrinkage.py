@@ -586,8 +586,17 @@ def apply_bayesian_shrinkage(
             else:
                 player_position[int(pid)] = "F"
             # Role status for stratified priors
+            # Unify role taxonomy: role_bucket has 6 tiers; shrinkage uses role_status (3-4 tiers).
+            # Fall back to role_bucket when role_status is absent, mapping to compatible values.
+            _ROLE_BUCKET_TO_STATUS = {
+                "starter": "starter", "core": "core", "rotation": "rotation",
+                "bench": "bench", "fringe": "bench", "inactive_risk": "bench",
+            }
             if "role_status" in grp.columns:
                 role_val = grp["role_status"].dropna()
+                player_role[int(pid)] = str(role_val.iloc[-1]).lower() if not role_val.empty else "rotation"
+            elif "role_bucket" in grp.columns:
+                role_val = grp["role_bucket"].dropna().map(_ROLE_BUCKET_TO_STATUS)
                 player_role[int(pid)] = str(role_val.iloc[-1]).lower() if not role_val.empty else "rotation"
             else:
                 player_role[int(pid)] = "rotation"

@@ -587,14 +587,23 @@ def predict_player_pmfs(
     except Exception as _diag_exc:
         logger.debug("[combo_validation] Diagnostic skipped: %s", _diag_exc)
 
-    # CALIBRATION must run on the raw (unshrunk) model PMFs so the isotonic
-    # calibrators see the same distribution they were trained on (OOF predictions
-    # have no shrinkage applied).  Shrinkage is applied AFTER calibration so it
-    # blends the already-corrected PMF toward the league prior — not the raw
-    # over-inflated prediction.  Applying shrinkage first then calibration causes
-    # a double-correction: the shrunk mean (e.g. 13.4) falls in the "lower-tier
-    # player" range of the calibrator, which applies a 50% cut instead of the
-    # correct ~28% cut, producing calibrated means of ~7 instead of ~11.
+    # Role-stratified bias corrections: applied BEFORE isotonic calibration so that
+    # the calibrators see role-corrected PMFs at inference — matching the conceptual
+    # training distribution.  Applying role corrections after calibration would
+    # invalidate the isotonic mapping (calibrators were fitted on PMFs before any
+    # role shift was applied).
+    # Must still run BEFORE apply_bayesian_shrinkage so shrinkage blends the
+    # corrected PMF toward the league prior.
+    if apply_calibration and cal_dir is not None:
+        _role_corr_path = Path(cal_dir) / "bias_corrections_by_role.json"
+        if _role_corr_path.exists():
+            logger.info("[predict] Applying role-stratified bias corrections from %s", _role_corr_path)
+            pmfs_long = apply_role_stratified_corrections(pmfs_long, cal_dir=cal_dir)
+
+    # CALIBRATION must run on PMFs that have already received role corrections
+    # so the isotonic calibrators see role-corrected input (matching how inference
+    # feeds them).  Shrinkage is applied AFTER calibration so it blends the
+    # already-corrected PMF toward the league prior — not the raw prediction.
     if apply_calibration and cal_dir is not None:
         cal_dir = Path(cal_dir)
         if cal_dir.exists() and any(cal_dir.glob("pmf_cal_role_*.pkl")):
@@ -606,21 +615,6 @@ def predict_player_pmfs(
                 "run `python scripts/fit_calibrators.py` first.",
                 cal_dir,
             )
-
-    # Role-stratified bias corrections: replace the single global bias correction
-    # (e.g. pts=0.741 for ALL players) with per-role corrections that correctly
-    # account for the fact that starters/core players produce significantly above
-    # the bench-dragged population average that the global correction was fitted on.
-    # Also applies player-level residual form corrections (flat_corrections key in
-    # player_form_corrections_2026.json) for players whose 2026 actual production
-    # differs >15% from role-adjusted model predictions.
-    # Must run AFTER apply_calibrators (so calibrated PMFs are the input) and
-    # BEFORE apply_bayesian_shrinkage (so shrinkage operates on the corrected PMF).
-    if apply_calibration and cal_dir is not None:
-        _role_corr_path = Path(cal_dir) / "bias_corrections_by_role.json"
-        if _role_corr_path.exists():
-            logger.info("[predict] Applying role-stratified bias corrections from %s", _role_corr_path)
-            pmfs_long = apply_role_stratified_corrections(pmfs_long, cal_dir=cal_dir)
 
     # Apply PenaltyBlog-style Bayesian shrinkage AFTER calibration so that the
     # per-player prior blend operates on the already-corrected (calibrated) PMF.
