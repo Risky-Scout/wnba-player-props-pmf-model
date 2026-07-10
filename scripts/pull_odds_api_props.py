@@ -38,6 +38,13 @@ from wnba_props_model.models.market import shin_no_vig_two_way_with_z
 
 app = typer.Typer(add_completion=False)
 
+# Include sharp reference books alongside US recreational books.
+# Pinnacle is the world's sharpest book; disagreement with Pinnacle = stronger signal.
+# Pinnacle availability for WNBA props may be limited — the script handles empty returns.
+SHARP_BOOKS = ["pinnacle", "circasports"]
+RECREATIONAL_BOOKS = ["draftkings", "fanduel", "betmgm", "caesars", "betonlineag"]
+ALL_BOOKS = RECREATIONAL_BOOKS + SHARP_BOOKS
+
 
 @app.command()
 def main(
@@ -64,7 +71,7 @@ def main(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    book_list = [b.strip() for b in bookmakers.split(",") if b.strip()] or None
+    book_list = [b.strip() for b in bookmakers.split(",") if b.strip()] or ALL_BOOKS
     typer.echo(f"[OddsAPI] Pulling props for {game_date} | region={region} | bookmakers={book_list or 'all'}")
 
     try:

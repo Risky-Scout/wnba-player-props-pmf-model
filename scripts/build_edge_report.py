@@ -248,6 +248,49 @@ def main(
     comp.to_parquet(comp_path, index=False)
     typer.echo(f"Wrote market_comparison → {comp_path} ({len(comp):,} rows)")
 
+    # ── Sharp reference: vs_pinnacle_edge ─────────────────────────────────────
+    # Pinnacle is the sharpest reference book; model edges that also beat Pinnacle
+    # are upgraded to high_confidence tier.  Handles the case where Pinnacle has
+    # no WNBA props (pinnacle_rows empty → vs_pinnacle_edge column stays absent).
+    if "vendor" in comp.columns and "market_prob_over_no_vig" in comp.columns:
+        try:
+            pinnacle_rows = comp[
+                comp["vendor"].fillna("").str.lower().str.contains("pinnacle", na=False)
+            ]
+            if not pinnacle_rows.empty:
+                pin_ref = (
+                    pinnacle_rows.groupby(["player_id", "stat", "line"])
+                    ["market_prob_over_no_vig"].mean()
+                )
+                comp["vs_pinnacle_edge"] = (
+                    comp.set_index(["player_id", "stat", "line"])
+                    .index.map(pin_ref)
+                    .values
+                ) - comp["market_prob_over_no_vig"].values
+                beats_pinnacle = (
+                    (comp["edge_over"].abs() > 0.05)
+                    & (comp["vs_pinnacle_edge"].fillna(0).abs() > 0.03)
+                )
+                if beats_pinnacle.any() and "confidence_tier" in comp.columns:
+                    comp.loc[beats_pinnacle, "confidence_tier"] = "high_confidence"
+                    typer.echo(
+                        f"[pinnacle] {beats_pinnacle.sum()} edges upgraded to "
+                        "high_confidence (beat Pinnacle reference)"
+                    )
+                typer.echo(
+                    f"[pinnacle] vs_pinnacle_edge computed from "
+                    f"{len(pinnacle_rows)} Pinnacle rows"
+                )
+            else:
+                typer.echo(
+                    "[pinnacle] No Pinnacle rows in market data — "
+                    "vs_pinnacle_edge not computed (Pinnacle may not offer WNBA props)"
+                )
+        except Exception as _pin_exc:
+            typer.echo(
+                f"[pinnacle] vs_pinnacle_edge failed (non-fatal): {_pin_exc}", err=True
+            )
+
     # Carry Odds API deep links into the comparison table
     if props_source == "odds_api" and "deep_link" in props_df.columns:
         # link_cols must NOT include any column that is also in link_keys
