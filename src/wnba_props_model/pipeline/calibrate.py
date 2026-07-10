@@ -1251,6 +1251,79 @@ def apply_venn_abers_calibration(
 
 
 # ---------------------------------------------------------------------------
+# Phase 5: Per-line isotonic calibration
+# ---------------------------------------------------------------------------
+
+_PER_LINE_CALIBRATORS: dict | None = None
+_PER_LINE_CALIBRATORS_LOADED = False
+
+
+def apply_per_line_calibration(
+    p_over: float,
+    stat: str,
+    line_z: float,
+    cal_dir: "str | Path" = "artifacts/models/calibration",
+) -> float:
+    """Apply per-line isotonic calibration to a raw P(over) value.
+
+    Loads per_line_calibrators.pkl (once, cached) from cal_dir, bins line_z into
+    one of five z-score buckets, and applies the fitted isotonic correction.
+
+    Soft fallback: if the pkl doesn't exist or no calibrator is found for the
+    (stat, bucket) pair, returns p_over unchanged.
+
+    Parameters
+    ----------
+    p_over  : Raw model P(over) in [0, 1].
+    stat    : Stat name (e.g. 'pts').
+    line_z  : Line z-score = (line - pmf_mean) / pmf_std.
+    cal_dir : Directory containing per_line_calibrators.pkl.
+    """
+    import pickle as _pkl
+
+    global _PER_LINE_CALIBRATORS, _PER_LINE_CALIBRATORS_LOADED
+    if not _PER_LINE_CALIBRATORS_LOADED:
+        pkl_path = Path(cal_dir) / "per_line_calibrators.pkl"
+        if pkl_path.exists():
+            try:
+                with open(pkl_path, "rb") as f:
+                    _PER_LINE_CALIBRATORS = _pkl.load(f)
+            except Exception as exc:
+                logger.warning("[calibrate] Could not load per_line_calibrators.pkl: %s", exc)
+                _PER_LINE_CALIBRATORS = {}
+        else:
+            _PER_LINE_CALIBRATORS = {}
+        _PER_LINE_CALIBRATORS_LOADED = True
+
+    if not _PER_LINE_CALIBRATORS:
+        return p_over
+
+    # Bin line_z into bucket
+    if line_z < -1.0:
+        bucket = "very_low"
+    elif line_z < -0.33:
+        bucket = "low"
+    elif line_z < 0.33:
+        bucket = "mid"
+    elif line_z < 1.0:
+        bucket = "high"
+    else:
+        bucket = "very_high"
+
+    key = f"{stat}|{bucket}"
+    cal = _PER_LINE_CALIBRATORS.get(key)
+    if cal is None:
+        return p_over
+
+    try:
+        cal_p = float(cal.predict([float(p_over)])[0])
+        return float(np.clip(cal_p, 1e-6, 1 - 1e-6))
+    except Exception as exc:
+        logger.debug("[calibrate] per_line_calibration(%s) failed: %s", key, exc)
+        return p_over
+
+
+# ---------------------------------------------------------------------------
 # Part I: Live calibrators — fitted on in-game (live) PMF data
 # ---------------------------------------------------------------------------
 
