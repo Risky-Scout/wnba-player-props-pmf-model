@@ -45,6 +45,38 @@ def add_pge_ladder(pmfs: pd.DataFrame, kmax: int = 20) -> pd.DataFrame:
     return out
 
 
+def _pick_best_line_for_direction(joined: pd.DataFrame) -> pd.DataFrame:
+    """For each player×stat, keep the most favorable line for the model's predicted direction.
+
+    OVER edge: lowest available line (bettor gets the easiest hurdle).
+    UNDER edge: highest available line (bettor gets the most forgiving hurdle).
+    At tied lines: best odds (highest payout for the direction).
+    """
+    if joined.empty:
+        return joined
+
+    results = []
+    for (player_id, stat), group in joined.groupby(["player_id", "stat"]):
+        if len(group) == 1:
+            results.append(group)
+            continue
+        # Determine direction by majority vote on edge_over sign
+        is_over = group["edge_over"].mean() >= 0
+        if is_over:
+            # Lowest line first (easiest OVER hurdle), then best over_odds as tiebreaker
+            best = group.sort_values(
+                ["line", "over_odds"], ascending=[True, False]
+            ).iloc[[0]]
+        else:
+            # Highest line first (most forgiving UNDER hurdle), then best under_odds
+            best = group.sort_values(
+                ["line", "under_odds"], ascending=[False, False]
+            ).iloc[[0]]
+        results.append(best)
+
+    return pd.concat(results, ignore_index=True)
+
+
 def build_fair_odds_board(pmfs: pd.DataFrame) -> pd.DataFrame:
     """Build fair odds board using WNBAPMFGrid for push-correct probabilities.
 
@@ -553,6 +585,23 @@ def write_delivery(
         comp_path = out / "market_comparison.parquet"
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path
+
+        # Best-line-for-direction: for each player×stat keep the single most
+        # favorable line for the model's predicted direction before edge filtering.
+        if not comp.empty and "edge_over" in comp.columns:
+            try:
+                comp = _pick_best_line_for_direction(comp)
+            except Exception as _bld_exc:
+                import logging as _bld_log  # noqa: PLC0415
+                _bld_log.getLogger(__name__).warning(
+                    "Best-line-for-direction failed (non-fatal): %s", _bld_exc
+                )
+
+        # Ensure vendor column is preserved from props side of join.
+        # normalize_player_props_snapshot stores it as 'vendor'; the join
+        # keeps it, but guard in case it was lost during merges.
+        if "vendor" not in comp.columns and "bookmaker" in comp.columns:
+            comp["vendor"] = comp["bookmaker"]
 
         # Production floor: suppress combo UNDER edges only for bench players
         # whose model mean is near-zero (phantom UNDER = market line exists but

@@ -180,9 +180,28 @@ def _build_edge_json(
         best_book: str | None = None
         best_odds: float | None = None
 
-        # Try edges DataFrame (Odds API source)
+        # Vendor display name map
+        _VENDOR_DISPLAY = {
+            "draftkings": "DraftKings",
+            "fanduel": "FanDuel",
+            "betmgm": "BetMGM",
+            "caesars": "Caesars",
+            "pinnacle": "Pinnacle",
+            "betonlineag": "BetOnline",
+            "circasports": "Circa",
+            "pointsbetus": "PointsBet",
+            "superbook": "SuperBook",
+            "wynnbet": "WynnBet",
+        }
+
+        # Try edges DataFrame (Odds API source); check both 'bookmaker' and 'vendor'
+        raw_vendor = None
         if "bookmaker" in r.index:
-            best_book = r.get("bookmaker") or None
+            raw_vendor = r.get("bookmaker") or None
+        if not raw_vendor and "vendor" in r.index:
+            raw_vendor = r.get("vendor") or None
+        if raw_vendor:
+            best_book = _VENDOR_DISPLAY.get(str(raw_vendor).lower(), str(raw_vendor).title())
         if "deep_link" in r.index:
             best_link = r.get("deep_link") or None
         if direction == "OVER" and "over_odds" in r.index:
