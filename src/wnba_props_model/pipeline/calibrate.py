@@ -904,18 +904,12 @@ def apply_role_stratified_corrections(
         except Exception as exc:
             logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc)
 
-    _COMBO_STATS: set[str] = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks", "blk_stl"}
-
     out = pmfs_long.copy()
     new_pmf_jsons: list[str] = []
     n_corrected = 0
 
     for _, row in out.iterrows():
         stat = str(row.get("stat", ""))
-        if stat in _COMBO_STATS:
-            new_pmf_jsons.append(row["pmf_json"])
-            continue
-
         role = str(row.get("role_bucket", "rotation"))
         global_corr = float(global_corrections.get(stat, 1.0))
         # Flat format lookup first ("starter|pts"), fall back to nested then global

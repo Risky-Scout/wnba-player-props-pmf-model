@@ -690,8 +690,11 @@ def predict_player_pmfs(
                 from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _pfc_abc  # noqa: PLC0415
                 _pfc_data = _pfc_json.loads(_pfc_path.read_text())
 
-                # --- Source 1: flat_corrections (player_name|stat keys) ---
-                _pfc_flat: dict[str, float] = _pfc_data.get("flat_corrections", {})
+                # --- Source 1: flat_corrections — DISABLED ---
+                # Dangerous [0.10, 25x] clips caused runaway corrections for players
+                # with corrupted features. The live feature-based form correction
+                # (Part C.6 below) handles recency with tighter [0.80, 1.25] clips.
+                _pfc_flat: dict[str, float] = {}  # disabled
 
                 # --- Source 2: legacy players dict (backward compat; stats may be empty) ---
                 _pfc_players: dict[str, dict] = _pfc_data.get("players", {})
@@ -799,7 +802,7 @@ def predict_player_pmfs(
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
                     continue
-                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.75, 1.60))
+                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.80, 1.25))
                 if abs(_fc6_ratio - 1.0) < 0.15:
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
