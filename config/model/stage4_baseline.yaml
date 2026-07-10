@@ -13,53 +13,53 @@ sparse_stats:
 - blk
 dispersion_r_by_role:
   pts:
-    bench: 0.7059
-    rotation: 1.2671
-    core: 2.1763
+    bench: 0.6189
+    rotation: 1.1602
     fringe: 0.3
-    starter: 3.0219
+    starter: 2.388
+    core: 1.8034
     inactive_risk: 0.3
   reb:
-    bench: 0.7494
-    rotation: 1.2599
-    core: 1.8889
+    bench: 0.6639
+    rotation: 1.1197
     fringe: 0.3
-    starter: 2.1451
+    starter: 1.7236
+    core: 1.5217
     inactive_risk: 0.3
   ast:
-    bench: 0.588
-    rotation: 1.1081
-    core: 1.7112
-    fringe: 0.3751
-    starter: 2.1661
+    bench: 0.5308
+    rotation: 1.0507
+    fringe: 0.3
+    starter: 1.7829
+    core: 1.4693
     inactive_risk: 0.3
   fg3m:
-    bench: 0.3
-    rotation: 0.3
-    core: 0.3554
+    bench: 0.4955
+    rotation: 0.7516
     fringe: 0.3
-    starter: 0.5059
+    starter: 1.2033
+    core: 0.9212
     inactive_risk: 0.3
   stl:
-    bench: 1.294
-    rotation: 5.0111
-    core: 7.4467
+    bench: 0.3
+    rotation: 0.6319
     fringe: 0.3
-    starter: 13.0296
+    starter: 1.2669
+    core: 0.9565
     inactive_risk: 0.3
   blk:
-    bench: 0.5908
-    rotation: 1.5214
-    core: 2.4162
+    bench: 0.3
+    rotation: 0.3
     fringe: 0.3
-    starter: 2.3245
+    starter: 0.3119
+    core: 0.3
     inactive_risk: 0.3
   turnover:
-    bench: 0.9432
-    rotation: 1.9582
-    core: 3.2656
-    fringe: 0.5124
-    starter: 4.0928
+    bench: 0.8378
+    rotation: 1.9047
+    fringe: 0.3
+    starter: 3.5137
+    core: 2.9737
     inactive_risk: 0.3
 pmf_support_caps:
   pts: 60
@@ -128,7 +128,7 @@ hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
 use_model_ensemble: true
 use_role_stratified_training: true
 use_per_player_dispersion: true
-market_prior_lambda: 0.10
+market_prior_lambda: 0.1
 market_prior_lambda_display: 0.15
 use_live_calibrators: false
 pi_rating_use_model_baseline: false
