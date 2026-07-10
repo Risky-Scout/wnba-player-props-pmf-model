@@ -440,12 +440,13 @@ K_BASE: dict[str, float] = {
     "stl": 6.0,
     "blk": 8.0,
     "turnover": 5.0,
-    # Combo stats get lower k (= less shrinkage) because they are sums of 2-3 base
-    # stats and their inter-player variance is higher — the prior matters less.
-    "pts_reb":     3.0,
-    "pts_ast":     3.0,
-    "reb_ast":     3.0,
-    "pts_reb_ast": 3.0,
+    # Combo stats get a K_BASE floor of 5.0 — they are sums of 2-3 base stats and
+    # their inter-player variance is higher, so over-shrinking is the bigger risk.
+    # Values below 5.0 were raised to enforce this floor.
+    "pts_reb":     5.0,
+    "pts_ast":     5.0,
+    "reb_ast":     5.0,
+    "pts_reb_ast": 5.0,
     "stocks":      5.0,
 }
 

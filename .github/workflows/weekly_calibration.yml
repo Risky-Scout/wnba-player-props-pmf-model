@@ -524,6 +524,10 @@ jobs:
           print("Combo correlations estimated:", corrs)
           PYEOF
 
+      - name: Fit shrinkage params from OOF ECE
+        continue-on-error: true
+        run: python scripts/fit_shrinkage_params.py
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
