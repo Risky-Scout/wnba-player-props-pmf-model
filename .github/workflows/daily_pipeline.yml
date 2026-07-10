@@ -423,6 +423,19 @@ jobs:
             --api-key "$BDL_API_KEY"
         continue-on-error: true
 
+      - name: Score yesterday's outcomes
+        # Fetches BDL box scores for yesterday and scores the edges published
+        # during that day's pipeline run against actual results.
+        # Appends to data/outcome_tracking.parquet for CLV / P&L reporting.
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          python scripts/score_outcomes.py \
+            --game-date "${{ steps.date.outputs.yesterday }}" \
+            --edges-path deliveries/archive/yesterday_pmfs.parquet \
+            --output-path data/outcome_tracking.parquet
+        continue-on-error: true
+
       - name: Download CLV tracking data (for drift check)
         # post_game_scoring.yml writes drift_window.parquet into data/clv_tracking/
         # and uploads it as clv-report-{date}-{run_id}. Without downloading this
