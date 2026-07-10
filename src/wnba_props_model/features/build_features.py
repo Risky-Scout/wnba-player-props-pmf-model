@@ -518,10 +518,22 @@ def _build_defensive_scheme_features(wide: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def _build_season_phase_feature(wide: pd.DataFrame) -> pd.DataFrame:
-    """Add season_phase categorical: early / mid / late / playoff (Enhancement 10)."""
+    """Add season_phase features: categorical + numeric ratio + binary indicators.
+
+    Categorical: season_phase = early / mid / late / playoff (Enhancement 10)
+    Numeric:
+      season_phase_ratio     = (game_date - season_start) / season_length [0, 1]
+      season_phase_early     = 1 if season_phase_ratio < 0.25
+      season_phase_mid       = 1 if 0.25 <= season_phase_ratio < 0.75
+      season_phase_late      = 1 if season_phase_ratio >= 0.75
+    """
     df = wide.copy()
     if "game_number_in_season" not in df.columns:
         df["season_phase"] = "mid"
+        df["season_phase_ratio"] = 0.5
+        df["season_phase_early"] = 0.0
+        df["season_phase_mid"] = 1.0
+        df["season_phase_late"] = 0.0
         return df
 
     is_playoff = df.get("is_playoff_game", pd.Series(0, index=df.index)).fillna(0).astype(int)
@@ -541,6 +553,35 @@ def _build_season_phase_feature(wide: pd.DataFrame) -> pd.DataFrame:
         _phase(gn, po)
         for gn, po in zip(df["game_number_in_season"], is_playoff)
     ]
+
+    # Numeric season phase features derived from game_date × season
+    if "game_date" in df.columns and "season" in df.columns:
+        try:
+            df["_game_date_dt"] = pd.to_datetime(df["game_date"], errors="coerce")
+            season_start = df.groupby("season")["_game_date_dt"].transform("min")
+            season_end = df.groupby("season")["_game_date_dt"].transform("max")
+            season_length = (season_end - season_start).dt.days.clip(lower=1)
+            days_in = (df["_game_date_dt"] - season_start).dt.days.fillna(0).clip(lower=0)
+            df["season_phase_ratio"] = (days_in / season_length).clip(0.0, 1.0)
+            df["season_phase_early"] = (df["season_phase_ratio"] < 0.25).astype(float)
+            df["season_phase_mid"] = (
+                (df["season_phase_ratio"] >= 0.25) & (df["season_phase_ratio"] < 0.75)
+            ).astype(float)
+            df["season_phase_late"] = (df["season_phase_ratio"] >= 0.75).astype(float)
+            df.drop(columns=["_game_date_dt"], inplace=True)
+        except Exception:
+            df["season_phase_ratio"] = 0.5
+            df["season_phase_early"] = 0.0
+            df["season_phase_mid"] = 1.0
+            df["season_phase_late"] = 0.0
+            if "_game_date_dt" in df.columns:
+                df.drop(columns=["_game_date_dt"], inplace=True)
+    else:
+        df["season_phase_ratio"] = 0.5
+        df["season_phase_early"] = 0.0
+        df["season_phase_mid"] = 1.0
+        df["season_phase_late"] = 0.0
+
     return df
 
 
@@ -1656,8 +1697,11 @@ def build_wide_table(
                     (game_total + spread_home) / 2.0,
                     (game_total - spread_home) / 2.0,
                 )
-                # Blowout risk: binary flag when |spread| > 10
-                wide["blowout_risk"] = (spread_home.abs() > 10.0).astype(int)
+                # Blowout risk: binary flag when |spread| > 12 (stronger blowout signal)
+                spread_abs = spread_home.abs()
+                wide["predicted_spread_abs"] = spread_abs
+                wide["blowout_risk"] = (spread_abs > 12.0).astype(float)
+                wide["close_game_indicator"] = (spread_abs < 6.0).astype(float)
                 audit_notes["vegas_game_total_joined"] = True
                 audit_notes["vegas_game_total_rows"] = int(wide["game_total"].notna().sum())
     except Exception as _ve:

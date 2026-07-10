@@ -142,6 +142,11 @@ ADVANCED_STANDINGS_FEATURES: list[str] = [
     # stored in ROLE_BUCKET_COLS in build_features.py and one-hot encoded
     # separately.  It must NOT appear here or it will pass the FEATURE_FAMILIES
     # allowlist and crash HGBR with 'could not convert string to float: early'.
+    # Numeric season phase features (safe for model training)
+    "season_phase_ratio",   # Continuous: (game_date - season_start) / season_length [0, 1]
+    "season_phase_early",   # Binary: season_phase_ratio < 0.25
+    "season_phase_mid",     # Binary: 0.25 <= season_phase_ratio < 0.75
+    "season_phase_late",    # Binary: season_phase_ratio >= 0.75
 ]
 
 ADVANCED_FOUR_FACTORS_FEATURES: list[str] = [
@@ -221,7 +226,9 @@ GAME_SCRIPT_FEATURES: list[str] = [
     "implied_team_total",            # Vegas-implied team score = (game_total ± spread) / 2
     "game_total",                    # Vegas over/under game total (raw)
     "game_spread_home",              # Home team point spread
-    "blowout_risk",                  # Binary: |spread| > 10 (starters likely sit late)
+    "blowout_risk",                  # Binary: |spread| > 12 (starters likely sit late)
+    "predicted_spread_abs",          # |spread| as continuous feature (blowout magnitude)
+    "close_game_indicator",          # Binary: |spread| < 6 (likely competitive to the wire)
 ]
 
 # Parts B+F: Prior-game market features — lagged by 1 game to avoid leakage.
