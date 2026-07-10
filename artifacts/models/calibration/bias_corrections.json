@@ -1,5 +1,4 @@
 {
-  "_note": "2026-07-10 v4: P1 fix (combo pre-calibration convolution) now applies base-stat corrections BEFORE combo PMFs are built. Combo bias corrections reverted from emergency 1.35-1.37x back to OOF-calibrated levels + 6% bookmaker-premium uplift. Individual stats: +6% above OOF actuals (pts 1.120, reb 1.163, ast 1.068, fg3m 1.069, turnover 1.093). Combos now inherit base corrections naturally; combo-specific multiplier reduced to match individual stat levels. blk/stl unchanged pending next OOF refit.",
   "ast": 1.068,
   "blk": 1.9797988492858585,
   "fg3m": 1.069,
