@@ -58,6 +58,10 @@ PLAYER_RATE_FEATURES = [
     "usage_proxy_roll5",
     "fga_per_min_roll5",
     "fta_per_min_roll5",
+    # Part 2b: home/away split delta features
+    "player_home_away_pts_delta",  # (home_pts_l10 - away_pts_l10) / overall_mean
+    "player_home_away_reb_delta",
+    "player_home_away_ast_delta",
 ]
 
 TEAM_CONTEXT_FEATURES = [
@@ -70,6 +74,8 @@ TEAM_CONTEXT_FEATURES = [
     "opp_ast_allowed_roll5",
     "opp_tov_rate_roll5",
     "opp_rim_pressure_proxy_roll5",
+    # Part 2c: opponent positional defense (player's position vs opponent last 5)
+    "opp_pos_pts_allowed_mean_l5",
 ]
 
 INJURY_AVAILABILITY_FEATURES = [
@@ -119,6 +125,8 @@ ADVANCED_INJURY_FEATURES: list[str] = [
     "teammate_out_count",                    # # rotation teammates ruled out
     "teammate_questionable_count",           # # teammates questionable
     "team_total_usage_of_out_players",       # Redistributable USG%
+    "team_top3_scorers_available",           # Binary: top 3 scorers all active (Part 2e)
+    "player_role_elevation",                 # Min-share increase when stars are out (Part 2e)
 ]
 
 ADVANCED_OPPONENT_FEATURES: list[str] = [
@@ -161,6 +169,9 @@ USAGE_TRANSFER_FEATURES: list[str] = [
     "usage_shift_abs",                 # |usage_shift| (magnitude of role change)
     "projected_usage_given_absences",  # UTM-projected usage with absences
     "usage_transfer_delta",            # Projected - base usage (pure lineup effect)
+    # Part 2d: usage trend features
+    "player_usage_trend_l5_vs_l15",   # Ratio of usage rate L5 vs L15 (hot/cold detection)
+    "player_fga_l5_mean",             # FGA last 5 games (proxy for role/touches)
 ]
 
 # Extended schedule fatigue features (Enhancement 3)
@@ -171,6 +182,10 @@ FATIGUE_FEATURES: list[str] = [
     "altitude_flag",            # Playing at altitude (Denver/Salt Lake)
     "schedule_fatigue_index",   # Composite fatigue score
     "rest_interaction_high_usage",  # Fatigue × high usage interaction
+    # Part 2a: enhanced fatigue / load features
+    "player_minutes_l3_sum",    # Total minutes in last 3 games (cumulative load)
+    "player_games_in_last_7d",  # Games played in last 7 calendar days
+    "player_load_index",        # player_minutes_l3_sum / 120.0 (normalized 0-1)
 ]
 
 # Shot quality / efficiency regression features (Enhancement 4)

@@ -806,6 +806,11 @@ def _build_player_features(
                 _sr(_fg3m_g, 5, agg="sum") / _sr(_fg3a_g, 5, agg="sum").clip(lower=0.5)
             ).replace([np.inf, -np.inf], np.nan).clip(0, 1)
 
+    # player_fga_l5_mean: field goal attempts last 5 games mean (proxy for role/touches)
+    if "fga" in df.columns:
+        _fga_g_load = df.groupby("player_id", sort=False)["fga"]
+        _fg3_cols["player_fga_l5_mean"] = _sr(_fga_g_load, 5)
+
     # ------------------------------------------------------------------ #
     # 4c. Shot profile features (P2.1) — 3pt attempt rate from fg3a/fga — batched
     # ------------------------------------------------------------------ #
@@ -933,7 +938,7 @@ def _build_player_features(
         df["_usage_raw"] = df["fga"] + 0.44 * df["fta"] + df["turnover"]
         _ug = df.groupby("player_id", sort=False)["_usage_raw"]
         _mg = df.groupby("player_id", sort=False)["minutes"]
-        for w in (5, 10):
+        for w in (5, 10, 15):
             u_sum = _sr(_ug, w, agg="sum")
             m_sum = _sr(_mg, w, agg="sum")
             df[f"player_usage_proxy_l{w}"] = (
@@ -966,9 +971,18 @@ def _build_player_features(
                 (_sr(_ast_g, 5, agg="sum") / _sr(_mg, 5, agg="sum").clip(lower=1.0))
                 .replace([np.inf, -np.inf], np.nan)
             )
+        # Usage trend: L5 vs L15 ratio — detects hot/cold role streaks
+        if "player_usage_proxy_l5" in df.columns and "player_usage_proxy_l15" in df.columns:
+            df["player_usage_trend_l5_vs_l15"] = (
+                df["player_usage_proxy_l5"] /
+                df["player_usage_proxy_l15"].clip(lower=0.01)
+            ).replace([np.inf, -np.inf], np.nan).clip(0.3, 3.0)
+        else:
+            df["player_usage_trend_l5_vs_l15"] = np.nan
         df = df.drop(columns=["_usage_raw"], errors="ignore")
     else:
-        for col in ["player_usage_proxy_l5", "player_usage_proxy_l10", "player_usage_proxy_season",
+        for col in ["player_usage_proxy_l5", "player_usage_proxy_l10", "player_usage_proxy_l15",
+                    "player_usage_proxy_season", "player_usage_trend_l5_vs_l15",
                     "player_shot_attempt_rate_l5", "player_free_throw_rate_l5", "player_on_ball_proxy_l5"]:
             df[col] = np.nan
 
@@ -1039,19 +1053,36 @@ def _build_player_features(
                 continue
             s_grp_min = split_df.groupby("player_id", sort=False)["minutes"]
             split_df[f"player_minutes_{split_name}_mean_l5"] = _sr(s_grp_min, 5)
+            split_df[f"player_minutes_{split_name}_mean_l10"] = _sr(s_grp_min, 10)
             for stat in STATS:
                 if stat not in split_df.columns:
                     continue
                 s_grp_s = split_df.groupby("player_id", sort=False)[stat]
                 split_df[f"player_{stat}_{split_name}_mean_l5"] = _sr(s_grp_s, 5)
+                split_df[f"player_{stat}_{split_name}_mean_l10"] = _sr(s_grp_s, 10)
             merge_cols = (
-                [f"player_minutes_{split_name}_mean_l5"]
+                [f"player_minutes_{split_name}_mean_l5", f"player_minutes_{split_name}_mean_l10"]
                 + [f"player_{stat}_{split_name}_mean_l5" for stat in STATS if stat in split_df.columns]
+                + [f"player_{stat}_{split_name}_mean_l10" for stat in STATS if stat in split_df.columns]
             )
             df = df.merge(
                 split_df[["player_id", "game_id"] + merge_cols],
                 on=["player_id", "game_id"], how="left",
             )
+
+        # Home/away delta features for pts, reb, ast (Part 2b)
+        # Captures players who perform significantly better/worse at home.
+        for _ha_stat in ["pts", "reb", "ast"]:
+            _home_col   = f"player_{_ha_stat}_home_mean_l10"
+            _away_col   = f"player_{_ha_stat}_away_mean_l10"
+            _overall_col = f"player_{_ha_stat}_mean_l10"
+            if all(c in df.columns for c in [_home_col, _away_col, _overall_col]):
+                df[f"player_home_away_{_ha_stat}_delta"] = (
+                    (df[_home_col] - df[_away_col]) /
+                    df[_overall_col].clip(lower=0.5)
+                ).replace([np.inf, -np.inf], np.nan).clip(-2.0, 2.0)
+            else:
+                df[f"player_home_away_{_ha_stat}_delta"] = np.nan
 
     # ------------------------------------------------------------------ #
     # 8. Player back-to-back flag (Phase 2c)
@@ -1092,6 +1123,16 @@ def _build_player_features(
     df["player_cumulative_minutes_l3"] = _sr(
         df.groupby("player_id", sort=False)["minutes"], 3, agg="sum"
     )
+
+    # ------------------------------------------------------------------ #
+    # 8c. Enhanced fatigue / load features (Part 2a)
+    # ------------------------------------------------------------------ #
+    # player_minutes_l3_sum: total minutes in last 3 games (cumulative load)
+    df["player_minutes_l3_sum"] = df["player_cumulative_minutes_l3"]
+    # player_games_in_last_7d: alias for model contract naming
+    df["player_games_in_last_7d"] = df["player_games_in_last_7_days"]
+    # player_load_index: cumulative 3-game load normalized 0-1 (120 = 3 × 40 max)
+    df["player_load_index"] = (df["player_cumulative_minutes_l3"] / 120.0).clip(0.0, 1.0)
 
     # ------------------------------------------------------------------ #
     # 9. Per-minute rate × minutes interaction (Phase 2e)
@@ -1653,6 +1694,123 @@ def build_wide_table(
                 "opp_pts_allowed_per_100_poss_l10",
                 wide["opp_pts_allowed_mean_l10"] / denom_l10,
             ).replace([np.inf, -np.inf], np.nan)
+
+    # ------------------------------------------------------------------ #
+    # Part 2c: Opponent positional defense feature
+    # opp_pos_pts_allowed_mean_l5: pts allowed to THIS player's position in last 5 opp games
+    # Named distinctly from the forbidden position-trio columns (opp_pts_vs_C_allowed_l5, etc.)
+    # ------------------------------------------------------------------ #
+    try:
+        if "position" in wide.columns and "pts" in stats_df.columns and "position" in stats_df.columns:
+            _pos_df = stats_df.copy()
+            # Normalize position to G/F/C first letter
+            _pos_df["_pos_norm"] = _pos_df["position"].fillna("F").astype(str).str[0].str.upper()
+            _pos_df["_pos_norm"] = _pos_df["_pos_norm"].where(_pos_df["_pos_norm"].isin(["G", "F", "C"]), "F")
+            # Per-opponent-per-position mean pts allowed (rolling L5)
+            _pos_opp = _pos_df.groupby(["opponent_team_id", "_pos_norm", "game_date", "game_id"], sort=False)["pts"].mean().reset_index()
+            _pos_opp = _pos_opp.sort_values(["opponent_team_id", "_pos_norm", "game_date", "game_id"])
+            _pos_opp_grp = _pos_opp.groupby(["opponent_team_id", "_pos_norm"], sort=False)
+            _pos_opp["opp_pos_pts_allowed_mean_l5"] = _pos_opp_grp["pts"].transform(
+                lambda x: x.shift(1).rolling(5, min_periods=1).mean()
+            )
+            _pos_opp_merge = _pos_opp[["game_id", "opponent_team_id", "_pos_norm", "opp_pos_pts_allowed_mean_l5"]].drop_duplicates()
+            # Normalize player position in wide table
+            _wide_pos = wide["position"].fillna("F").astype(str).str[0].str.upper()
+            _wide_pos = _wide_pos.where(_wide_pos.isin(["G", "F", "C"]), "F")
+            wide["_pos_norm"] = _wide_pos.values
+            wide = wide.merge(
+                _pos_opp_merge,
+                on=["game_id", "opponent_team_id", "_pos_norm"],
+                how="left",
+            ).drop(columns=["_pos_norm"], errors="ignore")
+            audit_notes["opp_pos_defense_feature"] = True
+        else:
+            wide["opp_pos_pts_allowed_mean_l5"] = np.nan
+            audit_notes["opp_pos_defense_feature"] = False
+    except Exception as _opd_exc:
+        wide["opp_pos_pts_allowed_mean_l5"] = np.nan
+        audit_notes["opp_pos_defense_feature"] = False
+        audit_notes["opp_pos_defense_error"] = str(_opd_exc)
+
+    # ------------------------------------------------------------------ #
+    # Part 2e: Teammate absence impact features
+    # team_top3_scorers_available: binary — are top 3 scorers all available?
+    # player_role_elevation: player's share increase when top scorers are out
+    # ------------------------------------------------------------------ #
+    try:
+        if "actual_pts" in wide.columns or "pts" in stats_df.columns:
+            _pts_col_src = "actual_pts" if "actual_pts" in wide.columns else "pts"
+            _pts_src = wide if "actual_pts" in wide.columns else stats_df
+            # Season top 3 scorers per team (by expanding season mean pts)
+            _scorer_df = (
+                stats_df.groupby(["team_id", "player_id"])["pts"]
+                .mean()
+                .reset_index()
+                .sort_values(["team_id", "pts"], ascending=[True, False])
+            )
+            # Top 3 per team
+            _top3_by_team: dict[int, list] = {}
+            for _tid, _grp in _scorer_df.groupby("team_id"):
+                _top3_by_team[int(_tid)] = _grp.head(3)["player_id"].tolist()
+
+            # Build per-game availability: is player marked as did_play==0 (DNP)?
+            _avail_df = stats_df[["game_id", "team_id", "player_id", "did_play"]].copy()
+            _avail_df["did_play"] = _avail_df["did_play"].fillna(1).astype(int)
+
+            # Per (game_id, team_id): count how many top3 scorers are active
+            def _count_top3_avail(grp: pd.DataFrame, top3_map: dict) -> pd.Series:
+                tid = int(grp["team_id"].iloc[0])
+                top3 = top3_map.get(tid, [])
+                if not top3:
+                    return pd.Series(1.0, index=grp.index)
+                top3_avail = grp[grp["player_id"].isin(top3)]["did_play"].sum()
+                return pd.Series(float(top3_avail >= len(top3)), index=grp.index)
+
+            _avail_grp = _avail_df.groupby(["game_id", "team_id"])
+            _t3a_rows = []
+            for (_gid, _tid), _grp in _avail_grp:
+                _top3 = _top3_by_team.get(int(_tid), [])
+                _n_top3 = len(_top3)
+                if _n_top3 == 0:
+                    _t3a_val = 1.0
+                else:
+                    _top3_rows = _grp[_grp["player_id"].isin(_top3)]
+                    _active = _top3_rows["did_play"].sum() if not _top3_rows.empty else 0
+                    _t3a_val = float(_active >= _n_top3)
+                _t3a_rows.append({"game_id": _gid, "team_id": _tid, "team_top3_scorers_available": _t3a_val})
+            _t3a_df = pd.DataFrame(_t3a_rows)
+            # Shift by 1 game per team so it represents prior-game knowledge
+            _t3a_df = _t3a_df.sort_values(["team_id", "game_id"])
+            _t3a_df["team_top3_scorers_available"] = _t3a_df.groupby("team_id")["team_top3_scorers_available"].shift(1)
+            wide = wide.merge(_t3a_df[["game_id", "team_id", "team_top3_scorers_available"]], on=["game_id", "team_id"], how="left")
+            wide["team_top3_scorers_available"] = wide["team_top3_scorers_available"].fillna(1.0)
+
+            # player_role_elevation: increase in player's min share when top3 scorer is out
+            # Proxy: (player_minutes_last1 / team_total_min_last1) / season_avg_share - 1
+            _min_col = "actual_minutes" if "actual_minutes" in wide.columns else "player_minutes_last1"
+            if _min_col in wide.columns and "team_total_score_mean_l5" in wide.columns:
+                _team_min_proxy = wide["team_total_score_mean_l5"].fillna(200.0)
+                _player_min = wide.get("player_minutes_mean_l5", pd.Series(20.0, index=wide.index)).fillna(20.0)
+                _player_min_season = wide.get("player_minutes_mean_season", pd.Series(20.0, index=wide.index)).fillna(20.0)
+                _team_min_est = 200.0  # 5 players × 40 min (WNBA team total)
+                _share_l5 = (_player_min / _team_min_est).clip(0, 1)
+                _share_season = (_player_min_season / _team_min_est).clip(0, 1)
+                wide["player_role_elevation"] = (
+                    (_share_l5 / _share_season.clip(lower=0.01) - 1.0) *
+                    (1.0 - wide["team_top3_scorers_available"])
+                ).replace([np.inf, -np.inf], np.nan).clip(-0.5, 1.0)
+            else:
+                wide["player_role_elevation"] = np.nan
+            audit_notes["teammate_absence_features"] = True
+        else:
+            wide["team_top3_scorers_available"] = np.nan
+            wide["player_role_elevation"] = np.nan
+            audit_notes["teammate_absence_features"] = False
+    except Exception as _ta_exc:
+        wide["team_top3_scorers_available"] = np.nan
+        wide["player_role_elevation"] = np.nan
+        audit_notes["teammate_absence_features"] = False
+        audit_notes["teammate_absence_error"] = str(_ta_exc)
 
     # ------------------------------------------------------------------ #
     # Rate × pace-adjusted opponent interaction features (F7c)

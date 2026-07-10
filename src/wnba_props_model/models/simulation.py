@@ -219,6 +219,59 @@ def simulate_joint_count_pmfs(
     return out
 
 
+def _build_trivariate_pmf(
+    pts_pmf: np.ndarray,
+    reb_pmf: np.ndarray,
+    ast_pmf: np.ndarray,
+    rho_pts_reb: float,
+    rho_pts_ast: float,
+    rho_reb_ast: float,
+    n_samples: int = 50_000,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Monte Carlo trivariate Gaussian copula for pts+reb+ast joint distribution.
+
+    Correctly captures the full trivariate dependence structure rather than
+    the sequential bivariate approximation (pts→reb→result+ast). This prevents
+    systematic bias when one variable is conditionally dependent on both others.
+    """
+    from scipy.stats import norm as _sn  # noqa: PLC0415
+    rng = rng or np.random.default_rng(42)
+
+    # Correlation matrix — clamp off-diagonal to valid range
+    r_pr = float(np.clip(rho_pts_reb, -0.99, 0.99))
+    r_pa = float(np.clip(rho_pts_ast, -0.99, 0.99))
+    r_ra = float(np.clip(rho_reb_ast, -0.99, 0.99))
+    corr = np.array([
+        [1.0,  r_pr, r_pa],
+        [r_pr, 1.0,  r_ra],
+        [r_pa, r_ra, 1.0],
+    ])
+    # Ensure positive semi-definiteness via eigen-floor
+    eigvals = np.linalg.eigvalsh(corr)
+    if eigvals.min() < 1e-6:
+        corr = corr + np.eye(3) * (1e-4 - eigvals.min())
+
+    # Sample from multivariate standard normal → uniform via normal CDF (copula)
+    mvn_samples = rng.multivariate_normal([0.0, 0.0, 0.0], corr, size=n_samples)
+    u = _sn.cdf(mvn_samples)  # shape (n_samples, 3), uniform marginals
+
+    # Map uniforms to integer counts via PMF inverse CDF (quantile transform)
+    pts_cdf = np.clip(np.cumsum(normalize_pmf(pts_pmf)), 1e-10, 1.0 - 1e-10)
+    reb_cdf = np.clip(np.cumsum(normalize_pmf(reb_pmf)), 1e-10, 1.0 - 1e-10)
+    ast_cdf = np.clip(np.cumsum(normalize_pmf(ast_pmf)), 1e-10, 1.0 - 1e-10)
+
+    pts_samples = np.searchsorted(pts_cdf, u[:, 0])
+    reb_samples = np.searchsorted(reb_cdf, u[:, 1])
+    ast_samples = np.searchsorted(ast_cdf, u[:, 2])
+
+    combo = pts_samples + reb_samples + ast_samples
+    cap = len(pts_pmf) + len(reb_pmf) + len(ast_pmf) - 2
+    combo = np.clip(combo, 0, cap)
+    counts = np.bincount(combo, minlength=cap + 1).astype(float)
+    return normalize_pmf(counts)
+
+
 def build_combo_pmfs(component_pmfs: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
     out = {}
     if "stl" in component_pmfs and "blk" in component_pmfs:
@@ -246,15 +299,29 @@ def build_combo_pmfs(component_pmfs: Mapping[str, np.ndarray]) -> dict[str, np.n
             domain_max=DOMAIN_MAX["ra"],
         )
     if all(s in component_pmfs for s in ("pts", "reb", "ast")):
-        # PRA: convolve pts+reb first, then convolve result with ast.
-        # Use pts_reb_ast correlation for the second step (covers full triple correlation).
-        _pr_tmp = convolve_pmfs_correlated(
-            component_pmfs["pts"], component_pmfs["reb"],
-            correlation=_COMBO_CORRELATIONS.get("pts_reb", 0.0),
-        )
-        out["pra"] = convolve_pmfs_correlated(
-            _pr_tmp, component_pmfs["ast"],
-            correlation=_COMBO_CORRELATIONS.get("pts_reb_ast", 0.0),
-            domain_max=DOMAIN_MAX["pra"],
-        )
+        # PRA: proper 3D Gaussian copula — captures true trivariate dependence
+        # rather than the sequential bivariate approximation (pts+reb → result+ast).
+        try:
+            out["pra"] = _build_trivariate_pmf(
+                component_pmfs["pts"],
+                component_pmfs["reb"],
+                component_pmfs["ast"],
+                rho_pts_reb=_COMBO_CORRELATIONS.get("pts_reb", 0.08),
+                rho_pts_ast=_COMBO_CORRELATIONS.get("pts_ast", -0.12),
+                rho_reb_ast=_COMBO_CORRELATIONS.get("reb_ast", -0.05),
+            )
+            if DOMAIN_MAX.get("pra") is not None:
+                out["pra"] = out["pra"][: DOMAIN_MAX["pra"] + 1]
+                out["pra"] = normalize_pmf(out["pra"])
+        except Exception:
+            # Fall back to sequential bivariate on any error
+            _pr_tmp = convolve_pmfs_correlated(
+                component_pmfs["pts"], component_pmfs["reb"],
+                correlation=_COMBO_CORRELATIONS.get("pts_reb", 0.0),
+            )
+            out["pra"] = convolve_pmfs_correlated(
+                _pr_tmp, component_pmfs["ast"],
+                correlation=_COMBO_CORRELATIONS.get("pts_reb_ast", 0.0),
+                domain_max=DOMAIN_MAX.get("pra"),
+            )
     return out

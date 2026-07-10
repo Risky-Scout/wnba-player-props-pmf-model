@@ -129,7 +129,7 @@ hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
 use_model_ensemble: true
 use_role_stratified_training: true
 use_per_player_dispersion: true
-market_prior_lambda: 0.0
+market_prior_lambda: 0.10
 market_prior_lambda_display: 0.15
 use_live_calibrators: false
 pi_rating_use_model_baseline: false

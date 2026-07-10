@@ -252,6 +252,22 @@ def build_all_pmfs(
             p_nz = None
             pos_mus = None
 
+        # Part 4: Market prior blending — shrink model mean toward market-implied mean.
+        # mean_final = (1 - λ) * mean_model + λ * mean_market
+        # The sportsbook line is the market's best estimate of the median; using it
+        # as an anchor reduces extreme premiums (40-74% combo OVERs) toward realistic levels.
+        _mpl = cfg.get("market_prior_lambda", 0.0)
+        if _mpl > 0 and "market_line" in stat_rows.columns:
+            _market_lines = stat_rows["market_line"].values
+            _valid_market = np.isfinite(_market_lines) & (_market_lines > 0)
+            if _valid_market.any():
+                stat_means = np.where(
+                    _valid_market,
+                    (1.0 - _mpl) * stat_means + _mpl * _market_lines,
+                    stat_means,
+                )
+                stat_means = np.clip(stat_means, 0.01, None)
+
         # Part 6: CLV head signal — soft-nudge stat_mean by ≤5% based on
         # whether the model's direction beats the closing line historically.
         if stat in stat_models:
