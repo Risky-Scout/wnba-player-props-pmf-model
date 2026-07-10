@@ -473,7 +473,8 @@ if _shrinkage_params_path.exists():
         logger.warning("Failed to load fitted K_BASE: %s", _kbase_exc)
 
 
-def compute_shrinkage_alpha(n_eff: float, stat: str, position: str | None = None) -> float:    """Compute continuous shrinkage alpha via role-weighted effective-n.
+def compute_shrinkage_alpha(n_eff: float, stat: str, position: str | None = None) -> float:
+    """Compute continuous shrinkage alpha via role-weighted effective-n.
 
     Replaces the hard `if n_games >= _MIN_GAMES_FOR_FULL_CONFIDENCE: alpha = 0.0`
     bypass with a smooth k / (k + n_eff) decay.  Position adjustments ensure guards
