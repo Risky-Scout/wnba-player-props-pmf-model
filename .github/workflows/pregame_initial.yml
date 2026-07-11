@@ -201,7 +201,7 @@ jobs:
         run: |
           python scripts/build_features.py \
             --data-dir data/processed
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Build next-game slate (BDL games + roster)
         run: |
@@ -209,7 +209,7 @@ jobs:
           python scripts/build_next_game_slate.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Fetch and cache injury report (blueprint §5.1)
         run: |
@@ -651,40 +651,6 @@ jobs:
           echo "Distributions page generated for ${GAME_DATE}"
         continue-on-error: true
 
-      - name: Stage all outputs for single gh-pages deploy
-        run: |
-          # Consolidate every output directory into _site so we make exactly
-          # one push to gh-pages — eliminates all push race conditions.
-          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
-          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
-
-          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game-Edge" ] && \
-            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/. \
-                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
-          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge" ] && \
-            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/. \
-                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/
-          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions" ] && \
-            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/. \
-                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
-          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions" ] && \
-            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/. \
-                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
-          [ -d "tools/odds-scanner" ] && \
-            cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
-          echo "Staged files: $(find _site -type f | wc -l)"
-
-      - name: Deploy all pages to gh-pages (single push — no race condition)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _site
-          publish_branch: gh-pages
-          destination_dir: .
-          keep_files: true
-
       - name: Sanity gate — block deployment if calibration is catastrophically wrong
         run: |
           python - <<'EOF'
@@ -723,6 +689,42 @@ jobs:
 
           print("All sanity gates passed — deployment approved")
           EOF
+        continue-on-error: false
+
+      - name: Stage all outputs for single gh-pages deploy
+        run: |
+          # Consolidate every output directory into _site so we make exactly
+          # one push to gh-pages — eliminates all push race conditions.
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
+
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game-Edge" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
+          [ -d "tools/odds-scanner" ] && \
+            cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
+          echo "Staged files: $(find _site -type f | wc -l)"
+
+      - name: Deploy all pages to gh-pages (single push — no race condition)
+        if: env.NO_DEPLOY != 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          publish_branch: gh-pages
+          destination_dir: .
+          keep_files: true
 
       - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
         if: env.NO_DEPLOY != 'true'

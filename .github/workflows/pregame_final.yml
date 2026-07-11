@@ -345,8 +345,183 @@ jobs:
           echo "Distributions + Pricer pages generated for ${GAME_DATE}"
         continue-on-error: true
 
+      - name: Data gate — block deployment if final PMFs have 0 players
+        id: final-data-gate
+        run: |
+          python - <<'PYEOF'
+          import sys, os, pathlib
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[FINAL GATE SKIP] pandas not available — skipping player count check")
+              sys.exit(0)
+
+          game_date = os.environ.get("GAME_DATE", "")
+          github_env = os.environ.get("GITHUB_ENV", "")
+          pmfs_path = pathlib.Path("deliveries/tonight/full_pmfs_wide.parquet")
+
+          def set_no_deploy():
+              if github_env:
+                  with open(github_env, "a") as fh:
+                      fh.write("NO_DEPLOY=true\n")
+              print("[FINAL GATE] NO_DEPLOY=true written to GITHUB_ENV")
+
+          if pmfs_path.exists():
+              df = pd.read_parquet(pmfs_path)
+              n = len(df)
+              print(f"[FINAL GATE] full_pmfs_wide.parquet has {n} player rows")
+              if n == 0:
+                  print("ERROR: PMF output has 0 players — no games scheduled or pipeline failed.")
+                  print("       Aborting deployment (NO_DEPLOY=true).")
+                  set_no_deploy()
+                  sys.exit(1)
+              print(f"[FINAL GATE] PASS: {n} player rows present")
+          else:
+              print(f"[FINAL GATE] SKIP: {pmfs_path} not found — no games today or pipeline failed.")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: true
+
+      - name: Prediction drift monitor (final)
+        id: drift-monitor-final
+        run: |
+          python - <<'PYEOF'
+          import sys, os, json
+          import pathlib
+          from datetime import datetime, timezone
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[DRIFT SKIP] pandas not available — skipping drift monitor")
+              sys.exit(0)
+
+          game_date = os.environ.get("GAME_DATE", "")
+          edges_path = pathlib.Path("deliveries/tonight/publishable_edges.parquet")
+          audit_dir = pathlib.Path("artifacts/audits")
+          github_env = os.environ.get("GITHUB_ENV", "")
+
+          STAT_COLS = ["pts", "reb", "ast", "fg3m"]
+          OVERALL_LOW  = 0.15
+          OVERALL_HIGH = 0.70
+          STAT_LOW     = 0.05
+          STAT_HIGH    = 0.85
+
+          if not edges_path.exists():
+              print(f"[DRIFT] No publishable_edges.parquet at {edges_path} — "
+                    "no games today or edge report failed. Skipping drift monitor.")
+              sys.exit(0)
+
+          df = pd.read_parquet(edges_path)
+          if df.empty:
+              print("[DRIFT] Edge report is empty (no bettable props). Skipping drift monitor.")
+              sys.exit(0)
+
+          def compute_pct_over(subset):
+              if "direction" in subset.columns:
+                  n_over = (subset["direction"].str.upper() == "OVER").sum()
+              elif "p_over" in subset.columns:
+                  n_over = (subset["p_over"] > 0.5).sum()
+              elif "edge_pp" in subset.columns:
+                  n_over = (subset["edge_pp"] > 0).sum()
+              else:
+                  return None
+              return n_over / len(subset) if len(subset) > 0 else None
+
+          overall_pct = compute_pct_over(df)
+          if overall_pct is None:
+              print("[DRIFT] Cannot determine OVER/UNDER direction — skipping drift monitor.")
+              sys.exit(0)
+
+          stat_col = next((c for c in ["stat", "market", "prop_type"] if c in df.columns), None)
+          stat_results = {}
+          alerts = []
+
+          print(f"[DRIFT] ============= Final Prediction Drift Monitor =============")
+          print(f"[DRIFT] Total bettable props: {len(df)}")
+          print(f"[DRIFT] Overall %%OVER: {overall_pct:.1%} "
+                f"(thresholds: <{OVERALL_LOW:.0%} or >{OVERALL_HIGH:.0%})")
+
+          if overall_pct < OVERALL_LOW or overall_pct > OVERALL_HIGH:
+              alerts.append(f"overall: {overall_pct:.1%}")
+              print(f"\n{'='*60}")
+              print(f"WARNING: OVERALL %%OVER = {overall_pct:.1%} is OUTSIDE normal range "
+                    f"[{OVERALL_LOW:.0%}, {OVERALL_HIGH:.0%}]")
+              print(f"{'='*60}\n")
+          else:
+              print(f"[DRIFT] Overall %%OVER OK: {overall_pct:.1%}")
+
+          if stat_col:
+              for stat in STAT_COLS:
+                  sub = df[df[stat_col].str.lower() == stat] if len(df) > 0 else df
+                  if len(sub) == 0:
+                      print(f"[DRIFT]   {stat}: no rows (not in today's slate)")
+                      continue
+                  pct = compute_pct_over(sub)
+                  if pct is None:
+                      continue
+                  stat_results[stat] = {"pct_over": round(float(pct), 4), "n": int(len(sub))}
+                  flag = ""
+                  if pct < STAT_LOW or pct > STAT_HIGH:
+                      alerts.append(f"{stat}: {pct:.1%}")
+                      flag = " <== DRIFT ALERT"
+                      print(f"[DRIFT]   {stat}: %%OVER={pct:.1%} (n={len(sub)}) "
+                            f"OUTSIDE [{STAT_LOW:.0%}, {STAT_HIGH:.0%}]{flag}")
+                  else:
+                      print(f"[DRIFT]   {stat}: %%OVER={pct:.1%} (n={len(sub)}) OK")
+          else:
+              print("[DRIFT] No stat column found — skipping per-stat breakdown")
+
+          drift_alert = len(alerts) > 0
+
+          if drift_alert:
+              print(f"\n{'!'*60}")
+              print(f"DRIFT_ALERT TRIGGERED — affected: {', '.join(alerts)}")
+              print(f"Model is still deploying. Review calibrators and bias corrections.")
+              print(f"{'!'*60}\n")
+              if github_env:
+                  with open(github_env, "a") as fh:
+                      fh.write("DRIFT_ALERT=true\n")
+
+              audit_dir.mkdir(parents=True, exist_ok=True)
+              report = {
+                  "generated_at": datetime.now(timezone.utc).isoformat(),
+                  "game_date": game_date,
+                  "pipeline": "pregame_final",
+                  "overall_pct_over": round(float(overall_pct), 4),
+                  "overall_n": int(len(df)),
+                  "thresholds": {
+                      "overall_low": OVERALL_LOW, "overall_high": OVERALL_HIGH,
+                      "stat_low": STAT_LOW, "stat_high": STAT_HIGH,
+                  },
+                  "stat_results": stat_results,
+                  "alerts": alerts,
+              }
+              date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
+              out_path = audit_dir / f"drift_alert_final_{date_tag}.json"
+              out_path.write_text(json.dumps(report, indent=2))
+              print(f"[DRIFT] Alert report written to {out_path}")
+          else:
+              print("[DRIFT] No drift detected. All stats within normal ranges.")
+
+          print("[DRIFT] ============= Final Drift Monitor Complete =============")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: true
+
+      - name: Upload final drift alert artifact
+        if: env.DRIFT_ALERT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-alert-final-${{ env.GAME_DATE }}-${{ github.run_number }}
+          path: artifacts/audits/drift_alert_final_*.json
+          retention-days: 30
+
       - name: Stage all outputs for single gh-pages deploy
-        if: steps.data-gate.outputs.has_data == 'true'
+        if: steps.data-gate.outputs.has_data == 'true' && env.NO_DEPLOY != 'true'
         run: |
           # Consolidate every output directory into _site so we make exactly
           # one push to gh-pages — eliminates all push race conditions.
@@ -368,7 +543,7 @@ jobs:
           echo "Staged files: $(find _site -type f | wc -l)"
 
       - name: Deploy all pages to gh-pages (single push — no race condition)
-        if: steps.data-gate.outputs.has_data == 'true'
+        if: steps.data-gate.outputs.has_data == 'true' && env.NO_DEPLOY != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -378,6 +553,7 @@ jobs:
           keep_files: true
 
       - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
+        if: env.NO_DEPLOY != 'true'
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
