@@ -822,3 +822,15 @@ jobs:
           path: data/oof/oof_player_stat_pmfs.parquet
           retention-days: 90
           overwrite: true
+
+      - name: Auto-trigger pregame pipeline with fresh calibrators
+        # Fires pregame_initial.yml immediately after a successful calibration
+        # run so the new .pkl calibrators are live for tonight's slate.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Calibration succeeded — triggering pregame pipeline..."
+          gh workflow run pregame_initial.yml --ref main \
+            --repo "${{ github.repository }}"
+          echo "Pregame pipeline triggered."
