@@ -706,7 +706,40 @@ def _build_marginalized_pmf_matrix(
             # inflating reb/ast/fg3m/turnover predictions by 3–6×.
             baseline = stat_means if stat_means is not None else q50_mins
             scaled_means = (baseline * scale).clip(1e-9)
-            if model is None:
+
+            # ast: apply role-stratified zero-inflation (ZINB) to handle the large
+            # spike of 0-assist games for bench/fringe players. Without this, the NB
+            # is fitted to the zero-inflated population, dragging the effective mean
+            # down and generating persistent UNDER bias on positive assist lines.
+            if stat == "ast" and roles is not None:
+                _AST_ZERO_INFLATION = {
+                    "starter": 0.10, "core": 0.12, "rotation": 0.20,
+                    "bench": 0.32, "fringe": 0.40, "inactive_risk": 0.50,
+                }
+                pmf_i = np.zeros((n, cap + 1))
+                r_ast_default = 2.0
+                if model is not None:
+                    r_ast_default = getattr(model, "dispersion_r", None) or (
+                        model.get_dispersion(str(roles[0])) if hasattr(model, "get_dispersion") else 2.0
+                    ) or 2.0
+                for i in range(n):
+                    role = str(roles[i])
+                    pi_zero = _AST_ZERO_INFLATION.get(role, 0.20)
+                    # Rescale NB mean upward so unconditional E[Y] matches scaled_means[i]
+                    mu_nb = float(scaled_means[i]) / max(1.0 - pi_zero, 0.1)
+                    r_i = r_ast_default
+                    if model is not None and hasattr(model, "get_dispersion"):
+                        r_val = model.get_dispersion(role)
+                        if r_val is not None:
+                            r_i = r_val
+                    nb_pmf = negbinom_pmf_batch(np.array([mu_nb]), float(r_i), cap)[0]
+                    zinb = np.zeros(cap + 1)
+                    zinb[0] = pi_zero + (1.0 - pi_zero) * nb_pmf[0]
+                    zinb[1:] = (1.0 - pi_zero) * nb_pmf[1:]
+                    total = zinb.sum()
+                    pmf_i[i] = zinb / total if total > 0 else zinb
+
+            elif model is None:
                 pmf_i = poisson_pmf_batch(scaled_means, cap)
             elif roles is not None and getattr(model, "_role_dispersion", None):
                 pmf_i = np.zeros((n, cap + 1))
