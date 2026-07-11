@@ -11,7 +11,7 @@ on:
   # IMPORTANT: Do NOT add a branches filter here — schedule-triggered workflows do not populate
   # github.event.workflow_run.head_branch, so the branches filter silently prevents firing.
   workflow_run:
-    workflows: ["Daily WNBA PMF Pipeline"]
+    workflows: ["Daily WNBA PMF Pipeline", "Weekly OOF Refresh & Calibration"]
     types: [completed]
   # Safety-net crons: run 30 min after each daily_pipeline cron (10 UTC and 14 UTC)
   # so we still publish even if the explicit workflow dispatch somehow fails.
@@ -29,6 +29,11 @@ on:
 jobs:
   pregame_initial:
     runs-on: ubuntu-latest
+    # When triggered via workflow_run (daily pipeline or weekly calibration),
+    # only proceed if the upstream workflow succeeded.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     concurrency:
       group: pregame-initial-${{ github.event.inputs.game_date || 'scheduled' }}
       cancel-in-progress: false
