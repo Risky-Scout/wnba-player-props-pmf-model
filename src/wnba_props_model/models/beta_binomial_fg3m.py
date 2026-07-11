@@ -28,7 +28,7 @@ class BetaBinomialFg3mModel:
     """
 
     LEAGUE_3PT_PCT: float = 0.325
-    PRIOR_STRENGTH: int = 50  # equivalent prior attempts
+    PRIOR_STRENGTH: int = 10  # equivalent prior attempts
 
     def __init__(self) -> None:
         self.attempts_model: HistGradientBoostingRegressor | None = None
@@ -48,6 +48,8 @@ class BetaBinomialFg3mModel:
             X = df[available].fillna(0).values
             y = df["fg3a"].values
             self.attempts_model = HistGradientBoostingRegressor(
+                loss="quantile",
+                quantile=0.5,
                 max_iter=300, learning_rate=0.05, max_depth=5,
                 min_samples_leaf=10, early_stopping=True,
                 n_iter_no_change=10, random_state=42,

@@ -584,6 +584,39 @@ def _build_pmf_matrix(
             pmf_mat[i] = negbinom_pmf_batch(stat_means[i:i+1], r_i, cap)[0]
         return pmf_mat
 
+    # AST: role-aware ZINB zero-inflation to correct systematic UNDER bias.
+    # Bench/fringe players get 0 assists in ~30-40% of games; starters ~10-15%.
+    # Only fires when ast is NOT handled by an explicit hurdle/ZINB model above.
+    if stat == "ast" and roles is not None:
+        ROLE_ZERO_INFLATION: dict[str, float] = {
+            "starter": 0.10,
+            "core": 0.12,
+            "rotation": 0.20,
+            "bench": 0.32,
+            "fringe": 0.40,
+            "inactive_risk": 0.50,
+        }
+        n = len(stat_means)
+        pmf_mat = np.zeros((n, cap + 1))
+        for i in range(n):
+            role = str(roles[i])
+            pi_zero = ROLE_ZERO_INFLATION.get(role, 0.20)
+            # E[Y] = (1 - pi_zero) * mu_nb  →  mu_nb = stat_means[i] / (1 - pi_zero)
+            mu_nb = float(stat_means[i]) / max(1.0 - pi_zero, 0.1)
+            r_ast = 2.0
+            if model is not None and hasattr(model, "get_dispersion"):
+                r_val = model.get_dispersion(role)
+                if r_val:
+                    r_ast = float(r_val)
+            nb_pmf = negbinom_pmf_batch(np.array([mu_nb]), r_ast, cap)[0]
+            # ZINB: P(Y=0) = pi_zero + (1-pi_zero)*P_NB(0); P(Y=k>0) = (1-pi_zero)*P_NB(k)
+            zinb = np.zeros(cap + 1)
+            zinb[0] = pi_zero + (1.0 - pi_zero) * nb_pmf[0]
+            zinb[1:] = (1.0 - pi_zero) * nb_pmf[1:]
+            zinb /= zinb.sum()
+            pmf_mat[i] = zinb
+        return pmf_mat
+
     # Role-aware NegBinom batching: star players have fatter tails than bench.
     if roles is not None and getattr(model, "_role_dispersion", None):
         n = len(stat_means)
