@@ -94,11 +94,17 @@ class StatRateModel:
         use_offset = self.cfg.get("use_minutes_offset", False)
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
-        # Use squared_error loss so Stage A predicts E[Y] (the mean), which is
-        # the correct parameterisation for the NegBinom PMF generation.  The old
-        # quantile(0.5) targeted the conditional median, causing systematic
-        # under-prediction for right-skewed WNBA distributions (mean > median).
-        hgb_loss = hgb_kw.get("loss", "squared_error")
+        # For pts/reb/ast (right-skewed count stats), override HGB loss to quantile=0.5
+        # so the model predicts the conditional MEDIAN rather than the conditional MEAN.
+        # Market lines are priced at the conditional median; predicting the mean (which
+        # exceeds the median for right-skewed data) causes systematic UNDER bias because
+        # the PMF center sits above the market line anchor.
+        # fg3m/stl/blk/turnover are handled by ZINB/Beta-Binomial — keep squared_error.
+        _COUNT_STATS_MEDIAN = {"pts", "reb", "ast"}
+        if self.stat in _COUNT_STATS_MEDIAN:
+            hgb_loss = "quantile"
+        else:
+            hgb_loss = hgb_kw.get("loss", "squared_error")
         hgb_mdl_kw: dict = dict(
             loss=hgb_loss,
             max_iter=hgb_kw.get("max_iter", 200),
@@ -111,7 +117,8 @@ class StatRateModel:
             random_state=seed,
         )
         if hgb_loss == "quantile":
-            hgb_mdl_kw["quantile"] = hgb_kw.get("quantile", 0.5)
+            # For stat-specific override use 0.5; for config-specified quantile keep config value
+            hgb_mdl_kw["quantile"] = 0.5 if self.stat in _COUNT_STATS_MEDIAN else hgb_kw.get("quantile", 0.5)
         self._model = HistGradientBoostingRegressor(**hgb_mdl_kw)
         # Drop all-NaN columns to prevent sklearn BinMapper crash on early-season data
         all_nan = [c for c in X.columns if X[c].isna().all()]
@@ -206,9 +213,17 @@ class StatRateModel:
         # P3.1: Mean-dependent dispersion r(mu) via log-linear fit
         # r_approx(i) = mu_hat(i)^2 / max(y(i) - mu_hat(i), 0.01)
         # log(r_approx) ~ beta0 + beta1 * log(mu_hat)  →  r(mu) = exp(beta0 + beta1*log(mu))
+        # NOTE: Skipped for pts/reb/ast when using quantile=0.5 loss — mu_hat is the
+        # conditional median, not the mean. The formula r_approx = mu^2/(y-mu) assumes
+        # mu_hat is a mean estimator; with median, ~50% of (y - mu_hat) are negative
+        # (clamped to 0.01), producing badly inflated r_approx values. These stats fall
+        # through to role-stratified dispersion estimated from actual y moments (correct).
         self._dispersion_slope: float | None = None
         self._dispersion_intercept: float | None = None
-        if self.cfg.get("use_mean_dependent_dispersion", False) and self._model is not None:
+        _uses_quantile_loss = (hgb_loss == "quantile")
+        if (not _uses_quantile_loss
+                and self.cfg.get("use_mean_dependent_dispersion", False)
+                and self._model is not None):
             try:
                 X_pred_fit = X.reindex(columns=self._usable_cols)
                 mu_hat = np.clip(self._model.predict(X_pred_fit), 0.01, None)
@@ -227,7 +242,9 @@ class StatRateModel:
         # Trained only when mean-dependent dispersion is not already providing a
         # per-instance r.  Gives player-specific, context-specific dispersion that
         # adapts to opponent defense consistency, back-to-back fatigue, etc.
-        if self._model is not None and len(X) >= 200:
+        # Skipped for quantile-loss stats (pts/reb/ast) — same median-vs-mean issue
+        # as mean-dependent dispersion; role-stratified r from actual moments is used instead.
+        if not _uses_quantile_loss and self._model is not None and len(X) >= 200:
             try:
                 X_pred_disp = X.reindex(columns=self._usable_cols)
                 mu_hat = np.clip(self._model.predict(X_pred_disp), 0.01, None)

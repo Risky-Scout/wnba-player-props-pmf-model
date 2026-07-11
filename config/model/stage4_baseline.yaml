@@ -82,6 +82,11 @@ model_artifact_dir: artifacts/models/stage4_baseline
 pmf_source: stage4_baseline_uncalibrated_model_only
 sample_weight_halflife_days: 45
 hgb_regressor:
+  # Default loss for fg3m, turnover (mean prediction, used by ZINB/BB auxiliary models).
+  # RUNTIME OVERRIDE: pts, reb, ast use loss=quantile with quantile=0.5 (median
+  # prediction) regardless of this setting. Market lines are priced at the conditional
+  # median; predicting the mean (> median for right-skewed count data) causes systematic
+  # UNDER bias. See StatRateModel.fit() in rate_model.py for the override logic.
   loss: squared_error
   max_iter: 150
   max_leaf_nodes: 63
