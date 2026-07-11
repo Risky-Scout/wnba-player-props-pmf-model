@@ -94,6 +94,14 @@ _MIN_K: float = 3.0
 # Maximum k: if variance is very high, cap shrinkage strength
 _MAX_K: float = 50.0
 
+# Adaptive K_BASE shrinkage: decay factor λ for form divergence.
+# K_BASE_adaptive = K_BASE * exp(-λ * |L5_mean - season_mean| / max(L10_std, 0.5))
+# At λ=2.0: 1-std divergence → ~86% of K, 2-std → ~75% of K, 3-std → ~55% of K.
+# Meaningful role changes reduce shrinkage; noise stays near K_BASE.
+_ADAPTIVE_SHRINKAGE_LAMBDA: float = 2.0
+# Log a message when K_BASE is reduced by more than this fraction
+_ADAPTIVE_SHRINKAGE_LOG_THRESHOLD: float = 0.30
+
 
 @dataclass
 class GammaPrior:
@@ -473,16 +481,27 @@ if _shrinkage_params_path.exists():
         logger.warning("Failed to load fitted K_BASE: %s", _kbase_exc)
 
 
-def compute_shrinkage_alpha(n_eff: float, stat: str, position: str | None = None) -> float:
+def compute_shrinkage_alpha(
+    n_eff: float,
+    stat: str,
+    position: str | None = None,
+    k_override: float | None = None,
+) -> float:
     """Compute continuous shrinkage alpha via role-weighted effective-n.
 
     Replaces the hard `if n_games >= _MIN_GAMES_FOR_FULL_CONFIDENCE: alpha = 0.0`
     bypass with a smooth k / (k + n_eff) decay.  Position adjustments ensure guards
     are shrunk harder for blk (rarely block) and centers less so.
 
+    Parameters
+    ----------
+    k_override : float, optional
+        When provided (e.g. from adaptive K_BASE shrinkage), this value is used
+        as the base k instead of K_BASE[stat].  Position adjustments still apply.
+
     Returns alpha in [0, 1]: 0 = no shrinkage (trust model), 1 = full prior.
     """
-    k = K_BASE.get(stat, 10.0)
+    k = k_override if k_override is not None else K_BASE.get(stat, 10.0)
     if position == "G" and stat == "blk":
         k *= 2.0
     elif position == "C" and stat == "blk":
@@ -631,6 +650,39 @@ def apply_bayesian_shrinkage(
             else:
                 player_mean_minutes[int(pid)] = 20.0
 
+    # -------------------------------------------------------------------
+    # Adaptive K_BASE: build per-(player, stat) divergence from features.
+    # Divergence = |L5_mean - season_mean| / max(L10_std, 0.5).
+    # When a player's recent 5-game form diverges strongly from their
+    # season baseline, K_BASE is decayed: K_adaptive = K_BASE * exp(-λ * div).
+    # Falls back to divergence=0.0 (no K change) when columns are absent.
+    # -------------------------------------------------------------------
+    _BASE_STATS_DIVERGENCE = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+    player_stat_divergence: dict[tuple[int, str], float] = {}
+    if features is not None and "player_id" in features.columns:
+        for _div_pid, _div_grp in features.groupby("player_id"):
+            _last = _div_grp.iloc[-1]
+            for _div_stat in _BASE_STATS_DIVERGENCE:
+                _l5_col   = f"player_{_div_stat}_mean_l5"
+                _sea_col  = f"player_{_div_stat}_mean_season"
+                _std_col  = f"player_{_div_stat}_std_l10"
+                try:
+                    _l5  = _last[_l5_col]  if _l5_col  in features.columns else None
+                    _sea = _last[_sea_col] if _sea_col in features.columns else None
+                    _std = _last[_std_col] if _std_col in features.columns else None
+                    if _l5 is None or _sea is None:
+                        continue
+                    _l5_f   = float(_l5)
+                    _sea_f  = float(_sea)
+                    _std_f  = float(_std) if (_std is not None and not (isinstance(_std, float) and math.isnan(_std))) else 0.5
+                    if not math.isfinite(_l5_f) or not math.isfinite(_sea_f) or _sea_f < 0:
+                        continue
+                    _std_eff = max(_std_f, 0.5)
+                    _div_val = abs(_l5_f - _sea_f) / _std_eff
+                    player_stat_divergence[(int(_div_pid), _div_stat)] = _div_val
+                except Exception:
+                    pass
+
     # Apply player_role_overrides (e.g. from role_bucket_override in player_form_corrections)
     # so that the shrinkage prior uses the correct role-stratified mean, not the raw features value.
     if player_role_overrides:
@@ -663,7 +715,21 @@ def apply_bayesian_shrinkage(
         mean_min  = player_mean_minutes.get(pid, 20.0)
         position  = player_position.get(pid, "F")
         n_eff     = compute_effective_n(n_games, mean_min)
-        alpha     = compute_shrinkage_alpha(n_eff, stat, position)
+
+        # Adaptive K_BASE: reduce shrinkage when player's recent L5 form diverges
+        # from their season baseline, indicating a genuine role/usage change.
+        _k_base = K_BASE.get(stat, 10.0)
+        _divergence = player_stat_divergence.get((pid, stat), 0.0)
+        _k_adaptive = _k_base * math.exp(-_ADAPTIVE_SHRINKAGE_LAMBDA * _divergence)
+        _k_adaptive = max(_k_adaptive, _MIN_K)
+        if _k_adaptive < _k_base * (1.0 - _ADAPTIVE_SHRINKAGE_LOG_THRESHOLD):
+            _player_name = str(row.get("player_name", pid))
+            logger.info(
+                "Shrinkage reduced for %s %s: K=%.1f → %.1f (divergence=%.2f)",
+                _player_name, stat, _k_base, _k_adaptive, _divergence,
+            )
+
+        alpha     = compute_shrinkage_alpha(n_eff, stat, position, k_override=_k_adaptive)
 
         # Enhancement 10: adjust k by season-phase multiplier.
         # Force "mid" phase if the season has enough games played (>25 total team
@@ -675,7 +741,7 @@ def apply_bayesian_shrinkage(
         phase_mult = _PHASE_MULT.get(phase, 1.0)
         # Apply phase multiplier to effective n (more shrinkage early, less late)
         n_eff_phased = n_eff / phase_mult  # dividing n_eff → higher alpha early
-        alpha = compute_shrinkage_alpha(n_eff_phased, stat, position)
+        alpha = compute_shrinkage_alpha(n_eff_phased, stat, position, k_override=_k_adaptive)
 
         # No hard bypass — continuous alpha naturally approaches 0 for large n_eff
         if alpha < 0.005:
@@ -740,8 +806,10 @@ def apply_bayesian_shrinkage(
         r["median"]            = new_median
         r["mode"]              = new_mode
         r["p0"]                = round(new_p0, 6)
-        r["shrinkage_alpha"]   = round(alpha, 4)
-        r["shrinkage_k"]       = round(K_BASE.get(stat, 10.0), 4)
+        r["shrinkage_alpha"]       = round(alpha, 4)
+        r["shrinkage_k"]           = round(_k_adaptive, 4)
+        r["shrinkage_k_base"]      = round(_k_base, 4)
+        r["shrinkage_divergence"]  = round(_divergence, 4)
         r["n_games_sample"]    = n_games
         r["posterior_lambda_mean"] = round(new_mean, 4)
         r["credible_interval_width"] = round(ci_width, 4) if math.isfinite(ci_width) else None
