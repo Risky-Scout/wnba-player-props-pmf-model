@@ -261,6 +261,123 @@ jobs:
           PYEOF
         continue-on-error: true
 
+      - name: Data schema & freshness tripwire
+        id: schema-tripwire
+        run: |
+          python - <<'PYEOF'
+          import sys, os, json
+          import pathlib
+          from datetime import datetime, timezone
+
+          CRITICAL_FEATURES = [
+              "player_pts_mean_l5",
+              "player_minutes_mean_l5",
+              "projected_minutes_proxy",
+              "role_status",
+              "player_reb_mean_l5",
+              "player_ast_mean_l5",
+              "player_fg3m_mean_l5",
+              "season_avg_pts",
+              "season_avg_min",
+              "opp_def_rating",
+          ]
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[TRIPWIRE SKIP] pandas not available — skipping schema tripwire")
+              sys.exit(0)
+
+          game_date = os.environ.get("GAME_DATE", "")
+          slate_path = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
+          feature_path = pathlib.Path("data/processed/wnba_player_game_features_wide.parquet")
+          props_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          github_env = os.environ.get("GITHUB_ENV", "")
+
+          def set_no_deploy():
+              if github_env:
+                  with open(github_env, "a") as fh:
+                      fh.write("NO_DEPLOY=true\n")
+              print("[TRIPWIRE] NO_DEPLOY=true written to GITHUB_ENV")
+
+          # ------------------------------------------------------------------
+          # Check 1: Player count on slate
+          # ------------------------------------------------------------------
+          if slate_path.exists():
+              slate = pd.read_parquet(slate_path)
+              n_players = len(slate)
+              print(f"[TRIPWIRE] Check 1 — Slate players found: {n_players} ({slate_path})")
+              if n_players == 0:
+                  print("ERROR: Slate has 0 players. No games scheduled or BDL slate build failed.")
+                  print("       Aborting deployment (NO_DEPLOY=true).")
+                  set_no_deploy()
+                  sys.exit(1)
+              print(f"[TRIPWIRE] Check 1 PASS: {n_players} players on slate")
+          else:
+              print(f"[TRIPWIRE] Check 1 SKIP: Slate not found at {slate_path} — no games today or "
+                    "slate build failed. Pipeline will fall back to historical features.")
+
+          # ------------------------------------------------------------------
+          # Check 2: Odds props market lines
+          # ------------------------------------------------------------------
+          if props_path.exists():
+              props = pd.read_parquet(props_path)
+              n_props = len(props)
+              print(f"[TRIPWIRE] Check 2 — Odds props rows: {n_props}")
+              if n_props == 0:
+                  print("[WARN] Odds API returned 0 props with market lines. "
+                        "Books may not have posted lines yet. Continuing without halt.")
+              else:
+                  print(f"[TRIPWIRE] Check 2 PASS: {n_props} props with market lines")
+          else:
+              print(f"[WARN] Check 2 SKIP: Odds props parquet not found at {props_path}. "
+                    "Books may not have posted lines yet. Continuing.")
+
+          # ------------------------------------------------------------------
+          # Check 3: Critical feature columns
+          # ------------------------------------------------------------------
+          check_path = slate_path if slate_path.exists() else feature_path
+          if check_path.exists():
+              feat_df = pd.read_parquet(check_path)
+              missing = [c for c in CRITICAL_FEATURES if c not in feat_df.columns]
+              if missing:
+                  print(f"ERROR: Missing {len(missing)} critical feature column(s): {missing}")
+                  print("       This likely indicates a schema regression in build_features.py.")
+                  print("       Aborting deployment (NO_DEPLOY=true).")
+                  set_no_deploy()
+                  sys.exit(1)
+              print(f"[TRIPWIRE] Check 3 PASS: All {len(CRITICAL_FEATURES)} critical features present")
+          else:
+              print(f"[WARN] Check 3 SKIP: Neither slate nor feature matrix found — "
+                    "cannot validate feature columns")
+
+          # ------------------------------------------------------------------
+          # Check 4: Data freshness (training data age)
+          # ------------------------------------------------------------------
+          if feature_path.exists():
+              feat = pd.read_parquet(feature_path)
+              date_col = next((c for c in ["game_date", "date", "game_dt"] if c in feat.columns), None)
+              if date_col:
+                  latest_ts = pd.to_datetime(feat[date_col]).max()
+                  age_days = (datetime.now(timezone.utc) - latest_ts.replace(tzinfo=timezone.utc)).days
+                  print(f"[TRIPWIRE] Check 4 — Most recent game in training data: "
+                        f"{latest_ts.date()} ({age_days} day(s) old)")
+                  if age_days > 14:
+                      print(f"[WARN] Training data is {age_days} days old (>14 days threshold). "
+                            f"Last game: {latest_ts.date()}. Check BDL history pull step.")
+                  else:
+                      print(f"[TRIPWIRE] Check 4 PASS: Training data is {age_days} day(s) old (<=14)")
+              else:
+                  print("[WARN] Check 4 SKIP: No date column found in feature matrix")
+          else:
+              print("[WARN] Check 4 SKIP: Feature matrix not found — skipping freshness check")
+
+          print("[TRIPWIRE] All schema & freshness checks complete.")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: true
+
       - name: Generate pre-game PMF projections
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -343,6 +460,146 @@ jobs:
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --edge-threshold 0.0
         continue-on-error: true
+
+      - name: Prediction drift monitor
+        id: drift-monitor
+        run: |
+          python - <<'PYEOF'
+          import sys, os, json
+          import pathlib
+          from datetime import datetime, timezone
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[DRIFT SKIP] pandas not available — skipping drift monitor")
+              sys.exit(0)
+
+          game_date = os.environ.get("GAME_DATE", "")
+          edges_path = pathlib.Path("deliveries/tonight/publishable_edges.parquet")
+          audit_dir = pathlib.Path("artifacts/audits")
+          github_env = os.environ.get("GITHUB_ENV", "")
+
+          STAT_COLS = ["pts", "reb", "ast", "fg3m"]
+          OVERALL_LOW  = 0.15
+          OVERALL_HIGH = 0.70
+          STAT_LOW     = 0.05
+          STAT_HIGH    = 0.85
+
+          if not edges_path.exists():
+              print(f"[DRIFT] No publishable_edges.parquet at {edges_path} — "
+                    "no games today or edge report failed. Skipping drift monitor.")
+              sys.exit(0)
+
+          df = pd.read_parquet(edges_path)
+          if df.empty:
+              print("[DRIFT] Edge report is empty (no bettable props). Skipping drift monitor.")
+              sys.exit(0)
+
+          # Determine %OVER: prefer explicit direction column, then p_over, then edge_pp sign
+          def compute_pct_over(subset):
+              if "direction" in subset.columns:
+                  n_over = (subset["direction"].str.upper() == "OVER").sum()
+              elif "p_over" in subset.columns:
+                  n_over = (subset["p_over"] > 0.5).sum()
+              elif "edge_pp" in subset.columns:
+                  n_over = (subset["edge_pp"] > 0).sum()
+              else:
+                  return None
+              return n_over / len(subset) if len(subset) > 0 else None
+
+          overall_pct = compute_pct_over(df)
+          if overall_pct is None:
+              print("[DRIFT] Cannot determine OVER/UNDER direction — no direction/p_over/edge_pp column. "
+                    "Skipping drift monitor.")
+              sys.exit(0)
+
+          # Per-stat breakdown
+          stat_col = next((c for c in ["stat", "market", "prop_type"] if c in df.columns), None)
+
+          stat_results = {}
+          alerts = []
+
+          print(f"[DRIFT] ============= Prediction Drift Monitor =============")
+          print(f"[DRIFT] Total bettable props: {len(df)}")
+          print(f"[DRIFT] Overall %%OVER: {overall_pct:.1%} "
+                f"(thresholds: <{OVERALL_LOW:.0%} or >{OVERALL_HIGH:.0%})")
+
+          if overall_pct < OVERALL_LOW or overall_pct > OVERALL_HIGH:
+              alerts.append(f"overall: {overall_pct:.1%}")
+              print(f"\n{'='*60}")
+              print(f"WARNING: OVERALL %%OVER = {overall_pct:.1%} is OUTSIDE normal range "
+                    f"[{OVERALL_LOW:.0%}, {OVERALL_HIGH:.0%}]")
+              print(f"{'='*60}\n")
+          else:
+              print(f"[DRIFT] Overall %%OVER OK: {overall_pct:.1%}")
+
+          if stat_col:
+              for stat in STAT_COLS:
+                  sub = df[df[stat_col].str.lower() == stat] if len(df) > 0 else df
+                  if len(sub) == 0:
+                      print(f"[DRIFT]   {stat}: no rows (not in today's slate)")
+                      continue
+                  pct = compute_pct_over(sub)
+                  if pct is None:
+                      continue
+                  stat_results[stat] = {"pct_over": round(float(pct), 4), "n": int(len(sub))}
+                  flag = ""
+                  if pct < STAT_LOW or pct > STAT_HIGH:
+                      alerts.append(f"{stat}: {pct:.1%}")
+                      flag = " <== DRIFT ALERT"
+                      print(f"[DRIFT]   {stat}: %%OVER={pct:.1%} (n={len(sub)}) "
+                            f"OUTSIDE [{STAT_LOW:.0%}, {STAT_HIGH:.0%}]{flag}")
+                  else:
+                      print(f"[DRIFT]   {stat}: %%OVER={pct:.1%} (n={len(sub)}) OK")
+          else:
+              print("[DRIFT] No stat column found — skipping per-stat breakdown")
+
+          drift_alert = len(alerts) > 0
+
+          if drift_alert:
+              print(f"\n{'!'*60}")
+              print(f"DRIFT_ALERT TRIGGERED — affected: {', '.join(alerts)}")
+              print(f"Model is still deploying. Review calibrators and bias corrections.")
+              print(f"{'!'*60}\n")
+              if github_env:
+                  with open(github_env, "a") as fh:
+                      fh.write("DRIFT_ALERT=true\n")
+
+              # Write JSON summary
+              audit_dir.mkdir(parents=True, exist_ok=True)
+              report = {
+                  "generated_at": datetime.now(timezone.utc).isoformat(),
+                  "game_date": game_date,
+                  "overall_pct_over": round(float(overall_pct), 4),
+                  "overall_n": int(len(df)),
+                  "thresholds": {
+                      "overall_low": OVERALL_LOW, "overall_high": OVERALL_HIGH,
+                      "stat_low": STAT_LOW, "stat_high": STAT_HIGH,
+                  },
+                  "stat_results": stat_results,
+                  "alerts": alerts,
+              }
+              date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
+              out_path = audit_dir / f"drift_alert_{date_tag}.json"
+              out_path.write_text(json.dumps(report, indent=2))
+              print(f"[DRIFT] Alert report written to {out_path}")
+          else:
+              print("[DRIFT] No drift detected. All stats within normal ranges.")
+
+          print("[DRIFT] ============= Drift Monitor Complete =============")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: true
+
+      - name: Upload drift alert artifact
+        if: env.DRIFT_ALERT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-alert-${{ env.GAME_DATE }}-${{ github.run_number }}
+          path: artifacts/audits/drift_alert_*.json
+          retention-days: 30
 
       - name: Format pre-game JSON output (blueprint S3)
         run: |
@@ -468,6 +725,7 @@ jobs:
           EOF
 
       - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
+        if: env.NO_DEPLOY != 'true'
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
