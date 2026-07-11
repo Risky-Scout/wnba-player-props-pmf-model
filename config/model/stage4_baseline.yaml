@@ -13,53 +13,53 @@ sparse_stats:
 - blk
 dispersion_r_by_role:
   pts:
-    bench: 0.6189
-    rotation: 1.1602
+    bench: 0.7035
+    rotation: 1.1975
+    core: 1.9046
     fringe: 0.3
-    starter: 2.388
-    core: 1.8034
+    starter: 2.5004
     inactive_risk: 0.3
   reb:
-    bench: 0.6639
-    rotation: 1.1197
+    bench: 0.7687
+    rotation: 1.1837
+    core: 1.6038
     fringe: 0.3
-    starter: 1.7236
-    core: 1.5217
+    starter: 1.8786
     inactive_risk: 0.3
   ast:
-    bench: 0.5308
-    rotation: 1.0507
+    bench: 0.6479
+    rotation: 1.1141
+    core: 1.6153
     fringe: 0.3
-    starter: 1.7829
-    core: 1.4693
+    starter: 1.8623
     inactive_risk: 0.3
   fg3m:
-    bench: 0.4955
-    rotation: 0.7516
+    bench: 0.5627
+    rotation: 0.8061
+    core: 0.9862
     fringe: 0.3
-    starter: 1.2033
-    core: 0.9212
+    starter: 1.2408
     inactive_risk: 0.3
   stl:
-    bench: 0.3
-    rotation: 0.6319
+    bench: 0.3192
+    rotation: 0.6367
+    core: 0.9938
     fringe: 0.3
-    starter: 1.2669
-    core: 0.9565
+    starter: 1.3274
     inactive_risk: 0.3
   blk:
     bench: 0.3
     rotation: 0.3
-    fringe: 0.3
-    starter: 0.3119
     core: 0.3
+    fringe: 0.3
+    starter: 0.3
     inactive_risk: 0.3
   turnover:
-    bench: 0.8378
-    rotation: 1.9047
+    bench: 0.9499
+    rotation: 1.9873
+    core: 3.1055
     fringe: 0.3
-    starter: 3.5137
-    core: 2.9737
+    starter: 3.732
     inactive_risk: 0.3
 pmf_support_caps:
   pts: 60
@@ -82,11 +82,6 @@ model_artifact_dir: artifacts/models/stage4_baseline
 pmf_source: stage4_baseline_uncalibrated_model_only
 sample_weight_halflife_days: 45
 hgb_regressor:
-  # Default loss for fg3m, turnover (mean prediction, used by ZINB/BB auxiliary models).
-  # RUNTIME OVERRIDE: pts, reb, ast use loss=quantile with quantile=0.5 (median
-  # prediction) regardless of this setting. Market lines are priced at the conditional
-  # median; predicting the mean (> median for right-skewed count data) causes systematic
-  # UNDER bias. See StatRateModel.fit() in rate_model.py for the override logic.
   loss: squared_error
   max_iter: 150
   max_leaf_nodes: 63
