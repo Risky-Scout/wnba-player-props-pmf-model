@@ -308,23 +308,50 @@ def _build_combo_pmf_rows(
             cap = DOMAIN_MAX.get(combo_key, DOMAIN_MAX.get(canonical_stat, 105))
 
             # Apply bivariate copula + IPF correction for two-component combos (P3.5).
-            # adjust_combo_pmf_for_correlation now returns (sum_pmf, diagnostics); IPF
+            # adjust_combo_pmf_for_correlation returns (sum_pmf, diagnostics); IPF
             # inside build_bivariate_pmf ensures joint marginals match inputs exactly,
             # so E[combo] = E[X] + E[Y] up to floating-point precision.
+            #
+            # For pts_reb_ast (trivariate "pra"): use sequential bivariate approach.
+            #   Step 1: pts_reb via IPF copula → E[pts_reb] = E[pts]+E[reb] exactly
+            #   Step 2: convolve(pts_reb, ast) → E[pra] = E[pts_reb]+E[ast] exactly
+            # Sequential convolution preserves means by construction.
             _ipf_diag: dict = {}
-            if combo_key in _COMBO_KEY_PAIRS:
+            _pos = _pos_map.get((player_id, game_id)) if _pos_map else None
+            _active_corr = corr_map
+            if corr_map_by_pos and _pos:
+                _pos_key = _pos[0].upper() if _pos else None
+                if _pos_key and _pos_key in corr_map_by_pos:
+                    _active_corr = corr_map_by_pos[_pos_key]
+                elif "all" in corr_map_by_pos:
+                    _active_corr = corr_map_by_pos["all"]
+
+            if combo_key == "pra" and all(s in component_pmfs for s in ("pts", "reb", "ast")):
+                # Sequential bivariate: pts+reb first (most correlated pair), then +ast
+                try:
+                    _pr_pmf, _pr_diag = adjust_combo_pmf_for_correlation(
+                        component_pmfs["pts"], component_pmfs["reb"],
+                        "pts", "reb", corr_map=_active_corr,
+                    )
+                    # Convolve with ast (independence: pts_reb aggregate ⊥ ast for mean)
+                    _pra_conv = np.convolve(_pr_pmf, component_pmfs["ast"])
+                    if _pra_conv.sum() > 1e-9:
+                        pmf_arr = _pra_conv / _pra_conv.sum()
+                    else:
+                        pmf_arr = _pra_conv
+                    # Merge diag from the pts+reb IPF step
+                    _ipf_diag = _pr_diag
+                    _ipf_diag["pra_method"] = "sequential_bivariate_ipf"
+                    _ipf_row_errs.append(_pr_diag.get("row_marginal_max_error", 0.0))
+                    _ipf_col_errs.append(_pr_diag.get("col_marginal_max_error", 0.0))
+                    _ipf_mean_errs.append(_pr_diag.get("combo_mean_error", 0.0))
+                except Exception as exc:
+                    logger.debug("[combo:pra] Sequential IPF failed: %s; using trivariate MC", exc)
+                    _ipf_diag = {}
+            elif combo_key in _COMBO_KEY_PAIRS:
                 s1, s2 = _COMBO_KEY_PAIRS[combo_key]
                 if s1 in component_pmfs and s2 in component_pmfs:
                     try:
-                        # Resolve position-stratified corr map if available
-                        _pos = _pos_map.get((player_id, game_id)) if _pos_map else None
-                        _active_corr = corr_map
-                        if corr_map_by_pos and _pos:
-                            _pos_key = _pos[0].upper() if _pos else None  # "Guard" → "G"
-                            if _pos_key and _pos_key in corr_map_by_pos:
-                                _active_corr = corr_map_by_pos[_pos_key]
-                            elif "all" in corr_map_by_pos:
-                                _active_corr = corr_map_by_pos["all"]
                         pmf_arr, _ipf_diag = adjust_combo_pmf_for_correlation(
                             component_pmfs[s1], component_pmfs[s2],
                             s1, s2, corr_map=_active_corr,
