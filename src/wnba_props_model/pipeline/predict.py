@@ -668,19 +668,6 @@ def predict_player_pmfs(
             except Exception as _ae:
                 logger.warning("[predict] Archetype shrinkage failed (non-fatal): %s", _ae)
 
-    # Build combo-prop PMFs from calibrated base-stat PMFs.
-    # Must happen AFTER apply_calibrators and apply_bayesian_shrinkage so that the
-    # component PMFs already reflect the correct calibrated means.  No pre-correction
-    # is needed here because the base-stat means are already calibrated.
-    combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
-    if not combo_rows.empty:
-        pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
-        logger.info(
-            "[predict] Built %d combo PMF rows from calibrated base stats (%s)",
-            len(combo_rows),
-            sorted(combo_rows["stat"].unique().tolist()),
-        )
-
     # Part C.5: Apply per-player 2026 in-season form corrections.
     # player_form_corrections_2026.json has TWO correction sources:
     #   1. flat_corrections: {"PlayerName|stat": multiplier} — residual corrections
@@ -828,6 +815,19 @@ def predict_player_pmfs(
             logger.info("[predict] Feature-based form correction applied to %d / %d PMF rows", _fc6_n, len(pmfs_long))
         except Exception as _fc6_exc:
             logger.warning("[predict] Feature-based form correction failed (non-fatal): %s", _fc6_exc)
+
+    # Build combo-prop PMFs from fully-corrected base-stat PMFs.
+    # Must happen AFTER all base-stat corrections (calibration, shrinkage, form corrections
+    # C.5 and C.6) so that component means are final.  No pre-correction is needed because
+    # the base-stat pmf_json values already reflect the correct calibrated means.
+    combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
+    if not combo_rows.empty:
+        pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
+        logger.info(
+            "[predict] Built %d combo PMF rows from fully-corrected base stats (%s)",
+            len(combo_rows),
+            sorted(combo_rows["stat"].unique().tolist()),
+        )
 
     # Part D: Apply guaranteed conformal prediction intervals.
     # conformal_predictor.pkl is fitted weekly by fit_calibrators() via ConformalPropPredictor.
