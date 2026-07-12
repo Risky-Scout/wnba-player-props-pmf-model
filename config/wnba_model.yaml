@@ -33,3 +33,36 @@ delivery:
   edge_threshold_abs: 0.04
   snapshots: ["morning", "pre_close"]
   vendors: ["draftkings", "fanduel", "caesars", "betrivers", "fanatics"]
+
+# ── Production-safe mode ──────────────────────────────────────────────────────
+# When demo_safe_mode=true, the pipeline enforces strict integrity rules:
+#   - Market features are blocked from the structural model
+#   - Calibrators cannot be applied to prediction dates before their cutoff
+#   - Unvalidated advanced features are disabled
+#   - Categories with insufficient data are labeled INSUFFICIENT_DATA
+#   - Failed categories are suppressed rather than silently passed
+#   - All model lineage fields are required in output
+#   - model_edge is never labeled as CLV
+production:
+  demo_safe_mode: true
+  fail_on_feature_leakage: true
+  fail_on_artifact_date_violation: true
+  require_model_lineage: true
+  disable_unvalidated_advanced_features: true
+  disable_market_features_in_structural_model: true
+  require_calibration_cutoff_before_prediction: true
+  allow_identity_calibration_fallback: true
+  suppress_failed_categories: true
+  mark_insufficient_categories: true
+  deterministic_seed: 20260712
+  # Market prior features (prior-game closing P(over), line, movement delta)
+  # These are lagged one game so no same-game leakage exists, but they are
+  # market-derived signals and must not enter the structural outcome model.
+  # In safe mode they are stripped before the HGB feature matrix is built.
+  strip_market_prior_features_in_safe_mode: true
+  # Minimum observations required to label a calibration category as PASS
+  min_calibration_obs: 150
+  # Quote staleness threshold (seconds) above which market_quality_status degrades
+  quote_stale_seconds: 7200
+  # Minimum edge (probability points) to call a prediction PUBLISHABLE
+  min_publishable_edge: 0.04
