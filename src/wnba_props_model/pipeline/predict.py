@@ -277,6 +277,18 @@ def _build_combo_pmf_rows(
         )
 
     combo_rows: list[dict] = []
+    # Track mean deviation for logging
+    _combo_mean_devs_before: list[float] = []
+    _combo_mean_devs_after: list[float] = []
+
+    # Component stats for each combo key (used for expected-mean computation)
+    _COMBO_COMPONENTS: dict[str, tuple[str, ...]] = {
+        "stocks": ("stl", "blk"),
+        "pa":     ("pts", "ast"),
+        "pr":     ("pts", "reb"),
+        "ra":     ("reb", "ast"),
+        "pra":    ("pts", "reb", "ast"),
+    }
 
     for (player_id, game_id), grp in pmfs_long.groupby(["player_id", "game_id"], sort=False):
         # Collect component PMF arrays indexed by stat key
@@ -344,6 +356,35 @@ def _build_combo_pmf_rows(
                     if compressed.sum() > 1e-9:
                         pmf_arr = compressed / compressed.sum()
 
+            # Enforce marginal mean integrity: E[combo] must equal sum of component means.
+            # Copula reweighting and truncation can shift the marginal mean; correct it here.
+            _combo_comp_stats = _COMBO_COMPONENTS.get(combo_key)
+            if _combo_comp_stats and pmf_arr.sum() > 1e-9:
+                _comp_means = []
+                for _cs in _combo_comp_stats:
+                    if _cs in component_pmfs:
+                        _cs_arr = component_pmfs[_cs]
+                        if _cs_arr.sum() > 1e-9:
+                            _cs_ks = np.arange(len(_cs_arr))
+                            _comp_means.append(float(_cs_ks @ _cs_arr / _cs_arr.sum()))
+                if _comp_means:
+                    _expected_mean = float(np.sum(_comp_means))
+                    _actual_mean_pre = float(np.arange(len(pmf_arr)) @ pmf_arr / pmf_arr.sum())
+                    _mean_dev_pre = abs(_actual_mean_pre - _expected_mean)
+                    _combo_mean_devs_before.append(_mean_dev_pre)
+                    if _expected_mean > 0.01 and _mean_dev_pre > 1e-4:
+                        from wnba_props_model.pipeline.calibrate import (  # noqa: PLC0415
+                            _apply_mean_bias_correction as _combo_abc,
+                        )
+                        _mean_factor = _expected_mean / max(_actual_mean_pre, 1e-9)
+                        pmf_arr = _combo_abc(pmf_arr, float(_mean_factor))
+                        if pmf_arr.sum() > 1e-9:
+                            pmf_arr = pmf_arr / pmf_arr.sum()
+                        _actual_mean_post = float(np.arange(len(pmf_arr)) @ pmf_arr / max(pmf_arr.sum(), 1e-9))
+                        _combo_mean_devs_after.append(abs(_actual_mean_post - _expected_mean))
+                    else:
+                        _combo_mean_devs_after.append(_mean_dev_pre)
+
             ks = np.arange(len(pmf_arr))
             pmf_mean = float(ks @ pmf_arr)
             pmf_var  = float((ks ** 2) @ pmf_arr - pmf_mean ** 2)
@@ -387,6 +428,14 @@ def _build_combo_pmf_rows(
 
     if not combo_rows:
         return pd.DataFrame()
+    if _combo_mean_devs_before:
+        logger.info(
+            "[combo] Mean integrity correction: max_dev_before=%.6f max_dev_after=%.6f "
+            "(n=%d combos; must be < 0.02 after)",
+            float(np.max(_combo_mean_devs_before)),
+            float(np.max(_combo_mean_devs_after)) if _combo_mean_devs_after else 0.0,
+            len(_combo_mean_devs_before),
+        )
     return pd.DataFrame(combo_rows)
 
 
@@ -814,6 +863,10 @@ def predict_player_pmfs(
                 _fc6_lookup[int(_fc6_pid)] = _fc6_row_vals
 
             _fc6_new_jsons, _fc6_new_means, _fc6_n = [], [], 0
+            # Per-minute path counters for reb/ast (to verify correction fires)
+            _fc6_pm_applied: dict[str, int] = {"reb": 0, "ast": 0}
+            _fc6_pm_identity: dict[str, int] = {"reb": 0, "ast": 0}
+            _fc6_pm_factors: dict[str, list] = {"reb": [], "ast": []}
             for _, _fc6_pmf_row in pmfs_long.iterrows():
                 _fc6_stat = str(_fc6_pmf_row.get("stat", ""))
                 if _fc6_stat not in _FEAT_STATS:
@@ -841,9 +894,14 @@ def predict_player_pmfs(
                     _r_ceil      = 1.20 if _fc6_stat == "ast" else 1.18
                     _log_adj     = 0.15 * _reliability * float(np.log(np.clip(_raw_ratio, _r_floor, _r_ceil)))
                     _fc6_ratio_new = float(np.clip(np.exp(_log_adj), 0.97, 1.03))
-                    if abs(_fc6_ratio_new - 1.0) < 0.01:
+                    # Only skip if factor is floating-point-identical to 1.0 (truly a no-op).
+                    # The old 0.01 threshold caused every reb/ast row to be skipped because
+                    # max possible factor is ~0.0073 (strength=0.15 × reliability≈0.294 × ln(1.18)≈0.166).
+                    if abs(_fc6_ratio_new - 1.0) < 1e-6:
                         _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                         _fc6_new_means.append(_fc6_cur_mean)
+                        if _fc6_stat in _fc6_pm_identity:
+                            _fc6_pm_identity[_fc6_stat] += 1
                         continue
                     _fc6_arr       = _fc6_jtpmf(_fc6_pmf_row["pmf_json"])
                     _fc6_corrected = _fc6_abc(_fc6_arr, _fc6_ratio_new)
@@ -851,6 +909,9 @@ def predict_player_pmfs(
                     _fc6_new_mean  = float(np.arange(len(_fc6_corrected)) @ _fc6_corrected / max(_fc6_corrected.sum(), 1e-9))
                     _fc6_new_means.append(_fc6_new_mean)
                     _fc6_n += 1
+                    if _fc6_stat in _fc6_pm_applied:
+                        _fc6_pm_applied[_fc6_stat] += 1
+                        _fc6_pm_factors[_fc6_stat].append(_fc6_ratio_new)
                     continue
 
                 # Absolute-count blend path: pts, fg3m, stl, blk, turnover
@@ -875,6 +936,22 @@ def predict_player_pmfs(
             pmfs_long["pmf_json"]  = _fc6_new_jsons
             pmfs_long["pmf_mean"]  = _fc6_new_means
             logger.info("[predict] Feature-based form correction applied to %d / %d PMF rows", _fc6_n, len(pmfs_long))
+            for _pm_stat in ("reb", "ast"):
+                _n_adj = _fc6_pm_applied[_pm_stat]
+                _n_id  = _fc6_pm_identity[_pm_stat]
+                _facs  = _fc6_pm_factors[_pm_stat]
+                if _facs:
+                    logger.info(
+                        "[predict] C.6 per-min rate correction: %d %s rows adjusted (identity: %d) "
+                        "factor min=%.6f median=%.6f max=%.6f",
+                        _n_adj, _pm_stat, _n_id,
+                        float(np.min(_facs)), float(np.median(_facs)), float(np.max(_facs)),
+                    )
+                else:
+                    logger.info(
+                        "[predict] C.6 per-min rate correction: 0 %s rows adjusted (identity: %d)",
+                        _pm_stat, _n_id,
+                    )
         except Exception as _fc6_exc:
             logger.warning("[predict] Feature-based form correction failed (non-fatal): %s", _fc6_exc)
 
@@ -883,25 +960,26 @@ def predict_player_pmfs(
     # C.5 and C.6) so that component means are final.  No pre-correction is needed because
     # the base-stat pmf_json values already reflect the correct calibrated means.
 
-    # Uniqueness guard: deduplicate base-stat rows before combo construction to
-    # prevent doubled combo means from stale duplicate PMF rows in pmfs_long.
+    # Combo build: assert uniqueness of base-stat rows, strip stale combo rows,
+    # build combos exactly once, then assert uniqueness of final result.
     _COMBO_STATS = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks", "blk_stl"}
-    _base_only = pmfs_long[~pmfs_long["stat"].isin(_COMBO_STATS)]
-    _dup_mask = _base_only.duplicated(["player_id", "game_id", "stat"], keep=False)
+
+    # Hard error on duplicate base-stat rows — indicates a broken construction path.
+    _base_pmfs = pmfs_long[~pmfs_long["stat"].isin(_COMBO_STATS)].copy()
+    _dup_mask = _base_pmfs.duplicated(["player_id", "game_id", "stat"], keep=False)
     if _dup_mask.any():
-        logger.warning(
-            "[combo_guard] %d duplicate base PMF rows detected before combo build — "
-            "deduplicating by keeping last",
-            int(_dup_mask.sum()),
+        _dup_info = (
+            _base_pmfs.loc[_dup_mask, ["player_id", "game_id", "stat"]]
+            .sort_values(["player_id", "stat"])
         )
-        _base_deduped = pmfs_long[~pmfs_long["stat"].isin(_COMBO_STATS)].drop_duplicates(
-            ["player_id", "game_id", "stat"], keep="last"
+        raise ValueError(
+            f"[combo_guard] {int(_dup_mask.sum())} duplicate base PMF rows detected before combo build.\n"
+            "This indicates a broken construction path. Fix the upstream source.\n"
+            f"{_dup_info.to_string(index=False)}"
         )
-        _existing_combos = pmfs_long[pmfs_long["stat"].isin(_COMBO_STATS)]
-        if not _existing_combos.empty:
-            pmfs_long = pd.concat([_base_deduped, _existing_combos], ignore_index=True)
-        else:
-            pmfs_long = _base_deduped.reset_index(drop=True)
+
+    # Strip any stale combo rows from a prior build attempt before constructing fresh ones.
+    pmfs_long = pmfs_long[~pmfs_long["stat"].isin(_COMBO_STATS)].copy()
 
     combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
     if not combo_rows.empty:
@@ -910,6 +988,14 @@ def predict_player_pmfs(
             "[predict] Built %d combo PMF rows from fully-corrected base stats (%s)",
             len(combo_rows),
             sorted(combo_rows["stat"].unique().tolist()),
+        )
+
+    # Hard error if combo build introduced any duplicates.
+    _all_dup = pmfs_long.duplicated(["player_id", "game_id", "stat"], keep=False)
+    if _all_dup.any():
+        raise ValueError(
+            f"[post_combo] {int(_all_dup.sum())} duplicate PMF rows after combo build. "
+            "This must not happen."
         )
 
     # Part D: Apply guaranteed conformal prediction intervals.
