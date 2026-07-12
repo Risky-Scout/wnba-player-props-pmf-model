@@ -749,37 +749,68 @@ def predict_player_pmfs(
                 logger.warning("[predict] player_form_corrections_2026 failed (non-fatal): %s", _pfc_exc)
 
     # Part C.6: Feature-based in-season form correction (computed live from fresh BDL data).
-    # The static player_form_corrections_2026.json is computed locally with stale data.
-    # feature_df is built from fresh BDL data pulled on every pipeline run, so
-    # player_{stat}_mean_season and player_{stat}_mean_l10 reflect July games.
-    # This computes corrections live: blended_actual = 0.35*L10 + 0.65*season,
-    # and applies a multiplier where |blended_actual / pmf_mean| deviates >15%.
-    # Capped at [0.87, 1.35] to prevent overcorrection from small L10 samples.
+    # feature_df is built from fresh BDL data on every pipeline run, so stat means and
+    # per-minute rates reflect current July games.
     #
-    # C.6 is ONLY applied to pts. Reb, ast, fg3m, stl, blk, turnover are disabled
-    # because C.6 compares absolute historical counts to calibrated PMF means —
-    # this double-counts minutes and role context already embedded in the calibrators.
-    # For reb and ast specifically, this was pulling predictions 13% below market
-    # lines (0.87 floor) and causing 0% reb_ast OVER rate. Re-enable per-stat only
-    # after a per-minute-rate ablation study confirms the correction is additive.
+    # Two correction paths — stat-specific to prevent double-counting minutes:
+    #
+    # pts / fg3m / stl / blk / turnover — absolute-count blend:
+    #   blended = 0.35*L10_count + 0.65*season_count vs pmf_mean
+    #   clip [0.87, 1.35], threshold 15%.  These stats' PMF means scale linearly with
+    #   the count feature, so the ratio is structurally sound.
+    #
+    # reb / ast — per-minute rate ratio (minutes-neutral):
+    #   raw_ratio = (reb_per_min_l10) / (reb_per_min_season)
+    #   Using rate vs rate cancels the minutes term embedded in the calibrated PMF mean,
+    #   preventing the double-counting that caused 0% reb_ast OVER (the absolute-count
+    #   path hit the 0.87 floor when players had fewer recent minutes, even though the
+    #   calibrator had already accounted for those minutes).
+    #   Applied via symmetric log-space correction:
+    #     log_adj = 0.15 * reliability * log(clip(raw_ratio, floor, ceil))
+    #     factor  = clip(exp(log_adj), 0.97, 1.03)
+    #   reliability = min(L10_support,10) / (min(L10_support,10)+24)  ≈ 0.29 at full L10
+    #   Max practical effect: exp(0.15*0.29*ln(1.18)) ≈ ±0.7% per player.
+    #   Identity fallback when per-minute rates unavailable.
     if feature_df is not None and not feature_df.empty:
         try:
             from wnba_props_model.models.simulation import json_to_pmf as _fc6_jtpmf, pmf_to_json as _fc6_ptmj  # noqa: PLC0415
             from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _fc6_abc  # noqa: PLC0415
-            _FEAT_STATS = {"pts": ("player_pts_mean_l10", "player_pts_mean_season")}
-            # Build lookup: player_id → {stat → blended_actual}
+            _FEAT_STATS = {"pts":      ("player_pts_mean_l10",      "player_pts_mean_season"),
+                           "reb":      ("player_reb_mean_l10",      "player_reb_mean_season"),
+                           "ast":      ("player_ast_mean_l10",      "player_ast_mean_season"),
+                           "fg3m":     ("player_fg3m_mean_l10",     "player_fg3m_mean_season"),
+                           "stl":      ("player_stl_mean_l10",      "player_stl_mean_season"),
+                           "blk":      ("player_blk_mean_l10",      "player_blk_mean_season"),
+                           "turnover": ("player_turnover_mean_l10", "player_turnover_mean_season")}
+            # reb and ast get minutes-neutral per-minute rate correction.
+            _FC6_RATE_STATS = {"reb", "ast"}
+
+            # Build lookup: player_id → {stat → blended_actual, and per-min rates for reb/ast}
             _fc6_lookup: dict[int, dict[str, float]] = {}
             for _fc6_pid, _fc6_grp in feature_df.groupby("player_id"):
                 _fc6_row_vals: dict[str, float] = {}
                 for _fc6_stat, (_fc6_l10_col, _fc6_s_col) in _FEAT_STATS.items():
-                    _fc6_l10 = float(_fc6_grp[_fc6_l10_col].dropna().iloc[-1]) if _fc6_l10_col in _fc6_grp.columns and not _fc6_grp[_fc6_l10_col].dropna().empty else None
-                    _fc6_sea = float(_fc6_grp[_fc6_s_col].dropna().iloc[-1]) if _fc6_s_col in _fc6_grp.columns and not _fc6_grp[_fc6_s_col].dropna().empty else None
+                    _fc6_l10 = (float(_fc6_grp[_fc6_l10_col].dropna().iloc[-1])
+                                if _fc6_l10_col in _fc6_grp.columns and not _fc6_grp[_fc6_l10_col].dropna().empty
+                                else None)
+                    _fc6_sea = (float(_fc6_grp[_fc6_s_col].dropna().iloc[-1])
+                                if _fc6_s_col in _fc6_grp.columns and not _fc6_grp[_fc6_s_col].dropna().empty
+                                else None)
                     if _fc6_l10 is not None and _fc6_sea is not None:
                         _fc6_row_vals[_fc6_stat] = 0.35 * _fc6_l10 + 0.65 * _fc6_sea
                     elif _fc6_sea is not None:
                         _fc6_row_vals[_fc6_stat] = _fc6_sea
                     elif _fc6_l10 is not None:
                         _fc6_row_vals[_fc6_stat] = _fc6_l10
+                    # For reb/ast: also store pre-computed per-minute rates and support count
+                    if _fc6_stat in _FC6_RATE_STATS:
+                        for _sfx, _col in (("_per_min_l10",   f"player_{_fc6_stat}_per_min_l10"),
+                                           ("_per_min_season", f"player_{_fc6_stat}_per_min_season"),
+                                           ("_l10_support",    f"player_{_fc6_stat}_l10_support")):
+                            if _col in _fc6_grp.columns:
+                                _v = _fc6_grp[_col].dropna()
+                                if not _v.empty:
+                                    _fc6_row_vals[f"{_fc6_stat}{_sfx}"] = float(_v.iloc[-1])
                 _fc6_lookup[int(_fc6_pid)] = _fc6_row_vals
 
             _fc6_new_jsons, _fc6_new_means, _fc6_n = [], [], 0
@@ -789,9 +820,41 @@ def predict_player_pmfs(
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_pmf_row.get("pmf_mean", np.nan))
                     continue
+
                 _fc6_pid_int = int(_fc6_pmf_row.get("player_id", 0))
-                _fc6_actual = _fc6_lookup.get(_fc6_pid_int, {}).get(_fc6_stat)
+                _fc6_pid_vals = _fc6_lookup.get(_fc6_pid_int, {})
                 _fc6_cur_mean = float(_fc6_pmf_row.get("pmf_mean", 0) or 0)
+
+                if _fc6_stat in _FC6_RATE_STATS:
+                    # Minutes-neutral path for reb/ast
+                    _pm_l10  = _fc6_pid_vals.get(f"{_fc6_stat}_per_min_l10")
+                    _pm_sea  = _fc6_pid_vals.get(f"{_fc6_stat}_per_min_season")
+                    _sup     = float(_fc6_pid_vals.get(f"{_fc6_stat}_l10_support", 10) or 10)
+                    if _pm_l10 is None or _pm_sea is None or _pm_sea < 0.001 or _fc6_cur_mean < 0.1:
+                        _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
+                        _fc6_new_means.append(_fc6_cur_mean)
+                        continue
+                    _raw_ratio   = float(_pm_l10) / float(_pm_sea)
+                    # Reliability: Bayesian shrink to 1.0; k=24 → full weight at ~half-season
+                    _reliability = min(_sup, 10.0) / (min(_sup, 10.0) + 24.0)
+                    _r_floor     = 0.82 if _fc6_stat == "ast" else 0.85
+                    _r_ceil      = 1.20 if _fc6_stat == "ast" else 1.18
+                    _log_adj     = 0.15 * _reliability * float(np.log(np.clip(_raw_ratio, _r_floor, _r_ceil)))
+                    _fc6_ratio_new = float(np.clip(np.exp(_log_adj), 0.97, 1.03))
+                    if abs(_fc6_ratio_new - 1.0) < 0.01:
+                        _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
+                        _fc6_new_means.append(_fc6_cur_mean)
+                        continue
+                    _fc6_arr       = _fc6_jtpmf(_fc6_pmf_row["pmf_json"])
+                    _fc6_corrected = _fc6_abc(_fc6_arr, _fc6_ratio_new)
+                    _fc6_new_jsons.append(_fc6_ptmj(_fc6_corrected))
+                    _fc6_new_mean  = float(np.arange(len(_fc6_corrected)) @ _fc6_corrected / max(_fc6_corrected.sum(), 1e-9))
+                    _fc6_new_means.append(_fc6_new_mean)
+                    _fc6_n += 1
+                    continue
+
+                # Absolute-count blend path: pts, fg3m, stl, blk, turnover
+                _fc6_actual = _fc6_pid_vals.get(_fc6_stat)
                 if _fc6_actual is None or _fc6_actual < 0.1 or _fc6_cur_mean < 0.1:
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
@@ -801,15 +864,16 @@ def predict_player_pmfs(
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
                     continue
-                _fc6_arr = _fc6_jtpmf(_fc6_pmf_row["pmf_json"])
+                _fc6_arr       = _fc6_jtpmf(_fc6_pmf_row["pmf_json"])
                 _fc6_corrected = _fc6_abc(_fc6_arr, _fc6_ratio)
                 _fc6_new_jsons.append(_fc6_ptmj(_fc6_corrected))
-                _fc6_new_mean = float(np.arange(len(_fc6_corrected)) @ _fc6_corrected / max(_fc6_corrected.sum(), 1e-9))
+                _fc6_new_mean  = float(np.arange(len(_fc6_corrected)) @ _fc6_corrected / max(_fc6_corrected.sum(), 1e-9))
                 _fc6_new_means.append(_fc6_new_mean)
                 _fc6_n += 1
+
             pmfs_long = pmfs_long.copy()
-            pmfs_long["pmf_json"] = _fc6_new_jsons
-            pmfs_long["pmf_mean"] = _fc6_new_means
+            pmfs_long["pmf_json"]  = _fc6_new_jsons
+            pmfs_long["pmf_mean"]  = _fc6_new_means
             logger.info("[predict] Feature-based form correction applied to %d / %d PMF rows", _fc6_n, len(pmfs_long))
         except Exception as _fc6_exc:
             logger.warning("[predict] Feature-based form correction failed (non-fatal): %s", _fc6_exc)
