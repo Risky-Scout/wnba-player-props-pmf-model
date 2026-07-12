@@ -208,11 +208,23 @@ GAME_SCRIPT_FEATURES: list[str] = [
 # player_market_p_over_prev: prior game's closing no-vig P(over) for this stat
 # player_market_line_prev:   prior game's closing line value
 # player_line_movement_prev: prior game's (closing_line - opening_line) movement delta
+#
+# STRUCTURAL MODEL WARNING:
+# These features are market-derived signals. While they do not cause same-game
+# temporal leakage (they are lagged one game), they must NOT enter the structural
+# outcome model. In production-safe mode they are stripped before the HGB feature
+# matrix is built (see pipeline/safety.py:strip_market_prior_features).
+# They may be used only in an optional market-aware layer separate from the
+# structural model.
 MARKET_PRIOR_FEATURES: list[str] = [
     "player_market_p_over_prev",    # prior closing P(over) — aggregated sharp signal
     "player_market_line_prev",      # prior closing line — market consensus benchmark
     "player_line_movement_prev",    # prior (close - open) — sharp money direction signal
 ]
+
+# Market-prior features must not contaminate the structural model.
+# strip_market_prior_features() in pipeline/safety.py enforces this at runtime.
+STRUCTURAL_MODEL_FORBIDDEN_FEATURES: frozenset[str] = frozenset(MARKET_PRIOR_FEATURES)
 
 FEATURE_FAMILIES: dict[str, list[str]] = {
     "identity": IDENTITY_FEATURES,
