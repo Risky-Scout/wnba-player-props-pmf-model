@@ -134,12 +134,33 @@ def main(
     # for bettors" (lowest for OVER, highest for UNDER) naturally floats to the top
     # of the edge report when sorted by absolute edge magnitude.
     # Fair-odds filter (≥ -120 American) is applied per-side in build_edge_report.py.
-    best = (
-        df.dropna(subset=["over_odds", "under_odds"])
-        .sort_values("over_odds", ascending=False)
-        .drop_duplicates(subset=["event_id", "player_name", "market_key", "line"])
-        .reset_index(drop=True)
+    _dedup_key = ["event_id", "player_name", "market_key", "line"]
+    _valid = df.dropna(subset=["over_odds", "under_odds"])
+
+    # Compute cross-book consensus stats BEFORE deduplication so we don't lose
+    # the book count.  number_of_books_offering drives quality gates downstream
+    # (build_edge_report.py requires ≥1 book for individual stats, ≥1 for combos).
+    _cross_book = (
+        _valid.groupby(_dedup_key, sort=False)
+        .agg(
+            number_of_books_offering=("bookmaker", "nunique"),
+            best_over_odds=("over_odds", "max"),
+            best_under_odds=("under_odds", "max"),
+        )
+        .reset_index()
     )
+
+    best = (
+        _valid
+        .sort_values("over_odds", ascending=False)
+        .drop_duplicates(subset=_dedup_key)
+        .reset_index(drop=True)
+        .merge(_cross_book, on=_dedup_key, how="left")
+    )
+
+    # vendor = bookmaker key for the row with the best over_odds (for backward compat
+    # with pipeline code that expects either 'vendor' or 'bookmaker' to identify source).
+    best["vendor"] = best["bookmaker"]
 
     out_path = out / f"wnba_player_props_oddsapi_{game_date}.parquet"
     latest_path = out / "wnba_player_props_oddsapi_latest.parquet"
@@ -210,9 +231,10 @@ def _to_bdl_compat(df: pd.DataFrame) -> pd.DataFrame:
 def _write_empty(out: Path, game_date: str) -> None:
     empty = pd.DataFrame(columns=[
         "player_name", "stat", "line", "over_odds", "under_odds",
-        "bookmaker", "market_key", "event_id", "game_date",
+        "bookmaker", "vendor", "market_key", "event_id", "game_date",
         "event_link", "market_link", "outcome_link_over", "outcome_link_under",
         "market_prob_over_no_vig", "shin_z", "deep_link", "source",
+        "number_of_books_offering", "best_over_odds", "best_under_odds",
     ])
     out.mkdir(parents=True, exist_ok=True)
     empty.to_parquet(out / f"wnba_player_props_oddsapi_{game_date}.parquet", index=False)

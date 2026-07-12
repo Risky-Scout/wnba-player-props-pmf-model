@@ -53,6 +53,32 @@ from wnba_props_model.pipeline.calibrate import apply_venn_abers_calibration
 
 app = typer.Typer(add_completion=False)
 
+# Combo stats that have no per-line calibrators — assigned EXPERIMENTAL in quality gate.
+COMBO_STATS_UNCALIBRATED: frozenset[str] = frozenset({"pts_reb_ast", "reb_ast"})
+
+
+def assign_quality_status(row: "pd.Series") -> str:
+    """Three-tier quality gate for published edges.
+
+    PUBLISHABLE  — real market line, ≥1 book, calibrated stat
+    EXPERIMENTAL — no market match or projection-only or uncalibrated combo
+    WATCHLIST    — has market line but borderline (uncalibrated combo with a book)
+    """
+    line_ok = pd.notna(row.get("line"))
+    books = row.get("number_of_books_offering", 0) or 0
+    try:
+        books = int(books)
+    except (TypeError, ValueError):
+        books = 0
+    stat = row.get("stat", "")
+
+    if line_ok and books >= 1 and stat not in COMBO_STATS_UNCALIBRATED:
+        return "PUBLISHABLE"
+    elif not line_ok or books == 0:
+        return "EXPERIMENTAL"
+    else:
+        return "WATCHLIST"
+
 
 def _get_publishable_stats(cal_dir: str | Path | None) -> frozenset[str]:
     """Dynamically determine publishable stats based on calibration bias corrections.
@@ -358,12 +384,16 @@ def main(
 
     # Publishable edges: |edge| >= threshold; exclude sanity_flag=2 (already gone),
     # keep sanity_flag=1 (caution) but sort them to the bottom.
-    # Primary sort: by CLV-decay-adjusted edge (time-corrected signal);
+    # Primary sort: by model_edge (time-corrected signal, alias for clv_decay_adjusted_edge);
     # fall back to raw edge if decay column is absent.
     # Uniform threshold across individual and combo stats — no markup.
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     typer.echo(f"[filter] Edge threshold: {edge_threshold:.2%} → {len(edges)} props")
-    _sort_col = "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns else "edge_over"
+    _sort_col = (
+        "model_edge" if "model_edge" in edges.columns
+        else "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns
+        else "edge_over"
+    )
 
     # Combo props (pts_reb, pts_ast, etc.) are offered by fewer sportsbooks
     # than individual props — requiring 2 books would silently eliminate nearly
@@ -458,6 +488,11 @@ def main(
         if "kelly_units" in edges.columns:
             edges["kelly_units"] = (edges["kelly_fraction"] * 100).round(2)
 
+    # Quality gate: assign three-tier status before persisting.
+    edges["quality_status"] = edges.apply(assign_quality_status, axis=1)
+    _qs_counts = edges["quality_status"].value_counts().to_dict()
+    typer.echo(f"[quality_gate] {_qs_counts}")
+
     edges_path = out / "publishable_edges.parquet"
     edges.to_parquet(edges_path, index=False)
 
@@ -497,7 +532,12 @@ def main(
         "deep_link_coverage_pct": deep_link_pct,
         "mean_kelly_fraction": float(edges["kelly_fraction"].mean()) if "kelly_fraction" in edges.columns and len(edges) else None,
         "max_kelly_fraction": float(edges["kelly_fraction"].max()) if "kelly_fraction" in edges.columns and len(edges) else None,
-        "mean_clv_decay_edge": float(edges["clv_decay_adjusted_edge"].mean()) if "clv_decay_adjusted_edge" in edges.columns and len(edges) else None,
+        "mean_model_edge": float(
+            edges["model_edge"].mean() if "model_edge" in edges.columns
+            else edges["clv_decay_adjusted_edge"].mean() if "clv_decay_adjusted_edge" in edges.columns
+            else float("nan")
+        ) if len(edges) else None,
+        "quality_status_counts": _qs_counts,
     }
     audit_path = out / f"edge_report_{today}.json"
     audit_path.write_text(json.dumps(audit, indent=2))
