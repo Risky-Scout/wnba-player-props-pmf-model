@@ -595,23 +595,11 @@ def predict_player_pmfs(
     else:
         logger.info("combo_correlations_by_pos.json not found; using _DEFAULT_CORRELATIONS_BY_POS")
 
-    # Role-stratified bias corrections: applied BEFORE isotonic calibration so that
-    # the calibrators see role-corrected PMFs at inference — matching the conceptual
-    # training distribution.  Applying role corrections after calibration would
-    # invalidate the isotonic mapping (calibrators were fitted on PMFs before any
-    # role shift was applied).
-    # Must still run BEFORE apply_bayesian_shrinkage so shrinkage blends the
-    # corrected PMF toward the league prior.
-    if apply_calibration and cal_dir is not None:
-        _role_corr_path = Path(cal_dir) / "bias_corrections_by_role.json"
-        if _role_corr_path.exists():
-            logger.info("[predict] Applying role-stratified bias corrections from %s", _role_corr_path)
-            pmfs_long = apply_role_stratified_corrections(pmfs_long, cal_dir=cal_dir)
-
-    # CALIBRATION must run on PMFs that have already received role corrections
-    # so the isotonic calibrators see role-corrected input (matching how inference
-    # feeds them).  Shrinkage is applied AFTER calibration so it blends the
-    # already-corrected PMF toward the league prior — not the raw prediction.
+    # CALIBRATION: apply isotonic calibrators on raw PMFs first.
+    # Per the training contract the calibrators were fitted on uncorrected PMFs,
+    # so role-stratified corrections are applied afterwards as residual adjustments
+    # (calibrate → role → shrinkage). Shrinkage then blends the role-corrected PMF
+    # toward the league prior.
     if apply_calibration and cal_dir is not None:
         cal_dir = Path(cal_dir)
         if cal_dir.exists() and any(cal_dir.glob("pmf_cal_role_*.pkl")):
@@ -623,6 +611,15 @@ def predict_player_pmfs(
                 "run `python scripts/fit_calibrators.py` first.",
                 cal_dir,
             )
+
+    # Role-stratified bias corrections: applied AFTER isotonic calibration as
+    # residual role-level adjustments. Must still run BEFORE apply_bayesian_shrinkage
+    # so shrinkage blends the corrected PMF toward the league prior.
+    if apply_calibration and cal_dir is not None:
+        _role_corr_path = Path(cal_dir) / "bias_corrections_by_role.json"
+        if _role_corr_path.exists():
+            logger.info("[predict] Applying role-stratified bias corrections from %s", _role_corr_path)
+            pmfs_long = apply_role_stratified_corrections(pmfs_long, cal_dir=cal_dir)
 
     # Apply PenaltyBlog-style Bayesian shrinkage AFTER calibration so that the
     # per-player prior blend operates on the already-corrected (calibrated) PMF.
@@ -755,20 +752,21 @@ def predict_player_pmfs(
     # The static player_form_corrections_2026.json is computed locally with stale data.
     # feature_df is built from fresh BDL data pulled on every pipeline run, so
     # player_{stat}_mean_season and player_{stat}_mean_l10 reflect July games.
-    # This computes corrections live: blended_actual = 0.6*L10 + 0.4*season,
+    # This computes corrections live: blended_actual = 0.35*L10 + 0.65*season,
     # and applies a multiplier where |blended_actual / pmf_mean| deviates >15%.
-    # Capped at [0.75, 1.60] to prevent overcorrection from small L10 samples.
+    # Capped at [0.87, 1.35] to prevent overcorrection from small L10 samples.
+    #
+    # C.6 is ONLY applied to pts. Reb, ast, fg3m, stl, blk, turnover are disabled
+    # because C.6 compares absolute historical counts to calibrated PMF means —
+    # this double-counts minutes and role context already embedded in the calibrators.
+    # For reb and ast specifically, this was pulling predictions 13% below market
+    # lines (0.87 floor) and causing 0% reb_ast OVER rate. Re-enable per-stat only
+    # after a per-minute-rate ablation study confirms the correction is additive.
     if feature_df is not None and not feature_df.empty:
         try:
             from wnba_props_model.models.simulation import json_to_pmf as _fc6_jtpmf, pmf_to_json as _fc6_ptmj  # noqa: PLC0415
             from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _fc6_abc  # noqa: PLC0415
-            _FEAT_STATS = {"pts": ("player_pts_mean_l10", "player_pts_mean_season"),
-                           "reb": ("player_reb_mean_l10", "player_reb_mean_season"),
-                           "ast": ("player_ast_mean_l10", "player_ast_mean_season"),
-                           "fg3m": ("player_fg3m_mean_l10", "player_fg3m_mean_season"),
-                           "stl": ("player_stl_mean_l10", "player_stl_mean_season"),
-                           "blk": ("player_blk_mean_l10", "player_blk_mean_season"),
-                           "turnover": ("player_turnover_mean_l10", "player_turnover_mean_season")}
+            _FEAT_STATS = {"pts": ("player_pts_mean_l10", "player_pts_mean_season")}
             # Build lookup: player_id → {stat → blended_actual}
             _fc6_lookup: dict[int, dict[str, float]] = {}
             for _fc6_pid, _fc6_grp in feature_df.groupby("player_id"):
@@ -820,6 +818,27 @@ def predict_player_pmfs(
     # Must happen AFTER all base-stat corrections (calibration, shrinkage, form corrections
     # C.5 and C.6) so that component means are final.  No pre-correction is needed because
     # the base-stat pmf_json values already reflect the correct calibrated means.
+
+    # Uniqueness guard: deduplicate base-stat rows before combo construction to
+    # prevent doubled combo means from stale duplicate PMF rows in pmfs_long.
+    _COMBO_STATS = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks", "blk_stl"}
+    _base_only = pmfs_long[~pmfs_long["stat"].isin(_COMBO_STATS)]
+    _dup_mask = _base_only.duplicated(["player_id", "game_id", "stat"], keep=False)
+    if _dup_mask.any():
+        logger.warning(
+            "[combo_guard] %d duplicate base PMF rows detected before combo build — "
+            "deduplicating by keeping last",
+            int(_dup_mask.sum()),
+        )
+        _base_deduped = pmfs_long[~pmfs_long["stat"].isin(_COMBO_STATS)].drop_duplicates(
+            ["player_id", "game_id", "stat"], keep="last"
+        )
+        _existing_combos = pmfs_long[pmfs_long["stat"].isin(_COMBO_STATS)]
+        if not _existing_combos.empty:
+            pmfs_long = pd.concat([_base_deduped, _existing_combos], ignore_index=True)
+        else:
+            pmfs_long = _base_deduped.reset_index(drop=True)
+
     combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
     if not combo_rows.empty:
         pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
@@ -854,6 +873,26 @@ def predict_player_pmfs(
                 pmfs_long["conformal_source"] = "split_conformal"
             except Exception as _ce:
                 logger.warning("[predict] Conformal interval computation failed: %s", _ce)
+
+    # Direction balance warning: flag any base stat whose predicted mean is
+    # unusually concentrated low (median pmf_mean < 40% of expected floor),
+    # which is a leading indicator of OVER-rate collapse on the edge board.
+    try:
+        _BASE_EXPECTED_FLOOR = {"pts": 4.0, "reb": 1.0, "ast": 0.5, "fg3m": 0.2,
+                                 "stl": 0.1, "blk": 0.1, "turnover": 0.3}
+        for _dw_stat, _dw_floor in _BASE_EXPECTED_FLOOR.items():
+            _dw_mask = pmfs_long["stat"] == _dw_stat
+            if not _dw_mask.any():
+                continue
+            _dw_median = float(pmfs_long.loc[_dw_mask, "pmf_mean"].median())
+            if _dw_median < _dw_floor:
+                logger.warning(
+                    "[direction_guard] stat=%s median pmf_mean=%.3f is below expected "
+                    "floor %.2f — possible systematic underprediction; check OVER rate",
+                    _dw_stat, _dw_median, _dw_floor,
+                )
+    except Exception as _dw_exc:
+        logger.debug("[direction_guard] warning check failed (non-fatal): %s", _dw_exc)
 
     # Shadow mode: run multi-quantile pipeline in parallel for comparison.
     # Always runs when historical data is available; extra output written to
