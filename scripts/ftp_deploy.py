@@ -11,6 +11,11 @@ Uploads every file in the following directories (preserving structure):
 All files are uploaded to /tools/odds-scanner/predictions/WNBA/<same path>
 on the server.
 
+When --wipe is set (default True for pre-game dirs), existing HTML/JSON files
+in the three pre-game player-facing directories are deleted before uploading
+fresh ones. This prevents stale player pages (e.g. Kahleah Copper on a slate
+she's not playing on) from persisting on the site.
+
 Environment variables:
     FTP_HOST   server hostname or IP
     FTP_USER   FTP username
@@ -48,8 +53,19 @@ DEPLOY_DIRS = [
     "In-Play/Pricer",
 ]
 
+# Pre-game dirs whose stale player files are wiped before uploading fresh ones.
+# Wipe prevents players not on today's slate from persisting on the live site.
+WIPE_DIRS = {
+    "Pre-Game/Edge",
+    "Pre-Game/Distributions",
+    "Pre-Game/PMF-Distributions",
+}
+
 # File extensions to upload (skip .parquet, .pkl, etc.)
 UPLOAD_EXTENSIONS = {".html", ".json", ".js", ".css", ".txt", ".ico", ".png", ".svg"}
+
+# Extensions targeted by the remote wipe (only player-page files)
+WIPE_EXTENSIONS = {".html", ".json"}
 
 
 def _ensure_remote_dir(ftp: ftplib.FTP, path: str) -> None:
@@ -73,6 +89,44 @@ def _ensure_remote_dir(ftp: ftplib.FTP, path: str) -> None:
             pass
 
 
+def _wipe_remote_dir(ftp: ftplib.FTP, remote_dir: str) -> int:
+    """Delete all HTML/JSON files in a remote directory (non-recursive).
+
+    Only targets files with WIPE_EXTENSIONS so subdirectories and assets
+    (images, CSS, JS) are preserved. Returns the count of deleted files.
+    """
+    deleted = 0
+    try:
+        ftp.cwd(remote_dir)
+    except ftplib.error_perm:
+        print(f"  WIPE SKIP (dir not found remotely): {remote_dir}")
+        return 0
+
+    # Collect filenames via NLST (name list only, no stat info)
+    try:
+        entries = ftp.nlst()
+    except ftplib.error_perm:
+        entries = []
+
+    for entry in entries:
+        # Strip any leading path that NLST might include
+        name = entry.split("/")[-1]
+        if not name or name.startswith("."):
+            continue
+        suffix = Path(name).suffix.lower()
+        if suffix not in WIPE_EXTENSIONS:
+            continue
+        remote_file = f"{remote_dir}/{name}"
+        try:
+            ftp.delete(remote_file)
+            print(f"  ✗ wiped {remote_file}")
+            deleted += 1
+        except Exception as exc:
+            print(f"  WIPE WARN: could not delete {remote_file}: {exc}")
+
+    return deleted
+
+
 def _upload_file(ftp: ftplib.FTP, local_path: Path, remote_path: str) -> None:
     """Upload a single file, deleting any existing version first."""
     content = local_path.read_bytes()
@@ -88,7 +142,18 @@ def _upload_file(ftp: ftplib.FTP, local_path: Path, remote_path: str) -> None:
     print(f"  ✓ {remote_path} ({len(content) / 1024:.1f} KB)")
 
 
-def deploy(dirs: list[str] | None = None) -> None:
+def deploy(dirs: list[str] | None = None, wipe: bool = True) -> None:
+    """Deploy local prediction pages to the FTP server.
+
+    Parameters
+    ----------
+    dirs:
+        Subdirectories to deploy (relative to LOCAL_BASE). Defaults to all DEPLOY_DIRS.
+    wipe:
+        When True (default), deletes all existing HTML/JSON files in WIPE_DIRS on the
+        remote server before uploading fresh ones. This prevents stale player pages for
+        players not on today's slate from persisting on the live site.
+    """
     host = os.environ.get("FTP_HOST", "").strip()
     user = os.environ.get("FTP_USER", "").strip()
     password = os.environ.get("FTP_PASS", "").strip()
@@ -101,13 +166,28 @@ def deploy(dirs: list[str] | None = None) -> None:
 
     print(f"Connecting to {host}…")
     print(f"Deploying dirs: {deploy_dirs}")
+    print(f"Wipe mode: {'ON' if wipe else 'OFF'}")
     with ftplib.FTP(host, timeout=60) as ftp:
         ftp.login(user, password)
         print(f"  Connected: {ftp.getwelcome()[:80]}")
 
+        wiped = 0
         uploaded = 0
         skipped = 0
 
+        # Step 1: Wipe stale player files from pre-game dirs before uploading
+        if wipe:
+            print("\n--- Wiping stale remote files ---")
+            for subdir in deploy_dirs:
+                if subdir not in WIPE_DIRS:
+                    continue
+                remote_dir = f"{REMOTE_BASE}/{subdir}"
+                n = _wipe_remote_dir(ftp, remote_dir)
+                wiped += n
+            print(f"Wipe complete: {wiped} stale file(s) deleted.\n")
+
+        # Step 2: Upload all local files
+        print("--- Uploading fresh files ---")
         for subdir in deploy_dirs:
             local_dir = LOCAL_BASE / Path(subdir)
             remote_dir = f"{REMOTE_BASE}/{subdir}"
@@ -128,7 +208,7 @@ def deploy(dirs: list[str] | None = None) -> None:
                 _upload_file(ftp, local_file, remote_file)
                 uploaded += 1
 
-        print(f"\nDeploy complete: {uploaded} files uploaded, {skipped} dirs skipped.")
+        print(f"\nDeploy complete: {wiped} wiped, {uploaded} files uploaded, {skipped} dirs skipped.")
 
 
 if __name__ == "__main__":
@@ -141,5 +221,14 @@ if __name__ == "__main__":
         default=None,
         help="Subdirs to deploy (default: all). E.g. --dirs In-Play/Edges In-Play/Pricer",
     )
+    parser.add_argument(
+        "--wipe",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Wipe existing HTML/JSON files in pre-game dirs before uploading (default: on). "
+            "Use --no-wipe to skip the wipe step (e.g. for in-play-only deploys)."
+        ),
+    )
     args = parser.parse_args()
-    deploy(dirs=args.dirs)
+    deploy(dirs=args.dirs, wipe=args.wipe)

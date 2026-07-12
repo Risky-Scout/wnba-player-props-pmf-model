@@ -89,6 +89,7 @@ jobs:
           git checkout HEAD -- artifacts/models/calibration/bias_corrections.json 2>/dev/null || true
           git checkout HEAD -- artifacts/models/calibration/bias_corrections_by_role.json 2>/dev/null || true
           git checkout HEAD -- artifacts/models/calibration/player_form_corrections_2026.json 2>/dev/null || true
+          git checkout HEAD -- artifacts/models/calibration/variance_compress.json 2>/dev/null || true
           python3 - <<'EOF'
           import json, pathlib
           bc_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
@@ -724,7 +725,7 @@ jobs:
           publish_dir: _site
           publish_branch: gh-pages
           destination_dir: .
-          keep_files: true
+          force_orphan: true
 
       - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
         if: env.NO_DEPLOY != 'true'
@@ -732,7 +733,7 @@ jobs:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
-        run: python scripts/ftp_deploy.py
+        run: python scripts/ftp_deploy.py --wipe
         continue-on-error: true
 
       - name: Upload deliveries artifact
