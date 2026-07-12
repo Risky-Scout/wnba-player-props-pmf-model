@@ -335,11 +335,11 @@ jobs:
                     "Books may not have posted lines yet. Continuing.")
 
           # ------------------------------------------------------------------
-          # Check 3: Critical feature columns
+          # Check 3: Critical feature columns (always validate against feature matrix,
+          # not the slate — the slate is only a roster/game schedule file)
           # ------------------------------------------------------------------
-          check_path = slate_path if slate_path.exists() else feature_path
-          if check_path.exists():
-              feat_df = pd.read_parquet(check_path)
+          if feature_path.exists():
+              feat_df = pd.read_parquet(feature_path)
               missing = [c for c in CRITICAL_FEATURES if c not in feat_df.columns]
               if missing:
                   print(f"ERROR: Missing {len(missing)} critical feature column(s): {missing}")
@@ -349,7 +349,7 @@ jobs:
                   sys.exit(1)
               print(f"[TRIPWIRE] Check 3 PASS: All {len(CRITICAL_FEATURES)} critical features present")
           else:
-              print(f"[WARN] Check 3 SKIP: Neither slate nor feature matrix found — "
+              print(f"[WARN] Check 3 SKIP: Feature matrix not found at {feature_path} — "
                     "cannot validate feature columns")
 
           # ------------------------------------------------------------------
