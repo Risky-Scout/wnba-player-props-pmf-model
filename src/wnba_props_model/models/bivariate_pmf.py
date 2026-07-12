@@ -155,12 +155,130 @@ def estimate_correlations(
     return _compute_corr_map(features_wide)
 
 
+def fit_joint_to_marginals(
+    seed_joint: np.ndarray,
+    target_x: np.ndarray,
+    target_y: np.ndarray,
+    tolerance: float = 1e-10,
+    max_iterations: int = 10_000,
+    epsilon: float = 1e-15,
+) -> tuple[np.ndarray, dict]:
+    """Sinkhorn/IPF iterations to make joint PMF exactly match target marginals.
+
+    Iteratively scales rows then columns so that::
+
+        joint.sum(axis=1) == target_x   (within ``tolerance``)
+        joint.sum(axis=0) == target_y   (within ``tolerance``)
+
+    This guarantees E[X + Y] = E[X] + E[Y] up to floating-point precision when
+    the combo PMF is derived from anti-diagonal sums of the fitted joint.
+
+    Parameters
+    ----------
+    seed_joint : 2D array (nx, ny) — initial joint (e.g. from Gaussian copula)
+    target_x   : 1D array (nx,) — target row marginal (will be renormalized)
+    target_y   : 1D array (ny,) — target col marginal (will be renormalized)
+    tolerance  : convergence threshold on max(row_err, col_err)
+    max_iterations : hard cap on Sinkhorn iterations
+    epsilon    : small floor to avoid division by zero
+
+    Returns
+    -------
+    (joint, diagnostics)
+    joint       : 2D array with exact marginals
+    diagnostics : dict with keys converged, iterations,
+                  row_marginal_max_error, col_marginal_max_error
+    """
+    joint = np.asarray(seed_joint, dtype=float).copy()
+    target_x = np.asarray(target_x, dtype=float)
+    target_y = np.asarray(target_y, dtype=float)
+
+    sx = target_x.sum()
+    sy = target_y.sum()
+    if sx <= 0 or sy <= 0:
+        return joint, {
+            "converged": False, "iterations": 0,
+            "row_marginal_max_error": float("inf"),
+            "col_marginal_max_error": float("inf"),
+        }
+    target_x = target_x / sx
+    target_y = target_y / sy
+
+    positive_x = target_x > 0
+    positive_y = target_y > 0
+
+    # Ensure positive seed mass wherever both marginals are positive
+    joint = np.where(
+        positive_x[:, None] & positive_y[None, :],
+        np.maximum(joint, epsilon),
+        0.0,
+    )
+    if joint.sum() <= 0:
+        joint = np.outer(target_x, target_y)
+    joint /= joint.sum()
+
+    iteration = 0
+    for iteration in range(1, max_iterations + 1):
+        row_sums = joint.sum(axis=1)
+        row_scale = np.where(
+            positive_x & (row_sums > 0),
+            target_x / np.maximum(row_sums, epsilon),
+            0.0,
+        )
+        joint *= row_scale[:, None]
+
+        col_sums = joint.sum(axis=0)
+        col_scale = np.where(
+            positive_y & (col_sums > 0),
+            target_y / np.maximum(col_sums, epsilon),
+            0.0,
+        )
+        joint *= col_scale[None, :]
+
+        row_err = float(np.max(np.abs(joint.sum(axis=1) - target_x)))
+        col_err = float(np.max(np.abs(joint.sum(axis=0) - target_y)))
+        if max(row_err, col_err) <= tolerance:
+            break
+
+    total = joint.sum()
+    if total > 0:
+        joint /= total
+
+    final_row_err = float(np.max(np.abs(joint.sum(axis=1) - target_x)))
+    final_col_err = float(np.max(np.abs(joint.sum(axis=0) - target_y)))
+    diagnostics = {
+        "converged": max(final_row_err, final_col_err) <= tolerance * 10,
+        "iterations": iteration,
+        "row_marginal_max_error": final_row_err,
+        "col_marginal_max_error": final_col_err,
+    }
+    return joint, diagnostics
+
+
+def _achieved_correlation(
+    joint: np.ndarray,
+    pmf_x: np.ndarray,
+    pmf_y: np.ndarray,
+) -> float:
+    """Compute the count-level Pearson correlation implied by a joint PMF matrix."""
+    ks_x = np.arange(joint.shape[0], dtype=float)
+    ks_y = np.arange(joint.shape[1], dtype=float)
+    mx = float(ks_x @ pmf_x)
+    my = float(ks_y @ pmf_y)
+    vx = float(((ks_x - mx) ** 2) @ pmf_x)
+    vy = float(((ks_y - my) ** 2) @ pmf_y)
+    if vx < 1e-14 or vy < 1e-14:
+        return 0.0
+    cov = float(np.sum(joint * (ks_x[:, None] - mx) * (ks_y[None, :] - my)))
+    return float(cov / np.sqrt(vx * vy))
+
+
 def build_bivariate_pmf(
     pmf_x: np.ndarray,
     pmf_y: np.ndarray,
     rho: float,
 ) -> np.ndarray:
-    """Build joint PMF P(X=j, Y=k) using Gaussian copula density adjustment.
+    """Build joint PMF P(X=j, Y=k) using Gaussian copula + IPF marginal correction.
 
     Parameters
     ----------
@@ -171,12 +289,13 @@ def build_bivariate_pmf(
     Returns
     -------
     2D array of shape (len(pmf_x), len(pmf_y)) representing the joint PMF.
-    Sum is normalized to exactly 1.
+    Row sums equal pmf_x and column sums equal pmf_y exactly (within 1e-9).
 
     Notes
     -----
-    When |ρ| < 0.02, the joint PMF is just the outer product (independence),
-    avoiding numerical issues from the copula inversion.
+    When |ρ| < 0.02, the joint PMF is the outer product (independence).
+    Otherwise a Gaussian copula seed is used, then Sinkhorn/IPF iterations
+    enforce exact marginal matching — guaranteeing E[X+Y] = E[X] + E[Y].
     """
     pmf_x = np.asarray(pmf_x, dtype=float)
     pmf_y = np.asarray(pmf_y, dtype=float)
@@ -187,7 +306,7 @@ def build_bivariate_pmf(
     pmf_x = pmf_x / pmf_x.sum()
     pmf_y = pmf_y / pmf_y.sum()
 
-    # Independence case
+    # Independence case: outer product already satisfies marginals exactly
     rho = float(np.clip(rho, -_MAX_ABS_RHO, _MAX_ABS_RHO))
     if abs(rho) < 0.02:
         return np.outer(pmf_x, pmf_y)
@@ -195,47 +314,38 @@ def build_bivariate_pmf(
     nx, ny = len(pmf_x), len(pmf_y)
 
     # CDFs: F_X(j) = P(X ≤ j), F_Y(k) = P(Y ≤ k)
-    # Use midpoint CDF F(j) ≈ CDF at j - 0.5 for discrete atoms (avoids boundary issues)
-    cdf_x = np.cumsum(pmf_x)  # shape (nx,)
-    cdf_y = np.cumsum(pmf_y)  # shape (ny,)
-
-    # Compute previous CDF values (for atom-midpoint)
+    # Use midpoint CDF for discrete atoms (avoids boundary issues)
+    cdf_x = np.cumsum(pmf_x)
+    cdf_y = np.cumsum(pmf_y)
     cdf_x_prev = np.concatenate([[0.0], cdf_x[:-1]])
     cdf_y_prev = np.concatenate([[0.0], cdf_y[:-1]])
-
-    # Midpoint CDF: average of upper and lower bound for each atom
-    u = 0.5 * (cdf_x + cdf_x_prev)  # shape (nx,)
-    v = 0.5 * (cdf_y + cdf_y_prev)  # shape (ny,)
+    u = 0.5 * (cdf_x + cdf_x_prev)
+    v = 0.5 * (cdf_y + cdf_y_prev)
 
     # Normal scores
-    phi_u = _safe_norm_ppf(u)   # (nx,)
-    phi_v = _safe_norm_ppf(v)   # (ny,)
+    phi_u = _safe_norm_ppf(u)
+    phi_v = _safe_norm_ppf(v)
 
-    # Gaussian copula log-density correction:
-    # log c(u, v; ρ) = -0.5*log(1-ρ²)
-    #                  - (ρ²*(φ_u² + φ_v²) - 2ρ*φ_u*φ_v) / (2*(1-ρ²))
+    # Gaussian copula log-density:
+    # log c(u,v;ρ) = -0.5*log(1-ρ²) - (ρ²*(φ_u²+φ_v²) - 2ρ*φ_u*φ_v) / (2*(1-ρ²))
     r2 = rho ** 2
     denom = 2.0 * (1.0 - r2)
-
-    # Outer products: (nx, ny)
-    phi_u_sq = phi_u[:, None] ** 2   # (nx, 1)
-    phi_v_sq = phi_v[None, :] ** 2   # (1, ny)
-    cross     = phi_u[:, None] * phi_v[None, :]  # (nx, ny)
-
+    phi_u_sq = phi_u[:, None] ** 2
+    phi_v_sq = phi_v[None, :] ** 2
+    cross = phi_u[:, None] * phi_v[None, :]
     log_copula = -0.5 * np.log(1.0 - r2) - (r2 * (phi_u_sq + phi_v_sq) - 2.0 * rho * cross) / denom
-
-    # Clip to avoid numerical explosions in tails
     log_copula = np.clip(log_copula, -10.0, 10.0)
 
-    # Joint PMF = outer product × copula density adjustment
-    joint = np.outer(pmf_x, pmf_y) * np.exp(log_copula)
-    joint = np.clip(joint, 0.0, None)
+    # Copula seed joint: outer product weighted by copula density
+    seed = np.outer(pmf_x, pmf_y) * np.exp(log_copula)
+    seed = np.clip(seed, 0.0, None)
 
-    total = joint.sum()
-    if total < 1e-12:
+    if seed.sum() < 1e-12:
         return np.outer(pmf_x, pmf_y)
 
-    return joint / total
+    # IPF: enforce exact marginals on the copula seed
+    joint, _ipf_diag = fit_joint_to_marginals(seed, pmf_x, pmf_y)
+    return joint
 
 
 def bivariate_prob_over(
@@ -271,12 +381,12 @@ def adjust_combo_pmf_for_correlation(
     corr_map: dict[str, float] | None = None,
     position: str | None = None,
     corr_map_by_pos: "dict[str, dict[str, float]] | None" = None,
-) -> np.ndarray:
-    """Build a correlation-adjusted sum PMF P(X + Y = k).
+) -> tuple[np.ndarray, dict]:
+    """Build a correlation-adjusted sum PMF P(X + Y = k) with IPF marginal preservation.
 
-    Unlike the plain convolution (assumes independence), this uses the
-    bivariate copula joint PMF and then sums along anti-diagonals to get
-    the marginal distribution of X + Y.
+    The joint PMF is built via Gaussian copula then corrected with Sinkhorn/IPF
+    iterations so that joint.sum(axis=1) == pmf_x and joint.sum(axis=0) == pmf_y
+    exactly. This guarantees E[X+Y] = E[X]+E[Y] up to floating-point precision.
 
     Parameters
     ----------
@@ -288,7 +398,16 @@ def adjust_combo_pmf_for_correlation(
 
     Returns
     -------
-    1D array: PMF of X + Y, length = len(pmf_x) + len(pmf_y) - 1
+    (sum_pmf, diagnostics)
+    sum_pmf     : 1D array, PMF of X + Y, length = len(pmf_x) + len(pmf_y) - 1
+    diagnostics : dict with:
+        requested_latent_rho       : float — the ρ used for the copula
+        achieved_count_correlation : float — Pearson correlation in the fitted joint
+        row_marginal_max_error     : float — max |joint.sum(axis=1) - pmf_x|
+        col_marginal_max_error     : float — max |joint.sum(axis=0) - pmf_y|
+        combo_mean_error           : float — |E[X+Y] - (E[X]+E[Y])|
+        ipf_iterations             : int
+        ipf_converged              : bool
     """
     # P3.5: resolve the correlation map to use
     if corr_map_by_pos is not None:
@@ -305,14 +424,73 @@ def adjust_combo_pmf_for_correlation(
     key2 = f"{stat_y}_{stat_x}"
     rho  = corr_map.get(key1, corr_map.get(key2, 0.0))
 
-    joint = build_bivariate_pmf(pmf_x, pmf_y, rho)
+    pmf_x = np.asarray(pmf_x, dtype=float)
+    pmf_y = np.asarray(pmf_y, dtype=float)
+    if pmf_x.sum() > 1e-9:
+        pmf_x = pmf_x / pmf_x.sum()
+    if pmf_y.sum() > 1e-9:
+        pmf_y = pmf_y / pmf_y.sum()
+
+    # Build copula seed, then apply IPF for exact marginal preservation
+    rho_clipped = float(np.clip(rho, -_MAX_ABS_RHO, _MAX_ABS_RHO))
+    if abs(rho_clipped) < 0.02:
+        # Independence: outer product already has exact marginals; no IPF needed
+        joint = np.outer(pmf_x, pmf_y)
+        ipf_diag: dict = {
+            "converged": True, "iterations": 0,
+            "row_marginal_max_error": 0.0, "col_marginal_max_error": 0.0,
+        }
+    else:
+        # build_bivariate_pmf already applies IPF internally
+        nx, ny = len(pmf_x), len(pmf_y)
+        cdf_x = np.cumsum(pmf_x)
+        cdf_y = np.cumsum(pmf_y)
+        cdf_x_prev = np.concatenate([[0.0], cdf_x[:-1]])
+        cdf_y_prev = np.concatenate([[0.0], cdf_y[:-1]])
+        u = 0.5 * (cdf_x + cdf_x_prev)
+        v = 0.5 * (cdf_y + cdf_y_prev)
+        phi_u = _safe_norm_ppf(u)
+        phi_v = _safe_norm_ppf(v)
+        r2 = rho_clipped ** 2
+        denom = 2.0 * (1.0 - r2)
+        log_copula = (
+            -0.5 * np.log(1.0 - r2)
+            - (r2 * (phi_u[:, None] ** 2 + phi_v[None, :] ** 2) - 2.0 * rho_clipped * phi_u[:, None] * phi_v[None, :])
+            / denom
+        )
+        log_copula = np.clip(log_copula, -10.0, 10.0)
+        seed = np.outer(pmf_x, pmf_y) * np.exp(log_copula)
+        seed = np.clip(seed, 0.0, None)
+        if seed.sum() < 1e-12:
+            seed = np.outer(pmf_x, pmf_y)
+        joint, ipf_diag = fit_joint_to_marginals(seed, pmf_x, pmf_y)
+
+    # Extract combo PMF via anti-diagonal sums P(X+Y=k)
     nx, ny = joint.shape
-    max_k  = nx + ny - 2
+    max_k = nx + ny - 2
     sum_pmf = np.zeros(max_k + 1, dtype=float)
     for j in range(nx):
         for k in range(ny):
-            if j + k <= max_k:
-                sum_pmf[j + k] += joint[j, k]
+            sum_pmf[j + k] += joint[j, k]
     if sum_pmf.sum() > 1e-9:
         sum_pmf /= sum_pmf.sum()
-    return sum_pmf
+
+    # Compute diagnostics
+    ks_x = np.arange(len(pmf_x))
+    ks_y = np.arange(len(pmf_y))
+    ks_c = np.arange(len(sum_pmf))
+    mean_x = float(ks_x @ pmf_x) if pmf_x.sum() > 0 else 0.0
+    mean_y = float(ks_y @ pmf_y) if pmf_y.sum() > 0 else 0.0
+    combo_mean = float(ks_c @ sum_pmf) if sum_pmf.sum() > 0 else 0.0
+    combo_mean_error = abs(combo_mean - (mean_x + mean_y))
+
+    diagnostics = {
+        "requested_latent_rho":       rho,
+        "achieved_count_correlation": _achieved_correlation(joint, pmf_x, pmf_y),
+        "row_marginal_max_error":     ipf_diag["row_marginal_max_error"],
+        "col_marginal_max_error":     ipf_diag["col_marginal_max_error"],
+        "combo_mean_error":           combo_mean_error,
+        "ipf_iterations":             ipf_diag["iterations"],
+        "ipf_converged":              ipf_diag["converged"],
+    }
+    return sum_pmf, diagnostics

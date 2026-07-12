@@ -277,18 +277,10 @@ def _build_combo_pmf_rows(
         )
 
     combo_rows: list[dict] = []
-    # Track mean deviation for logging
-    _combo_mean_devs_before: list[float] = []
-    _combo_mean_devs_after: list[float] = []
-
-    # Component stats for each combo key (used for expected-mean computation)
-    _COMBO_COMPONENTS: dict[str, tuple[str, ...]] = {
-        "stocks": ("stl", "blk"),
-        "pa":     ("pts", "ast"),
-        "pr":     ("pts", "reb"),
-        "ra":     ("reb", "ast"),
-        "pra":    ("pts", "reb", "ast"),
-    }
+    # Track IPF marginal errors across all combos for summary logging
+    _ipf_row_errs: list[float] = []
+    _ipf_col_errs: list[float] = []
+    _ipf_mean_errs: list[float] = []
 
     for (player_id, game_id), grp in pmfs_long.groupby(["player_id", "game_id"], sort=False):
         # Collect component PMF arrays indexed by stat key
@@ -315,7 +307,11 @@ def _build_combo_pmf_rows(
             canonical_stat = _COMBO_KEY_TO_STAT.get(combo_key, combo_key)
             cap = DOMAIN_MAX.get(combo_key, DOMAIN_MAX.get(canonical_stat, 105))
 
-            # Apply bivariate copula correction for two-component combos (P3.5)
+            # Apply bivariate copula + IPF correction for two-component combos (P3.5).
+            # adjust_combo_pmf_for_correlation now returns (sum_pmf, diagnostics); IPF
+            # inside build_bivariate_pmf ensures joint marginals match inputs exactly,
+            # so E[combo] = E[X] + E[Y] up to floating-point precision.
+            _ipf_diag: dict = {}
             if combo_key in _COMBO_KEY_PAIRS:
                 s1, s2 = _COMBO_KEY_PAIRS[combo_key]
                 if s1 in component_pmfs and s2 in component_pmfs:
@@ -329,12 +325,16 @@ def _build_combo_pmf_rows(
                                 _active_corr = corr_map_by_pos[_pos_key]
                             elif "all" in corr_map_by_pos:
                                 _active_corr = corr_map_by_pos["all"]
-                        pmf_arr = adjust_combo_pmf_for_correlation(
+                        pmf_arr, _ipf_diag = adjust_combo_pmf_for_correlation(
                             component_pmfs[s1], component_pmfs[s2],
                             s1, s2, corr_map=_active_corr,
                         )
+                        _ipf_row_errs.append(_ipf_diag.get("row_marginal_max_error", 0.0))
+                        _ipf_col_errs.append(_ipf_diag.get("col_marginal_max_error", 0.0))
+                        _ipf_mean_errs.append(_ipf_diag.get("combo_mean_error", 0.0))
                     except Exception as exc:
-                        logger.debug("[combo:%s] Copula adjustment failed: %s; using convolution", combo_key, exc)
+                        logger.debug("[combo:%s] Copula/IPF adjustment failed: %s; using convolution", combo_key, exc)
+                        _ipf_diag = {}
 
             # Truncate to domain cap and renormalize
             pmf_arr = pmf_arr[: cap + 1]
@@ -355,35 +355,6 @@ def _build_combo_pmf_rows(
                     compressed = negbinom_pmf_batch(np.array([mu_vc]), float(r_new), cap)[0]
                     if compressed.sum() > 1e-9:
                         pmf_arr = compressed / compressed.sum()
-
-            # Enforce marginal mean integrity: E[combo] must equal sum of component means.
-            # Copula reweighting and truncation can shift the marginal mean; correct it here.
-            _combo_comp_stats = _COMBO_COMPONENTS.get(combo_key)
-            if _combo_comp_stats and pmf_arr.sum() > 1e-9:
-                _comp_means = []
-                for _cs in _combo_comp_stats:
-                    if _cs in component_pmfs:
-                        _cs_arr = component_pmfs[_cs]
-                        if _cs_arr.sum() > 1e-9:
-                            _cs_ks = np.arange(len(_cs_arr))
-                            _comp_means.append(float(_cs_ks @ _cs_arr / _cs_arr.sum()))
-                if _comp_means:
-                    _expected_mean = float(np.sum(_comp_means))
-                    _actual_mean_pre = float(np.arange(len(pmf_arr)) @ pmf_arr / pmf_arr.sum())
-                    _mean_dev_pre = abs(_actual_mean_pre - _expected_mean)
-                    _combo_mean_devs_before.append(_mean_dev_pre)
-                    if _expected_mean > 0.01 and _mean_dev_pre > 1e-4:
-                        from wnba_props_model.pipeline.calibrate import (  # noqa: PLC0415
-                            _apply_mean_bias_correction as _combo_abc,
-                        )
-                        _mean_factor = _expected_mean / max(_actual_mean_pre, 1e-9)
-                        pmf_arr = _combo_abc(pmf_arr, float(_mean_factor))
-                        if pmf_arr.sum() > 1e-9:
-                            pmf_arr = pmf_arr / pmf_arr.sum()
-                        _actual_mean_post = float(np.arange(len(pmf_arr)) @ pmf_arr / max(pmf_arr.sum(), 1e-9))
-                        _combo_mean_devs_after.append(abs(_actual_mean_post - _expected_mean))
-                    else:
-                        _combo_mean_devs_after.append(_mean_dev_pre)
 
             ks = np.arange(len(pmf_arr))
             pmf_mean = float(ks @ pmf_arr)
@@ -423,18 +394,27 @@ def _build_combo_pmf_rows(
                 "pmf_source":     "combo_convolution",
                 "actual_outcome": np.nan,
                 "combo_suppressed": _suppressed,
+                # IPF diagnostics — only populated for copula-adjusted two-stat combos
+                "requested_latent_rho":       _ipf_diag.get("requested_latent_rho", np.nan),
+                "achieved_count_correlation": _ipf_diag.get("achieved_count_correlation", np.nan),
+                "row_marginal_max_error":     _ipf_diag.get("row_marginal_max_error", np.nan),
+                "col_marginal_max_error":     _ipf_diag.get("col_marginal_max_error", np.nan),
+                "combo_mean_error":           _ipf_diag.get("combo_mean_error", np.nan),
+                "ipf_iterations":             _ipf_diag.get("ipf_iterations", np.nan),
+                "ipf_converged":              _ipf_diag.get("ipf_converged", np.nan),
             })
             combo_rows.append(row_dict)
 
     if not combo_rows:
         return pd.DataFrame()
-    if _combo_mean_devs_before:
+    if _ipf_row_errs:
         logger.info(
-            "[combo] Mean integrity correction: max_dev_before=%.6f max_dev_after=%.6f "
-            "(n=%d combos; must be < 0.02 after)",
-            float(np.max(_combo_mean_devs_before)),
-            float(np.max(_combo_mean_devs_after)) if _combo_mean_devs_after else 0.0,
-            len(_combo_mean_devs_before),
+            "[combo] IPF marginal integrity: max_row_err=%.2e max_col_err=%.2e "
+            "max_mean_err=%.6f (n=%d copula combos; row/col must be ≤1e-9, mean ≤1e-8)",
+            float(np.max(_ipf_row_errs)),
+            float(np.max(_ipf_col_errs)),
+            float(np.max(_ipf_mean_errs)),
+            len(_ipf_row_errs),
         )
     return pd.DataFrame(combo_rows)
 
@@ -894,10 +874,17 @@ def predict_player_pmfs(
                     _r_ceil      = 1.20 if _fc6_stat == "ast" else 1.18
                     _log_adj     = 0.15 * _reliability * float(np.log(np.clip(_raw_ratio, _r_floor, _r_ceil)))
                     _fc6_ratio_new = float(np.clip(np.exp(_log_adj), 0.97, 1.03))
-                    # Only skip if factor is floating-point-identical to 1.0 (truly a no-op).
+                    # Guard: invalid factor → identity fallback
+                    if not np.isfinite(_fc6_ratio_new) or _fc6_ratio_new <= 0:
+                        _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
+                        _fc6_new_means.append(_fc6_cur_mean)
+                        if _fc6_stat in _fc6_pm_identity:
+                            _fc6_pm_identity[_fc6_stat] += 1
+                        continue
+                    # Skip only if factor is numerically indistinguishable from 1.0.
                     # The old 0.01 threshold caused every reb/ast row to be skipped because
                     # max possible factor is ~0.0073 (strength=0.15 × reliability≈0.294 × ln(1.18)≈0.166).
-                    if abs(_fc6_ratio_new - 1.0) < 1e-6:
+                    if abs(_fc6_ratio_new - 1.0) <= 1e-6:
                         _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                         _fc6_new_means.append(_fc6_cur_mean)
                         if _fc6_stat in _fc6_pm_identity:

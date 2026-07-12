@@ -61,8 +61,8 @@ def test_adjust_combo_pmf_with_position():
     # Position-stratified corr
     pos_map = {"G": {"pts_ast": 0.3}, "F": {"pts_ast": 0.6}, "C": {"pts_ast": 0.1}, "all": {"pts_ast": 0.4}}
 
-    sum_global = adjust_combo_pmf_for_correlation(pmf_x, pmf_y, "pts", "ast", corr_map=global_map)
-    sum_pos_G  = adjust_combo_pmf_for_correlation(
+    sum_global, _ = adjust_combo_pmf_for_correlation(pmf_x, pmf_y, "pts", "ast", corr_map=global_map)
+    sum_pos_G, _  = adjust_combo_pmf_for_correlation(
         pmf_x, pmf_y, "pts", "ast", corr_map_by_pos=pos_map, position="G"
     )
 
@@ -76,7 +76,7 @@ def test_adjust_combo_pmf_position_falls_back_to_all():
     pmf_y = np.array([0.4, 0.4, 0.2])
     pos_map = {"all": {"pts_ast": 0.3}}
 
-    result = adjust_combo_pmf_for_correlation(
+    result, _ = adjust_combo_pmf_for_correlation(
         pmf_x, pmf_y, "pts", "ast", corr_map_by_pos=pos_map, position="X"
     )
     assert abs(result.sum() - 1.0) < 1e-6
