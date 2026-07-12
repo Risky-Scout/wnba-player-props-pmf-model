@@ -8,8 +8,8 @@ Uploads every file in the following directories (preserving structure):
   In-Play/Edges/          → index.html + latest.json
   In-Play/Pricer/         → index.html
 
-All files are uploaded to /tools/odds-scanner/predictions/WNBA/<same path>
-on the server.
+All files are uploaded to /WNBA/<same path> on the server, which nginx
+serves at https://sportsodds.wizardofodds.com/WNBA/<same path>.
 
 When --wipe is set (default True for pre-game dirs), existing HTML/JSON files
 in the three pre-game player-facing directories are deleted before uploading
@@ -37,8 +37,9 @@ try:
 except ImportError:
     pass
 
-# Remote base where all WNBA files live on the server
-REMOTE_BASE = "/tools/odds-scanner/predictions/WNBA"
+# Remote base where all WNBA files live on the server.
+# nginx serves sportsodds.wizardofodds.com/WNBA/... directly from /WNBA/
+REMOTE_BASE = "/WNBA"
 
 # Local base directory containing all the pages
 LOCAL_BASE = REPO_ROOT / "tools" / "odds-scanner" / "predictions" / "WNBA"

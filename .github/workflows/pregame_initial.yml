@@ -2,8 +2,7 @@
 # Runs at 10:00 UTC daily (6am ET) -- guarantees projections are available
 # >=13 hours before typical WNBA tip times (23:00-01:00 UTC).
 #
-# Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
-#               predictions/WNBA/Pre-Game-Edge/initial/
+# Delivery URL: https://sportsodds.wizardofodds.com/WNBA/Pre-Game/Edge/
 name: Pre-Game Initial Projections (T-1 day)
 
 on:
