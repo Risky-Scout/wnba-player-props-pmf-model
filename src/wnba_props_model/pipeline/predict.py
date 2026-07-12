@@ -777,7 +777,7 @@ def predict_player_pmfs(
                     _fc6_l10 = float(_fc6_grp[_fc6_l10_col].dropna().iloc[-1]) if _fc6_l10_col in _fc6_grp.columns and not _fc6_grp[_fc6_l10_col].dropna().empty else None
                     _fc6_sea = float(_fc6_grp[_fc6_s_col].dropna().iloc[-1]) if _fc6_s_col in _fc6_grp.columns and not _fc6_grp[_fc6_s_col].dropna().empty else None
                     if _fc6_l10 is not None and _fc6_sea is not None:
-                        _fc6_row_vals[_fc6_stat] = 0.6 * _fc6_l10 + 0.4 * _fc6_sea
+                        _fc6_row_vals[_fc6_stat] = 0.35 * _fc6_l10 + 0.65 * _fc6_sea
                     elif _fc6_sea is not None:
                         _fc6_row_vals[_fc6_stat] = _fc6_sea
                     elif _fc6_l10 is not None:
@@ -798,8 +798,8 @@ def predict_player_pmfs(
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
                     continue
-                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.75, 1.55))
-                if abs(_fc6_ratio - 1.0) < 0.10:
+                _fc6_ratio = float(np.clip(_fc6_actual / _fc6_cur_mean, 0.87, 1.35))
+                if abs(_fc6_ratio - 1.0) < 0.15:
                     _fc6_new_jsons.append(_fc6_pmf_row["pmf_json"])
                     _fc6_new_means.append(_fc6_cur_mean)
                     continue
