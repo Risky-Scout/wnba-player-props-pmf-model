@@ -595,110 +595,6 @@ def predict_player_pmfs(
     else:
         logger.info("combo_correlations_by_pos.json not found; using _DEFAULT_CORRELATIONS_BY_POS")
 
-    # Build combo-prop PMFs via discrete convolution + bivariate copula correction.
-    # These are appended as additional rows so edge reports cover BDL combo markets.
-    #
-    # PRE-CORRECTION: Apply global bias corrections to base-stat PMFs BEFORE combo
-    # convolution.  Without this, combo means are 27-30% below market because the
-    # convolution uses raw (uncalibrated) component distributions.  After combo rows
-    # are built, the original pmf_json values are restored so the main calibration
-    # stack still applies correctly to base stats.
-    _combo_feed_stats = {"pts", "reb", "ast", "stl", "blk"}
-    _pmfs_long_for_combo = pmfs_long  # default: no pre-correction
-    try:
-        _bias_corr_path = Path(cal_dir) / "bias_corrections.json" if cal_dir else None
-        if _bias_corr_path and _bias_corr_path.exists():
-            import json as _bc_json  # noqa: PLC0415
-            from wnba_props_model.pipeline.calibrate import _apply_mean_bias_correction as _bc_abc  # noqa: PLC0415
-            _bias_corr = _bc_json.loads(_bias_corr_path.read_text())
-            _corrected_jsons = []
-            _any_corrected = False
-            for _, _bc_row in pmfs_long.iterrows():
-                _bc_stat = str(_bc_row.get("stat", ""))
-                _bc_mult = _bias_corr.get(_bc_stat)
-                if (
-                    _bc_mult is not None
-                    and not str(_bc_stat).startswith("_")
-                    and abs(float(_bc_mult) - 1.0) > 0.01
-                    and _bc_stat in _combo_feed_stats
-                ):
-                    _bc_arr = json_to_pmf(_bc_row["pmf_json"])
-                    _bc_corrected = _bc_abc(_bc_arr, float(_bc_mult))
-                    _corrected_jsons.append(pmf_to_json(_bc_corrected))
-                    _any_corrected = True
-                else:
-                    _corrected_jsons.append(_bc_row["pmf_json"])
-            if _any_corrected:
-                _pmfs_long_for_combo = pmfs_long.copy()
-                _pmfs_long_for_combo["pmf_json"] = _corrected_jsons
-                logger.info(
-                    "[combo_pre_correction] Applied bias corrections to base-stat PMFs "
-                    "before combo convolution (stats: %s)",
-                    sorted(_combo_feed_stats),
-                )
-    except Exception as _combo_precorr_exc:
-        logger.warning(
-            "[combo_pre_correction] Pre-correction failed (non-fatal), "
-            "using uncorrected PMFs for combo build: %s",
-            _combo_precorr_exc,
-        )
-        _pmfs_long_for_combo = pmfs_long
-
-    combo_rows = _build_combo_pmf_rows(_pmfs_long_for_combo, corr_map_by_pos=_corr_by_pos)
-    # _pmfs_long_for_combo was a temporary copy; pmfs_long is unchanged (base stats
-    # will go through the main calibration stack below without double-correction).
-    if not combo_rows.empty:
-        pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
-        logger.info("Added %d combo PMF rows (%s)", len(combo_rows),
-                    sorted(combo_rows["stat"].unique().tolist()))
-
-    # Diagnostic: validate combo stat means against component base stat sums.
-    # Logs a WARNING when a combo mean deviates >25% from the expected component sum.
-    # Never raises — purely informational so the pipeline always continues.
-    _COMBO_COMPONENTS: dict[str, list[str]] = {
-        "pts_reb": ["pts", "reb"],
-        "pts_ast": ["pts", "ast"],
-        "pts_reb_ast": ["pts", "reb", "ast"],
-        "reb_ast": ["reb", "ast"],
-        "stocks": ["stl", "blk"],
-        "blk_stl": ["blk", "stl"],
-    }
-    try:
-        _base_means = (
-            pmfs_long[~pmfs_long["stat"].isin(_COMBO_COMPONENTS)]
-            .groupby(["player_id", "game_id", "stat"])["pmf_mean"]
-            .first()
-        )
-        _combo_df = pmfs_long[pmfs_long["stat"].isin(_COMBO_COMPONENTS)]
-        for _, _row in _combo_df.iterrows():
-            _combo_stat = _row["stat"]
-            _components = _COMBO_COMPONENTS.get(_combo_stat, [])
-            _pid, _gid = _row["player_id"], _row["game_id"]
-            _combo_mean = _row["pmf_mean"]
-            _component_sum = 0.0
-            _missing = False
-            for _comp in _components:
-                try:
-                    _component_sum += float(_base_means.loc[(_pid, _gid, _comp)])
-                except KeyError:
-                    _missing = True
-                    break
-            if _missing or _component_sum <= 0:
-                continue
-            _deviation = abs(_combo_mean - _component_sum) / _component_sum
-            if _deviation > 0.25:
-                logger.warning(
-                    "[combo_validation] %s %s: combo_mean=%.3f, component_sum=%.3f "
-                    "(deviation=%.1f%% > 25%%)",
-                    _row.get("player_name", _pid),
-                    _combo_stat,
-                    _combo_mean,
-                    _component_sum,
-                    _deviation * 100,
-                )
-    except Exception as _diag_exc:
-        logger.debug("[combo_validation] Diagnostic skipped: %s", _diag_exc)
-
     # Role-stratified bias corrections: applied BEFORE isotonic calibration so that
     # the calibrators see role-corrected PMFs at inference — matching the conceptual
     # training distribution.  Applying role corrections after calibration would
@@ -771,6 +667,19 @@ def predict_player_pmfs(
                 logger.info("[predict] Applied archetype-conditioned shrinkage from %s", _arch_pkl)
             except Exception as _ae:
                 logger.warning("[predict] Archetype shrinkage failed (non-fatal): %s", _ae)
+
+    # Build combo-prop PMFs from calibrated base-stat PMFs.
+    # Must happen AFTER apply_calibrators and apply_bayesian_shrinkage so that the
+    # component PMFs already reflect the correct calibrated means.  No pre-correction
+    # is needed here because the base-stat means are already calibrated.
+    combo_rows = _build_combo_pmf_rows(pmfs_long, corr_map_by_pos=_corr_by_pos)
+    if not combo_rows.empty:
+        pmfs_long = pd.concat([pmfs_long, combo_rows], ignore_index=True)
+        logger.info(
+            "[predict] Built %d combo PMF rows from calibrated base stats (%s)",
+            len(combo_rows),
+            sorted(combo_rows["stat"].unique().tolist()),
+        )
 
     # Part C.5: Apply per-player 2026 in-season form corrections.
     # player_form_corrections_2026.json has TWO correction sources:
