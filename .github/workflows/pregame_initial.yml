@@ -273,14 +273,12 @@ jobs:
           CRITICAL_FEATURES = [
               "player_pts_mean_l5",
               "player_minutes_mean_l5",
-              "projected_minutes_proxy",
-              "role_status",
               "player_reb_mean_l5",
               "player_ast_mean_l5",
               "player_fg3m_mean_l5",
-              "season_avg_pts",
-              "season_avg_min",
-              "opp_def_rating",
+              "player_pts_mean_season",
+              "player_minutes_mean_season",
+              "opp_pts_allowed_per_100_poss_l5",
           ]
 
           try:

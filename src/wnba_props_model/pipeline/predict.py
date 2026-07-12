@@ -45,6 +45,7 @@ from wnba_props_model.models.bivariate_pmf import (
 from wnba_props_model.models.pmf_engine import (
     STATS,
     build_all_pmfs,
+    negbinom_pmf_batch,
     prepare_feature_matrix,
 )
 from wnba_props_model.models.minutes_model import MinutesModel
@@ -255,6 +256,15 @@ def _build_combo_pmf_rows(
     if corr_map is None:
         corr_map = _DEFAULT_CORRELATIONS
 
+    # Load variance compression factors for combo stats from calibration artifact
+    _vc_path = Path("artifacts/models/calibration/variance_compress.json")
+    _var_compress: dict[str, float] = {}
+    if _vc_path.exists():
+        try:
+            _var_compress = json.loads(_vc_path.read_text())
+        except Exception:
+            pass
+
     # Build position lookup from pmfs_long if available (P3.5 position-stratified copula)
     _has_position = "position" in pmfs_long.columns
     _pos_map: dict[tuple, str] = {}
@@ -318,6 +328,21 @@ def _build_combo_pmf_rows(
             pmf_arr = pmf_arr[: cap + 1]
             if pmf_arr.sum() > 1e-9:
                 pmf_arr = pmf_arr / pmf_arr.sum()
+
+            # Apply variance compression from variance_compress.json (combo stats have no
+            # .pkl calibrators, so this must be applied directly at inference time).
+            # Fits a tighter NegBinomial with the same mean but reduced variance.
+            vc_factor = float(_var_compress.get(canonical_stat, 1.0))
+            if vc_factor > 1.05 and pmf_arr.sum() > 1e-9:
+                ks_vc = np.arange(len(pmf_arr))
+                mu_vc = float(ks_vc @ pmf_arr)
+                var_vc = float((ks_vc ** 2) @ pmf_arr - mu_vc ** 2)
+                var_target = max(var_vc / vc_factor, mu_vc * 1.01)  # floor: slightly super-Poisson
+                if var_target > mu_vc and mu_vc > 0.5:
+                    r_new = mu_vc ** 2 / (var_target - mu_vc)
+                    compressed = negbinom_pmf_batch(np.array([mu_vc]), float(r_new), cap)[0]
+                    if compressed.sum() > 1e-9:
+                        pmf_arr = compressed / compressed.sum()
 
             ks = np.arange(len(pmf_arr))
             pmf_mean = float(ks @ pmf_arr)
