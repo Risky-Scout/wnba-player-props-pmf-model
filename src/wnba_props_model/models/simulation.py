@@ -299,8 +299,23 @@ def build_combo_pmfs(component_pmfs: Mapping[str, np.ndarray]) -> dict[str, np.n
             domain_max=DOMAIN_MAX["ra"],
         )
     if all(s in component_pmfs for s in ("pts", "reb", "ast")):
-        # PRA: proper 3D Gaussian copula — captures true trivariate dependence
-        # rather than the sequential bivariate approximation (pts+reb → result+ast).
+        # PRA LIMITATION (documented, not yet resolved):
+        # The current method constructs PRA by sequential bivariate IPF (in predict.py):
+        #   Step 1: Joint(pts, reb) via copula seed + IPF → marginals exactly preserved
+        #   Step 2: Convolve pts_reb PMF with ast PMF via another bivariate IPF
+        # This preserves E[PTS+REB+AST] = E[PTS] + E[REB] + E[AST] by linearity.
+        # HOWEVER: it does not model the correct three-dimensional dependence structure.
+        # The joint distribution of (pts, reb, ast) is modeled as two independent
+        # bivariate pairs, not a coherent trivariate copula. This affects:
+        #   - Variance of PRA (may be over/underestimated)
+        #   - Tail probabilities (P(PRA > line) for extreme lines)
+        #   - Correlation between the 3 stats is not jointly calibrated
+        # TODO: Replace with trivariate Gaussian copula + IPF or 10,000-draw simulation
+        # from correlated marginals. Requires historical (pts, reb, ast) joint calibration.
+        # CURRENT STATUS: Incomplete — mean preserved, dependence structure not validated.
+        #
+        # NOTE: _build_trivariate_pmf (MC) below is a fallback only; the primary PRA
+        # path uses sequential bivariate IPF in _build_combo_pmf_rows (predict.py).
         try:
             out["pra"] = _build_trivariate_pmf(
                 component_pmfs["pts"],

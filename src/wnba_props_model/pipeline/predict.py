@@ -57,6 +57,33 @@ from wnba_props_model.pipeline.calibrate import apply_calibrators, apply_role_st
 logger = logging.getLogger(__name__)
 
 
+def _adaptive_cap(pmf_arr: np.ndarray, *, tail_mass_tol: float = 1e-10) -> np.ndarray:
+    """Find the minimum cap such that truncated tail mass <= tail_mass_tol.
+
+    Replaces the fixed DOMAIN_MAX truncation for combo PMFs. For combos like
+    reb_ast with small absolute values, a generous fixed cap causes negligible
+    tail mass anyway; for pts_reb_ast the convolved support can exceed DOMAIN_MAX
+    and a fixed cap can cause meaningful drift. The adaptive cap drops only
+    probability mass that is genuinely negligible (< tail_mass_tol total).
+    """
+    if len(pmf_arr) == 0:
+        return pmf_arr
+    # Cumulative sum from the right tail
+    cumsum_from_right = np.cumsum(pmf_arr[::-1])
+    # Find the minimum keep length so that tail_mass <= tail_mass_tol
+    keep = len(pmf_arr)
+    for i, mass in enumerate(cumsum_from_right):
+        if mass > tail_mass_tol:
+            break
+        keep = len(pmf_arr) - i - 1
+    keep = max(keep, 1)
+    truncated = pmf_arr[:keep].copy()
+    s = truncated.sum()
+    if s > 1e-15:
+        truncated /= s
+    return truncated
+
+
 def _load_stage4_models(model_dir: str | Path) -> dict:
     """Load Stage 4 HGB artifacts from disk.
 
@@ -281,6 +308,8 @@ def _build_combo_pmf_rows(
     _ipf_row_errs: list[float] = []
     _ipf_col_errs: list[float] = []
     _ipf_mean_errs: list[float] = []
+    # Per-combo truncation diagnostics (Item 1)
+    _trunc_diag_rows: list[dict] = []
 
     for (player_id, game_id), grp in pmfs_long.groupby(["player_id", "game_id"], sort=False):
         # Collect component PMF arrays indexed by stat key
@@ -363,10 +392,31 @@ def _build_combo_pmf_rows(
                         logger.debug("[combo:%s] Copula/IPF adjustment failed: %s; using convolution", combo_key, exc)
                         _ipf_diag = {}
 
-            # Truncate to domain cap and renormalize
-            pmf_arr = pmf_arr[: cap + 1]
-            if pmf_arr.sum() > 1e-9:
-                pmf_arr = pmf_arr / pmf_arr.sum()
+            # --- Item 1: Record pre-truncation diagnostics ---
+            ks_full = np.arange(len(pmf_arr))
+            full_support_mass = float(pmf_arr.sum())
+            if full_support_mass > 1e-15:
+                _pmf_normalized_full = pmf_arr / full_support_mass
+            else:
+                _pmf_normalized_full = pmf_arr.copy()
+            full_support_mean = float(ks_full @ _pmf_normalized_full)
+
+            # --- Item 2: Adaptive cap — replaces fixed DOMAIN_MAX truncation ---
+            # Apply adaptive cap first, then fall back to fixed cap only as a hard
+            # upper bound to prevent runaway memory on degenerate inputs.
+            pmf_arr = _adaptive_cap(pmf_arr, tail_mass_tol=1e-10)
+            # Hard upper bound: never exceed DOMAIN_MAX for the stat (sanity guard)
+            if cap + 1 < len(pmf_arr):
+                pmf_arr = pmf_arr[: cap + 1]
+                if pmf_arr.sum() > 1e-9:
+                    pmf_arr = pmf_arr / pmf_arr.sum()
+
+            # Compute post-truncation diagnostics
+            ks_trunc = np.arange(len(pmf_arr))
+            retained_mass = float(pmf_arr.sum())
+            truncated_tail_mass = max(0.0, full_support_mass - retained_mass)
+            post_truncation_mean = float(ks_trunc @ pmf_arr) if retained_mass > 1e-15 else 0.0
+            truncation_mean_error = abs(post_truncation_mean - full_support_mean)
 
             # Apply variance compression from variance_compress.json (combo stats have no
             # .pkl calibrators, so this must be applied directly at inference time).
@@ -388,6 +438,41 @@ def _build_combo_pmf_rows(
             pmf_var  = float((ks ** 2) @ pmf_arr - pmf_mean ** 2)
             p0       = float(pmf_arr[0]) if len(pmf_arr) > 0 else 0.0
 
+            # --- Item 1: JSON round-trip serialization test ---
+            _pmf_json_str = pmf_to_json(pmf_arr)
+            try:
+                _rt_d = json.loads(_pmf_json_str)
+                _rt_ks = np.array([int(k) for k in _rt_d.keys()])
+                _rt_vs = np.array(list(_rt_d.values()), dtype=float)
+                _rt_s = _rt_vs.sum()
+                if _rt_s > 1e-15:
+                    _rt_vs /= _rt_s
+                _rt_mean = float(_rt_ks @ _rt_vs)
+                _rt_mean_err = abs(_rt_mean - pmf_mean)
+                # P(over) at representative line = floor(pmf_mean) + 0.5
+                _rt_line = float(int(pmf_mean)) + 0.5
+                _rt_p_over = float(_rt_vs[_rt_ks > _rt_line].sum())
+                _stored_p_over = float(pmf_arr[ks > _rt_line].sum())
+                _rt_p_over_err = abs(_rt_p_over - _stored_p_over)
+            except Exception:
+                _rt_mean_err = float("nan")
+                _rt_p_over_err = float("nan")
+                _rt_line = float("nan")
+
+            # --- Item 1: Collect per-row truncation diagnostics for summary CSV ---
+            _trunc_diag_rows.append({
+                "stat": canonical_stat,
+                "player_id": tmpl.get("player_id"),
+                "full_support_mass": full_support_mass,
+                "retained_mass": retained_mass,
+                "truncated_tail_mass": truncated_tail_mass,
+                "full_support_mean": full_support_mean,
+                "post_truncation_mean": post_truncation_mean,
+                "truncation_mean_error": truncation_mean_error,
+                "serialization_roundtrip_mean_error": _rt_mean_err,
+                "serialization_roundtrip_p_over_error": _rt_p_over_err,
+            })
+
             # Phantom floor: only suppress truly degenerate near-zero predictions
             # (e.g. pmf_mean=0.016). Legitimate rotation/bench projections (e.g.
             # pts_reb=6.5) are NOT suppressed — OVER/UNDER signals at those levels
@@ -400,7 +485,54 @@ def _build_combo_pmf_rows(
                 "stocks":      0.3,
                 "blk_stl":     0.3,
             }
-            _suppressed = pmf_mean < _COMBO_PHANTOM_FLOOR.get(canonical_stat, 0.0)
+            _phantom_suppressed = pmf_mean < _COMBO_PHANTOM_FLOOR.get(canonical_stat, 0.0)
+
+            # --- Item 3: Integrity gates — mark non-publishable on failure ---
+            _ipf_converged_val = _ipf_diag.get("ipf_converged", True)
+            _row_err_val = _ipf_diag.get("row_marginal_max_error", 0.0)
+            _col_err_val = _ipf_diag.get("col_marginal_max_error", 0.0)
+            _combo_mean_err_val = _ipf_diag.get("combo_mean_error", 0.0)
+            _joint_method = _ipf_diag.get("joint_method", "independence")
+            _joint_status = _ipf_diag.get("joint_status", "OK")
+
+            INTEGRITY_GATES = {
+                "ipf_converged": (lambda v: v is True or v is np.bool_(True), "IPF did not converge"),
+                "row_marginal_max_error": (lambda v: v <= 1e-9, "Row marginal error > 1e-9"),
+                "col_marginal_max_error": (lambda v: v <= 1e-9, "Col marginal error > 1e-9"),
+                "combo_mean_error": (lambda v: v <= 1e-8, "Combo mean error > 1e-8 post-truncation"),
+                "truncated_tail_mass": (lambda v: v <= 1e-10, "Truncated tail mass > 1e-10"),
+            }
+            _gate_vals = {
+                "ipf_converged": _ipf_converged_val if _ipf_diag else True,
+                "row_marginal_max_error": _row_err_val,
+                "col_marginal_max_error": _col_err_val,
+                "combo_mean_error": _combo_mean_err_val,
+                "truncated_tail_mass": truncated_tail_mass,
+            }
+            _gate_failures: list[str] = []
+            # Only gate on IPF metrics for copula-adjusted combos (two-stat pairs with rho != 0)
+            _has_ipf = bool(_ipf_diag) and _joint_method not in ("independence", "")
+            for _gate_name, (_check_fn, _msg) in INTEGRITY_GATES.items():
+                _gval = _gate_vals.get(_gate_name)
+                if _gval is None:
+                    continue
+                # Skip IPF-specific gates for non-copula combos (e.g. pra uses sequential bivariate)
+                if _gate_name in ("ipf_converged", "row_marginal_max_error", "col_marginal_max_error") and not _has_ipf:
+                    continue
+                if not _check_fn(_gval):
+                    _gate_failures.append(f"{_gate_name}: {_gval} ({_msg})")
+
+            _player_name = tmpl.get("player_name", str(tmpl.get("player_id", "?")))
+            if _gate_failures:
+                if _joint_status == "OK":
+                    _joint_status = "WARN"
+                logger.warning(
+                    "[combo_integrity] %s %s gate failures: %s",
+                    _player_name, canonical_stat, "; ".join(_gate_failures),
+                )
+
+            # combo_suppressed: True if phantom floor OR gate failure
+            _suppressed = _phantom_suppressed or bool(_gate_failures)
 
             row_dict = {
                 k: v for k, v in tmpl.items()
@@ -410,25 +542,34 @@ def _build_combo_pmf_rows(
             }
             row_dict.update({
                 "stat":           canonical_stat,
-                "pmf_json":       pmf_to_json(pmf_arr),
+                "pmf_json":       _pmf_json_str,
                 "mean":           round(pmf_mean, 4),
                 "pmf_mean":       round(pmf_mean, 4),
                 "pmf_variance":   round(pmf_var, 4),
                 "stat_mean":      round(pmf_mean, 4),
                 "stat_variance":  round(pmf_var, 4),
                 "p0":             round(p0, 6),
-                "pmf_support_max": cap,
+                "pmf_support_max": len(pmf_arr) - 1,
                 "pmf_source":     "combo_convolution",
                 "actual_outcome": np.nan,
                 "combo_suppressed": _suppressed,
                 # IPF diagnostics — only populated for copula-adjusted two-stat combos
                 "requested_latent_rho":       _ipf_diag.get("requested_latent_rho", np.nan),
                 "achieved_count_correlation": _ipf_diag.get("achieved_count_correlation", np.nan),
-                "row_marginal_max_error":     _ipf_diag.get("row_marginal_max_error", np.nan),
-                "col_marginal_max_error":     _ipf_diag.get("col_marginal_max_error", np.nan),
-                "combo_mean_error":           _ipf_diag.get("combo_mean_error", np.nan),
+                "row_marginal_max_error":     _row_err_val if _has_ipf else np.nan,
+                "col_marginal_max_error":     _col_err_val if _has_ipf else np.nan,
+                "combo_mean_error":           _combo_mean_err_val,
                 "ipf_iterations":             _ipf_diag.get("ipf_iterations", np.nan),
-                "ipf_converged":              _ipf_diag.get("ipf_converged", np.nan),
+                "ipf_converged":              _ipf_converged_val if _has_ipf else np.nan,
+                "joint_method":               _joint_method,
+                "joint_status":               _joint_status,
+                # Item 1: truncation diagnostics
+                "full_support_mean":                 round(full_support_mean, 6),
+                "post_truncation_mean":              round(post_truncation_mean, 6),
+                "truncated_tail_mass":               truncated_tail_mass,
+                "truncation_mean_error":             truncation_mean_error,
+                "serialization_roundtrip_mean_error": _rt_mean_err,
+                "serialization_roundtrip_p_over_error": _rt_p_over_err,
             })
             combo_rows.append(row_dict)
 
@@ -443,6 +584,34 @@ def _build_combo_pmf_rows(
             float(np.max(_ipf_mean_errs)),
             len(_ipf_row_errs),
         )
+
+    # --- Item 1: Write truncation diagnostics summary CSV ---
+    if _trunc_diag_rows:
+        try:
+            _diag_df = pd.DataFrame(_trunc_diag_rows)
+            _summary_rows: list[dict] = []
+            for _stat_key, _stat_grp in _diag_df.groupby("stat"):
+                _summary_rows.append({
+                    "stat": _stat_key,
+                    "count": len(_stat_grp),
+                    "max_truncated_tail_mass": float(_stat_grp["truncated_tail_mass"].max()),
+                    "max_truncation_mean_error": float(_stat_grp["truncation_mean_error"].max()),
+                    "max_roundtrip_mean_error": float(_stat_grp["serialization_roundtrip_mean_error"].dropna().max())
+                        if not _stat_grp["serialization_roundtrip_mean_error"].dropna().empty else float("nan"),
+                    "p_over_roundtrip_max_error": float(_stat_grp["serialization_roundtrip_p_over_error"].dropna().max())
+                        if not _stat_grp["serialization_roundtrip_p_over_error"].dropna().empty else float("nan"),
+                })
+            _summary_df = pd.DataFrame(_summary_rows)
+            _diag_dir = Path("artifacts/hotfix_diagnostics")
+            _diag_dir.mkdir(parents=True, exist_ok=True)
+            _summary_df.to_csv(_diag_dir / "combo_truncation_summary.csv", index=False)
+            logger.info(
+                "[combo] Truncation diagnostics summary written to %s (%d stats)",
+                _diag_dir / "combo_truncation_summary.csv", len(_summary_rows),
+            )
+        except Exception as _diag_exc:
+            logger.warning("[combo] Failed to write truncation diagnostics: %s", _diag_exc)
+
     return pd.DataFrame(combo_rows)
 
 

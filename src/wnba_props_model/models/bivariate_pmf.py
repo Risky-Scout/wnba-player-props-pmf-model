@@ -159,7 +159,7 @@ def fit_joint_to_marginals(
     seed_joint: np.ndarray,
     target_x: np.ndarray,
     target_y: np.ndarray,
-    tolerance: float = 1e-10,
+    tolerance: float = 1e-12,  # tightened from 1e-10 to drive pre-truncation combo_mean_error < 1e-8
     max_iterations: int = 10_000,
     epsilon: float = 1e-15,
 ) -> tuple[np.ndarray, dict]:
@@ -246,8 +246,9 @@ def fit_joint_to_marginals(
 
     final_row_err = float(np.max(np.abs(joint.sum(axis=1) - target_x)))
     final_col_err = float(np.max(np.abs(joint.sum(axis=0) - target_y)))
+    converged = max(final_row_err, final_col_err) <= tolerance * 10
     diagnostics = {
-        "converged": max(final_row_err, final_col_err) <= tolerance * 10,
+        "converged": converged,
         "iterations": iteration,
         "row_marginal_max_error": final_row_err,
         "col_marginal_max_error": final_col_err,
@@ -433,6 +434,7 @@ def adjust_combo_pmf_for_correlation(
 
     # Build copula seed, then apply IPF for exact marginal preservation
     rho_clipped = float(np.clip(rho, -_MAX_ABS_RHO, _MAX_ABS_RHO))
+    joint_method = "independence"
     if abs(rho_clipped) < 0.02:
         # Independence: outer product already has exact marginals; no IPF needed
         joint = np.outer(pmf_x, pmf_y)
@@ -464,6 +466,21 @@ def adjust_combo_pmf_for_correlation(
         if seed.sum() < 1e-12:
             seed = np.outer(pmf_x, pmf_y)
         joint, ipf_diag = fit_joint_to_marginals(seed, pmf_x, pmf_y)
+        if ipf_diag.get("converged", False):
+            joint_method = "ipf_copula"
+        else:
+            # Item 4: IPF failed — fall back to independence and label explicitly
+            row_err = ipf_diag.get("row_marginal_max_error", float("inf"))
+            col_err = ipf_diag.get("col_marginal_max_error", float("inf"))
+            logger.warning(
+                "[ipf_fallback] IPF failed for %s_%s — using independence. "
+                "row_err=%.3e col_err=%.3e",
+                stat_x, stat_y, row_err, col_err,
+            )
+            joint = np.outer(pmf_x, pmf_y)
+            ipf_diag["row_marginal_max_error"] = 0.0
+            ipf_diag["col_marginal_max_error"] = 0.0
+            joint_method = "independence_fallback"
 
     # Extract combo PMF via anti-diagonal sums P(X+Y=k)
     nx, ny = joint.shape
@@ -484,6 +501,7 @@ def adjust_combo_pmf_for_correlation(
     combo_mean = float(ks_c @ sum_pmf) if sum_pmf.sum() > 0 else 0.0
     combo_mean_error = abs(combo_mean - (mean_x + mean_y))
 
+    joint_status = "WARN_IPF_FAILED" if joint_method == "independence_fallback" else "OK"
     diagnostics = {
         "requested_latent_rho":       rho,
         "achieved_count_correlation": _achieved_correlation(joint, pmf_x, pmf_y),
@@ -492,5 +510,7 @@ def adjust_combo_pmf_for_correlation(
         "combo_mean_error":           combo_mean_error,
         "ipf_iterations":             ipf_diag["iterations"],
         "ipf_converged":              ipf_diag["converged"],
+        "joint_method":               joint_method,
+        "joint_status":               joint_status,
     }
     return sum_pmf, diagnostics
