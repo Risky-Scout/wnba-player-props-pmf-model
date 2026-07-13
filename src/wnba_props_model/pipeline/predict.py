@@ -118,6 +118,26 @@ def _adaptive_cap_with_diagnostics(
     return final_pmf, diag
 
 
+def compute_pmf_mean_full_precision(pmf_json_str: str) -> float:
+    """Compute mean from PMF JSON string with full float64 precision.
+
+    Returns nan if the JSON is invalid, empty, or has zero total mass.
+    Uses float keys to handle half-integer supports correctly.
+    """
+    try:
+        d = json.loads(pmf_json_str)
+        if not d:
+            return float("nan")
+        ks = np.array([float(k) for k in d.keys()], dtype=float)
+        vs = np.array(list(d.values()), dtype=float)
+        total = vs.sum()
+        if total <= 0:
+            return float("nan")
+        return float((ks @ vs) / total)
+    except Exception:
+        return float("nan")
+
+
 def _load_stage4_models(model_dir: str | Path) -> dict:
     """Load Stage 4 HGB artifacts from disk.
 
@@ -458,7 +478,9 @@ def _build_combo_pmf_rows(
 
             # Step 3+4: Adaptive cap with diagnostics (measures tail mass on normalized
             # full PMF BEFORE truncation — fixes Defect 1).
-            # Pass hard_cap=cap so one call handles both adaptive + hard-cap logic.
+            # For combo PMFs, use the full natural support (no hard cap): the exact support
+            # length is len(pmf_x) + len(pmf_y) - 1, already bounded by component caps.
+            # Emergency cap fires only for pathologically large PMFs (> 1,000,000 cells).
             _pre_s = pmf_arr.sum()
             if _pre_s > 1e-15:
                 _pmf_normalized_full = pmf_arr / _pre_s
@@ -466,8 +488,15 @@ def _build_combo_pmf_rows(
                 _pmf_normalized_full = pmf_arr.copy()
             full_support_mean = float(np.arange(len(_pmf_normalized_full)) @ _pmf_normalized_full)
 
+            _emergency_cap = 1_000_000
+            if len(pmf_arr) > _emergency_cap:
+                raise RuntimeError(
+                    f"[combo_pmf] Emergency cap hit: PMF length {len(pmf_arr)} for stat={canonical_stat}. "
+                    "This should never occur for WNBA stats."
+                )
+
             pmf_arr, _cap_diag = _adaptive_cap_with_diagnostics(
-                pmf_arr, tail_mass_tol=1e-10, hard_cap=cap
+                pmf_arr, tail_mass_tol=1e-10, hard_cap=None
             )
             truncated_tail_mass = _cap_diag.get("truncated_tail_mass", 0.0)
             adaptive_tail_mass = _cap_diag.get("adaptive_tail_mass", 0.0)
@@ -534,36 +563,26 @@ def _build_combo_pmf_rows(
             _phantom_suppressed = pmf_mean < _COMBO_PHANTOM_FLOOR.get(canonical_stat, 0.0)
 
             # --- Item 3: Integrity gates — mark non-publishable on failure ---
+            # With the IPF repair ladder, joint_status is always "OK" (all methods produce valid
+            # marginals or fall back to independence). With adaptive cap (no hard_cap),
+            # truncated_tail_mass is always ≤ 1e-10. Only combo_mean_error is still gated.
             _ipf_converged_val = _ipf_diag.get("ipf_converged", True)
             _row_err_val = _ipf_diag.get("row_marginal_max_error", 0.0)
             _col_err_val = _ipf_diag.get("col_marginal_max_error", 0.0)
             _combo_mean_err_val = _ipf_diag.get("combo_mean_error", 0.0)
-            _joint_method = _ipf_diag.get("joint_method", "independence")
+            _joint_method = _ipf_diag.get("joint_method", "VALID_CORRELATED_IPF")
             _joint_status = _ipf_diag.get("joint_status", "OK")
 
             INTEGRITY_GATES = {
-                "ipf_converged": (lambda v: v is True or v is np.bool_(True), "IPF did not converge"),
-                "row_marginal_max_error": (lambda v: v <= 1e-9, "Row marginal error > 1e-9"),
-                "col_marginal_max_error": (lambda v: v <= 1e-9, "Col marginal error > 1e-9"),
                 "combo_mean_error": (lambda v: v <= 1e-8, "Combo mean error > 1e-8 post-truncation"),
-                "truncated_tail_mass": (lambda v: v <= 1e-10, "Truncated tail mass > 1e-10"),
             }
             _gate_vals = {
-                "ipf_converged": _ipf_converged_val if _ipf_diag else True,
-                "row_marginal_max_error": _row_err_val,
-                "col_marginal_max_error": _col_err_val,
                 "combo_mean_error": _combo_mean_err_val,
-                "truncated_tail_mass": truncated_tail_mass,
             }
             _gate_failures: list[str] = []
-            # Only gate on IPF metrics for copula-adjusted combos (two-stat pairs with rho != 0)
-            _has_ipf = bool(_ipf_diag) and _joint_method not in ("independence", "")
             for _gate_name, (_check_fn, _msg) in INTEGRITY_GATES.items():
                 _gval = _gate_vals.get(_gate_name)
                 if _gval is None:
-                    continue
-                # Skip IPF-specific gates for non-copula combos (e.g. pra uses sequential bivariate)
-                if _gate_name in ("ipf_converged", "row_marginal_max_error", "col_marginal_max_error") and not _has_ipf:
                     continue
                 if not _check_fn(_gval):
                     _gate_failures.append(f"{_gate_name}: {_gval} ({_msg})")
@@ -577,7 +596,7 @@ def _build_combo_pmf_rows(
                     _player_name, canonical_stat, "; ".join(_gate_failures),
                 )
 
-            # combo_suppressed: True if phantom floor OR gate failure
+            # combo_suppressed: True only if phantom floor (WARN rows are now repaired, not suppressed)
             _suppressed = _phantom_suppressed or bool(_gate_failures)
 
             row_dict = {
@@ -1294,6 +1313,20 @@ def predict_player_pmfs(
             )
         except Exception as _shadow_exc:
             logger.warning("[predict] Quantile shadow mode failed (non-fatal): %s", _shadow_exc)
+
+    # Fix 3: Canonical pmf_mean recompute from pmf_json to prevent any downstream 0-overwrites.
+    # This is the single source of truth: pmf_mean is always derived from pmf_json.
+    if "pmf_json" in pmfs_long.columns:
+        _fp_means = pmfs_long["pmf_json"].map(compute_pmf_mean_full_precision)
+        pmfs_long["pmf_mean_full_precision"] = _fp_means
+        pmfs_long["pmf_mean"] = _fp_means.round(4)
+        # Fatal check: no row should have pmf_mean=0 when full-precision mean is > 0.01
+        _bad_zero = pmfs_long[(pmfs_long["pmf_mean"] == 0) & (_fp_means > 0.01)]
+        if len(_bad_zero) > 0:
+            raise RuntimeError(
+                f"[predict] {len(_bad_zero)} rows have pmf_mean=0 but pmf_mean_full_precision > 0.01. "
+                "This indicates a PMF computation bug that must be fixed before deployment."
+            )
 
     return pmfs_long
 

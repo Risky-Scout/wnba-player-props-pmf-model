@@ -51,6 +51,23 @@ def run_verification(
         sys.exit(1)
 
     pmfs = pd.read_parquet(pmf_path)
+
+    # --- Check WARN rows across entire PMF output ---
+    if "joint_status" in pmfs.columns:
+        warn_count = int(pmfs["joint_status"].isin(["WARN", "WARN_IPF_FAILED"]).sum())
+        if warn_count > 0:
+            print(f"RESULT: FAIL — {warn_count} WARN joint_status rows in PMF output")
+            sys.exit(1)
+        print(f"joint_status check: OK (0 WARN rows)")
+
+    # --- Check suppressed rows across entire PMF output ---
+    if "combo_suppressed" in pmfs.columns:
+        supp_count = int(pmfs["combo_suppressed"].fillna(False).sum())
+        if supp_count > 0:
+            print(f"RESULT: FAIL — {supp_count} combo_suppressed rows in PMF output")
+            sys.exit(1)
+        print(f"combo_suppressed check: OK (0 suppressed rows)")
+
     combo_pmfs = pmfs[pmfs["stat"].isin(COMBO_STATS)].copy()
     combo_row_count = len(combo_pmfs)
 

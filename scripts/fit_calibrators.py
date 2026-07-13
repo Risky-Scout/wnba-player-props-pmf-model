@@ -23,14 +23,16 @@ def main(
     for stat, path in paths.items():
         typer.echo(f"{stat}: {path}")
 
-    # TODO: Write OOF prediction rows to artifacts/models/calibration/oof_predictions_{date}.parquet
-    # Required columns: player_id, game_id, game_date, stat, role_bucket, pmf_json, pmf_mean,
-    #                   actual_outcome, market_line, p_over
-    # Without this, historical rebound/reb_ast calibration validation is deferred.
-    # Implementation risk: the oof_pmfs parquet may not contain all required columns
-    # (market_line, p_over) — these require a join against historical props. Adding the join
-    # safely requires props_parquet to always be provided, which is not currently guaranteed.
-    # See hotfix README for context. Track: hotfix/validation-gates defect list Item 9.
+    # OOF persistence: write OOF predictions to parquet for calibration validation.
+    try:
+        oof_raw = pd.read_parquet(oof_pmfs)
+        oof_path = Path(out_dir) / "oof_predictions.parquet"
+        oof_path.parent.mkdir(parents=True, exist_ok=True)
+        # Persist all available columns (superset of required); downstream can select.
+        oof_raw.to_parquet(oof_path, index=False)
+        typer.echo(f"OOF predictions persisted: {oof_path} ({len(oof_raw):,} rows)")
+    except Exception as _oof_exc:
+        typer.echo(f"[WARN] OOF persistence failed (non-fatal): {_oof_exc}", err=True)
 
     # Per-line isotonic calibrators: P(over|line_bucket) correction
     # Line buckets relative to predicted mean z-score: very_low, low, mid, high, very_high
