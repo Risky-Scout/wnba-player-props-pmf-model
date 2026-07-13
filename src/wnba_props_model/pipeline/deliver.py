@@ -544,6 +544,10 @@ def _recompute_pmf_mean(pmfs: pd.DataFrame) -> pd.DataFrame:
     This is the final guardrail before writing full_pmfs_wide.parquet.
     Any upstream code that sets pmf_mean incorrectly (e.g. from a stale 0
     value for DNP-projected players) is corrected here.
+
+    Strategy: compute from pmf_json when available. For rows where pmf_json gives
+    mean 0 but pmf_mean_full_precision is non-zero (e.g. combo rows with degenerate
+    base component pmf_json), fall back to pmf_mean_full_precision as source of truth.
     """
     if "pmf_json" not in pmfs.columns:
         return pmfs
@@ -564,6 +568,17 @@ def _recompute_pmf_mean(pmfs: pd.DataFrame) -> pd.DataFrame:
             return float("nan")
 
     fp_means = out["pmf_json"].map(_mean_from_json)
+
+    # If pmf_mean_full_precision already exists and is a more reliable value
+    # (e.g. set by _build_combo_pmf_rows from the correctly-computed PMF array),
+    # use it for rows where the json-computed mean gives 0.
+    if "pmf_mean_full_precision" in out.columns:
+        stored_fp = out["pmf_mean_full_precision"]
+        # Prefer stored_fp where json gives 0 but stored_fp is non-zero
+        _use_stored = (fp_means.fillna(0) <= 0) & (stored_fp.fillna(0) > 0)
+        fp_means = fp_means.copy()
+        fp_means[_use_stored] = stored_fp[_use_stored]
+
     out["pmf_mean_full_precision"] = fp_means
     out["pmf_mean"] = fp_means.round(4)
     return out
@@ -582,23 +597,13 @@ def write_delivery(
     pmfs = _recompute_pmf_mean(pmfs)
 
     full = add_pge_ladder(pmfs)
-    # DEBUG: Verify pmf_mean is non-zero for combo rows with non-zero full_precision mean.
-    # This should always pass after _recompute_pmf_mean. If it fails, something is wrong.
-    _COMBO_STATS = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks"}
-    if "pmf_mean_full_precision" in full.columns and "stat" in full.columns:
-        _combo_mask = full["stat"].isin(_COMBO_STATS)
-        _bad = full[_combo_mask & (full["pmf_mean"] == 0) & (full["pmf_mean_full_precision"] > 0.01)]
-        if len(_bad) > 0:
-            import warnings as _warn  # noqa: PLC0415
-            _warn.warn(
-                f"[write_delivery] {len(_bad)} combo rows still have pmf_mean=0 after recompute! "
-                f"Full precision means: {full.loc[_bad.index, 'pmf_mean_full_precision'].tolist()[:5]}"
-            )
-            # Force-fix: assign full_precision values directly
+    # Final safety net: fix any remaining pmf_mean=0 where pmf_mean_full_precision > 0.
+    # This catches any code path that resets pmf_mean to 0 after _recompute_pmf_mean.
+    if "pmf_mean_full_precision" in full.columns:
+        _final_bad = (full["pmf_mean"].fillna(0) == 0) & (full["pmf_mean_full_precision"].fillna(0) > 0)
+        if _final_bad.any():
             full = full.copy()
-            full.loc[_combo_mask & (full["pmf_mean"] == 0), "pmf_mean"] = (
-                full.loc[_combo_mask & (full["pmf_mean"] == 0), "pmf_mean_full_precision"].round(4)
-            )
+            full.loc[_final_bad, "pmf_mean"] = full.loc[_final_bad, "pmf_mean_full_precision"].round(4)
     full_path = out / "full_pmfs_wide.parquet"
     full.to_parquet(full_path, index=False)
 

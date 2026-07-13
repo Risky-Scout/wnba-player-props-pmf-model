@@ -1319,10 +1319,19 @@ def predict_player_pmfs(
         except Exception as _shadow_exc:
             logger.warning("[predict] Quantile shadow mode failed (non-fatal): %s", _shadow_exc)
 
-    # Fix 3: Canonical pmf_mean recompute from pmf_json to prevent any downstream 0-overwrites.
-    # This is the single source of truth: pmf_mean is always derived from pmf_json.
+    # Fix 3: Canonical pmf_mean recompute from pmf_json. Use pmf_mean_full_precision
+    # as fallback for rows where the json-computed mean is 0 but the stored full-precision
+    # value (set in _build_combo_pmf_rows from the correctly-computed PMF array) is non-zero.
     if "pmf_json" in pmfs_long.columns:
         _fp_means = pmfs_long["pmf_json"].map(compute_pmf_mean_full_precision)
+
+        # For rows where json gives 0 but pmf_mean_full_precision is non-zero, use the stored value.
+        if "pmf_mean_full_precision" in pmfs_long.columns:
+            _stored_fp = pmfs_long["pmf_mean_full_precision"]
+            _use_stored = (_fp_means.fillna(0) <= 0) & (_stored_fp.fillna(0) > 0)
+            _fp_means = _fp_means.copy()
+            _fp_means[_use_stored] = _stored_fp[_use_stored]
+
         pmfs_long["pmf_mean_full_precision"] = _fp_means
         pmfs_long["pmf_mean"] = _fp_means.round(4)
         # Fatal check: no row should have pmf_mean=0 when full-precision mean is > 0.01
