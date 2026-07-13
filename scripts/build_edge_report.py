@@ -172,6 +172,35 @@ def main(
     pmfs_df = pd.read_parquet(pmfs)
     typer.echo(f"Loaded {len(pmfs_df):,} PMF rows")
 
+    # --- Defect 3: Fail-closed filter for suppressed combo rows and bad joint_status ---
+    # Filter individual integrity-failed rows; do NOT disable entire prop categories.
+    if "combo_suppressed" in pmfs_df.columns:
+        _supp_mask = pmfs_df["combo_suppressed"].fillna(False).astype(bool)
+        if _supp_mask.any():
+            _suppressed_rows = pmfs_df[_supp_mask].copy()
+            try:
+                _diag_dir = Path("artifacts/hotfix_diagnostics")
+                _diag_dir.mkdir(parents=True, exist_ok=True)
+                _suppressed_rows.to_parquet(
+                    _diag_dir / "suppressed_combo_edges.parquet",
+                    index=False,
+                )
+            except Exception as _pe:
+                typer.echo(f"[WARN] Could not write suppressed_combo_edges.parquet: {_pe}", err=True)
+            typer.echo(
+                f"[edge_report] Excluding {int(_supp_mask.sum())} combo_suppressed rows from edge selection"
+            )
+        pmfs_df = pmfs_df[~_supp_mask].copy()
+
+    if "joint_status" in pmfs_df.columns:
+        _bad_status_mask = pmfs_df["joint_status"].isin({"WARN_IPF_FAILED", "WARN"})
+        if _bad_status_mask.any():
+            typer.echo(
+                f"[edge_report] Excluding {int(_bad_status_mask.sum())} rows with bad joint_status "
+                f"({pmfs_df.loc[_bad_status_mask, 'joint_status'].value_counts().to_dict()})"
+            )
+        pmfs_df = pmfs_df[~_bad_status_mask.fillna(False)].copy()
+
     # ── Data source selection ─────────────────────────────────────────────────
     props_df, props_source = _load_props(raw_props, odds_api_props, today)
     typer.echo(f"Loaded {len(props_df):,} market prop rows [source={props_source}]")

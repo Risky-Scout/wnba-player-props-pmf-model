@@ -57,31 +57,65 @@ from wnba_props_model.pipeline.calibrate import apply_calibrators, apply_role_st
 logger = logging.getLogger(__name__)
 
 
-def _adaptive_cap(pmf_arr: np.ndarray, *, tail_mass_tol: float = 1e-10) -> np.ndarray:
-    """Find the minimum cap such that truncated tail mass <= tail_mass_tol.
+def _adaptive_cap_with_diagnostics(
+    pmf_arr: np.ndarray,
+    *,
+    tail_mass_tol: float = 1e-10,
+    hard_cap: int | None = None,
+) -> tuple[np.ndarray, dict]:
+    """Truncate PMF support adaptively.
 
-    Replaces the fixed DOMAIN_MAX truncation for combo PMFs. For combos like
-    reb_ast with small absolute values, a generous fixed cap causes negligible
-    tail mass anyway; for pts_reb_ast the convolved support can exceed DOMAIN_MAX
-    and a fixed cap can cause meaningful drift. The adaptive cap drops only
-    probability mass that is genuinely negligible (< tail_mass_tol total).
+    All mass measurements are on the normalized FULL PMF before any truncation.
+    This is the corrected version of the former ``_adaptive_cap`` — the old
+    implementation renormalized before measuring retained/truncated mass, making
+    ``truncated_tail_mass`` appear near-zero even when significant mass was dropped.
+
+    Returns
+    -------
+    (truncated+renormalized PMF, diagnostics dict)
     """
-    if len(pmf_arr) == 0:
-        return pmf_arr
-    # Cumulative sum from the right tail
-    cumsum_from_right = np.cumsum(pmf_arr[::-1])
-    # Find the minimum keep length so that tail_mass <= tail_mass_tol
-    keep = len(pmf_arr)
-    for i, mass in enumerate(cumsum_from_right):
-        if mass > tail_mass_tol:
+    full_pmf = np.asarray(pmf_arr, dtype=float)
+    full_sum = full_pmf.sum()
+    if full_sum <= 0:
+        return full_pmf.copy(), {"error": "zero mass"}
+
+    # Normalize to get the full distribution (all measurements are on this)
+    full_pmf_normalized = full_pmf / full_sum
+
+    # Find adaptive_end: scan from right until cumulative tail mass > tol
+    cumtail = 0.0
+    adaptive_end = len(full_pmf_normalized)
+    for i in range(len(full_pmf_normalized) - 1, -1, -1):
+        cumtail += full_pmf_normalized[i]
+        if cumtail > tail_mass_tol:
+            adaptive_end = i + 1
             break
-        keep = len(pmf_arr) - i - 1
-    keep = max(keep, 1)
-    truncated = pmf_arr[:keep].copy()
-    s = truncated.sum()
-    if s > 1e-15:
-        truncated /= s
-    return truncated
+
+    # Apply hard cap (as max-index inclusive) if given
+    hard_end = min(adaptive_end, (hard_cap + 1) if hard_cap is not None else adaptive_end)
+    hard_end = max(hard_end, 1)
+
+    # Measure tail mass BEFORE renormalization (on the normalized full PMF)
+    adaptive_tail_mass = float(full_pmf_normalized[adaptive_end:].sum())
+    hard_cap_tail_mass = float(full_pmf_normalized[hard_end:].sum())
+    retained_mass = float(full_pmf_normalized[:hard_end].sum())
+    truncated_tail_mass = 1.0 - retained_mass  # equals hard_cap_tail_mass
+
+    # Truncate and renormalize
+    retained = full_pmf_normalized[:hard_end].copy()
+    s = retained.sum()
+    final_pmf = retained / s if s > 1e-15 else retained
+
+    diag = {
+        "full_support_mass": 1.0,
+        "retained_mass": retained_mass,
+        "truncated_tail_mass": truncated_tail_mass,
+        "adaptive_tail_mass": adaptive_tail_mass,
+        "hard_cap_tail_mass": hard_cap_tail_mass,
+        "adaptive_end": adaptive_end,
+        "hard_end": hard_end,
+    }
+    return final_pmf, diag
 
 
 def _load_stage4_models(model_dir: str | Path) -> dict:
@@ -392,40 +426,29 @@ def _build_combo_pmf_rows(
                         logger.debug("[combo:%s] Copula/IPF adjustment failed: %s; using convolution", combo_key, exc)
                         _ipf_diag = {}
 
-            # --- Item 1: Record pre-truncation diagnostics ---
-            ks_full = np.arange(len(pmf_arr))
-            full_support_mass = float(pmf_arr.sum())
-            if full_support_mass > 1e-15:
-                _pmf_normalized_full = pmf_arr / full_support_mass
-            else:
-                _pmf_normalized_full = pmf_arr.copy()
-            full_support_mean = float(ks_full @ _pmf_normalized_full)
+            # --- Defect 2 fix: Apply variance compression BEFORE adaptive cap so that
+            # the final delivered PMF mean is stable through truncation + serialization.
+            # Defect 1 fix: all tail-mass measurements are on the normalized FULL PMF
+            # (inside _adaptive_cap_with_diagnostics), before any truncation/renorm.
+            #
+            # Required order (per hotfix spec):
+            #   1. joint/combo construction (IPF)          ← done above
+            #   2. variance compression (vc_factor)        ← HERE
+            #   3. _adaptive_cap_with_diagnostics           ← HERE (measures on full PMF)
+            #   4. renormalization                          ← inside step 3
+            #   5. post_truncation_mean, truncation_mean_error ← HERE
+            #   6. JSON serialization                       ← HERE
+            #   7. JSON deserialization + roundtrip errors  ← HERE
+            #   8. store all diagnostics                    ← row_dict below
 
-            # --- Item 2: Adaptive cap — replaces fixed DOMAIN_MAX truncation ---
-            # Apply adaptive cap first, then fall back to fixed cap only as a hard
-            # upper bound to prevent runaway memory on degenerate inputs.
-            pmf_arr = _adaptive_cap(pmf_arr, tail_mass_tol=1e-10)
-            # Hard upper bound: never exceed DOMAIN_MAX for the stat (sanity guard)
-            if cap + 1 < len(pmf_arr):
-                pmf_arr = pmf_arr[: cap + 1]
-                if pmf_arr.sum() > 1e-9:
-                    pmf_arr = pmf_arr / pmf_arr.sum()
-
-            # Compute post-truncation diagnostics
-            ks_trunc = np.arange(len(pmf_arr))
-            retained_mass = float(pmf_arr.sum())
-            truncated_tail_mass = max(0.0, full_support_mass - retained_mass)
-            post_truncation_mean = float(ks_trunc @ pmf_arr) if retained_mass > 1e-15 else 0.0
-            truncation_mean_error = abs(post_truncation_mean - full_support_mean)
-
-            # Apply variance compression from variance_compress.json (combo stats have no
-            # .pkl calibrators, so this must be applied directly at inference time).
-            # Fits a tighter NegBinomial with the same mean but reduced variance.
+            # Step 2: Variance compression (combo stats have no .pkl calibrators)
             vc_factor = float(_var_compress.get(canonical_stat, 1.0))
             if vc_factor > 1.05 and pmf_arr.sum() > 1e-9:
-                ks_vc = np.arange(len(pmf_arr))
-                mu_vc = float(ks_vc @ pmf_arr)
-                var_vc = float((ks_vc ** 2) @ pmf_arr - mu_vc ** 2)
+                _vc_s = pmf_arr.sum()
+                _pmf_for_vc = pmf_arr / _vc_s if _vc_s > 1e-15 else pmf_arr.copy()
+                ks_vc = np.arange(len(_pmf_for_vc))
+                mu_vc = float(ks_vc @ _pmf_for_vc)
+                var_vc = float((ks_vc ** 2) @ _pmf_for_vc - mu_vc ** 2)
                 var_target = max(var_vc / vc_factor, mu_vc * 1.01)  # floor: slightly super-Poisson
                 if var_target > mu_vc and mu_vc > 0.5:
                     r_new = mu_vc ** 2 / (var_target - mu_vc)
@@ -433,12 +456,33 @@ def _build_combo_pmf_rows(
                     if compressed.sum() > 1e-9:
                         pmf_arr = compressed / compressed.sum()
 
+            # Step 3+4: Adaptive cap with diagnostics (measures tail mass on normalized
+            # full PMF BEFORE truncation — fixes Defect 1).
+            # Pass hard_cap=cap so one call handles both adaptive + hard-cap logic.
+            _pre_s = pmf_arr.sum()
+            if _pre_s > 1e-15:
+                _pmf_normalized_full = pmf_arr / _pre_s
+            else:
+                _pmf_normalized_full = pmf_arr.copy()
+            full_support_mean = float(np.arange(len(_pmf_normalized_full)) @ _pmf_normalized_full)
+
+            pmf_arr, _cap_diag = _adaptive_cap_with_diagnostics(
+                pmf_arr, tail_mass_tol=1e-10, hard_cap=cap
+            )
+            truncated_tail_mass = _cap_diag.get("truncated_tail_mass", 0.0)
+            adaptive_tail_mass = _cap_diag.get("adaptive_tail_mass", 0.0)
+            hard_cap_tail_mass = _cap_diag.get("hard_cap_tail_mass", 0.0)
+
+            # Step 5: Post-truncation diagnostics (on renormalized truncated PMF)
             ks = np.arange(len(pmf_arr))
-            pmf_mean = float(ks @ pmf_arr)
+            post_truncation_mean = float(ks @ pmf_arr)
+            truncation_mean_error = abs(post_truncation_mean - full_support_mean)
+
+            pmf_mean = post_truncation_mean
             pmf_var  = float((ks ** 2) @ pmf_arr - pmf_mean ** 2)
             p0       = float(pmf_arr[0]) if len(pmf_arr) > 0 else 0.0
 
-            # --- Item 1: JSON round-trip serialization test ---
+            # Step 6+7: JSON serialization then deserialization round-trip check
             _pmf_json_str = pmf_to_json(pmf_arr)
             try:
                 _rt_d = json.loads(_pmf_json_str)
@@ -459,13 +503,15 @@ def _build_combo_pmf_rows(
                 _rt_p_over_err = float("nan")
                 _rt_line = float("nan")
 
-            # --- Item 1: Collect per-row truncation diagnostics for summary CSV ---
+            # --- Collect per-row truncation diagnostics for summary CSV ---
             _trunc_diag_rows.append({
                 "stat": canonical_stat,
                 "player_id": tmpl.get("player_id"),
-                "full_support_mass": full_support_mass,
-                "retained_mass": retained_mass,
+                "full_support_mass": _cap_diag.get("full_support_mass", 1.0),
+                "retained_mass": _cap_diag.get("retained_mass", 1.0),
                 "truncated_tail_mass": truncated_tail_mass,
+                "adaptive_tail_mass": adaptive_tail_mass,
+                "hard_cap_tail_mass": hard_cap_tail_mass,
                 "full_support_mean": full_support_mean,
                 "post_truncation_mean": post_truncation_mean,
                 "truncation_mean_error": truncation_mean_error,
@@ -563,13 +609,17 @@ def _build_combo_pmf_rows(
                 "ipf_converged":              _ipf_converged_val if _has_ipf else np.nan,
                 "joint_method":               _joint_method,
                 "joint_status":               _joint_status,
-                # Item 1: truncation diagnostics
+                # Truncation diagnostics (all measured on normalized full PMF before truncation)
                 "full_support_mean":                 round(full_support_mean, 6),
                 "post_truncation_mean":              round(post_truncation_mean, 6),
                 "truncated_tail_mass":               truncated_tail_mass,
+                "adaptive_tail_mass":                adaptive_tail_mass,
+                "hard_cap_tail_mass":                hard_cap_tail_mass,
                 "truncation_mean_error":             truncation_mean_error,
                 "serialization_roundtrip_mean_error": _rt_mean_err,
                 "serialization_roundtrip_p_over_error": _rt_p_over_err,
+                # Defect 5: full-precision mean (not rounded to 4dp) for roundtrip verification
+                "pmf_mean_full_precision":           float(post_truncation_mean),
             })
             combo_rows.append(row_dict)
 
@@ -595,6 +645,10 @@ def _build_combo_pmf_rows(
                     "stat": _stat_key,
                     "count": len(_stat_grp),
                     "max_truncated_tail_mass": float(_stat_grp["truncated_tail_mass"].max()),
+                    "max_adaptive_tail_mass": float(_stat_grp["adaptive_tail_mass"].max())
+                        if "adaptive_tail_mass" in _stat_grp.columns else float("nan"),
+                    "max_hard_cap_tail_mass": float(_stat_grp["hard_cap_tail_mass"].max())
+                        if "hard_cap_tail_mass" in _stat_grp.columns else float("nan"),
                     "max_truncation_mean_error": float(_stat_grp["truncation_mean_error"].max()),
                     "max_roundtrip_mean_error": float(_stat_grp["serialization_roundtrip_mean_error"].dropna().max())
                         if not _stat_grp["serialization_roundtrip_mean_error"].dropna().empty else float("nan"),

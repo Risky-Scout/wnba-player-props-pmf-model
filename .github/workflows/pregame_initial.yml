@@ -623,6 +623,14 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Verify combo PMF round-trip integrity
+        run: |
+          python scripts/verify_combo_roundtrip.py \
+            --delivery-dir deliveries/tonight \
+            --tolerance 1e-8 \
+            --fail-on-suppressed-in-edges
+        continue-on-error: false
+
       - name: Generate Edge Board + PMF Dashboard web pages (initial pass)
         run: |
           PROJ_FILE="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
