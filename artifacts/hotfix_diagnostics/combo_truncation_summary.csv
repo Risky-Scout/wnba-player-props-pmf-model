@@ -1,6 +1,0 @@
-stat,count,max_truncated_tail_mass,max_adaptive_tail_mass,max_hard_cap_tail_mass,max_truncation_mean_error,max_roundtrip_mean_error,p_over_roundtrip_max_error
-pts_ast,1,0.0,0.0,0.0,0.0,0.0,0.0
-pts_reb,1,0.0,0.0,0.0,0.0,0.0,0.0
-pts_reb_ast,1,0.0,0.0,0.0,0.0,0.0,0.0
-reb_ast,1,0.0,0.0,0.0,0.0,0.0,0.0
-stocks,1,1.4423351402115259e-11,1.4423329333795002e-11,1.4423329333795002e-11,2.19117723965212e-10,2.220446049250313e-16,1.1102230246251565e-16
