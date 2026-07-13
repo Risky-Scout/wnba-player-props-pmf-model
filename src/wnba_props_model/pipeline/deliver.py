@@ -582,6 +582,23 @@ def write_delivery(
     pmfs = _recompute_pmf_mean(pmfs)
 
     full = add_pge_ladder(pmfs)
+    # DEBUG: Verify pmf_mean is non-zero for combo rows with non-zero full_precision mean.
+    # This should always pass after _recompute_pmf_mean. If it fails, something is wrong.
+    _COMBO_STATS = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast", "stocks"}
+    if "pmf_mean_full_precision" in full.columns and "stat" in full.columns:
+        _combo_mask = full["stat"].isin(_COMBO_STATS)
+        _bad = full[_combo_mask & (full["pmf_mean"] == 0) & (full["pmf_mean_full_precision"] > 0.01)]
+        if len(_bad) > 0:
+            import warnings as _warn  # noqa: PLC0415
+            _warn.warn(
+                f"[write_delivery] {len(_bad)} combo rows still have pmf_mean=0 after recompute! "
+                f"Full precision means: {full.loc[_bad.index, 'pmf_mean_full_precision'].tolist()[:5]}"
+            )
+            # Force-fix: assign full_precision values directly
+            full = full.copy()
+            full.loc[_combo_mask & (full["pmf_mean"] == 0), "pmf_mean"] = (
+                full.loc[_combo_mask & (full["pmf_mean"] == 0), "pmf_mean_full_precision"].round(4)
+            )
     full_path = out / "full_pmfs_wide.parquet"
     full.to_parquet(full_path, index=False)
 
