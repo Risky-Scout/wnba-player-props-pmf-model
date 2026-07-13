@@ -459,7 +459,10 @@ class TestOnlyExplicitInactiveRowsLeaveActionableBoard:
         )
 
         assert 100 in inactive_pids, "OUT player must be confirmed inactive"
-        assert 101 in inactive_pids, "Doubtful player must be confirmed inactive"
+        # doubtful is no longer automatically confirmed inactive
+        assert 101 not in inactive_pids, \
+            "Doubtful player must NOT be confirmed inactive (see blueprint §5)"
+        assert 101 in actionable_pids, "Doubtful player must be market actionable"
 
         # Questionable (102) and probable (103) must be market actionable
         assert 102 in actionable_pids, "Questionable player must be market actionable"
@@ -473,11 +476,12 @@ class TestOnlyExplicitInactiveRowsLeaveActionableBoard:
         pmfs_df = _make_pmfs_df()
         inactive_mask = ip.build_confirmed_inactive_mask(pmfs_df, avail)
 
-        # Mask must be True only for inactive players
+        # Mask must be True only for explicitly confirmed-inactive players (OUT only)
         assert inactive_mask[pmfs_df["player_id"] == 100].all(), \
             "OUT player rows must be masked"
-        assert inactive_mask[pmfs_df["player_id"] == 101].all(), \
-            "Doubtful player rows must be masked"
+        # doubtful is no longer auto-confirmed inactive → must NOT be masked
+        assert not inactive_mask[pmfs_df["player_id"] == 101].any(), \
+            "Doubtful player rows must NOT be masked (no longer auto-confirmed OUT)"
         assert not inactive_mask[pmfs_df["player_id"] == 102].any(), \
             "Questionable player rows must NOT be masked"
         assert not inactive_mask[pmfs_df["player_id"] == 103].any(), \
@@ -662,8 +666,13 @@ class TestRegressionFixtureAvailabilityTable:
         assert r100["is_confirmed_inactive"] is True or bool(r100["is_confirmed_inactive"])
 
         r101 = _get(101)
-        assert r101["minutes_multiplier"] == 0.0, "Doubtful → multiplier=0"
-        assert r101["is_confirmed_inactive"] is True or bool(r101["is_confirmed_inactive"])
+        # doubtful is no longer treated as confirmed OUT — it has a low but non-zero
+        # minutes multiplier (0.15) and remains market actionable.
+        assert abs(r101["minutes_multiplier"] - 0.15) < 1e-9, (
+            f"Doubtful → multiplier=0.15 (not zero), got {r101['minutes_multiplier']}"
+        )
+        assert not bool(r101["is_confirmed_inactive"]), \
+            "Doubtful must NOT be confirmed inactive"
 
         r102 = _get(102)
         assert abs(r102["minutes_multiplier"] - 0.50) < 1e-9, "Questionable → 0.50"

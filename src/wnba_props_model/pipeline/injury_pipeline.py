@@ -51,8 +51,10 @@ STATUS_MINUTES_MULTIPLIER: dict[str, float] = {
     "out":               0.0,
     "inactive":          0.0,
     "dnp":               0.0,
-    "doubtful":          0.0,
-    "unlikely":          0.0,
+    # doubtful/unlikely: low but non-zero participation probability.
+    # These players may still play and must NOT be auto-confirmed as OUT.
+    "doubtful":          0.15,
+    "unlikely":          0.15,
     "questionable":      0.50,
     "probable":          0.85,
     "limited":           0.65,
@@ -64,7 +66,10 @@ STATUS_MINUTES_MULTIPLIER: dict[str, float] = {
 
 INACTIVE_THRESHOLD = 0.05  # availability_probability ≤ this → confirmed inactive
 
-FULL_REDISTRIBUTION_STATUSES = frozenset({"out", "inactive", "dnp", "doubtful", "unlikely"})
+# Only statuses with availability_probability=0.0 qualify for full redistribution.
+# doubtful and unlikely have a non-zero participation probability (0.15) so they
+# must NOT be included here.
+FULL_REDISTRIBUTION_STATUSES = frozenset({"out", "inactive", "dnp"})
 DUAL_SCENARIO_STATUSES       = frozenset({"gtd", "game-time decision"})
 
 # minutes-related feature columns that scale with injury multiplier
@@ -104,11 +109,17 @@ def build_availability_table(
 ) -> pd.DataFrame:
     """Build a per-player availability record from raw injury data.
 
-    Schema
-    ------
-    game_id, player_id, raw_injury_status, normalized_availability_status,
-    availability_probability, minutes_multiplier, is_confirmed_inactive,
-    is_market_actionable, source_updated_at
+    Schema (Step 3 point-in-time injury adjustments)
+    -------------------------------------------------
+    game_id, player_id, raw_status, normalized_status,
+    availability_probability, starter_probability,
+    minutes_multiplier, minutes_cap,
+    is_confirmed_inactive, is_market_actionable,
+    source_updated_at, pulled_at_utc
+
+    ``source_updated_at`` is the timestamp from the injury data feed.
+    ``pulled_at_utc``     is the wall-clock time this function was called
+                          (always >= source_updated_at).
 
     Parameters
     ----------
@@ -120,9 +131,12 @@ def build_availability_table(
         expand availability records to all game_id rows for each affected
         player and to default every player not in ``injuries`` to available.
     source_updated_at:
-        ISO timestamp of the injury snapshot.  Defaults to UTC now.
+        ISO timestamp from the injury feed.  Defaults to UTC now (which means
+        source_updated_at == pulled_at_utc when no explicit feed timestamp is
+        available).
     """
-    ts = source_updated_at or datetime.now(timezone.utc).isoformat()
+    pulled_ts = datetime.now(timezone.utc).isoformat()
+    source_ts = source_updated_at or pulled_ts
 
     # Build a player_id → injury dict lookup (last record wins if duplicates)
     inj_by_pid: dict[int, dict] = {}
@@ -138,10 +152,12 @@ def build_availability_table(
     # Every player in feature_df gets a record; default = available
     if feature_df.empty:
         return pd.DataFrame(columns=[
-            "game_id", "player_id", "raw_injury_status",
-            "normalized_availability_status", "availability_probability",
-            "minutes_multiplier", "is_confirmed_inactive",
-            "is_market_actionable", "source_updated_at",
+            "game_id", "player_id",
+            "raw_status", "normalized_status",
+            "availability_probability", "starter_probability",
+            "minutes_multiplier", "minutes_cap",
+            "is_confirmed_inactive", "is_market_actionable",
+            "source_updated_at", "pulled_at_utc",
         ])
 
     rows: list[dict] = []
@@ -159,15 +175,18 @@ def build_availability_table(
         if rec is None:
             # No injury record → fully available
             rows.append({
-                "game_id": gid,
-                "player_id": pid,
-                "raw_injury_status": "available",
-                "normalized_availability_status": "AVAILABLE",
+                "game_id":                  gid,
+                "player_id":                pid,
+                "raw_status":               "available",
+                "normalized_status":        "AVAILABLE",
                 "availability_probability": 1.0,
-                "minutes_multiplier": 1.0,
-                "is_confirmed_inactive": False,
-                "is_market_actionable": True,
-                "source_updated_at": ts,
+                "starter_probability":      1.0,
+                "minutes_multiplier":       1.0,
+                "minutes_cap":              None,
+                "is_confirmed_inactive":    False,
+                "is_market_actionable":     True,
+                "source_updated_at":        source_ts,
+                "pulled_at_utc":            pulled_ts,
             })
             continue
 
@@ -178,16 +197,28 @@ def build_availability_table(
         # Dual-scenario (GTD) gets 0.5 availability probability (50/50)
         is_gtd = norm in DUAL_SCENARIO_STATUSES
         if is_gtd:
-            avail_prob = 0.50
-            mult = 1.0  # IN scenario; handled separately
+            avail_prob      = 0.50
+            starter_prob    = 0.50
+            mult            = 1.0   # IN scenario; handled separately
+            minutes_cap_val = None
         elif mult == 0.0:
-            avail_prob = 0.0
+            avail_prob      = 0.0
+            starter_prob    = 0.0
+            minutes_cap_val = 0.0
         elif mult < 1.0:
-            # questionable → 50%, probable → 85%, limited → 65%
-            avail_prob = mult  # multiplier doubles as participation probability
+            # questionable → 50%, probable → 85%, limited → 65%, doubtful/unlikely → 15%
+            avail_prob      = mult  # multiplier doubles as participation probability
+            starter_prob    = mult
+            # limited players typically have a hard minutes cap
+            minutes_cap_val = 20.0 if norm == "limited" else None
         else:
-            avail_prob = 1.0
+            avail_prob      = 1.0
+            starter_prob    = 1.0
+            minutes_cap_val = None
 
+        # A player is confirmed inactive ONLY when their status is an explicit
+        # full-redistribution status (out/inactive/dnp) AND availability_probability=0.
+        # doubtful and unlikely are NOT in FULL_REDISTRIBUTION_STATUSES.
         is_inactive = (
             norm in FULL_REDISTRIBUTION_STATUSES
             and avail_prob <= INACTIVE_THRESHOLD
@@ -195,15 +226,18 @@ def build_availability_table(
         is_actionable = not is_inactive
 
         rows.append({
-            "game_id": gid,
-            "player_id": pid,
-            "raw_injury_status": raw_status,
-            "normalized_availability_status": norm.upper(),
+            "game_id":                  gid,
+            "player_id":                pid,
+            "raw_status":               raw_status,
+            "normalized_status":        norm.upper(),
             "availability_probability": float(avail_prob),
-            "minutes_multiplier": float(mult if not is_gtd else -1.0),
-            "is_confirmed_inactive": bool(is_inactive),
-            "is_market_actionable": bool(is_actionable),
-            "source_updated_at": ts,
+            "starter_probability":      float(starter_prob),
+            "minutes_multiplier":       float(mult if not is_gtd else -1.0),
+            "minutes_cap":              float(minutes_cap_val) if minutes_cap_val is not None else None,
+            "is_confirmed_inactive":    bool(is_inactive),
+            "is_market_actionable":     bool(is_actionable),
+            "source_updated_at":        source_ts,
+            "pulled_at_utc":            pulled_ts,
         })
 
     return pd.DataFrame(rows)
@@ -516,9 +550,18 @@ def validate_injury_adjusted_pmfs(
         _validate_non_inactive_rows(pmfs_df, inactive_pids=set())
         return
 
-    # Build confirmed-inactive set
+    # Support both old column name (raw_injury_status/normalized_availability_status)
+    # and new column name (raw_status/normalized_status) for backwards compatibility.
+    norm_col = (
+        "normalized_status"
+        if "normalized_status" in availability_table.columns
+        else "normalized_availability_status"
+    )
+
+    # Build confirmed-inactive set.  Only explicit OUT/INACTIVE/DNP statuses with
+    # availability_probability=0 qualify.  doubtful/unlikely are NOT in this set.
     inactive_mask = (
-        availability_table["normalized_availability_status"].isin({"OUT", "INACTIVE", "DNP", "DOUBTFUL", "UNLIKELY"})
+        availability_table[norm_col].isin({"OUT", "INACTIVE", "DNP"})
         & (availability_table["availability_probability"] <= inactive_threshold)
     )
     inactive_pids = set(
@@ -662,9 +705,16 @@ def build_before_after_report(
     if old_pmfs.empty or new_pmfs.empty:
         return pd.DataFrame()
 
+    # Support both old and new column names
+    raw_col = (
+        "raw_status"
+        if "raw_status" in availability_table.columns
+        else "raw_injury_status"
+    )
     avail_lookup = (
         availability_table
-        .set_index("player_id")[["raw_injury_status", "minutes_multiplier"]]
+        .set_index("player_id")[[raw_col, "minutes_multiplier"]]
+        .rename(columns={raw_col: "raw_status"})
         .to_dict("index")
     ) if not availability_table.empty else {}
 
@@ -714,7 +764,7 @@ def build_before_after_report(
             "player_id":     pid,
             "player_name":   str(row.get("player_name", pid)),
             "stat":          stat,
-            "injury_status": str(inj_info.get("raw_injury_status", "available")),
+            "injury_status": str(inj_info.get("raw_status", inj_info.get("raw_injury_status", "available"))),
             "minutes_before": round(mins_before, 2),
             "minutes_after":  round(mins_after,  2),
             "pmf_mean_before": round(mean_before, 4),
@@ -795,10 +845,17 @@ def build_confirmed_inactive_mask(
     if availability_table.empty:
         return pd.Series(False, index=pmfs_df.index)
 
+    # Support both old and new column names
+    norm_col = (
+        "normalized_status"
+        if "normalized_status" in availability_table.columns
+        else "normalized_availability_status"
+    )
+
+    # Only OUT/INACTIVE/DNP with availability_probability=0 qualify as inactive.
+    # doubtful and unlikely are NOT automatically confirmed OUT.
     inactive_mask_avail = (
-        availability_table["normalized_availability_status"].isin(
-            {"OUT", "INACTIVE", "DNP", "DOUBTFUL", "UNLIKELY"}
-        )
+        availability_table[norm_col].isin({"OUT", "INACTIVE", "DNP"})
         & (availability_table["availability_probability"] <= inactive_threshold)
     )
     inactive_pids = set(

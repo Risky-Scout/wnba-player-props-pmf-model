@@ -347,7 +347,19 @@ def main(
     pmfs_after.to_parquet(slate_path, index=False)
     typer.echo(f"[apply_injury] Updated slate written → {slate_path}")
 
-    # Write availability table
+    # Write canonical injury adjustments parquet (Step 3 schema)
+    # Field names conform to the point-in-time spec:
+    #   game_id, player_id, raw_status, normalized_status,
+    #   availability_probability, starter_probability,
+    #   minutes_multiplier, minutes_cap,
+    #   is_confirmed_inactive, is_market_actionable,
+    #   source_updated_at, pulled_at_utc
+    adj_path = Path("data/processed") / f"injury_adjustments_{game_date}.parquet"
+    adj_path.parent.mkdir(parents=True, exist_ok=True)
+    availability.to_parquet(adj_path, index=False)
+    typer.echo(f"[apply_injury] Injury adjustments → {adj_path}")
+
+    # Also write the legacy availability_table path for downstream compatibility
     avail_path = out_path / f"availability_table_{game_date}.parquet"
     availability.to_parquet(avail_path, index=False)
     typer.echo(f"[apply_injury] Availability table → {avail_path}")
@@ -494,16 +506,23 @@ def _attach_availability_columns(
     if availability.empty:
         return pmfs_df
 
+    # Support both old column name (normalized_availability_status) and
+    # new column name (normalized_status) introduced in Step 3.
+    norm_col = (
+        "normalized_status"
+        if "normalized_status" in availability.columns
+        else "normalized_availability_status"
+    )
     avail_cols = [
         "player_id", "game_id",
-        "normalized_availability_status",
+        norm_col,
         "availability_probability",
         "is_confirmed_inactive",
         "is_market_actionable",
     ]
     avail_sub = availability[[c for c in avail_cols if c in availability.columns]].copy()
     avail_sub = avail_sub.rename(
-        columns={"normalized_availability_status": "availability_status"}
+        columns={norm_col: "availability_status"}
     )
 
     # Drop existing availability columns to avoid duplicates
@@ -617,9 +636,10 @@ def _print_dry_run_summary(
                 if mins_col else float("nan")
             )
             new_mins = base_mins * float(row["minutes_multiplier"])
+            raw_col = "raw_status" if "raw_status" in non_trivial.columns else "raw_injury_status"
             typer.echo(
                 f"    player_id={row['player_id']} "
-                f"status={row['raw_injury_status']} "
+                f"status={row.get(raw_col, 'unknown')} "
                 f"multiplier={row['minutes_multiplier']:.2f} "
                 f"mins {base_mins:.1f}→{new_mins:.1f}"
             )
@@ -631,12 +651,13 @@ def _build_impact_report(
     game_date: str,
 ) -> dict:
     adjustments = []
+    raw_col = "raw_status" if "raw_status" in availability.columns else "raw_injury_status"
     for _, row in availability.iterrows():
         if row["minutes_multiplier"] == 1.0 and not row["is_confirmed_inactive"]:
             continue
         adjustments.append({
             "player_id": int(row["player_id"]),
-            "raw_injury_status": row["raw_injury_status"],
+            "raw_status": str(row.get(raw_col, "available")),
             "availability_probability": float(row["availability_probability"]),
             "minutes_multiplier": float(row["minutes_multiplier"]),
             "is_confirmed_inactive": bool(row["is_confirmed_inactive"]),
