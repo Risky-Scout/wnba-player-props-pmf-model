@@ -44,41 +44,66 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Status → minutes multiplier mapping (blueprint Table 5.1)
+# Status → availability configuration (blueprint Table 5.1)
 # ---------------------------------------------------------------------------
-
-STATUS_MINUTES_MULTIPLIER: dict[str, float] = {
-    "out":               0.0,
-    "inactive":          0.0,
-    "dnp":               0.0,
+#
+# Each entry defines:
+#   p_active: float — P(player participates in this game)
+#   p_starter_if_active: float — P(player starts | active)
+#   cond_mult: float — expected minutes fraction GIVEN active
+#   cond_cap: float | None — hard minutes cap when active (None = no cap)
+#
+# Effective minutes multiplier for the PMF engine:
+#   p_active * cond_mult
+#
+# These values are the canonical configuration for status → probability
+# mappings.  Do NOT invent unsupported numerical mappings outside this table.
+#
+# GTD (game-time decision): dual-scenario handling is NOT currently
+# implemented.  GTD is treated as a fallback to questionable (P(active)=0.50)
+# until a full dual-scenario implementation is delivered.  Do not claim
+# "dual scenario" in comments or documentation without generating two scenarios.
+STATUS_CONFIG: dict[str, dict] = {
+    "out":                {"p_active": 0.0,  "p_starter_if_active": 0.0,  "cond_mult": 0.0,  "cond_cap": 0.0},
+    "inactive":           {"p_active": 0.0,  "p_starter_if_active": 0.0,  "cond_mult": 0.0,  "cond_cap": 0.0},
+    "dnp":                {"p_active": 0.0,  "p_starter_if_active": 0.0,  "cond_mult": 0.0,  "cond_cap": 0.0},
     # doubtful/unlikely: low but non-zero participation probability.
-    # These players may still play and must NOT be auto-confirmed as OUT.
-    "doubtful":          0.15,
-    "unlikely":          0.15,
-    "questionable":      0.50,
-    "probable":          0.85,
-    "limited":           0.65,
-    "gtd":              -1.0,   # sentinel → dual scenario
-    "game-time decision": -1.0,
-    "available":         1.0,
-    "active":            1.0,
+    # Must NOT be auto-confirmed as OUT.
+    "doubtful":           {"p_active": 0.15, "p_starter_if_active": 0.10, "cond_mult": 1.0,  "cond_cap": None},
+    "unlikely":           {"p_active": 0.15, "p_starter_if_active": 0.10, "cond_mult": 1.0,  "cond_cap": None},
+    "questionable":       {"p_active": 0.50, "p_starter_if_active": 0.40, "cond_mult": 1.0,  "cond_cap": None},
+    "probable":           {"p_active": 0.85, "p_starter_if_active": 0.80, "cond_mult": 1.0,  "cond_cap": None},
+    # limited: will participate but with restricted minutes
+    "limited":            {"p_active": 1.0,  "p_starter_if_active": 1.0,  "cond_mult": 0.65, "cond_cap": 20.0},
+    # GTD fallback: treated as questionable pending dual-scenario implementation
+    "gtd":                {"p_active": 0.50, "p_starter_if_active": 0.40, "cond_mult": 1.0,  "cond_cap": None},
+    "game-time decision": {"p_active": 0.50, "p_starter_if_active": 0.40, "cond_mult": 1.0,  "cond_cap": None},
+    "available":          {"p_active": 1.0,  "p_starter_if_active": 1.0,  "cond_mult": 1.0,  "cond_cap": None},
+    "active":             {"p_active": 1.0,  "p_starter_if_active": 1.0,  "cond_mult": 1.0,  "cond_cap": None},
+}
+
+# Backward-compatible effective multiplier lookup (p_active * cond_mult).
+STATUS_MINUTES_MULTIPLIER: dict[str, float] = {
+    k: v["p_active"] * v["cond_mult"] for k, v in STATUS_CONFIG.items()
 }
 
 INACTIVE_THRESHOLD = 0.05  # availability_probability ≤ this → confirmed inactive
 
-# Only statuses with availability_probability=0.0 qualify for full redistribution.
-# doubtful and unlikely have a non-zero participation probability (0.15) so they
+# Only statuses with p_active=0.0 qualify for full UTM redistribution.
+# doubtful and unlikely have a non-zero participation probability so they
 # must NOT be included here.
 FULL_REDISTRIBUTION_STATUSES = frozenset({"out", "inactive", "dnp"})
-DUAL_SCENARIO_STATUSES       = frozenset({"gtd", "game-time decision"})
 
-# minutes-related feature columns that scale with injury multiplier
+# Historical minutes feature columns.
+# INVARIANT: These columns must NEVER be mutated by the injury pipeline.
+# The conditional minutes adjustment is carried in _injury_minutes_multiplier
+# (applied once by pmf_engine after the baseline minutes model + correction).
 _MINUTES_FEATURE_COLS = [
+    "player_minutes_mean_l3",
     "player_minutes_mean_l5",
     "player_minutes_mean_l10",
     "player_minutes_mean_l20",
     "player_minutes_mean_season",
-    "player_minutes_mean_l3",
 ]
 
 
@@ -94,8 +119,18 @@ def normalize_injury_status(raw: str | None) -> str:
 
 
 def status_to_multiplier(raw_status: str | None) -> float:
-    """Return minutes multiplier for a raw status string (1.0 for available)."""
+    """Return effective minutes multiplier for a raw status string (1.0 for available).
+
+    The effective multiplier is P(active) * conditional_minutes_multiplier.
+    Use STATUS_CONFIG directly to access individual probability components.
+    """
     return STATUS_MINUTES_MULTIPLIER.get(normalize_injury_status(raw_status), 1.0)
+
+
+def status_to_config(raw_status: str | None) -> dict:
+    """Return the full availability config dict for a raw status string."""
+    norm = normalize_injury_status(raw_status)
+    return STATUS_CONFIG.get(norm, STATUS_CONFIG["available"])
 
 
 # ---------------------------------------------------------------------------
@@ -109,34 +144,35 @@ def build_availability_table(
 ) -> pd.DataFrame:
     """Build a per-player availability record from raw injury data.
 
-    Schema (Step 3 point-in-time injury adjustments)
-    -------------------------------------------------
+    Schema
+    ------
     game_id, player_id, raw_status, normalized_status,
-    availability_probability, starter_probability,
-    minutes_multiplier, minutes_cap,
+    availability_probability,        — P(player participates)
+    starter_probability,             — P(starter | active)
+    conditional_minutes_multiplier,  — expected minutes fraction when active
+    conditional_minutes_cap,         — hard minutes cap when active (or None)
+    minutes_multiplier,              — effective = availability_probability * cond_mult
+    minutes_cap,                     — alias for conditional_minutes_cap (compat.)
     is_confirmed_inactive, is_market_actionable,
     source_updated_at, pulled_at_utc
 
-    ``source_updated_at`` is the timestamp from the injury data feed.
-    ``pulled_at_utc``     is the wall-clock time this function was called
-                          (always >= source_updated_at).
+    Timestamp semantics
+    -------------------
+    ``source_updated_at``: timestamp from the injury data feed (the actual
+        source record time).  MUST be provided from the feed when available;
+        defaults to ``pulled_at_utc`` only when no feed timestamp is given.
+    ``pulled_at_utc``: wall-clock time this function was called (always
+        >= source_updated_at for current-or-past injury records).
 
-    Parameters
-    ----------
-    injuries:
-        List of normalised injury dicts from BDL (each must have player_id,
-        status; optional game_id).
-    feature_df:
-        Wide pregame feature DataFrame (one row per player_game).  Used to
-        expand availability records to all game_id rows for each affected
-        player and to default every player not in ``injuries`` to available.
-    source_updated_at:
-        ISO timestamp from the injury feed.  Defaults to UTC now (which means
-        source_updated_at == pulled_at_utc when no explicit feed timestamp is
-        available).
+    Status → probability mappings
+    ------------------------------
+    All mappings are drawn from STATUS_CONFIG.  Do not hardcode probabilities
+    inline.  GTD is documented as an unsupported status; it is treated as a
+    fallback to questionable (P(active)=0.50) pending dual-scenario support.
     """
     pulled_ts = datetime.now(timezone.utc).isoformat()
-    source_ts = source_updated_at or pulled_ts
+    # Use the actual source timestamp from the feed; fall back only when absent.
+    source_ts = source_updated_at if source_updated_at is not None else pulled_ts
 
     # Build a player_id → injury dict lookup (last record wins if duplicates)
     inj_by_pid: dict[int, dict] = {}
@@ -148,13 +184,13 @@ def build_availability_table(
         if pid > 0:
             inj_by_pid[pid] = rec
 
-    # --- Compute per-player availability fields ---
     # Every player in feature_df gets a record; default = available
     if feature_df.empty:
         return pd.DataFrame(columns=[
             "game_id", "player_id",
             "raw_status", "normalized_status",
             "availability_probability", "starter_probability",
+            "conditional_minutes_multiplier", "conditional_minutes_cap",
             "minutes_multiplier", "minutes_cap",
             "is_confirmed_inactive", "is_market_actionable",
             "source_updated_at", "pulled_at_utc",
@@ -175,69 +211,58 @@ def build_availability_table(
         if rec is None:
             # No injury record → fully available
             rows.append({
-                "game_id":                  gid,
-                "player_id":                pid,
-                "raw_status":               "available",
-                "normalized_status":        "AVAILABLE",
-                "availability_probability": 1.0,
-                "starter_probability":      1.0,
-                "minutes_multiplier":       1.0,
-                "minutes_cap":              None,
-                "is_confirmed_inactive":    False,
-                "is_market_actionable":     True,
-                "source_updated_at":        source_ts,
-                "pulled_at_utc":            pulled_ts,
+                "game_id":                       gid,
+                "player_id":                     pid,
+                "raw_status":                    "available",
+                "normalized_status":             "AVAILABLE",
+                "availability_probability":      1.0,
+                "starter_probability":           1.0,
+                "conditional_minutes_multiplier": 1.0,
+                "conditional_minutes_cap":        None,
+                "minutes_multiplier":             1.0,
+                "minutes_cap":                    None,
+                "is_confirmed_inactive":          False,
+                "is_market_actionable":           True,
+                "source_updated_at":              source_ts,
+                "pulled_at_utc":                  pulled_ts,
             })
             continue
 
         raw_status = str(rec.get("status") or "available")
         norm = normalize_injury_status(raw_status)
-        mult = STATUS_MINUTES_MULTIPLIER.get(norm, 1.0)
+        cfg = STATUS_CONFIG.get(norm, STATUS_CONFIG["available"])
 
-        # Dual-scenario (GTD) gets 0.5 availability probability (50/50)
-        is_gtd = norm in DUAL_SCENARIO_STATUSES
-        if is_gtd:
-            avail_prob      = 0.50
-            starter_prob    = 0.50
-            mult            = 1.0   # IN scenario; handled separately
-            minutes_cap_val = None
-        elif mult == 0.0:
-            avail_prob      = 0.0
-            starter_prob    = 0.0
-            minutes_cap_val = 0.0
-        elif mult < 1.0:
-            # questionable → 50%, probable → 85%, limited → 65%, doubtful/unlikely → 15%
-            avail_prob      = mult  # multiplier doubles as participation probability
-            starter_prob    = mult
-            # limited players typically have a hard minutes cap
-            minutes_cap_val = 20.0 if norm == "limited" else None
-        else:
-            avail_prob      = 1.0
-            starter_prob    = 1.0
-            minutes_cap_val = None
+        p_active   = float(cfg["p_active"])
+        p_starter  = float(cfg["p_starter_if_active"])
+        cond_mult  = float(cfg["cond_mult"])
+        cond_cap   = cfg["cond_cap"]
+
+        # Effective multiplier for the PMF engine (applied once after baseline model)
+        effective_mult = p_active * cond_mult
 
         # A player is confirmed inactive ONLY when their status is an explicit
-        # full-redistribution status (out/inactive/dnp) AND availability_probability=0.
-        # doubtful and unlikely are NOT in FULL_REDISTRIBUTION_STATUSES.
+        # full-redistribution status (out/inactive/dnp) AND p_active == 0.
         is_inactive = (
             norm in FULL_REDISTRIBUTION_STATUSES
-            and avail_prob <= INACTIVE_THRESHOLD
+            and p_active <= INACTIVE_THRESHOLD
         )
         is_actionable = not is_inactive
 
         rows.append({
-            "game_id":                  gid,
-            "player_id":                pid,
-            "raw_status":               raw_status,
-            "normalized_status":        norm.upper(),
-            "availability_probability": float(avail_prob),
-            "starter_probability":      float(starter_prob),
-            "minutes_multiplier":       float(mult if not is_gtd else -1.0),
-            "minutes_cap":              float(minutes_cap_val) if minutes_cap_val is not None else None,
-            "is_confirmed_inactive":    bool(is_inactive),
-            "is_market_actionable":     bool(is_actionable),
-            "source_updated_at":        source_ts,
-            "pulled_at_utc":            pulled_ts,
+            "game_id":                       gid,
+            "player_id":                     pid,
+            "raw_status":                    raw_status,
+            "normalized_status":             norm.upper(),
+            "availability_probability":      p_active,
+            "starter_probability":           p_starter,
+            "conditional_minutes_multiplier": cond_mult,
+            "conditional_minutes_cap":        float(cond_cap) if cond_cap is not None else None,
+            "minutes_multiplier":             effective_mult,
+            "minutes_cap":                    float(cond_cap) if cond_cap is not None else None,
+            "is_confirmed_inactive":          bool(is_inactive),
+            "is_market_actionable":           bool(is_actionable),
+            "source_updated_at":              source_ts,
+            "pulled_at_utc":                  pulled_ts,
         })
 
     return pd.DataFrame(rows)
@@ -254,11 +279,25 @@ def apply_injury_to_feature_df(
 ) -> pd.DataFrame:
     """Adjust pregame feature_df for injury statuses.
 
-    Sets:
-    - ``_injury_minutes_multiplier`` column on every player row.
-    - Scales minutes-related feature columns for affected players so the
-      minutes model produces the correct projected-minutes input.
-    - Applies UTM redistribution for freed-up minutes to teammate rows.
+    INVARIANT — historical feature columns are NOT mutated:
+        The columns in ``_MINUTES_FEATURE_COLS`` (player_minutes_mean_l3/l5/l10/l20/
+        season) retain their original historical values.  Mutating them would cause
+        the injury adjustment to be applied TWICE — once here and again when pmf_engine
+        applies ``_injury_minutes_multiplier`` after the baseline minutes model.
+
+    Scenario input columns set on the returned DataFrame:
+        _injury_minutes_multiplier   — effective multiplier (P(active) * cond_mult),
+                                       applied ONCE by pmf_engine after baseline model
+        conditional_minutes_multiplier — injury-driven fractional adjustment
+        conditional_minutes_cap      — optional hard cap when active
+        original_projected_minutes   — historical baseline minutes (from feature col)
+        adjusted_projected_minutes   — original * effective_multiplier
+        freed_minutes                — original - adjusted (non-zero for UTM input)
+        is_confirmed_inactive        — True only for OUT/DNP/INACTIVE players
+
+    UTM redistribution is triggered ONLY for confirmed-inactive players (p_active=0).
+    Partial-status players (questionable, probable, limited, doubtful) are NOT passed
+    as out_player_ids.
 
     Parameters
     ----------
@@ -271,25 +310,34 @@ def apply_injury_to_feature_df(
 
     Returns
     -------
-    Modified copy of feature_df with ``_injury_minutes_multiplier`` column.
+    Modified copy of feature_df with scenario input columns added.
+    Historical minutes columns are unchanged.
     """
     df = feature_df.copy()
 
-    # Initialise multiplier column to 1.0 for all rows
-    df["_injury_minutes_multiplier"] = 1.0
+    # Scenario input columns — historical _MINUTES_FEATURE_COLS are NOT touched
+    df["_injury_minutes_multiplier"]    = 1.0
+    df["conditional_minutes_multiplier"] = 1.0
+    df["conditional_minutes_cap"]       = np.nan
+    df["original_projected_minutes"]    = np.nan
+    df["adjusted_projected_minutes"]    = np.nan
+    df["freed_minutes"]                 = 0.0
+    df["is_confirmed_inactive"]         = False
 
     if availability_table.empty:
         return df
 
-    # Build lookup: (player_id, game_id) → multiplier / is_inactive
     avail_idx = availability_table.set_index(["player_id", "game_id"])
+    min_col = next((c for c in _MINUTES_FEATURE_COLS if c in df.columns), None)
 
     for game_id in df["game_id"].unique():
         g_mask = df["game_id"] == game_id
         game_df = df[g_mask]
 
-        # Track minutes deltas for UTM redistribution
-        out_minutes: dict[int, float] = {}
+        # Only confirmed-inactive players contribute to full UTM redistribution.
+        # Partial-status players (questionable/probable/limited/doubtful) are NOT
+        # automatically treated as out_player_ids.
+        confirmed_inactive_out_minutes: dict[int, float] = {}
 
         for _, row in game_df.iterrows():
             pid = int(row["player_id"])
@@ -298,41 +346,41 @@ def apply_injury_to_feature_df(
             except KeyError:
                 continue
 
-            mult = float(avail["minutes_multiplier"])
-            is_gtd = mult == -1.0  # dual scenario — leave as-is at feature level
+            effective_mult = float(avail["minutes_multiplier"])
+            cond_mult      = float(avail.get("conditional_minutes_multiplier", effective_mult))
+            cond_cap_val   = avail.get("conditional_minutes_cap")
+            is_inactive    = bool(avail["is_confirmed_inactive"])
 
-            if is_gtd or mult == 1.0:
-                continue  # no feature adjustment needed
+            if effective_mult == 1.0 and not is_inactive:
+                continue  # no adjustment needed
 
             p_mask = g_mask & (df["player_id"] == pid)
-            df.loc[p_mask, "_injury_minutes_multiplier"] = mult
 
-            # Scale minutes feature columns
-            for col in _MINUTES_FEATURE_COLS:
-                if col in df.columns:
-                    orig = df.loc[p_mask, col].fillna(0.0)
-                    df.loc[p_mask, col] = orig * mult
+            # Set scenario columns; do NOT modify historical minutes features
+            df.loc[p_mask, "_injury_minutes_multiplier"]    = effective_mult
+            df.loc[p_mask, "conditional_minutes_multiplier"] = cond_mult
+            df.loc[p_mask, "is_confirmed_inactive"]         = is_inactive
 
-            # Track released minutes for UTM
-            min_col = next(
-                (c for c in _MINUTES_FEATURE_COLS if c in df.columns), None
-            )
-            if min_col is not None:
-                # Use the pre-scaled value (already multiplied above; recover from mult)
-                orig_mins = (
-                    df.loc[p_mask, min_col].values[0] / mult
-                    if mult > 0 else
-                    float(row.get(min_col, 0))
-                )
-            else:
-                orig_mins = float(row.get("player_minutes_mean_l5", 0) or 0)
+            if cond_cap_val is not None and not (isinstance(cond_cap_val, float) and np.isnan(cond_cap_val)):
+                df.loc[p_mask, "conditional_minutes_cap"] = float(cond_cap_val)
 
-            if mult < 1.0:
-                out_minutes[pid] = orig_mins * (1.0 - mult)  # freed minutes
+            # Record original/adjusted/freed for traceability and UTM input
+            orig_mins = float(row.get(min_col, 0) or 0) if min_col else 0.0
+            adj_mins  = orig_mins * effective_mult
+            freed     = orig_mins - adj_mins
 
-        # UTM redistribution for freed-up minutes
-        if utm is not None and out_minutes:
-            _apply_utm_redistribution(df, g_mask, out_minutes, utm)
+            df.loc[p_mask, "original_projected_minutes"]  = orig_mins
+            df.loc[p_mask, "adjusted_projected_minutes"]  = adj_mins
+            df.loc[p_mask, "freed_minutes"]               = freed
+
+            # Only confirmed-inactive (OUT/DNP/INACTIVE) players with p_active=0
+            # are eligible for full UTM redistribution.
+            if is_inactive and effective_mult == 0.0:
+                confirmed_inactive_out_minutes[pid] = orig_mins
+
+        # UTM redistribution for confirmed-inactive players only
+        if utm is not None and confirmed_inactive_out_minutes:
+            _apply_utm_redistribution(df, g_mask, confirmed_inactive_out_minutes, utm, min_col)
 
     return df
 
@@ -340,31 +388,42 @@ def apply_injury_to_feature_df(
 def _apply_utm_redistribution(
     df: pd.DataFrame,
     g_mask: "pd.Series[bool]",
-    out_minutes: dict[int, float],
+    confirmed_inactive_out_minutes: dict[int, float],
     utm: Any,
+    min_col: str | None = None,
 ) -> None:
     """Apply UTM minute redistribution to teammate rows (in-place).
 
-    The roster passed to UTM must include BOTH the out player (with their
-    pre-injury projected minutes) AND all available teammates.  UTM needs
-    the out player's USG% to compute the total freed usage to redistribute.
+    INVARIANT — historical feature columns are NOT mutated.
+    Teammate boosts are encoded in ``_injury_minutes_multiplier`` only.
+    The pmf_engine applies this multiplier ONCE after the baseline model.
+
+    Only confirmed-inactive (OUT/DNP/INACTIVE) players contribute freed minutes.
+    Partial-status players must NOT be included in ``confirmed_inactive_out_minutes``.
+
+    Parameters
+    ----------
+    confirmed_inactive_out_minutes:
+        Dict mapping confirmed-inactive player_id → their original projected minutes
+        (NOT freed minutes; UTM receives the original minutes for USG% computation).
     """
     game_pids = df.loc[g_mask, "player_id"].unique().tolist()
-    min_col = next(
-        (c for c in _MINUTES_FEATURE_COLS if c in df.columns), None
-    )
 
-    # Build full roster including out players (using their original minutes)
-    # For out players (mult=0), their pre-injury minutes are stored in out_minutes
+    if min_col is None:
+        min_col = next((c for c in _MINUTES_FEATURE_COLS if c in df.columns), None)
+
+    # Build roster: each player's original projected minutes.
+    # For confirmed-inactive players, use their pre-injury minutes (from out_minutes dict).
+    # For active teammates, use current historical feature value.
     roster: list[dict] = []
     for pid in game_pids:
         p_mask = g_mask & (df["player_id"] == pid)
-        if pid in out_minutes:
-            # Use original minutes (before scaling to 0) so UTM can compute USG%
-            orig_mins = float(out_minutes[pid]) / max(1.0 - 0.0, 1e-9)  # delta = orig*(1-mult)
-            # Actually, out_minutes stores freed minutes = orig * (1 - mult).
-            # Recover original: orig = freed / (1 - mult). For fully OUT: mult=0 → orig=freed.
-            roster.append({"player_id": int(pid), "projected_minutes": float(out_minutes[pid])})
+        if pid in confirmed_inactive_out_minutes:
+            # Pass original (pre-injury) minutes so UTM can compute freed USG%
+            roster.append({
+                "player_id":          int(pid),
+                "projected_minutes":  float(confirmed_inactive_out_minutes[pid]),
+            })
         else:
             if min_col and p_mask.any():
                 mins = float(df.loc[p_mask, min_col].values[0])
@@ -372,46 +431,52 @@ def _apply_utm_redistribution(
                 mins = 20.0
             roster.append({"player_id": int(pid), "projected_minutes": mins})
 
-    total_delta = sum(out_minutes.values())
-    if total_delta <= 0 or len(roster) <= len(out_minutes):
+    total_freed = sum(confirmed_inactive_out_minutes.values())
+    if total_freed <= 0 or len(roster) <= len(confirmed_inactive_out_minutes):
         return
 
-    out_player_ids = list(out_minutes.keys())
+    out_player_ids = list(confirmed_inactive_out_minutes.keys())
     updated_roster, transfer_report = utm.redistribute(
         roster=roster,
         out_player_ids=out_player_ids,
-        out_minutes_dict=out_minutes,
+        out_minutes_dict=confirmed_inactive_out_minutes,
     )
 
     n_boosted = 0
     for p in updated_roster:
         pid = int(p["player_id"])
-        if pid in out_minutes:
-            continue  # skip the out player itself
+        if pid in confirmed_inactive_out_minutes:
+            continue  # skip the confirmed-inactive player itself
 
-        new_mins = float(p.get("projected_minutes", 0.0))
+        new_mins  = float(p.get("projected_minutes", 0.0))
         orig_mins = float(p.get("projected_minutes_original", new_mins))
-        if min_col is None or abs(new_mins - orig_mins) < 1e-6:
+
+        if orig_mins <= 0 or abs(new_mins - orig_mins) < 1e-6:
             continue
 
         p_mask = g_mask & (df["player_id"] == pid)
         if not p_mask.any():
             continue
 
-        scale = new_mins / orig_mins if orig_mins > 0 else 1.0
-        for col in _MINUTES_FEATURE_COLS:
-            if col in df.columns:
-                df.loc[p_mask, col] = df.loc[p_mask, col].fillna(0.0) * scale
-
-        # Update multiplier for tracking (teammate boost > 1.0)
-        current_mult = df.loc[p_mask, "_injury_minutes_multiplier"].values[0]
+        # Apply teammate boost via _injury_minutes_multiplier ONLY.
+        # Do NOT scale historical feature columns.
+        scale = new_mins / orig_mins
+        current_mult = float(df.loc[p_mask, "_injury_minutes_multiplier"].values[0])
         df.loc[p_mask, "_injury_minutes_multiplier"] = current_mult * scale
+
+        # Update traceability columns
+        p_orig_hist = float(df.loc[p_mask, "original_projected_minutes"].values[0])
+        if np.isnan(p_orig_hist):
+            p_orig_hist = orig_mins
+            df.loc[p_mask, "original_projected_minutes"] = p_orig_hist
+        df.loc[p_mask, "adjusted_projected_minutes"] = new_mins
+
         n_boosted += 1
 
     if transfer_report.get("transferred"):
         logger.info(
             "[injury_pipeline] UTM: %.1f freed minutes redistributed to %d teammates",
-            total_delta, n_boosted,
+            total_freed, n_boosted,
         )
     else:
         logger.warning(
@@ -430,23 +495,47 @@ def rebuild_affected_pmfs(
     model_dir: str | Path,
     cfg: dict[str, Any],
     cal_dir: str | Path | None,
+    config_path: str | Path | None = None,
     apply_calibration: bool = True,
     apply_shrinkage: bool = True,
 ) -> pd.DataFrame:
     """Rerun predict_player_pmfs() for affected players with updated features.
 
+    Uses the same model artifacts, calibration artifacts, feature manifest,
+    and configuration as ordinary live prediction.  The config_path must be
+    provided explicitly; it must NOT be constructed relative to model_dir.
+
     Parameters
     ----------
     feature_df_adjusted:
         Feature DataFrame with injury adjustments already applied.
+        Historical minutes columns are unchanged; scenario input columns carry
+        the injury adjustments (_injury_minutes_multiplier, etc.).
     affected_player_ids:
-        Set of player_ids whose features were modified (player + UTM teammates).
-    model_dir, cfg, cal_dir, apply_calibration, apply_shrinkage:
+        Set of player_ids whose scenario inputs were modified.
+    model_dir:
+        Stage 4 model artifact directory.
+    cfg:
+        Additional config overrides (typically empty — predict_player_pmfs
+        loads the canonical config from config_path).
+    cal_dir:
+        Calibration artifact directory (or None to skip calibration).
+    config_path:
+        Explicit path to stage4_baseline.yaml.  REQUIRED for production use.
+        Fails with a clear error if the file does not exist.
+    apply_calibration, apply_shrinkage:
         Forwarded to predict_player_pmfs().
 
     Returns
     -------
     New PMF rows (long format) for all affected players.
+
+    Raises
+    ------
+    FileNotFoundError
+        If config_path is provided but does not exist.
+    ValueError
+        If config_path is None and the canonical default cannot be found.
     """
     if not affected_player_ids:
         return pd.DataFrame()
@@ -459,12 +548,37 @@ def rebuild_affected_pmfs(
     if subset_df.empty:
         return pd.DataFrame()
 
+    # Resolve explicit config path (must not be constructed relative to model_dir)
+    if config_path is not None:
+        resolved_cfg_path = Path(config_path)
+        if not resolved_cfg_path.exists():
+            raise FileNotFoundError(
+                f"[rebuild_affected_pmfs] Config path does not exist: {resolved_cfg_path}\n"
+                "Pass --config-path config/model/stage4_baseline.yaml explicitly."
+            )
+    else:
+        # Last-resort fallback: search canonical location
+        candidate = Path("config/model/stage4_baseline.yaml")
+        if candidate.exists():
+            resolved_cfg_path = candidate
+            logger.warning(
+                "[rebuild_affected_pmfs] config_path not provided; falling back to %s. "
+                "Pass --config-path explicitly in production.",
+                resolved_cfg_path,
+            )
+        else:
+            raise ValueError(
+                "[rebuild_affected_pmfs] config_path is required but was not provided, "
+                "and config/model/stage4_baseline.yaml does not exist. "
+                "Pass --config-path explicitly."
+            )
+
     from wnba_props_model.pipeline.predict import predict_player_pmfs  # noqa: PLC0415
 
     new_pmfs = predict_player_pmfs(
         feature_df=subset_df,
         model_dir=model_dir,
-        config_path=Path(model_dir) / ".." / ".." / "config" / "model" / "stage4_baseline.yaml",
+        config_path=resolved_cfg_path,
         cal_dir=cal_dir,
         apply_calibration=apply_calibration,
         apply_shrinkage=apply_shrinkage,

@@ -211,18 +211,6 @@ jobs:
             --out-dir deliveries/tonight
         continue-on-error: false
 
-      # -----------------------------------------------------------------------
-      # Staging directory: every run writes to deliveries/staging/<run_id>/
-      # to prevent stale-artifact success (spec Step 5).
-      # After all blocking gates pass, staging is promoted to deliveries/tonight.
-      # -----------------------------------------------------------------------
-      - name: Create staging directory for this run
-        run: |
-          STAGING="deliveries/staging/${{ github.run_id }}"
-          mkdir -p "$STAGING"
-          echo "STAGING_DIR=$STAGING" >> $GITHUB_ENV
-          echo "Staging directory: $STAGING"
-
       - name: Fetch and cache injury report (blueprint §5.1)
         run: |
           mkdir -p data/injuries
@@ -404,21 +392,10 @@ jobs:
           python scripts/predict_today.py \
             --features-wide "$FEATURES_SRC" \
             --game-date "$GAME_DATE" \
-            --out-dir "$STAGING_DIR" \
+            --out-dir deliveries/tonight \
             --model-dir artifacts/models/stage4_baseline \
             --cal-dir artifacts/models/calibration \
             --overrides config/player_overrides.json
-
-      - name: Copy initial PMF slate to deliveries/tonight (staging hand-off)
-        run: |
-          mkdir -p deliveries/tonight
-          if ls "$STAGING_DIR"/full_pmfs_wide.parquet 2>/dev/null; then
-            cp -r "$STAGING_DIR"/. deliveries/tonight/
-            echo "Staging copied to deliveries/tonight"
-          else
-            echo "[WARN] No staging outputs found — deliveries/tonight unchanged"
-          fi
-        continue-on-error: true
 
       - name: Pull Odds API player props + deep links
         run: |
@@ -440,6 +417,7 @@ jobs:
             --injuries-json "data/injuries/${GAME_DATE}.json" \
             --features "data/processed/wnba_player_game_features_wide.parquet" \
             --model-dir artifacts/models/stage4_baseline \
+            --config-path config/model/stage4_baseline.yaml \
             --cal-dir artifacts/models/calibration
         continue-on-error: false
 

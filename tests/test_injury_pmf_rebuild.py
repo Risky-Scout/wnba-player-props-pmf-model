@@ -247,17 +247,25 @@ def test_teammate_redistribution_rebuilds_pmf_json():
     utm = UsageTransferMatrix(usg_df)
     adj = ip.apply_injury_to_feature_df(feature_df, avail, utm=utm)
 
-    # OUT player minutes must collapse to zero
-    p100_mins = adj[adj["player_id"] == 100]["player_minutes_mean_l5"].values[0]
-    assert p100_mins == 0.0, f"OUT player minutes must be 0, got {p100_mins}"
+    # INVARIANT: Historical player_minutes_mean_l5 must NOT be mutated.
+    # OUT player's effective zero minutes is carried in _injury_minutes_multiplier=0.0.
+    p100_hist = adj[adj["player_id"] == 100]["player_minutes_mean_l5"].values[0]
+    p100_orig = feature_df[feature_df["player_id"] == 100]["player_minutes_mean_l5"].values[0]
+    assert abs(p100_hist - p100_orig) < 1e-9, (
+        f"Historical player_minutes_mean_l5 must NOT be mutated: "
+        f"orig={p100_orig}, got={p100_hist}"
+    )
+    # Effective minutes for OUT player = 0, carried in _injury_minutes_multiplier
+    p100_mult = adj[adj["player_id"] == 100]["_injury_minutes_multiplier"].values[0]
+    assert abs(p100_mult) < 1e-9, f"OUT player _injury_minutes_multiplier must be 0.0, got {p100_mult}"
 
-    # At least one of the two teammates must gain minutes
-    gains = []
+    # At least one of the two teammates must have _injury_minutes_multiplier > 1.0 from UTM
+    # Historical feature columns remain unchanged; boost is in the multiplier.
+    boosts = []
     for tm_pid in [200, 201]:
-        orig = feature_df[feature_df["player_id"] == tm_pid]["player_minutes_mean_l5"].values[0]
-        new  = adj[adj["player_id"] == tm_pid]["player_minutes_mean_l5"].values[0]
-        gains.append(new >= orig)
-    assert any(gains), "At least one teammate must receive redistributed minutes"
+        tm_mult = adj[adj["player_id"] == tm_pid]["_injury_minutes_multiplier"].values[0]
+        boosts.append(tm_mult > 1.0)
+    assert any(boosts), "At least one teammate must have _injury_minutes_multiplier > 1.0 from UTM"
 
 
 def test_teammate_redistribution_changes_settlement_probabilities():

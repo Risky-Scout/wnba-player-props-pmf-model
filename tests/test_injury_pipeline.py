@@ -169,21 +169,34 @@ class TestQuestionablePlayerRebuildspmfJson:
 
         avail = ip.build_availability_table(injuries, feature_df)
 
-        # questionable → multiplier = 0.50
+        # questionable → effective multiplier = 0.50
         row = avail[avail["player_id"] == 102].iloc[0]
         assert abs(row["minutes_multiplier"] - 0.50) < 1e-9
+
+        orig_mins = feature_df[feature_df["player_id"] == 102]["player_minutes_mean_l5"].values[0]
 
         # Apply feature adjustments
         adj = ip.apply_injury_to_feature_df(feature_df, avail)
 
-        # Minutes features for player 102 should be halved
         p102 = adj[adj["player_id"] == 102]
-        orig = feature_df[feature_df["player_id"] == 102]["player_minutes_mean_l5"].values[0]
-        new  = p102["player_minutes_mean_l5"].values[0]
-        assert abs(new - orig * 0.50) < 1e-6, f"Expected {orig * 0.50}, got {new}"
 
-        # The _injury_minutes_multiplier column must be set
+        # INVARIANT: Historical minutes feature columns must NOT be mutated.
+        # The adjustment is carried in _injury_minutes_multiplier (applied once
+        # by pmf_engine after the baseline minutes model).
+        new_mins = p102["player_minutes_mean_l5"].values[0]
+        assert abs(new_mins - orig_mins) < 1e-9, (
+            f"Historical player_minutes_mean_l5 must NOT be mutated: "
+            f"orig={orig_mins}, got={new_mins}"
+        )
+
+        # _injury_minutes_multiplier must be set to the effective multiplier
         assert abs(p102["_injury_minutes_multiplier"].values[0] - 0.50) < 1e-9
+
+        # adjusted_projected_minutes = orig * effective_mult (for traceability)
+        adj_mins = p102["adjusted_projected_minutes"].values[0]
+        assert abs(adj_mins - orig_mins * 0.50) < 1e-6, (
+            f"adjusted_projected_minutes should be {orig_mins * 0.50}, got {adj_mins}"
+        )
 
 
 class TestProbablePlayerRebuildspmfJson:
@@ -199,11 +212,18 @@ class TestProbablePlayerRebuildspmfJson:
         row = avail[avail["player_id"] == 103].iloc[0]
         assert abs(row["minutes_multiplier"] - 0.85) < 1e-9
 
+        orig = feature_df[feature_df["player_id"] == 103]["player_minutes_mean_l5"].values[0]
         adj = ip.apply_injury_to_feature_df(feature_df, avail)
         p103 = adj[adj["player_id"] == 103]
-        orig = feature_df[feature_df["player_id"] == 103]["player_minutes_mean_l5"].values[0]
-        new  = p103["player_minutes_mean_l5"].values[0]
-        assert abs(new - orig * 0.85) < 1e-6, f"Expected {orig * 0.85}, got {new}"
+
+        # INVARIANT: Historical minutes feature column must NOT be mutated.
+        new_mins = p103["player_minutes_mean_l5"].values[0]
+        assert abs(new_mins - orig) < 1e-9, (
+            f"Historical player_minutes_mean_l5 must NOT be mutated: "
+            f"orig={orig}, got={new_mins}"
+        )
+        # Multiplier is carried in the scenario input column
+        assert abs(p103["_injury_minutes_multiplier"].values[0] - 0.85) < 1e-9
 
 
 class TestMinutesRestrictionChangesSettlementProbabilities:
@@ -259,21 +279,36 @@ class TestUtmTeammateMinutesChangeRebuildsTeammatePmfs:
 
         adj = ip.apply_injury_to_feature_df(feature_df, avail, utm=utm)
 
-        # Player 100 (OUT) minutes must be zero
-        p100_mins = adj[adj["player_id"] == 100]["player_minutes_mean_l5"].values[0]
-        assert p100_mins == 0.0, f"OUT player minutes must be 0, got {p100_mins}"
+        # INVARIANT: Historical feature columns must NOT be mutated.
+        # OUT player's effective minutes are carried in _injury_minutes_multiplier=0.0
+        p100_hist = adj[adj["player_id"] == 100]["player_minutes_mean_l5"].values[0]
+        p100_orig = feature_df[feature_df["player_id"] == 100]["player_minutes_mean_l5"].values[0]
+        assert abs(p100_hist - p100_orig) < 1e-9, (
+            f"Historical player_minutes_mean_l5 must NOT be mutated for OUT player: "
+            f"orig={p100_orig}, got={p100_hist}"
+        )
+        # The effective minutes for OUT player = 0 is carried in _injury_minutes_multiplier
+        p100_mult = adj[adj["player_id"] == 100]["_injury_minutes_multiplier"].values[0]
+        assert abs(p100_mult) < 1e-9, f"OUT player _injury_minutes_multiplier must be 0, got {p100_mult}"
 
-        # Teammates (200, 201) should have MORE minutes than before (UTM redistribution)
+        # Teammates should have _injury_minutes_multiplier > 1.0 from UTM boost
+        # (historical feature columns remain unchanged)
         for teammate_pid in [200, 201]:
-            orig = feature_df[feature_df["player_id"] == teammate_pid][
+            orig_hist = feature_df[feature_df["player_id"] == teammate_pid][
                 "player_minutes_mean_l5"
             ].values[0]
-            new = adj[adj["player_id"] == teammate_pid][
+            new_hist = adj[adj["player_id"] == teammate_pid][
                 "player_minutes_mean_l5"
             ].values[0]
-            assert new >= orig, (
-                f"Teammate {teammate_pid} should have >= original minutes, "
-                f"got {new} vs {orig}"
+            assert abs(new_hist - orig_hist) < 1e-9, (
+                f"Teammate {teammate_pid} historical player_minutes_mean_l5 must NOT be mutated: "
+                f"orig={orig_hist}, got={new_hist}"
+            )
+            # The boost is encoded in _injury_minutes_multiplier
+            teammate_mult = adj[adj["player_id"] == teammate_pid]["_injury_minutes_multiplier"].values[0]
+            assert teammate_mult >= 1.0, (
+                f"Teammate {teammate_pid} should have _injury_minutes_multiplier >= 1.0 from UTM boost, "
+                f"got {teammate_mult}"
             )
 
 

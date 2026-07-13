@@ -98,6 +98,15 @@ def main(
         "--model-dir",
         help="Stage 4 model artifact directory.",
     ),
+    config_path: str = typer.Option(
+        "",
+        "--config-path",
+        help=(
+            "Explicit path to stage4_baseline.yaml model config. "
+            "Required for PMF rebuild. "
+            "Example: config/model/stage4_baseline.yaml"
+        ),
+    ),
     cal_dir: str = typer.Option(
         "artifacts/models/calibration",
         "--cal-dir",
@@ -122,20 +131,32 @@ def main(
         INACTIVE_THRESHOLD,
     )
 
-    # ── Resolve paths ──────────────────────────────────────────────────────
+    # ── Validate config path (Blocker 5) ──────────────────────────────────
+    resolved_config_path = _resolve_config_path(config_path, model_dir)
+    if resolved_config_path is None:
+        typer.echo(
+            "[FATAL] --config-path is required and the file does not exist.\n"
+            "  Provide: --config-path config/model/stage4_baseline.yaml\n"
+            "  Do not construct the config path relative to --model-dir.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    typer.echo(f"[apply_injury] Config path: {resolved_config_path}")
+
+    # ── Resolve paths (fail-closed when games exist) ───────────────────────
     slate_path = _resolve_slate(slate, game_date)
     if slate_path is None:
         typer.echo(
-            "[WARN] No PMF slate found — nothing to update. "
+            "[FATAL] No PMF slate found for this date — cannot proceed. "
             "Run predict_today.py first.",
             err=True,
         )
-        raise typer.Exit(0)
+        raise typer.Exit(1)
 
     features_path = _resolve_features(features)
     if features_path is None:
         typer.echo(
-            "[WARN] No feature parquet found — cannot rebuild PMFs. "
+            "[FATAL] No feature parquet found — cannot rebuild PMFs. "
             "Ensure data/processed/wnba_player_game_features_wide.parquet exists.",
             err=True,
         )
@@ -161,7 +182,7 @@ def main(
     if feature_df.empty:
         typer.echo(
             f"[WARN] No feature rows found for game_date={game_date}. "
-            "Slate unchanged.",
+            "No games scheduled — slate unchanged.",
             err=True,
         )
         raise typer.Exit(0)
@@ -173,6 +194,8 @@ def main(
         injuries = _fetch_bdl_injuries(feature_df)
 
     if not injuries:
+        # A verified zero-injury report is different from a failed/absent fetch.
+        # When the injury source returns empty, treat as no-op and exit 0.
         typer.echo("[apply_injury] No injury data found. Slate unchanged.")
         raise typer.Exit(0)
 
@@ -186,12 +209,17 @@ def main(
         inj_out.write_text(json.dumps(injuries, indent=2))
         typer.echo(f"[apply_injury] Saved raw injuries → {inj_out}")
 
+    # ── Extract source timestamps from injury records (Blocker 8) ─────────
+    # Use each record's actual source update time when available.
+    # Do NOT replace source_updated_at with datetime.now().
+    source_ts = _extract_source_timestamp(injuries)
+    typer.echo(f"[apply_injury] Injury source timestamp: {source_ts or '(none — will use pulled_at_utc)'}")
+
     # ── Build availability table ───────────────────────────────────────────
-    inj_ts = datetime.now(timezone.utc).isoformat()
     availability = build_availability_table(
         injuries=injuries,
         feature_df=feature_df,
-        source_updated_at=inj_ts,
+        source_updated_at=source_ts,  # actual feed timestamp, not datetime.now()
     )
     typer.echo(
         f"[apply_injury] Availability table: {len(availability):,} rows, "
@@ -244,7 +272,8 @@ def main(
             feature_df_adjusted=feature_df_adjusted,
             affected_player_ids=affected_player_ids,
             model_dir=model_dir,
-            cfg={},  # predict_player_pmfs loads its own cfg from config_path
+            config_path=resolved_config_path,
+            cfg={},
             cal_dir=cal_dir if Path(cal_dir).exists() else None,
             apply_calibration=Path(cal_dir).exists(),
             apply_shrinkage=True,
@@ -388,6 +417,47 @@ def main(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _resolve_config_path(config_path_arg: str, model_dir: str) -> Path | None:
+    """Resolve the explicit config path for stage4_baseline.yaml.
+
+    Requires an explicit path; does NOT construct relative to model_dir.
+    Returns None if the file does not exist.
+    """
+    if config_path_arg:
+        p = Path(config_path_arg)
+        return p if p.exists() else None
+    # Attempt the canonical default location as a convenience fallback
+    default = Path("config/model/stage4_baseline.yaml")
+    return default if default.exists() else None
+
+
+def _extract_source_timestamp(injuries: list[dict]) -> str | None:
+    """Extract the earliest non-null source_updated_at from injury records.
+
+    Uses the actual timestamp from the injury data feed.  Returns None when
+    no records carry a source timestamp; build_availability_table will then
+    fall back to pulled_at_utc (the pipeline run time).
+
+    NEVER substitutes datetime.now() as the source_updated_at.
+    """
+    candidates: list[str] = []
+    for rec in injuries:
+        ts = rec.get("source_updated_at") or rec.get("updated_at") or rec.get("created_at")
+        if ts:
+            candidates.append(str(ts))
+    if not candidates:
+        return None
+    # Return the earliest source timestamp across all records
+    try:
+        import pandas as _pd
+        parsed = _pd.to_datetime(candidates, utc=True, errors="coerce").dropna()
+        if not parsed.empty:
+            return parsed.min().isoformat()
+    except Exception:
+        pass
+    return candidates[0]
+
 
 def _resolve_slate(slate_arg: str, game_date: str) -> Path | None:
     if slate_arg:
