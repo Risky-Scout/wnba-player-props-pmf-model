@@ -56,25 +56,41 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Download calibrators (cross-run via GitHub CLI)
-        # actions/download-artifact@v4 only searches the current run.
-        # Use the GitHub API to find the latest calibrators-latest artifact
-        # across ALL runs in this repository.
+      - name: Download calibrators (exact-run or explicit successful upstream run)
+        # For workflow_run triggers: use the exact triggering run's calibrators artifact.
+        # For scheduled/manual runs: resolve an explicit successful refit_calibrators run on main.
+        # NEVER select by latest name alone. Fail if no compatible artifact is found.
         run: |
           mkdir -p artifacts/models/calibration
-          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
-          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            echo "Downloading calibrators-latest artifact id=$AID"
-            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
-            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
-            echo "Calibrators downloaded OK"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "workflow_run trigger: resolving calibrators from exact triggering run ${TRIGGER_RUN_ID}"
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+            SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
           else
-            echo "[WARN] calibrators-latest artifact not found — will use self-contained training"
+            echo "scheduled/manual trigger: resolving calibrators from last successful refit_calibrators run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/refit_calibrators.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+              echo "[FATAL] No successful refit_calibrators run found on main." >&2
+              exit 1
+            fi
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
           fi
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No calibrators artifact found in source run ${SOURCE_RUN_ID}. Cannot proceed without a validated calibrator artifact." >&2
+            exit 1
+          fi
+          echo "Downloading calibrators artifact id=${AID} from source run ${SOURCE_RUN_ID}"
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/calibrators.zip
+          unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+          echo "SOURCE_CALIBRATORS_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
+          echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Restore git bias_corrections (guard against stale artifact overwrite)
         # The artifact download can overwrite our git-committed bias_corrections.json
@@ -110,41 +126,41 @@ jobs:
               print(f"bias_corrections_by_role starter corrections (git version): {starters}")
           EOF
 
-      - name: Download stage4 model (cross-run via GitHub CLI)
+      - name: Download stage4 model (exact-run or explicit successful upstream run)
+        # For workflow_run triggers: use the exact triggering run's model artifact.
+        # For scheduled/manual runs: resolve an explicit successful daily_pipeline run on main.
+        # NEVER select by latest name alone. A missing model artifact must exit nonzero.
         run: |
           mkdir -p artifacts/models/stage4_baseline
-          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=model-stage4-latest" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
-          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            echo "Downloading model-stage4-latest artifact id=$AID"
-            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/model_stage4.zip
-            unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
-            echo "Stage4 model downloaded OK"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "workflow_run trigger: resolving model from exact triggering run ${TRIGGER_RUN_ID}"
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+            SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
           else
-            echo "[WARN] model-stage4-latest artifact not found — will use self-contained training"
+            echo "scheduled/manual trigger: resolving model from last successful daily_pipeline run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/daily_pipeline.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+              echo "[FATAL] No successful daily_pipeline run found on main." >&2
+              exit 1
+            fi
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
           fi
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No model-stage4 artifact found in source run ${SOURCE_RUN_ID}. A missing model artifact must exit nonzero. The pregame publishing workflow must never train a replacement model." >&2
+            exit 1
+          fi
+          echo "Downloading model-stage4 artifact id=${AID} from source run ${SOURCE_RUN_ID}"
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/model_stage4.zip
+          unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
+          echo "SOURCE_MODEL_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
+          echo "Stage4 model downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Self-contained model train (if no model available from daily pipeline)
-        # Runs if neither the cache nor the artifact provided model files.
-        # Makes pregame_initial fully self-contained — no dependency on daily_pipeline.
-        run: |
-          if [ ! -f "artifacts/models/stage4_baseline/manifest.json" ] && \
-             [ ! -f "artifacts/models/stage4_baseline/model_manifest.json" ]; then
-            echo "[FALLBACK] No stage4 model found — training self-contained baseline"
-            python scripts/pull_bdl_history.py \
-              --start-season $(date -u +%Y) --end-season $(date -u +%Y) \
-              --out-dir data/raw/bdl
-            python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
-            python scripts/build_features.py --data-dir data/processed
-            python scripts/train_baseline_pmfs.py --time-decay-xi 0.003
-            echo "[FALLBACK] Self-contained training complete"
-          else
-            echo "[OK] Stage4 model found — skipping self-contained training"
-          fi
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Resolve game date
         id: date
@@ -152,33 +168,38 @@ jobs:
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
             RESOLVED_DATE="${{ github.event.inputs.game_date }}"
             echo "Explicit game_date input: ${RESOLVED_DATE}"
+            RESOLUTION_METHOD="manual_input"
           elif [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # Triggered by daily_pipeline: infer the target date from the
-            # daily-delivery-YYYY-MM-DD-RUNID artifact produced by that run.
+            # workflow_run trigger: derive game_date from the exact triggering artifact/manifest.
+            # If the artifact or date is unavailable, exit nonzero. Do NOT fall back to today.
             TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
             DELIVERY_NAME=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
-              --jq '[.artifacts[] | select(.name | startswith("daily-delivery-"))] | sort_by(.created_at) | reverse | .[0].name' \
+              --jq '[.artifacts[] | select(.name | startswith("daily-delivery-"))] | .[0].name' \
               2>/dev/null || echo "")
-            if [ -n "$DELIVERY_NAME" ] && [ "$DELIVERY_NAME" != "null" ]; then
-              INFERRED_DATE=$(echo "$DELIVERY_NAME" | grep -oP '\d{4}-\d{2}-\d{2}' | head -1)
-              if [ -n "$INFERRED_DATE" ]; then
-                RESOLVED_DATE="$INFERRED_DATE"
-                echo "Inferred target date from daily-delivery artifact '${DELIVERY_NAME}': ${RESOLVED_DATE}"
-              else
-                RESOLVED_DATE="$(date -u +%Y-%m-%d)"
-                echo "Could not extract date from artifact '${DELIVERY_NAME}' — falling back to today: ${RESOLVED_DATE}"
-              fi
-            else
-              RESOLVED_DATE="$(date -u +%Y-%m-%d)"
-              echo "No daily-delivery artifact found in triggering run ${TRIGGER_RUN_ID} — falling back to today: ${RESOLVED_DATE}"
+            if [ -z "$DELIVERY_NAME" ] || [ "$DELIVERY_NAME" = "null" ]; then
+              echo "[FATAL] No daily-delivery artifact found in triggering run ${TRIGGER_RUN_ID}." >&2
+              echo "[FATAL] game_date cannot be derived from workflow_run trigger without the triggering artifact." >&2
+              echo "[FATAL] Do NOT fall back to today for workflow_run triggers." >&2
+              exit 1
             fi
+            INFERRED_DATE=$(echo "$DELIVERY_NAME" | grep -oP '\d{4}-\d{2}-\d{2}' | head -1)
+            if [ -z "$INFERRED_DATE" ]; then
+              echo "[FATAL] Could not extract date from artifact name '${DELIVERY_NAME}' in triggering run ${TRIGGER_RUN_ID}." >&2
+              echo "[FATAL] game_date must be derived from the exact triggering artifact, not today." >&2
+              exit 1
+            fi
+            RESOLVED_DATE="$INFERRED_DATE"
+            RESOLUTION_METHOD="workflow_run_artifact"
+            echo "Derived game_date from triggering artifact '${DELIVERY_NAME}': ${RESOLVED_DATE}"
           else
-            # cron safety-net — default to today
+            # cron/schedule or workflow_dispatch without explicit date — resolve today and record method
             RESOLVED_DATE="$(date -u +%Y-%m-%d)"
+            RESOLUTION_METHOD="scheduled_today"
             echo "Cron/schedule trigger — using today: ${RESOLVED_DATE}"
           fi
           echo "GAME_DATE=${RESOLVED_DATE}" >> $GITHUB_ENV
-          echo "Game date resolved to: ${RESOLVED_DATE}"
+          echo "GAME_DATE_RESOLUTION_METHOD=${RESOLUTION_METHOD}" >> $GITHUB_ENV
+          echo "Game date resolved to: ${RESOLVED_DATE} (method=${RESOLUTION_METHOD})"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -488,9 +509,12 @@ jobs:
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
+            --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
-            --edge-threshold 0.0
+            --edge-threshold 0.0 \
+            --require-venn-abers \
+            --source-policy odds_api_then_bdl
         continue-on-error: false
 
       - name: Prediction drift monitor
@@ -799,22 +823,11 @@ jobs:
           GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: false
 
-      - name: Isolate artifacts to per-run staging directory (BLOCKING)
-        # Every workflow run writes final outputs into deliveries/staging/${GITHUB_RUN_ID}/
-        # so that partial or prior-run artifacts can never contaminate this run.
-        run: |
-          STAGING_DIR="deliveries/staging/${{ github.run_id }}"
-          mkdir -p "${STAGING_DIR}"
-          # Copy all tonight deliveries into per-run staging
-          if [ -d "deliveries/tonight" ]; then
-            cp -r deliveries/tonight/. "${STAGING_DIR}/"
-          fi
-          echo "STAGING_DIR=${STAGING_DIR}" >> $GITHUB_ENV
-          echo "Per-run staging directory: ${STAGING_DIR}"
-          echo "Staged files: $(find ${STAGING_DIR} -type f | wc -l)"
-        continue-on-error: false
-
-      - name: Build expected PMF and edge manifests (BLOCKING)
+      - name: Build expected PMF and edge manifests from upstream inputs (BLOCKING)
+        # Expected manifests are derived BEFORE prediction from:
+        #   - validated slate (game/player roster) + eligible active players + supported stats
+        #   - validated current-run market rows + resolved game/player identity + vendor/line
+        # Do NOT create expected manifests from actual PMF or edge outputs.
         run: |
           python - <<'PYEOF'
           import json, os, sys
@@ -827,66 +840,100 @@ jobs:
               print("[FATAL] pandas not available", file=sys.stderr)
               sys.exit(1)
 
-          game_date   = os.environ.get("GAME_DATE", "")
-          run_id      = os.environ.get("GITHUB_RUN_ID", "")
-          staging_dir = Path(os.environ.get("STAGING_DIR", f"deliveries/staging/{run_id}"))
-          audit_dir   = Path("artifacts/audits")
-          audit_dir.mkdir(parents=True, exist_ok=True)
+          game_date  = os.environ.get("GAME_DATE", "")
+          run_id     = os.environ.get("GITHUB_RUN_ID", "")
+          out_dir    = Path("deliveries/tonight")
 
-          # ── Expected PMF manifest ──────────────────────────────────────────
-          slate_path = staging_dir / f"slate_{game_date}.parquet"
-          pmf_path   = staging_dir / "full_pmfs_wide.parquet"
+          # Supported stats for PMF generation (must match predict_today.py config)
+          SUPPORTED_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
+                             "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"]
 
+          # ── Expected PMF manifest — built from slate before prediction ─────
+          slate_path = out_dir / f"slate_{game_date}.parquet"
+          if slate_path.exists():
+              slate = pd.read_parquet(slate_path)
+              # Eligible players: active or questionable (not confirmed inactive)
+              if "status" in slate.columns:
+                  eligible = slate[~slate["status"].str.lower().isin(["inactive", "out"])].copy()
+              else:
+                  eligible = slate.copy()
+
+              key_cols = [c for c in ["game_id", "player_id"] if c in eligible.columns]
+              if key_cols and len(eligible) > 0:
+                  rows = []
+                  for _, row in eligible[key_cols].drop_duplicates().iterrows():
+                      for stat in SUPPORTED_STATS:
+                          rows.append({**row.to_dict(), "stat": stat})
+                  expected_pmf = pd.DataFrame(rows)
+                  print(f"Expected PMF manifest: {len(expected_pmf)} rows "
+                        f"({len(eligible)} players × {len(SUPPORTED_STATS)} stats)")
+              else:
+                  expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+                  print(f"[WARN] Slate exists but no eligible players or missing key columns")
+          else:
+              expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+              print(f"[INFO] No slate at {slate_path} — no games scheduled")
+
+          # ── Actual PMF manifest — from full_pmfs_wide.parquet ─────────────
+          pmf_path = out_dir / "full_pmfs_wide.parquet"
           if pmf_path.exists():
               pmfs = pd.read_parquet(pmf_path)
-              key_cols = [c for c in ["game_id", "player_id", "stat"] if c in pmfs.columns]
-              if key_cols:
-                  expected_pmf = pmfs[key_cols].drop_duplicates()
-                  expected_pmf_path = audit_dir / "expected_pmf_manifest.parquet"
-                  expected_pmf.to_parquet(expected_pmf_path, index=False)
-                  actual_pmf_path = audit_dir / "actual_pmf_manifest.parquet"
-                  pmfs[key_cols].to_parquet(actual_pmf_path, index=False)
-                  print(f"PMF manifest: {len(expected_pmf)} expected rows → {expected_pmf_path}")
-
-                  # Validate: no duplicates in actual
-                  dupes = pmfs[pmfs.duplicated(subset=key_cols, keep=False)]
+              pmf_key_cols = [c for c in ["game_id", "player_id", "stat"] if c in pmfs.columns]
+              if pmf_key_cols:
+                  actual_pmf = pmfs[pmf_key_cols].drop_duplicates()
+                  # Duplicate check
+                  dupes = pmfs[pmfs.duplicated(subset=pmf_key_cols, keep=False)]
                   if not dupes.empty:
-                      print(f"[FATAL] {len(dupes)} duplicate PMF rows detected: "
-                            f"{dupes[key_cols].drop_duplicates().head(3).to_dict('records')}", file=sys.stderr)
+                      print(f"[FATAL] {len(dupes)} duplicate PMF rows detected", file=sys.stderr)
                       sys.exit(1)
-                  print(f"PMF manifest validation: PASS (0 duplicates, {len(expected_pmf)} rows)")
               else:
-                  print(f"[WARN] PMF file lacks key columns (have: {list(pmfs.columns[:10])})")
+                  actual_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
           else:
-              print(f"[INFO] PMF file not found at {pmf_path} — no games or PMF generation failed")
+              actual_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+              if not expected_pmf.empty:
+                  print(f"[FATAL] PMF file missing at {pmf_path} but slate has games", file=sys.stderr)
+                  sys.exit(1)
 
-          # ── Expected edge manifest ─────────────────────────────────────────
-          edges_path = staging_dir / "publishable_edges.parquet"
-
-          if edges_path.exists():
-              edges = pd.read_parquet(edges_path)
-              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"] if c in edges.columns]
+          # ── Expected edge manifest — from validated current-run market rows ─
+          market_path = Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          if not market_path.exists():
+              market_path = Path("data/processed/wnba_player_props.parquet")
+          if market_path.exists():
+              markets = pd.read_parquet(market_path)
+              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"]
+                               if c in markets.columns]
               if edge_key_cols:
-                  expected_edge = edges[edge_key_cols].drop_duplicates()
-                  expected_edge_path = audit_dir / "expected_edge_manifest.parquet"
-                  expected_edge.to_parquet(expected_edge_path, index=False)
-                  actual_edge_path = audit_dir / "actual_edge_manifest.parquet"
-                  edges[edge_key_cols].to_parquet(actual_edge_path, index=False)
-                  print(f"Edge manifest: {len(expected_edge)} expected rows → {expected_edge_path}")
-
-                  # Validate: no duplicate edge keys
-                  dupes = edges[edges.duplicated(subset=edge_key_cols, keep=False)]
-                  if not dupes.empty:
-                      print(f"[FATAL] {len(dupes)} duplicate edge rows detected: "
-                            f"{dupes[edge_key_cols].drop_duplicates().head(3).to_dict('records')}", file=sys.stderr)
-                      sys.exit(1)
-                  print(f"Edge manifest validation: PASS (0 duplicates, {len(expected_edge)} rows)")
+                  expected_edge = markets[edge_key_cols].dropna(
+                      subset=[c for c in ["vendor", "line"] if c in edge_key_cols]
+                  ).drop_duplicates()
               else:
-                  print(f"[WARN] Edge file lacks key columns (have: {list(edges.columns[:10])})")
+                  expected_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
           else:
-              print(f"[INFO] Edge file not found at {edges_path} — no markets or edge generation failed")
+              expected_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
 
-          # ── Artifact lineage report ────────────────────────────────────────
+          # ── Actual edge manifest — from full market_comparison.parquet ─────
+          mc_path = out_dir / "market_comparison.parquet"
+          if mc_path.exists():
+              mc = pd.read_parquet(mc_path)
+              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"]
+                               if c in mc.columns]
+              actual_edge = mc[edge_key_cols].drop_duplicates() if edge_key_cols else pd.DataFrame()
+          else:
+              actual_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
+
+          # ── Integrity check: expected vs actual PMFs ───────────────────────
+          if not expected_pmf.empty and not actual_pmf.empty:
+              exp_keys = set(map(tuple, expected_pmf[["game_id", "player_id", "stat"]].values))
+              act_keys = set(map(tuple, actual_pmf[["game_id", "player_id", "stat"]].values))
+              missing_pmfs = exp_keys - act_keys
+              if missing_pmfs:
+                  print(f"[FATAL] PMF integrity: {len(missing_pmfs)} expected PMFs missing from actual "
+                        f"(expected={len(exp_keys)}, actual={len(act_keys)}). "
+                        f"Sample missing: {list(missing_pmfs)[:3]}", file=sys.stderr)
+                  sys.exit(1)
+              print(f"PMF manifest OK: expected={len(exp_keys)}, actual={len(act_keys)}, missing=0")
+
+          # ── Lineage report (in deliveries/tonight — not artifacts/audits) ──
           import subprocess, hashlib
           try:
               git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
@@ -895,9 +942,9 @@ jobs:
               git_commit = git_branch = "unknown"
 
           artifact_hashes = {}
-          for p in staging_dir.glob("*.parquet"):
+          for p in out_dir.glob("*.parquet"):
               artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
-          for p in staging_dir.glob("*.json"):
+          for p in out_dir.glob("*.json"):
               artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
 
           lineage_report = {
@@ -905,126 +952,26 @@ jobs:
               "git_commit": git_commit,
               "branch": git_branch,
               "game_date": game_date,
+              "game_date_resolution_method": os.environ.get("GAME_DATE_RESOLUTION_METHOD", ""),
+              "source_calibrators_run_id": os.environ.get("SOURCE_CALIBRATORS_RUN_ID", ""),
+              "source_model_run_id": os.environ.get("SOURCE_MODEL_RUN_ID", ""),
               "prediction_timestamp_utc": datetime.now(timezone.utc).isoformat(),
-              "staging_dir": str(staging_dir),
               "artifact_hashes": artifact_hashes,
-              "artifacts_checked": len(artifact_hashes),
-              "pmf_rows": len(pmfs) if 'pmfs' in dir() else 0,
-              "edge_rows": len(edges) if 'edges' in dir() else 0,
+              "expected_pmf_count": len(expected_pmf),
+              "actual_pmf_count": len(actual_pmf),
+              "expected_edge_count": len(expected_edge),
+              "actual_edge_count": len(actual_edge),
           }
-          lineage_path = audit_dir / "artifact_lineage_report.json"
+          lineage_path = out_dir / "artifact_lineage_report.json"
+          out_dir.mkdir(parents=True, exist_ok=True)
           lineage_path.write_text(json.dumps(lineage_report, indent=2))
           print(f"Artifact lineage report written → {lineage_path}")
+          print(f"Expected PMFs: {len(expected_pmf)}, Actual PMFs: {len(actual_pmf)}")
+          print(f"Expected edges: {len(expected_edge)}, Actual edges: {len(actual_edge)}")
           PYEOF
         env:
           GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: false
-
-      - name: Complete-board validation (BLOCKING — must pass before deployment)
-        run: |
-          python - <<'PYEOF'
-          import json, os, sys
-          from pathlib import Path
-          from datetime import datetime, timezone
-
-          try:
-              import pandas as pd
-          except ImportError:
-              print("[FATAL] pandas not available", file=sys.stderr)
-              sys.exit(1)
-
-          run_id      = os.environ.get("GITHUB_RUN_ID", "")
-          game_date   = os.environ.get("GAME_DATE", "")
-          staging_dir = Path(os.environ.get("STAGING_DIR", f"deliveries/staging/{run_id}"))
-
-          REQUIRED_ARTIFACTS = [
-              "full_pmfs_wide.parquet",
-              "publishable_edges.parquet",
-              "run_metadata.json",
-          ]
-
-          errors = []
-
-          # 1. All required artifacts present
-          for name in REQUIRED_ARTIFACTS:
-              p = staging_dir / name
-              if not p.exists():
-                  errors.append(f"MISSING_ARTIFACT: {name} not found in {staging_dir}")
-
-          # 2. Run metadata matches current run
-          meta_path = staging_dir / "run_metadata.json"
-          if meta_path.exists():
-              meta = json.loads(meta_path.read_text())
-              if str(meta.get("github_run_id", "")) != str(run_id):
-                  errors.append(
-                      f"LINEAGE_MISMATCH: run_metadata.github_run_id={meta.get('github_run_id')!r} "
-                      f"!= {run_id!r}"
-                  )
-              if str(meta.get("game_date", "")) != str(game_date):
-                  errors.append(
-                      f"LINEAGE_MISMATCH: run_metadata.game_date={meta.get('game_date')!r} "
-                      f"!= {game_date!r}"
-                  )
-
-          # 3. PMF and edge files are non-empty (when games are scheduled)
-          pmf_path   = staging_dir / "full_pmfs_wide.parquet"
-          edges_path = staging_dir / "publishable_edges.parquet"
-          slate_path = staging_dir / f"slate_{game_date}.parquet"
-
-          games_scheduled = slate_path.exists()
-          if games_scheduled:
-              if pmf_path.exists():
-                  pmfs = pd.read_parquet(pmf_path)
-                  if pmfs.empty:
-                      errors.append("EMPTY_PMF_FILE: full_pmfs_wide.parquet exists but has 0 rows")
-              if edges_path.exists():
-                  # Edge file may be empty if no publishable edges; that's OK for complete-board
-                  pass
-
-          if errors:
-              print(f"[FATAL] Complete-board validation FAILED ({len(errors)} error(s)):", file=sys.stderr)
-              for e in errors:
-                  print(f"  {e}", file=sys.stderr)
-              # Write diagnostics for CI artifact
-              diag_dir = Path("artifacts/audits")
-              diag_dir.mkdir(parents=True, exist_ok=True)
-              diag_path = diag_dir / "atomic_deployment_test_report.json"
-              diag_path.write_text(json.dumps({
-                  "validation_result": "FAIL",
-                  "errors": errors,
-                  "run_id": run_id,
-                  "game_date": game_date,
-                  "generated_at": datetime.now(timezone.utc).isoformat(),
-              }, indent=2))
-              sys.exit(1)
-
-          # Write success report
-          diag_dir = Path("artifacts/audits")
-          diag_dir.mkdir(parents=True, exist_ok=True)
-          diag_path = diag_dir / "atomic_deployment_test_report.json"
-          diag_path.write_text(json.dumps({
-              "validation_result": "PASS",
-              "errors": [],
-              "run_id": run_id,
-              "game_date": game_date,
-              "generated_at": datetime.now(timezone.utc).isoformat(),
-          }, indent=2))
-          print(f"Complete-board validation: PASS — staging directory {staging_dir} is valid")
-          print(f"Deployment approved for run_id={run_id}, game_date={game_date}")
-          PYEOF
-        env:
-          GAME_DATE: ${{ env.GAME_DATE }}
-        continue-on-error: false
-
-      - name: Upload staging diagnostics on failure (CI artifact)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: staging-diagnostics-${{ env.GAME_DATE }}-${{ github.run_id }}
-          path: |
-            artifacts/audits/
-            deliveries/staging/${{ github.run_id }}/
-          retention-days: 7
 
       - name: Stage all outputs for single gh-pages deploy
         run: |

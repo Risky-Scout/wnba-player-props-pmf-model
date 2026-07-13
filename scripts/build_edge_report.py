@@ -1,25 +1,36 @@
 """Stage 7 — Build edge report comparing model PMFs vs. market odds.
 
-Data source priority (highest fidelity first):
-  1. The Odds API v4  (ODDS_API_KEY set) — multi-book, deep links, Shin-z
-  2. BDL player props (fallback)
+Requires a slate manifest that proves this is a current-run invocation.
+Writes explicit market status in every exit path.
 
-Uses Shin's no-vig method to extract true market probabilities, then computes
-model edge for each player prop line. Deep links to bookmaker betslips are
-included when available via The Odds API.
+Explicit market statuses:
+  SUCCESS_WITH_MARKETS        — edges written, all integrity checks passed
+  VERIFIED_NO_GAMES           — slate has scheduled_game_count == 0, clean exit
+  LIVE_MARKETS_NOT_YET_AVAILABLE — markets not yet posted (source policy allows)
+  FAILURE                     — any fatal validation or integrity error
+
+Source policies (--source-policy):
+  odds_api_then_bdl  — try Odds API, fall back to BDL when empty (default)
+  odds_api_required  — Odds API must succeed; BDL fallback is forbidden
+  bdl_required       — BDL must be used; Odds API is not consulted
+
+Required slate manifest fields: game_date, scheduled_game_count, game_ids,
+  github_run_id, git_commit.
 
 Writes:
-  {out_dir}/market_comparison.parquet  — full joined table
+  {out_dir}/market_comparison.parquet  — full joined table (all rows)
   {out_dir}/publishable_edges.parquet  — |edge| >= edge_threshold rows
-  {out_dir}/edge_report_{date}.json    — summary audit
+  {out_dir}/edge_report_{date}.json    — summary audit with market_status
 
 Usage:
     python scripts/build_edge_report.py \\
         --pmfs deliveries/today/full_pmfs_wide.parquet \\
         --raw-props data/processed/wnba_player_props.parquet \\
         --out-dir deliveries/today \\
+        --slate-manifest deliveries/today/slate_manifest.json \\
         --edge-threshold 0.04 \\
         --game-date 2026-06-15 \\
+        --require-venn-abers \\
         [--odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet]
 """
 from __future__ import annotations
@@ -50,8 +61,42 @@ from wnba_props_model.pipeline.deliver import build_market_comparison, normalize
 from wnba_props_model.models.market import fair_american, prob_over_from_pmf
 from wnba_props_model.models.simulation import json_to_pmf
 from wnba_props_model.pipeline.calibrate import apply_venn_abers_calibration
+from wnba_props_model.pipeline.market_integrity import (
+    validate_no_duplicate_quotes,
+    validate_quote_freshness,
+    validate_player_identity_resolved,
+    validate_game_identity_resolved,
+    validate_odds_format,
+    check_no_stale_fallback,
+    StaleFallbackForbiddenError,
+    DuplicateQuoteError,
+    StaleQuoteError,
+    UnmatchedIdentityError,
+    MalformedOddsError,
+)
 
 app = typer.Typer(add_completion=False)
+
+# ---------------------------------------------------------------------------
+# Explicit market statuses — written into every audit report
+# ---------------------------------------------------------------------------
+STATUS_SUCCESS_WITH_MARKETS = "SUCCESS_WITH_MARKETS"
+STATUS_VERIFIED_NO_GAMES = "VERIFIED_NO_GAMES"
+STATUS_LIVE_MARKETS_NOT_YET_AVAILABLE = "LIVE_MARKETS_NOT_YET_AVAILABLE"
+STATUS_FAILURE = "FAILURE"
+
+# ---------------------------------------------------------------------------
+# Source policies
+# ---------------------------------------------------------------------------
+POLICY_ODDS_API_THEN_BDL = "odds_api_then_bdl"
+POLICY_ODDS_API_REQUIRED = "odds_api_required"
+POLICY_BDL_REQUIRED = "bdl_required"
+_VALID_POLICIES = {POLICY_ODDS_API_THEN_BDL, POLICY_ODDS_API_REQUIRED, POLICY_BDL_REQUIRED}
+
+# Required fields in slate manifest
+_REQUIRED_SLATE_MANIFEST_FIELDS = [
+    "game_date", "scheduled_game_count", "game_ids", "github_run_id", "git_commit"
+]
 
 # Combo stats that have no per-line calibrators — assigned EXPERIMENTAL in quality gate.
 COMBO_STATS_UNCALIBRATED: frozenset[str] = frozenset({"pts_reb_ast", "reb_ast"})
@@ -125,6 +170,14 @@ def main(
     pmfs: str = typer.Option(..., help="Calibrated PMF parquet (full_pmfs_wide.parquet)."),
     raw_props: str = typer.Option(..., help="BDL player props parquet (fallback)."),
     out_dir: str = typer.Option(..., help="Output directory for edge report files."),
+    slate_manifest: str = typer.Option(
+        ...,
+        "--slate-manifest",
+        help=(
+            "Required JSON slate manifest containing: game_date, scheduled_game_count, "
+            "game_ids, github_run_id, git_commit. Proves current-run integrity."
+        ),
+    ),
     edge_threshold: float = typer.Option(0.0, help="Minimum |edge| to publish (default 0 — show all props)."),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
@@ -150,82 +203,225 @@ def main(
         "--cal-dir",
         help="Directory containing calibration artifacts (bias_corrections.json).",
     ),
+    require_venn_abers: bool = typer.Option(
+        False,
+        "--require-venn-abers/--no-require-venn-abers",
+        help=(
+            "When set, Venn-Abers calibration must succeed for all rows. "
+            "A required calibration failure exits nonzero. "
+            "Production must use --require-venn-abers."
+        ),
+    ),
+    allow_uncalibrated: bool = typer.Option(
+        False,
+        "--allow-uncalibrated/--no-allow-uncalibrated",
+        help=(
+            "When set, uncalibrated combo stats are permitted in output. "
+            "Without this flag, uncalibrated stats that require calibration are fatal. "
+            "Do NOT set in production."
+        ),
+    ),
+    source_policy: str = typer.Option(
+        POLICY_ODDS_API_THEN_BDL,
+        "--source-policy",
+        help=(
+            f"Market source policy. One of: {POLICY_ODDS_API_THEN_BDL} (default), "
+            f"{POLICY_ODDS_API_REQUIRED}, {POLICY_BDL_REQUIRED}. "
+            "Fallback only allowed when policy is odds_api_then_bdl."
+        ),
+    ),
 ) -> None:
     """Compare model PMFs vs. market lines using Shin no-vig.
 
-    Data source priority: Odds API (preferred) → BDL (fallback).
-    Edges are tiered by Shin-z (market sharpness proxy):
-    - shin_z <= max_shin_z  → confidence_tier = 'standard'   (softer market)
-    - shin_z > max_shin_z   → confidence_tier = 'high_adversity' (sharp market — flagged)
-    - shin_z is None/NaN    → confidence_tier = 'unknown'
+    Requires a slate manifest proving current-run integrity.
+    Writes explicit market_status in every exit path.
     """
-    today = game_date or date.today().isoformat()
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    # Exit cleanly when no predictions were generated (no games scheduled).
-    pmfs_path = Path(pmfs)
-    if not pmfs_path.exists():
-        typer.echo(f"[INFO] No PMF file found at {pmfs} — no games scheduled for {today}. Exiting cleanly.")
+    # ── Validate source policy ────────────────────────────────────────────────
+    if source_policy not in _VALID_POLICIES:
+        typer.echo(
+            f"[FATAL] Invalid --source-policy={source_policy!r}. "
+            f"Must be one of: {sorted(_VALID_POLICIES)}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, game_date or date.today().isoformat(),
+                      edge_threshold, error=f"invalid_source_policy:{source_policy}")
+        raise typer.Exit(1)
+
+    # ── Load and validate required slate manifest ─────────────────────────────
+    slate_manifest_path = Path(slate_manifest)
+    if not slate_manifest_path.exists():
+        typer.echo(
+            f"[FATAL] Slate manifest not found at {slate_manifest}. "
+            "A slate manifest is required to prove current-run integrity.", err=True
+        )
+        _write_status(out, STATUS_FAILURE, game_date or date.today().isoformat(),
+                      edge_threshold, error="slate_manifest_missing")
+        raise typer.Exit(1)
+
+    try:
+        manifest_data = json.loads(slate_manifest_path.read_text())
+    except Exception as exc:
+        typer.echo(f"[FATAL] Unreadable slate manifest at {slate_manifest}: {exc}", err=True)
+        _write_status(out, STATUS_FAILURE, game_date or date.today().isoformat(),
+                      edge_threshold, error=f"slate_manifest_unreadable:{exc}")
+        raise typer.Exit(1)
+
+    missing_fields = [f for f in _REQUIRED_SLATE_MANIFEST_FIELDS if f not in manifest_data]
+    if missing_fields:
+        typer.echo(
+            f"[FATAL] Slate manifest missing required fields: {missing_fields}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, manifest_data.get("game_date", date.today().isoformat()),
+                      edge_threshold, error=f"slate_manifest_missing_fields:{missing_fields}")
+        raise typer.Exit(1)
+
+    today = game_date or manifest_data["game_date"]
+    scheduled_game_count = int(manifest_data["scheduled_game_count"])
+    slate_game_ids = set(manifest_data.get("game_ids") or [])
+
+    typer.echo(
+        f"Slate manifest: game_date={today}, scheduled_game_count={scheduled_game_count}, "
+        f"game_ids={slate_game_ids}, run_id={manifest_data.get('github_run_id')}, "
+        f"commit={str(manifest_data.get('git_commit', ''))[:8]}"
+    )
+
+    # ── VERIFIED_NO_GAMES: valid slate with zero scheduled games → clean exit ─
+    if scheduled_game_count == 0:
+        typer.echo(f"[INFO] Slate reports 0 scheduled games for {today}. Status: {STATUS_VERIFIED_NO_GAMES}")
+        _write_status(out, STATUS_VERIFIED_NO_GAMES, today, edge_threshold)
         raise typer.Exit(0)
 
-    pmfs_df = pd.read_parquet(pmfs)
+    # ── PMF file required when games are scheduled ────────────────────────────
+    pmfs_path = Path(pmfs)
+    if not pmfs_path.exists():
+        typer.echo(
+            f"[FATAL] PMF file missing at {pmfs} but slate has {scheduled_game_count} "
+            f"scheduled game(s). Status: {STATUS_FAILURE}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                      error=f"pmf_missing_with_scheduled_games:{scheduled_game_count}")
+        raise typer.Exit(1)
+
+    try:
+        pmfs_df = pd.read_parquet(pmfs_path)
+    except Exception as exc:
+        typer.echo(
+            f"[FATAL] PMF file unreadable at {pmfs}: {exc}. Unreadable files are failures, not empty responses.",
+            err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold, error=f"pmf_unreadable:{exc}")
+        raise typer.Exit(1)
+
     typer.echo(f"Loaded {len(pmfs_df):,} PMF rows")
 
+    if pmfs_df.empty:
+        typer.echo(
+            f"[FATAL] PMF file exists at {pmfs} but has 0 rows. "
+            f"Slate has {scheduled_game_count} scheduled game(s). Status: {STATUS_FAILURE}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold, error="pmf_empty_with_scheduled_games")
+        raise typer.Exit(1)
+
     # --- Assertion: All rows must be repaired before reaching edge report ---
-    # The IPF repair ladder + adaptive cap ensure no suppressed or WARN rows.
-    # If any remain, something failed upstream and the report must not proceed.
     if "combo_suppressed" in pmfs_df.columns:
         suppressed = pmfs_df["combo_suppressed"].fillna(False).astype(bool)
         if suppressed.any():
-            raise ValueError(
-                f"[edge_report] {suppressed.sum()} suppressed combo rows reached edge report. "
-                "All rows must be repaired before reaching this stage. "
-                "Check the IPF repair ladder and adaptive cap in predict.py."
+            typer.echo(
+                f"[FATAL] {suppressed.sum()} suppressed combo rows reached edge report. "
+                "Check IPF repair ladder in predict.py.", err=True
             )
+            _write_status(out, STATUS_FAILURE, today, edge_threshold, error="suppressed_combo_rows")
+            raise typer.Exit(1)
 
     if "joint_status" in pmfs_df.columns:
         _bad_status_mask = pmfs_df["joint_status"].isin({"WARN_IPF_FAILED", "WARN"})
         if _bad_status_mask.any():
-            raise ValueError(
-                f"[edge_report] {int(_bad_status_mask.sum())} rows with bad joint_status "
+            typer.echo(
+                f"[FATAL] {int(_bad_status_mask.sum())} rows with bad joint_status "
                 f"({pmfs_df.loc[_bad_status_mask, 'joint_status'].value_counts().to_dict()}) "
-                "reached edge report. All WARN rows must be repaired by the IPF ladder."
+                "reached edge report. All WARN rows must be repaired by IPF ladder.", err=True
             )
+            _write_status(out, STATUS_FAILURE, today, edge_threshold, error="bad_joint_status")
+            raise typer.Exit(1)
 
-    # ── Data source selection ─────────────────────────────────────────────────
-    props_df, props_source = _load_props(raw_props, odds_api_props, today)
+    # ── Data source selection (enforces source policy) ────────────────────────
+    try:
+        props_df, props_source = _load_props(raw_props, odds_api_props, today, source_policy)
+    except Exception as exc:
+        typer.echo(f"[FATAL] Market source load failed: {exc}. Status: {STATUS_FAILURE}", err=True)
+        _write_status(out, STATUS_FAILURE, today, edge_threshold, error=f"market_source_failure:{exc}")
+        raise typer.Exit(1)
+
     typer.echo(f"Loaded {len(props_df):,} market prop rows [source={props_source}]")
 
-    # Game_ID cross-join guard: fail loudly if projections and market props are from different slates
-    if not pmfs_df.empty and not props_df.empty:
-        if "game_id" in pmfs_df.columns and "game_id" in props_df.columns:
-            _pmfs_game_ids = set(pmfs_df["game_id"].dropna().unique())
-            _props_game_ids = set(props_df["game_id"].dropna().unique())
-            _shared_game_ids = _pmfs_game_ids & _props_game_ids
-            if not _shared_game_ids:
-                typer.echo(f"[WARN] GAME_ID MISMATCH: PMF game_ids={_pmfs_game_ids}, market game_ids={_props_game_ids}. No shared games — edge report will be empty.", err=True)
+    # ── Validate market quotes using market_integrity functions ───────────────
+    if not props_df.empty:
+        try:
+            validate_no_duplicate_quotes(props_df)
+            validate_player_identity_resolved(props_df)
+            validate_game_identity_resolved(props_df)
+            validate_odds_format(props_df)
+        except (DuplicateQuoteError, UnmatchedIdentityError, MalformedOddsError) as exc:
+            typer.echo(f"[FATAL] Market quote validation failed: {exc}. Status: {STATUS_FAILURE}", err=True)
+            _write_status(out, STATUS_FAILURE, today, edge_threshold, error=str(exc))
+            raise typer.Exit(1)
 
+    # ── Markets empty: LIVE_MARKETS_NOT_YET_AVAILABLE vs fatal ───────────────
     if props_df.empty:
-        typer.echo("[WARN] Props file is empty — no market lines to compare")
-        _write_empty(out, today, edge_threshold)
-        return
+        if source_policy == POLICY_ODDS_API_REQUIRED:
+            typer.echo(
+                f"[FATAL] --source-policy=odds_api_required but Odds API returned no markets. "
+                f"Status: {STATUS_FAILURE}", err=True
+            )
+            _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                          error="odds_api_required_but_empty")
+            raise typer.Exit(1)
+        typer.echo(
+            f"[INFO] No market lines available yet. Status: {STATUS_LIVE_MARKETS_NOT_YET_AVAILABLE}"
+        )
+        _write_status(out, STATUS_LIVE_MARKETS_NOT_YET_AVAILABLE, today, edge_threshold,
+                      props_source=props_source)
+        raise typer.Exit(0)
+
+    # ── Game_ID cross-join guard: fatal if markets nonempty but no shared games ─
+    if "game_id" in pmfs_df.columns and "game_id" in props_df.columns:
+        _pmfs_game_ids = set(pmfs_df["game_id"].dropna().unique())
+        _props_game_ids = set(props_df["game_id"].dropna().unique())
+        _shared_game_ids = _pmfs_game_ids & _props_game_ids
+        if not _shared_game_ids and props_df is not None and not props_df.empty:
+            typer.echo(
+                f"[FATAL] GAME_ID MISMATCH: PMF game_ids={_pmfs_game_ids}, "
+                f"market game_ids={_props_game_ids}. Markets nonempty but zero shared game IDs. "
+                f"Status: {STATUS_FAILURE}", err=True
+            )
+            _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                          error=f"game_id_mismatch:pmf={_pmfs_game_ids},market={_props_game_ids}")
+            raise typer.Exit(1)
 
     comp = build_market_comparison(pmfs_df, props_df)
 
+    # ── Zero-join is fatal when markets are nonempty ───────────────────────────
     if comp.empty:
-        typer.echo("[WARN] No player/game overlap between PMFs and props")
-        _write_empty(out, today, edge_threshold)
-        return
+        typer.echo(
+            f"[FATAL] Market comparison joined 0 rows despite nonempty market data. "
+            f"Status: {STATUS_FAILURE}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                      error="zero_market_join_rows", props_source=props_source)
+        raise typer.Exit(1)
 
-    # Apply Venn-Abers calibration to model P(over) when calibrators exist.
-    # Writes p_over_va column; falls back to raw model_prob_over when no
-    # calibrator is found for a (stat, role) pair.
+    # ── Write full market_comparison.parquet (before business filters) ─────────
+    mc_path = out / "market_comparison.parquet"
+    comp.to_parquet(mc_path, index=False)
+    typer.echo(f"Wrote market_comparison → {mc_path} ({len(comp):,} rows)")
+
+    # Apply Venn-Abers calibration
+    va_applied = False
     if "model_prob_over" in comp.columns and "stat" in comp.columns:
         try:
             comp = apply_venn_abers_calibration(comp, cal_dir=cal_dir)
-            # Prefer VA-calibrated probability for edge computation when it differs
-            # from the raw PMF probability (i.e. a calibrator existed).
             if "p_over_va" in comp.columns:
                 _va_mask = comp["p_over_va"] != comp["model_prob_over"]
                 if _va_mask.any():
@@ -239,8 +435,25 @@ def main(
                         - comp.loc[_va_mask, "model_prob_over"]
                     )
                     typer.echo(f"[venn_abers] Applied VA calibration to {_va_mask.sum()} rows")
+                    va_applied = True
         except Exception as _va_exc:
+            if require_venn_abers:
+                typer.echo(
+                    f"[FATAL] --require-venn-abers is set but Venn-Abers calibration failed: {_va_exc}. "
+                    f"Status: {STATUS_FAILURE}", err=True
+                )
+                _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                              error=f"venn_abers_required_but_failed:{_va_exc}")
+                raise typer.Exit(1)
             typer.echo(f"[WARN] Venn-Abers calibration failed (non-fatal): {_va_exc}", err=True)
+    elif require_venn_abers:
+        typer.echo(
+            f"[FATAL] --require-venn-abers is set but model_prob_over or stat column is missing. "
+            f"Status: {STATUS_FAILURE}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                      error="venn_abers_required_but_missing_columns")
+        raise typer.Exit(1)
 
     # Filter to sensible market lines (avoid very thin edge markets)
     comp = comp[comp["market_prob_over_no_vig"].notna()]
@@ -290,10 +503,6 @@ def main(
         comp["confidence_tier"] = comp["shin_z"].map(_tier)
     else:
         comp["confidence_tier"] = "unknown"
-
-    comp_path = out / "market_comparison.parquet"
-    comp.to_parquet(comp_path, index=False)
-    typer.echo(f"Wrote market_comparison → {comp_path} ({len(comp):,} rows)")
 
     # ── Sharp reference: vs_pinnacle_edge ─────────────────────────────────────
     # Pinnacle is the sharpest reference book; model edges that also beat Pinnacle
@@ -535,8 +744,10 @@ def main(
     audit = {
         "game_date": today,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "market_status": STATUS_SUCCESS_WITH_MARKETS,
         "no_vig_method": "shin",
         "props_source": props_source,
+        "source_policy": source_policy,
         "edge_threshold": edge_threshold,
         "max_shin_z_threshold": max_shin_z,
         "total_market_rows": len(comp),
@@ -573,49 +784,112 @@ def _load_props(
     raw_props_path: str,
     odds_api_props_path: str,
     today: str,
+    source_policy: str = POLICY_ODDS_API_THEN_BDL,
 ) -> tuple["pd.DataFrame", str]:
-    """Load market props with source priority: Odds API > BDL.
+    """Load market props enforcing the specified source policy.
 
-    Returns (DataFrame, source_name) where source_name is 'odds_api' or 'bdl'.
+    source_policy:
+      odds_api_then_bdl  — try Odds API; fall back to BDL if empty/unavailable
+      odds_api_required  — Odds API must succeed; BDL fallback is forbidden
+      bdl_required       — BDL only; Odds API is not consulted
+
+    Unreadable files raise an exception (never return silent empty DataFrames).
+    Returns (DataFrame, source_name).
     """
-    # Try Odds API first
-    if odds_api_props_path:
-        p = Path(odds_api_props_path)
-        if p.exists():
-            try:
-                df = pd.read_parquet(p)
-                if not df.empty and "over_odds" in df.columns:
-                    typer.echo(f"[EdgeReport] Using Odds API props: {p} ({len(df):,} rows)")
-                    return df, "odds_api"
-            except Exception as exc:
-                typer.echo(f"[WARN] Odds API props unreadable ({exc}) — falling back to BDL", err=True)
+    if source_policy == POLICY_BDL_REQUIRED:
+        # BDL only
+        p = Path(raw_props_path)
+        if not p.exists():
+            raise FileNotFoundError(
+                f"bdl_required policy: BDL props file not found at {raw_props_path}"
+            )
+        try:
+            df = pd.read_parquet(p)
+            typer.echo(f"[EdgeReport] Using BDL props (policy=bdl_required): {p} ({len(df):,} rows)")
+            return df, "bdl"
+        except Exception as exc:
+            raise IOError(f"bdl_required policy: BDL props unreadable at {raw_props_path}: {exc}") from exc
 
-    # Fall back to BDL
+    if source_policy in (POLICY_ODDS_API_THEN_BDL, POLICY_ODDS_API_REQUIRED):
+        if odds_api_props_path:
+            p = Path(odds_api_props_path)
+            if not p.exists():
+                if source_policy == POLICY_ODDS_API_REQUIRED:
+                    raise FileNotFoundError(
+                        f"odds_api_required policy: Odds API props file not found at {odds_api_props_path}"
+                    )
+                typer.echo(f"[EdgeReport] Odds API props not found at {p} — falling back to BDL", err=True)
+            else:
+                try:
+                    df = pd.read_parquet(p)
+                    if not df.empty and "over_odds" in df.columns:
+                        typer.echo(f"[EdgeReport] Using Odds API props: {p} ({len(df):,} rows)")
+                        return df, "odds_api"
+                    elif source_policy == POLICY_ODDS_API_REQUIRED:
+                        raise ValueError(
+                            f"odds_api_required policy: Odds API props exist at {p} but are empty or missing over_odds column"
+                        )
+                    else:
+                        typer.echo(
+                            f"[EdgeReport] Odds API props empty/malformed ({p}) — falling back to BDL", err=True
+                        )
+                except (ValueError, FileNotFoundError):
+                    raise
+                except Exception as exc:
+                    if source_policy == POLICY_ODDS_API_REQUIRED:
+                        raise IOError(
+                            f"odds_api_required policy: Odds API props unreadable at {odds_api_props_path}: {exc}"
+                        ) from exc
+                    typer.echo(
+                        f"[WARN] Odds API props unreadable ({exc}) — falling back to BDL", err=True
+                    )
+        elif source_policy == POLICY_ODDS_API_REQUIRED:
+            raise ValueError(
+                "odds_api_required policy: --odds-api-props path not provided"
+            )
+
+    # BDL fallback (only when policy allows it)
     p = Path(raw_props_path)
     if not p.exists():
-        typer.echo(f"[WARN] No props at {raw_props_path}", err=True)
+        typer.echo(f"[EdgeReport] No BDL props at {raw_props_path}", err=True)
         return pd.DataFrame(), "none"
     try:
         df = pd.read_parquet(p)
+        typer.echo(f"[EdgeReport] Using BDL props: {p} ({len(df):,} rows)")
         return df, "bdl"
     except Exception as exc:
-        typer.echo(f"[WARN] BDL props unreadable: {exc}", err=True)
-        return pd.DataFrame(), "none"
+        raise IOError(f"BDL props unreadable at {raw_props_path}: {exc}") from exc
 
 
-def _write_empty(out: Path, today: str, edge_threshold: float) -> None:
+def _write_status(
+    out: Path,
+    market_status: str,
+    today: str,
+    edge_threshold: float,
+    error: str | None = None,
+    props_source: str | None = None,
+) -> None:
+    """Write minimal status files (empty parquets + audit JSON) for non-SUCCESS exits."""
     empty = pd.DataFrame()
-    empty.to_parquet(out / "market_comparison.parquet", index=False)
-    empty.to_parquet(out / "publishable_edges.parquet", index=False)
-    audit = {
+    mc_path = out / "market_comparison.parquet"
+    edges_path = out / "publishable_edges.parquet"
+    if not mc_path.exists():
+        empty.to_parquet(mc_path, index=False)
+    if not edges_path.exists():
+        empty.to_parquet(edges_path, index=False)
+    audit: dict = {
         "game_date": today,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "market_status": market_status,
         "no_vig_method": "shin",
         "edge_threshold": edge_threshold,
         "total_market_rows": 0,
         "publishable_edge_rows": 0,
-        "note": "no_props_data",
     }
+    if error:
+        audit["error"] = error
+    if props_source:
+        audit["props_source"] = props_source
     (out / f"edge_report_{today}.json").write_text(json.dumps(audit, indent=2))
 
 
