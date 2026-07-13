@@ -188,14 +188,14 @@ jobs:
           python scripts/pull_bdl_history.py \
             --start-season $YEAR --end-season $YEAR \
             --out-dir data/raw/bdl
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Build canonical tables
         run: |
           python scripts/build_canonical_tables.py \
             --raw-dir data/raw/bdl \
             --out-dir data/processed
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Build feature matrix from canonical tables
         run: |
@@ -227,9 +227,8 @@ jobs:
               sys.exit(0)
 
           if not api_key:
-              print("[WARN] BDL_API_KEY not set — writing empty injury file")
-              out_path.write_text("[]")
-              sys.exit(0)
+              print("[FATAL] BDL_API_KEY not set — cannot fetch injury report. Run must fail.", file=sys.stderr)
+              sys.exit(1)
 
           params = {"per_page": 100}
           headers = {"Authorization": api_key}
@@ -256,10 +255,10 @@ jobs:
               out_path.write_text(json.dumps(normalized, indent=2))
               print(f"Saved {len(normalized)} injury records → {out_path}")
           except Exception as exc:
-              print(f"[WARN] BDL injury fetch failed: {exc} — writing empty file")
-              out_path.write_text("[]")
+              print(f"[FATAL] BDL injury fetch failed: {exc} — run must fail to prevent stale injury data.", file=sys.stderr)
+              sys.exit(1)
           PYEOF
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Data schema & freshness tripwire
         id: schema-tripwire
@@ -312,8 +311,7 @@ jobs:
                   sys.exit(1)
               print(f"[TRIPWIRE] Check 1 PASS: {n_players} players on slate")
           else:
-              print(f"[TRIPWIRE] Check 1 SKIP: Slate not found at {slate_path} — no games today or "
-                    "slate build failed. Pipeline will fall back to historical features.")
+              print(f"[TRIPWIRE] Check 1 SKIP: Slate not found at {slate_path} — no games today or slate build failed.")
 
           # ------------------------------------------------------------------
           # Check 2: Odds props market lines
@@ -374,7 +372,7 @@ jobs:
           PYEOF
         env:
           GAME_DATE: ${{ env.GAME_DATE }}
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Generate pre-game PMF projections
         env:
@@ -382,27 +380,53 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
-          if [ -f "$SLATE" ]; then
-            FEATURES_SRC="$SLATE"
-            echo "Using slate: $FEATURES_SRC"
-          else
-            FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
-            echo "Slate not found, falling back to historical features: $FEATURES_SRC"
+          if [ ! -f "$SLATE" ]; then
+            echo "[FATAL] Current-run slate not found at ${SLATE}." >&2
+            echo "[FATAL] Stale historical-feature fallback is FORBIDDEN per Ticket-2 pipeline integrity rules." >&2
+            echo "[FATAL] Run must fail. Check build_next_game_slate.py step." >&2
+            exit 1
           fi
+          echo "Using current-run slate: $SLATE"
           python scripts/predict_today.py \
-            --features-wide "$FEATURES_SRC" \
+            --features-wide "$SLATE" \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --model-dir artifacts/models/stage4_baseline \
             --cal-dir artifacts/models/calibration \
             --overrides config/player_overrides.json
 
-      - name: Pull Odds API player props + deep links
+      - name: Pull Odds API player props + deep links (BLOCKING when markets expected)
         run: |
           python scripts/pull_odds_api_props.py \
             --game-date "$GAME_DATE" \
             --out-dir data/processed
-        continue-on-error: true
+          # Validate that the pull produced a non-empty market file.
+          # An empty or absent file is NOT the same as "no markets yet posted".
+          python - <<'PYEOF'
+          import sys, pathlib, os
+          import pandas as pd
+          game_date = os.environ.get("GAME_DATE", "")
+          props_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          slate_path = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
+          if not props_path.exists():
+              # If there is an active slate, missing odds is fatal.
+              if slate_path.exists():
+                  slate = pd.read_parquet(slate_path)
+                  if len(slate) > 0:
+                      print(f"[FATAL] Odds file missing at {props_path} but slate has {len(slate)} players.", file=sys.stderr)
+                      print(f"[FATAL] Status: {os.environ.get('LIVE_MARKETS_STATUS', 'LIVE_MARKETS_NOT_YET_AVAILABLE')}", file=sys.stderr)
+                      sys.exit(1)
+              print(f"[INFO] No odds file and no active slate — status: LIVE_MARKETS_NOT_YET_AVAILABLE")
+          else:
+              df = pd.read_parquet(props_path)
+              if df.empty and slate_path.exists():
+                  slate = pd.read_parquet(slate_path)
+                  if len(slate) > 0:
+                      print(f"[WARN] Odds file exists but is empty. Status: LIVE_MARKETS_NOT_YET_AVAILABLE")
+              else:
+                  print(f"[OK] Odds file: {len(df)} rows at {props_path}")
+          PYEOF
+        continue-on-error: false
 
       - name: Apply injury updates — rebuild affected PMFs (BLOCKING)
         # Processes point-in-time injury statuses and rebuilds ALL affected
@@ -421,16 +445,17 @@ jobs:
             --cal-dir artifacts/models/calibration
         continue-on-error: false
 
-      - name: Compute SHAP explainability
+      - name: Compute SHAP explainability (NONCRITICAL_EXPLAINABILITY_FAILURE if this step fails)
         run: |
           python scripts/compute_shap_explainability.py \
             --game-date "$GAME_DATE" \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --model-dir artifacts/models/stage4_baseline \
-            --out-dir artifacts/explainability
+            --out-dir artifacts/explainability || \
+          echo "NONCRITICAL_EXPLAINABILITY_FAILURE: SHAP computation failed — deployment continues"
         continue-on-error: true
 
-      - name: Commit SHAP top-5 to repo (permanent visibility)
+      - name: Commit SHAP top-5 to repo (NONCRITICAL_EXPLAINABILITY_FAILURE if this step fails)
         run: |
           TOP5="artifacts/explainability/shap_${GAME_DATE}_top5.json"
           LATEST="artifacts/explainability/shap_latest_top5.json"
@@ -773,6 +798,233 @@ jobs:
         env:
           GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: false
+
+      - name: Isolate artifacts to per-run staging directory (BLOCKING)
+        # Every workflow run writes final outputs into deliveries/staging/${GITHUB_RUN_ID}/
+        # so that partial or prior-run artifacts can never contaminate this run.
+        run: |
+          STAGING_DIR="deliveries/staging/${{ github.run_id }}"
+          mkdir -p "${STAGING_DIR}"
+          # Copy all tonight deliveries into per-run staging
+          if [ -d "deliveries/tonight" ]; then
+            cp -r deliveries/tonight/. "${STAGING_DIR}/"
+          fi
+          echo "STAGING_DIR=${STAGING_DIR}" >> $GITHUB_ENV
+          echo "Per-run staging directory: ${STAGING_DIR}"
+          echo "Staged files: $(find ${STAGING_DIR} -type f | wc -l)"
+        continue-on-error: false
+
+      - name: Build expected PMF and edge manifests (BLOCKING)
+        run: |
+          python - <<'PYEOF'
+          import json, os, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[FATAL] pandas not available", file=sys.stderr)
+              sys.exit(1)
+
+          game_date   = os.environ.get("GAME_DATE", "")
+          run_id      = os.environ.get("GITHUB_RUN_ID", "")
+          staging_dir = Path(os.environ.get("STAGING_DIR", f"deliveries/staging/{run_id}"))
+          audit_dir   = Path("artifacts/audits")
+          audit_dir.mkdir(parents=True, exist_ok=True)
+
+          # ── Expected PMF manifest ──────────────────────────────────────────
+          slate_path = staging_dir / f"slate_{game_date}.parquet"
+          pmf_path   = staging_dir / "full_pmfs_wide.parquet"
+
+          if pmf_path.exists():
+              pmfs = pd.read_parquet(pmf_path)
+              key_cols = [c for c in ["game_id", "player_id", "stat"] if c in pmfs.columns]
+              if key_cols:
+                  expected_pmf = pmfs[key_cols].drop_duplicates()
+                  expected_pmf_path = audit_dir / "expected_pmf_manifest.parquet"
+                  expected_pmf.to_parquet(expected_pmf_path, index=False)
+                  actual_pmf_path = audit_dir / "actual_pmf_manifest.parquet"
+                  pmfs[key_cols].to_parquet(actual_pmf_path, index=False)
+                  print(f"PMF manifest: {len(expected_pmf)} expected rows → {expected_pmf_path}")
+
+                  # Validate: no duplicates in actual
+                  dupes = pmfs[pmfs.duplicated(subset=key_cols, keep=False)]
+                  if not dupes.empty:
+                      print(f"[FATAL] {len(dupes)} duplicate PMF rows detected: "
+                            f"{dupes[key_cols].drop_duplicates().head(3).to_dict('records')}", file=sys.stderr)
+                      sys.exit(1)
+                  print(f"PMF manifest validation: PASS (0 duplicates, {len(expected_pmf)} rows)")
+              else:
+                  print(f"[WARN] PMF file lacks key columns (have: {list(pmfs.columns[:10])})")
+          else:
+              print(f"[INFO] PMF file not found at {pmf_path} — no games or PMF generation failed")
+
+          # ── Expected edge manifest ─────────────────────────────────────────
+          edges_path = staging_dir / "publishable_edges.parquet"
+
+          if edges_path.exists():
+              edges = pd.read_parquet(edges_path)
+              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"] if c in edges.columns]
+              if edge_key_cols:
+                  expected_edge = edges[edge_key_cols].drop_duplicates()
+                  expected_edge_path = audit_dir / "expected_edge_manifest.parquet"
+                  expected_edge.to_parquet(expected_edge_path, index=False)
+                  actual_edge_path = audit_dir / "actual_edge_manifest.parquet"
+                  edges[edge_key_cols].to_parquet(actual_edge_path, index=False)
+                  print(f"Edge manifest: {len(expected_edge)} expected rows → {expected_edge_path}")
+
+                  # Validate: no duplicate edge keys
+                  dupes = edges[edges.duplicated(subset=edge_key_cols, keep=False)]
+                  if not dupes.empty:
+                      print(f"[FATAL] {len(dupes)} duplicate edge rows detected: "
+                            f"{dupes[edge_key_cols].drop_duplicates().head(3).to_dict('records')}", file=sys.stderr)
+                      sys.exit(1)
+                  print(f"Edge manifest validation: PASS (0 duplicates, {len(expected_edge)} rows)")
+              else:
+                  print(f"[WARN] Edge file lacks key columns (have: {list(edges.columns[:10])})")
+          else:
+              print(f"[INFO] Edge file not found at {edges_path} — no markets or edge generation failed")
+
+          # ── Artifact lineage report ────────────────────────────────────────
+          import subprocess, hashlib
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              git_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+          except Exception:
+              git_commit = git_branch = "unknown"
+
+          artifact_hashes = {}
+          for p in staging_dir.glob("*.parquet"):
+              artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+          for p in staging_dir.glob("*.json"):
+              artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+
+          lineage_report = {
+              "github_run_id": run_id,
+              "git_commit": git_commit,
+              "branch": git_branch,
+              "game_date": game_date,
+              "prediction_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+              "staging_dir": str(staging_dir),
+              "artifact_hashes": artifact_hashes,
+              "artifacts_checked": len(artifact_hashes),
+              "pmf_rows": len(pmfs) if 'pmfs' in dir() else 0,
+              "edge_rows": len(edges) if 'edges' in dir() else 0,
+          }
+          lineage_path = audit_dir / "artifact_lineage_report.json"
+          lineage_path.write_text(json.dumps(lineage_report, indent=2))
+          print(f"Artifact lineage report written → {lineage_path}")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
+
+      - name: Complete-board validation (BLOCKING — must pass before deployment)
+        run: |
+          python - <<'PYEOF'
+          import json, os, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[FATAL] pandas not available", file=sys.stderr)
+              sys.exit(1)
+
+          run_id      = os.environ.get("GITHUB_RUN_ID", "")
+          game_date   = os.environ.get("GAME_DATE", "")
+          staging_dir = Path(os.environ.get("STAGING_DIR", f"deliveries/staging/{run_id}"))
+
+          REQUIRED_ARTIFACTS = [
+              "full_pmfs_wide.parquet",
+              "publishable_edges.parquet",
+              "run_metadata.json",
+          ]
+
+          errors = []
+
+          # 1. All required artifacts present
+          for name in REQUIRED_ARTIFACTS:
+              p = staging_dir / name
+              if not p.exists():
+                  errors.append(f"MISSING_ARTIFACT: {name} not found in {staging_dir}")
+
+          # 2. Run metadata matches current run
+          meta_path = staging_dir / "run_metadata.json"
+          if meta_path.exists():
+              meta = json.loads(meta_path.read_text())
+              if str(meta.get("github_run_id", "")) != str(run_id):
+                  errors.append(
+                      f"LINEAGE_MISMATCH: run_metadata.github_run_id={meta.get('github_run_id')!r} "
+                      f"!= {run_id!r}"
+                  )
+              if str(meta.get("game_date", "")) != str(game_date):
+                  errors.append(
+                      f"LINEAGE_MISMATCH: run_metadata.game_date={meta.get('game_date')!r} "
+                      f"!= {game_date!r}"
+                  )
+
+          # 3. PMF and edge files are non-empty (when games are scheduled)
+          pmf_path   = staging_dir / "full_pmfs_wide.parquet"
+          edges_path = staging_dir / "publishable_edges.parquet"
+          slate_path = staging_dir / f"slate_{game_date}.parquet"
+
+          games_scheduled = slate_path.exists()
+          if games_scheduled:
+              if pmf_path.exists():
+                  pmfs = pd.read_parquet(pmf_path)
+                  if pmfs.empty:
+                      errors.append("EMPTY_PMF_FILE: full_pmfs_wide.parquet exists but has 0 rows")
+              if edges_path.exists():
+                  # Edge file may be empty if no publishable edges; that's OK for complete-board
+                  pass
+
+          if errors:
+              print(f"[FATAL] Complete-board validation FAILED ({len(errors)} error(s)):", file=sys.stderr)
+              for e in errors:
+                  print(f"  {e}", file=sys.stderr)
+              # Write diagnostics for CI artifact
+              diag_dir = Path("artifacts/audits")
+              diag_dir.mkdir(parents=True, exist_ok=True)
+              diag_path = diag_dir / "atomic_deployment_test_report.json"
+              diag_path.write_text(json.dumps({
+                  "validation_result": "FAIL",
+                  "errors": errors,
+                  "run_id": run_id,
+                  "game_date": game_date,
+                  "generated_at": datetime.now(timezone.utc).isoformat(),
+              }, indent=2))
+              sys.exit(1)
+
+          # Write success report
+          diag_dir = Path("artifacts/audits")
+          diag_dir.mkdir(parents=True, exist_ok=True)
+          diag_path = diag_dir / "atomic_deployment_test_report.json"
+          diag_path.write_text(json.dumps({
+              "validation_result": "PASS",
+              "errors": [],
+              "run_id": run_id,
+              "game_date": game_date,
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+          }, indent=2))
+          print(f"Complete-board validation: PASS — staging directory {staging_dir} is valid")
+          print(f"Deployment approved for run_id={run_id}, game_date={game_date}")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
+
+      - name: Upload staging diagnostics on failure (CI artifact)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-diagnostics-${{ env.GAME_DATE }}-${{ github.run_id }}
+          path: |
+            artifacts/audits/
+            deliveries/staging/${{ github.run_id }}/
+          retention-days: 7
 
       - name: Stage all outputs for single gh-pages deploy
         run: |

@@ -1,0 +1,30 @@
+{
+  "github_run_id": "test-fixture-run",
+  "git_commit": "86d23d17f5ed1df18e1093a58bfde3d26d3ca6b8",
+  "branch": "fix/atomic-market-pipeline",
+  "game_date": "2026-07-13",
+  "prediction_timestamp_utc": "2026-07-13T18:00:00+00:00",
+  "feature_cutoff_utc": "",
+  "injury_snapshot_timestamp_utc": "",
+  "market_snapshot_timestamp_utc": "2026-07-13T18:00:00+00:00",
+  "model_version": "stage4_baseline",
+  "config_hash": "",
+  "feature_manifest_hash": "",
+  "artifact_schema_version": "1",
+  "staging_dir": "deliveries/staging/test-fixture-run",
+  "artifact_hashes": {
+    "actual_edge_manifest.parquet": "f65836c7bf0c7cc5...",
+    "actual_pmf_manifest.parquet": "f9d25f7abc02452d...",
+    "expected_edge_manifest.parquet": "f65836c7bf0c7cc5...",
+    "expected_pmf_manifest.parquet": "c1bafacd5eb5d22d..."
+  },
+  "artifacts_checked": 4,
+  "pmf_rows": 13,
+  "edge_rows": 16,
+  "unmatched_identities_actionable": 0,
+  "unmatched_identities_expected_fail": 3,
+  "stale_quotes_used": 0,
+  "malformed_quotes_used": 0,
+  "stale_artifact_mismatches": 0,
+  "validation": "PASS"
+}
