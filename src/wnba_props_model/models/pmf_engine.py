@@ -188,11 +188,100 @@ def build_all_pmfs(
             import warnings as _w
             _w.warn(f"minutes_correction.correct() failed: {_mc_exc}; using raw predictions", stacklevel=2)
 
+    # Defect 3: save baseline minutes BEFORE injury override, so we can compute
+    # the scenario minutes ratio and apply it to stat PMFs later.
+    _has_inj_mult = "_injury_minutes_multiplier" in wide_df.columns
+    baseline_minutes_mean = min_means.copy()
+
+    # Injury minutes override: if ``_injury_minutes_multiplier`` column is
+    # present in wide_df, apply it AFTER model prediction and corrections.
+    # This ensures PMFs for injured players are built from the correct
+    # expected minutes rather than just scaling post-hoc means.
+    # Multiplier = 0.0 → OUT player (p_dnp forced to 1.0, minutes forced to 0).
+    # Multiplier in (0, 1) → limited status (reduced conditional minutes).
+    # Multiplier > 1.0 → teammate receiving redistributed minutes.
+    # NOTE (Blocker 1): multiplier = cond_mult ONLY; availability_probability is
+    # carried separately and is NOT multiplied into conditional minutes.
+    if _has_inj_mult:
+        _mult = wide_df["_injury_minutes_multiplier"].fillna(1.0).values.astype(float)
+        _changed = _mult != 1.0
+        if _changed.any():
+            min_means  = min_means * _mult
+            min_sigmas = min_sigmas * np.clip(_mult, 0.0, None)
+            # OUT players (mult==0): force p_dnp=1.0 so DNP blending zeroes the PMF
+            _is_out = _mult <= 0.0
+            p_dnp = np.where(_is_out, 1.0, p_dnp)
+            import logging as _log_inj  # noqa: PLC0415
+            _log_inj.getLogger(__name__).info(
+                "[pmf_engine] _injury_minutes_multiplier applied to %d / %d rows "
+                "(%d OUT, %d partial)",
+                int(_changed.sum()), len(_mult),
+                int(_is_out.sum()),
+                int((_changed & ~_is_out).sum()),
+            )
+
+    # Blocker 2: apply conditional_minutes_cap to the complete minutes distribution.
+    # The cap is enforced AFTER multiplier application, ensuring the full
+    # distribution (mean, sigma) respects the cap.
+    if "conditional_minutes_cap" in wide_df.columns:
+        _cap_raw = wide_df["conditional_minutes_cap"].values
+        try:
+            _cap = _cap_raw.astype(float)
+        except Exception:
+            _cap = np.full(len(_cap_raw), np.nan, dtype=float)
+        _has_cap = np.isfinite(_cap) & (_cap > 0)
+        if _has_cap.any():
+            _needs_clamp = _has_cap & (min_means > _cap)
+            if _needs_clamp.any():
+                # Compute ratio to proportionally reduce sigma with the cap
+                _cap_ratio = np.where(
+                    _needs_clamp,
+                    _cap / np.maximum(min_means, 1e-9),
+                    1.0,
+                )
+                min_means  = np.where(_needs_clamp, _cap, min_means)
+                min_sigmas = np.where(_needs_clamp, min_sigmas * _cap_ratio, min_sigmas)
+                import logging as _log_cap  # noqa: PLC0415
+                _log_cap.getLogger(__name__).info(
+                    "[pmf_engine] conditional_minutes_cap applied to %d / %d rows",
+                    int(_needs_clamp.sum()), len(_cap),
+                )
+
+    # Defect 3: compute injury minutes ratio for stat PMF scaling.
+    # ratio = final_minutes_mean / max(baseline_minutes_mean, epsilon).
+    # For normal (non-injury) players: ratio == 1.0 → no stat PMF change.
+    # For OUT (mult=0): ratio == 0 → stat_means scaled to ~0 (floor applied).
+    # For limited (mult=0.65, cap=20, baseline=35): ratio = 20/35 ≈ 0.571.
+    # For teammate boost (baseline=20, final=28): ratio = 28/20 = 1.4.
+    if _has_inj_mult:
+        _injury_minutes_ratio = min_means / np.maximum(baseline_minutes_mean, 1e-9)
+    else:
+        _injury_minutes_ratio = np.ones(len(min_means))
+
     wide_with_min = wide_df.assign(
         minutes_mean=min_means,
         minutes_sigma=min_sigmas,
         p_dnp=p_dnp,
     )
+
+    # Build lookup dicts for injury ratio/multiplier/cap (indexed by player_id + game_id)
+    # to efficiently align to per-stat stat_rows in the loop below.
+    if _has_inj_mult:
+        _wide_index = pd.MultiIndex.from_frame(wide_df[["player_id", "game_id"]])
+        _inj_ratio_series = pd.Series(_injury_minutes_ratio, index=_wide_index)
+        _inj_mult_series = pd.Series(
+            wide_df["_injury_minutes_multiplier"].fillna(1.0).values.astype(float),
+            index=_wide_index,
+        )
+        _inj_cap_series = (
+            pd.Series(wide_df["conditional_minutes_cap"].values, index=_wide_index)
+            if "conditional_minutes_cap" in wide_df.columns
+            else None
+        )
+    else:
+        _inj_ratio_series = None
+        _inj_mult_series = None
+        _inj_cap_series = None
 
     # ------------------------------------------------------------------ #
     # Per-stat PMF generation
@@ -283,6 +372,71 @@ def build_all_pmfs(
                 except Exception:
                     pass
 
+        # ---- Defect 3: Apply injury minutes ratio to conditional stat opportunity ----
+        # The stat model predictions use historical features (player_pts_mean_l5, etc.)
+        # which do not reflect the injury-adjusted minutes.  Scale the stat means by
+        # the scenario minutes ratio so that limited/teammate-boost scenarios change
+        # the full PMF, not just the minutes distribution.
+        #
+        # minutes_ratio = final_minutes_mean / max(baseline_minutes_mean, epsilon)
+        # For questionable (cond_mult=1.0): ratio=1.0 → conditional PMF UNCHANGED
+        # For limited (cond_mult=0.65, cap=20, baseline=35): ratio≈0.571 → PMF reduced
+        # For teammate boost (baseline=20, final=28): ratio=1.4 → PMF increased
+        #
+        # Do NOT apply availability_probability to the conditional performance PMF.
+        # Flags and saved pre-Fix1 parameters used later for Newton PMF-mean correction.
+        _fix1_applied = False
+        _p_nz_base_fix1: "np.ndarray | None" = None
+        _pos_mus_base_fix1: "np.ndarray | None" = None
+        _inj_ratio_fix1: "np.ndarray | None" = None
+
+        if _inj_ratio_series is not None:
+            _stat_idx = pd.MultiIndex.from_frame(stat_rows[["player_id", "game_id"]])
+            _inj_ratio = _inj_ratio_series.reindex(_stat_idx).fillna(1.0).values.astype(float)
+            if not np.allclose(_inj_ratio, 1.0):
+                baseline_stat_mean = stat_means.copy()
+                if p_nz is not None and pos_mus is not None:
+                    # Correct hurdle/ZINB EV scaling (Fix 1):
+                    # 1. Compute target E[Y] = baseline_E[Y] * ratio  (linear EV scaling)
+                    # 2. Update P(nonzero) via exponential-hazard model
+                    # 3. Solve conditional positive mean: pos_mu = target / p_nz_adj
+                    # Do NOT also multiply pos_mus by ratio — that over-adjusts.
+                    #
+                    # Save baseline p_nz, pos_mus, and the injury ratio for the Newton
+                    # PMF-mean correction applied below (after effective_quant is known).
+                    _p_nz_base_fix1  = p_nz.copy()
+                    _pos_mus_base_fix1 = pos_mus.copy()
+                    _inj_ratio_fix1   = _inj_ratio.copy()
+                    _fix1_applied = True
+
+                    _epsilon = 1e-9
+                    _target_ev = baseline_stat_mean * _inj_ratio  # (n,) element-wise
+                    _p_nz_clipped = np.clip(p_nz, _epsilon, 1.0 - _epsilon)
+                    p_nz = np.clip(
+                        1.0 - np.power(1.0 - _p_nz_clipped, _inj_ratio),
+                        _epsilon, 1.0 - _epsilon,
+                    )
+                    # Solve conditional positive mean from target
+                    pos_mus = _target_ev / np.maximum(p_nz, _epsilon)
+                    # For zero-truncated positive-count distributions: if pos_mus_adj
+                    # would be below minimum feasible, reduce p_nz instead so that
+                    # p_nz * pos_mus == target_ev exactly.
+                    _min_pos_mu = _epsilon
+                    _too_small = pos_mus < _min_pos_mu
+                    if _too_small.any():
+                        pos_mus = np.where(_too_small, _min_pos_mu, pos_mus)
+                        p_nz = np.clip(
+                            np.where(_too_small, _target_ev / _min_pos_mu, p_nz),
+                            _epsilon, 1.0 - _epsilon,
+                        )
+                    stat_means = p_nz * pos_mus
+                else:
+                    stat_means = np.maximum(stat_means * _inj_ratio, 1e-9)
+            else:
+                baseline_stat_mean = stat_means
+        else:
+            baseline_stat_mean = stat_means
+
         # ---- Build PMF matrix ---------------------------------------------
         # If role_bucket is missing from stat_rows but dispersion_r_by_role config
         # is present, derive role_bucket from predicted minutes_mean so the role-aware
@@ -325,6 +479,9 @@ def build_all_pmfs(
             _use_rotation_quants = False
 
         use_marginalization = cfg.get("use_minutes_marginalization", False)
+        # Defaults for the Newton correction tracker (set to True/False inside each branch).
+        _pmf_built_marginalized = False
+        _pmf_built_quant_mat    = None
         if use_marginalization and hasattr(minutes_model, "_quantile_models") and minutes_model._quantile_models:
             # Retrieve per-player quantile minutes for quadrature
             X_for_quant = wide_df.set_index(["player_id", "game_id"]).reindex(
@@ -341,11 +498,43 @@ def build_all_pmfs(
             ))
             # Use rotation model bimodal quantiles if available (E19)
             effective_quant = quant_mat_rotation if _use_rotation_quants else quant_mat
+
+            # Defect 4: Apply injury multiplier and cap to ALL minutes quantiles.
+            # Same transformation as for min_means: multiply each quantile by
+            # conditional_minutes_multiplier, then cap at conditional_minutes_cap.
+            # Also applies to rotation-model quantiles (same transformation).
+            # Enforces monotonicity (q10 ≤ q25 ≤ q50 ≤ q75 ≤ q90) after transformation.
+            if _inj_mult_series is not None:
+                _stat_idx_q = pd.MultiIndex.from_frame(stat_rows[["player_id", "game_id"]])
+                _q_mult = _inj_mult_series.reindex(_stat_idx_q).fillna(1.0).values.astype(float)
+                if not np.allclose(_q_mult, 1.0):
+                    effective_quant = effective_quant.copy()
+                    effective_quant = effective_quant * _q_mult[:, np.newaxis]
+                    # Apply cap to each quantile
+                    if _inj_cap_series is not None:
+                        _q_cap_raw = _inj_cap_series.reindex(_stat_idx_q).values
+                        _q_cap_f = pd.to_numeric(
+                            pd.Series(_q_cap_raw), errors="coerce"
+                        ).values.astype(float)
+                        _has_cap_q = np.isfinite(_q_cap_f) & (_q_cap_f > 0)
+                        if _has_cap_q.any():
+                            effective_quant[_has_cap_q] = np.minimum(
+                                effective_quant[_has_cap_q],
+                                _q_cap_f[_has_cap_q, np.newaxis],
+                            )
+                    # Enforce monotonicity: q10 ≤ q25 ≤ q50 ≤ q75 ≤ q90
+                    for _qi in range(1, effective_quant.shape[1]):
+                        effective_quant[:, _qi] = np.maximum(
+                            effective_quant[:, _qi], effective_quant[:, _qi - 1]
+                        )
+
             pmf_mat = _build_marginalized_pmf_matrix(
                 stat, effective_quant, quad_weights, p_nz, pos_mus,
                 stat_models, hurdle_models, cap, roles=roles,
                 stat_means=stat_means,
             )
+            _pmf_built_marginalized = True
+            _pmf_built_quant_mat = quant_mat  # pre-injury quantile matrix (for Newton baseline)
         else:
             # Extract per-player position for REB dispersion
             _positions = None
@@ -362,6 +551,74 @@ def build_all_pmfs(
                 stat_rows=stat_rows,
                 positions=_positions,
             )
+            _pmf_built_marginalized = False
+            _pmf_built_quant_mat = None
+
+        # ---- Fix 1 Newton PMF-mean correction (ZINB hurdle stats only) ------
+        # The initial Fix 1 formula targets p_nz * pos_mus = target_ev, but the
+        # actual PMF mean after cap truncation and renormalization may differ (by
+        # up to ~P_tail per element).  One Newton step corrects pos_mus so the
+        # built PMF mean equals baseline_pmf_mean * ratio within ~1e-14.
+        if _fix1_applied and _p_nz_base_fix1 is not None and _pos_mus_base_fix1 is not None:
+            from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBSMnc  # noqa: PLC0415
+            if stat in hurdle_models and isinstance(hurdle_models[stat], _ZINBSMnc):
+                _k_nc = np.arange(pmf_mat.shape[1], dtype=float)
+                _trial_pmf_mean_nc = (pmf_mat * _k_nc[np.newaxis, :]).sum(axis=1)
+
+                # Build baseline PMF (no injury) to get baseline_pmf_mean.
+                _pi_base_nc     = np.clip(1.0 - _p_nz_base_fix1, 0.0, 1.0)
+                _smbase_nc      = _p_nz_base_fix1 * _pos_mus_base_fix1
+                _r_nc           = hurdle_models[stat]._r
+                if _pmf_built_marginalized and _pmf_built_quant_mat is not None:
+                    _base_pmf_nc = _build_marginalized_pmf_matrix(
+                        stat, _pmf_built_quant_mat, quad_weights,
+                        _p_nz_base_fix1, _pos_mus_base_fix1,
+                        stat_models, hurdle_models, cap, roles=roles,
+                        stat_means=_smbase_nc,
+                    )
+                else:
+                    _base_pmf_nc = zinb_pmf_batch(_pi_base_nc, _pos_mus_base_fix1, _r_nc, cap)
+                _kbase_nc        = np.arange(_base_pmf_nc.shape[1], dtype=float)
+                _base_pmf_mean_nc = (_base_pmf_nc * _kbase_nc[np.newaxis, :]).sum(axis=1)
+                _target_pmf_mean_nc = _base_pmf_mean_nc * _inj_ratio_fix1
+
+                # Iterative Newton correction: scale pos_mus until PMF mean == target.
+                # One step reduces the residual by ~10-100x; 8 iterations reach 1e-14.
+                _pi_adj_nc  = np.clip(1.0 - p_nz, 0.0, 1.0)
+                _pos_mus_nc = pos_mus.copy()
+                _cur_mean_nc = _trial_pmf_mean_nc.copy()
+                for _nc_iter in range(8):
+                    _safe_cur  = np.maximum(_cur_mean_nc, 1e-15)
+                    _cf        = _target_pmf_mean_nc / _safe_cur
+                    _needs_nc  = np.abs(_cf - 1.0) > 1e-12
+                    if not _needs_nc.any():
+                        break
+                    _pos_mus_nc = np.where(_needs_nc, _pos_mus_nc * _cf, _pos_mus_nc)
+                    _pos_mus_nc = np.maximum(_pos_mus_nc, 1e-9)
+                    if _pmf_built_marginalized and _pmf_built_quant_mat is not None:
+                        _cur_pmf_nc = _build_marginalized_pmf_matrix(
+                            stat, effective_quant, quad_weights,
+                            p_nz, _pos_mus_nc,
+                            stat_models, hurdle_models, cap, roles=roles,
+                            stat_means=p_nz * _pos_mus_nc,
+                        )
+                    else:
+                        _cur_pmf_nc = zinb_pmf_batch(_pi_adj_nc, _pos_mus_nc, _r_nc, cap)
+                    _kc_nc      = np.arange(_cur_pmf_nc.shape[1], dtype=float)
+                    _cur_mean_nc = (_cur_pmf_nc * _kc_nc[np.newaxis, :]).sum(axis=1)
+
+                # Assign the converged PMF and update pos_mus / stat_means.
+                if _pmf_built_marginalized and _pmf_built_quant_mat is not None:
+                    pmf_mat = _build_marginalized_pmf_matrix(
+                        stat, effective_quant, quad_weights,
+                        p_nz, _pos_mus_nc,
+                        stat_models, hurdle_models, cap, roles=roles,
+                        stat_means=p_nz * _pos_mus_nc,
+                    )
+                else:
+                    pmf_mat = zinb_pmf_batch(_pi_adj_nc, _pos_mus_nc, _r_nc, cap)
+                pos_mus    = _pos_mus_nc
+                stat_means = p_nz * pos_mus
 
         # ---- Apply DNP blending -------------------------------------------
         p_dnp_arr = stat_rows["p_dnp"].fillna(0.0).values.astype(float)
@@ -432,6 +689,7 @@ def build_all_pmfs(
             "pmf_support_min":          0,
             "pmf_support_max":          cap,
             "pmf_mean":                 pmf_means,
+            "pmf_mean_engine":          pmf_means,  # engine float64 mean, not JSON-recomputed
             "pmf_variance":             pmf_vars,
             "p0":                       p0_arr,
             "p_ge_1":                   p_ge_1_arr,

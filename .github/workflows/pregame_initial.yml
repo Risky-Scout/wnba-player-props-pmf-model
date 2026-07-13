@@ -404,13 +404,22 @@ jobs:
             --out-dir data/processed
         continue-on-error: true
 
-      - name: Apply injury updates (UTM redistribution)
+      - name: Apply injury updates — rebuild affected PMFs (BLOCKING)
+        # Processes point-in-time injury statuses and rebuilds ALL affected
+        # player PMFs by rerunning predict_player_pmfs() with updated features.
+        # This is a BLOCKING step: failure prevents deployment.
+        # Replaces the former mean-only scaling approach that did not update
+        # pmf_json, P(over), P(under), or P(push).
         run: |
           python scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
-            --injuries-json "data/injuries/${GAME_DATE}.json"
-        continue-on-error: true
+            --injuries-json "data/injuries/${GAME_DATE}.json" \
+            --features "data/processed/wnba_player_game_features_wide.parquet" \
+            --model-dir artifacts/models/stage4_baseline \
+            --config-path config/model/stage4_baseline.yaml \
+            --cal-dir artifacts/models/calibration
+        continue-on-error: false
 
       - name: Compute SHAP explainability
         run: |
@@ -448,7 +457,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Build edge report
+      - name: Build edge report (BLOCKING)
         run: |
           python scripts/build_edge_report.py \
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
@@ -457,7 +466,7 @@ jobs:
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --edge-threshold 0.0
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Prediction drift monitor
         id: drift-monitor
@@ -599,7 +608,7 @@ jobs:
           path: artifacts/audits/drift_alert_*.json
           retention-days: 30
 
-      - name: Format pre-game JSON output (blueprint S3)
+      - name: Format pre-game JSON output (BLOCKING — blueprint S3)
         run: |
           python scripts/format_pregame_output.py \
             --game-date "$GAME_DATE" \
@@ -609,6 +618,7 @@ jobs:
             --market-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --injuries data/injuries/${GAME_DATE}.json \
             --games data/processed/wnba_games.parquet
+        continue-on-error: false
 
       - name: Copy to initial/ subdirectory
         run: |
@@ -631,7 +641,7 @@ jobs:
             --fail-on-suppressed-in-edges
         continue-on-error: false
 
-      - name: Generate Edge Board + PMF Dashboard web pages (initial pass)
+      - name: Generate Edge Board + PMF Dashboard web pages (BLOCKING — initial pass)
         run: |
           PROJ_FILE="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
           if [ ! -f "$PROJ_FILE" ]; then
@@ -647,15 +657,15 @@ jobs:
             --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges \
             --skip-live-html
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Generate Distributions page (combined Edges + PMF)
+      - name: Generate Distributions page (BLOCKING — combined Edges + PMF)
         run: |
           python scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
             --base-dir tools/odds-scanner/predictions/WNBA
           echo "Distributions page generated for ${GAME_DATE}"
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Sanity gate — block deployment if calibration is catastrophically wrong
         run: |
@@ -695,6 +705,73 @@ jobs:
 
           print("All sanity gates passed — deployment approved")
           EOF
+        continue-on-error: false
+
+      - name: Stamp delivery artifacts with run metadata (stale-artifact prevention)
+        run: |
+          python - <<'PYEOF'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          run_id      = os.environ.get("GITHUB_RUN_ID", "")
+          game_date   = os.environ.get("GAME_DATE", "")
+          out_dir     = Path("deliveries/tonight")
+          inj_ts_file = Path(f"data/injuries/{game_date}.json")
+
+          # Resolve git commit
+          try:
+              git_commit = subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip()
+          except Exception:
+              git_commit = "unknown"
+
+          prediction_ts = datetime.now(timezone.utc).isoformat()
+          inj_ts = (
+              datetime.fromtimestamp(
+                  inj_ts_file.stat().st_mtime, tz=timezone.utc
+              ).isoformat()
+              if inj_ts_file.exists() else ""
+          )
+
+          meta = {
+              "github_run_id": run_id,
+              "git_commit": git_commit,
+              "prediction_timestamp": prediction_ts,
+              "market_snapshot_timestamp": prediction_ts,
+              "injury_snapshot_timestamp": inj_ts,
+              "game_date": game_date,
+          }
+
+          meta_path = out_dir / "run_metadata.json"
+          meta_path.parent.mkdir(parents=True, exist_ok=True)
+          meta_path.write_text(json.dumps(meta, indent=2))
+          print(f"Run metadata written: {meta}")
+
+          # Verify all delivery JSON artifacts contain matching run_id
+          errors = []
+          for p in out_dir.glob("*.json"):
+              if p.name == "run_metadata.json":
+                  continue
+              try:
+                  d = json.loads(p.read_text())
+              except Exception:
+                  continue
+              if isinstance(d, dict) and "github_run_id" in d:
+                  if str(d["github_run_id"]) != str(run_id):
+                      errors.append(f"{p.name}: run_id={d['github_run_id']} != {run_id}")
+
+          if errors:
+              print(f"[FATAL] Stale artifact(s) detected:", file=sys.stderr)
+              for e in errors:
+                  print(f"  {e}", file=sys.stderr)
+              sys.exit(1)
+
+          print("Artifact run_id verification: PASS")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: false
 
       - name: Stage all outputs for single gh-pages deploy
