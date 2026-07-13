@@ -88,6 +88,16 @@ def main(
         "", "--injuries-json",
         help="Pre-fetched injuries JSON (skips BDL API call if provided).",
     ),
+    prediction_timestamp_utc: str = typer.Option(
+        "",
+        "--prediction-timestamp-utc",
+        help=(
+            "UTC prediction timestamp (ISO format) for injury timestamp validation. "
+            "Defaults to the pipeline run time (pulled_at_utc) when fetching from BDL, "
+            "or datetime.now(UTC) when loading from file. "
+            "All injury source_updated_at values must be ≤ this timestamp."
+        ),
+    ),
     usage_parquet: str = typer.Option(
         "data/processed/player_season_adv_usage.parquet",
         "--usage-parquet",
@@ -121,11 +131,14 @@ def main(
 ) -> None:
     """Apply injury statuses → rebuild affected PMFs with full distributional update."""
     from wnba_props_model.pipeline.injury_pipeline import (
+        InjuryFetchResult,
+        fetch_bdl_injuries,
         build_availability_table,
         apply_injury_to_feature_df,
         rebuild_affected_pmfs,
         rebuild_combos_for_affected,
         validate_injury_adjusted_pmfs,
+        validate_injury_timestamps,
         build_before_after_report,
         build_confirmed_inactive_mask,
         INACTIVE_THRESHOLD,
@@ -188,16 +201,52 @@ def main(
         raise typer.Exit(0)
 
     # ── Load or fetch injuries ─────────────────────────────────────────────
+    # Track the pulled_at_utc for prediction timestamp default
+    _pulled_at_utc: str | None = None
+
     if injuries_json:
         injuries = _load_injuries_file(injuries_json)
+        if not injuries:
+            # Empty file = verified empty injury snapshot (no injuries to apply).
+            typer.echo("[apply_injury] Injury JSON file is empty. Verified empty — slate unchanged.")
+            raise typer.Exit(0)
+        _pulled_at_utc = datetime.now(timezone.utc).isoformat()
     else:
-        injuries = _fetch_bdl_injuries(feature_df)
+        # Defect 1: Use typed InjuryFetchResult from injury_pipeline.
+        # FAILURE (missing key, timeout, HTTP error, malformed JSON) → nonzero exit.
+        # SUCCESS_EMPTY → verified empty snapshot → zero exit.
+        # SUCCESS_WITH_ROWS → normalize records and continue.
+        api_key = os.environ.get("BDL_API_KEY", "")
+        team_ids = list(set(
+            feature_df["team_id"].dropna().astype(int).unique().tolist()
+            + (feature_df["opponent_team_id"].dropna().astype(int).unique().tolist()
+               if "opponent_team_id" in feature_df.columns else [])
+        ))
+        fetch_result: InjuryFetchResult = fetch_bdl_injuries(
+            api_key=api_key, team_ids=team_ids
+        )
 
-    if not injuries:
-        # A verified zero-injury report is different from a failed/absent fetch.
-        # When the injury source returns empty, treat as no-op and exit 0.
-        typer.echo("[apply_injury] No injury data found. Slate unchanged.")
-        raise typer.Exit(0)
+        if fetch_result.status == "FAILURE":
+            typer.echo(
+                f"[FATAL] BDL injury fetch failed: {fetch_result.error}",
+                err=True,
+            )
+            raise typer.Exit(1)
+        elif fetch_result.status == "SUCCESS_EMPTY":
+            typer.echo(
+                "[apply_injury] Verified empty injury snapshot — "
+                "no injuries reported today. Slate unchanged."
+            )
+            raise typer.Exit(0)
+        else:
+            # SUCCESS_WITH_ROWS: normalize each record, preserving per-record timestamps
+            injuries = [_normalize_bdl_injury(r) for r in fetch_result.records]
+            _pulled_at_utc = (
+                fetch_result.pulled_at_utc.isoformat()
+                if fetch_result.pulled_at_utc is not None
+                else datetime.now(timezone.utc).isoformat()
+            )
+            typer.echo(f"[apply_injury] BDL: {len(injuries)} injury records fetched")
 
     typer.echo(f"[apply_injury] Processing {len(injuries)} injury records")
 
@@ -209,18 +258,32 @@ def main(
         inj_out.write_text(json.dumps(injuries, indent=2))
         typer.echo(f"[apply_injury] Saved raw injuries → {inj_out}")
 
-    # ── Extract source timestamps from injury records (Blocker 8) ─────────
-    # Use each record's actual source update time when available.
-    # Do NOT replace source_updated_at with datetime.now().
-    source_ts = _extract_source_timestamp(injuries)
-    typer.echo(f"[apply_injury] Injury source timestamp: {source_ts or '(none — will use pulled_at_utc)'}")
-
     # ── Build availability table ───────────────────────────────────────────
+    # Each record's source_updated_at is preserved per-record (Defect 2).
+    # Do NOT use the earliest timestamp as a substitute for all record timestamps.
     availability = build_availability_table(
         injuries=injuries,
         feature_df=feature_df,
-        source_updated_at=source_ts,  # actual feed timestamp, not datetime.now()
+        # source_updated_at omitted: each record carries its own timestamp;
+        # build_availability_table uses pulled_ts as the snapshot-level fallback.
     )
+
+    # ── Validate per-record source timestamps (Defect 2) ──────────────────
+    # prediction_timestamp_utc defaults to pulled_at_utc (pipeline run time).
+    pred_ts_for_validation = (
+        prediction_timestamp_utc
+        or _pulled_at_utc
+        or datetime.now(timezone.utc).isoformat()
+    )
+    typer.echo(f"[apply_injury] Validating timestamps against prediction_ts={pred_ts_for_validation}")
+    try:
+        validate_injury_timestamps(
+            availability_table=availability,
+            prediction_timestamp_utc=pred_ts_for_validation,
+        )
+    except ValueError as exc:
+        typer.echo(f"[FATAL] Injury timestamp validation failed: {exc}", err=True)
+        raise typer.Exit(1)
     typer.echo(
         f"[apply_injury] Availability table: {len(availability):,} rows, "
         f"{availability['is_confirmed_inactive'].sum()} confirmed inactive"
@@ -301,10 +364,14 @@ def main(
             [pmfs_base, new_atom_pmfs], ignore_index=True
         )
 
-        # Rebuild combos for affected players using updated atoms
+        # Rebuild combos for affected players using updated atoms.
+        # Defect 5: pass model_dir so the same correlation map, position map,
+        # and IPF settings are used as live inference.  Fails clearly if the
+        # production correlation artifact is expected but missing.
         pmfs_after = rebuild_combos_for_affected(
             full_pmfs_with_new_atoms=pmfs_after_atoms,
             affected_player_ids=affected_player_ids,
+            model_dir=model_dir,
         )
         typer.echo(
             f"[apply_injury] Full slate after rebuild: {len(pmfs_after):,} rows"
@@ -432,32 +499,6 @@ def _resolve_config_path(config_path_arg: str, model_dir: str) -> Path | None:
     return default if default.exists() else None
 
 
-def _extract_source_timestamp(injuries: list[dict]) -> str | None:
-    """Extract the earliest non-null source_updated_at from injury records.
-
-    Uses the actual timestamp from the injury data feed.  Returns None when
-    no records carry a source timestamp; build_availability_table will then
-    fall back to pulled_at_utc (the pipeline run time).
-
-    NEVER substitutes datetime.now() as the source_updated_at.
-    """
-    candidates: list[str] = []
-    for rec in injuries:
-        ts = rec.get("source_updated_at") or rec.get("updated_at") or rec.get("created_at")
-        if ts:
-            candidates.append(str(ts))
-    if not candidates:
-        return None
-    # Return the earliest source timestamp across all records
-    try:
-        import pandas as _pd
-        parsed = _pd.to_datetime(candidates, utc=True, errors="coerce").dropna()
-        if not parsed.empty:
-            return parsed.min().isoformat()
-    except Exception:
-        pass
-    return candidates[0]
-
 
 def _resolve_slate(slate_arg: str, game_date: str) -> Path | None:
     if slate_arg:
@@ -486,49 +527,24 @@ def _resolve_features(features_arg: str) -> Path | None:
     return None
 
 
-def _fetch_bdl_injuries(feature_df: pd.DataFrame) -> list[dict]:
-    api_key = os.environ.get("BDL_API_KEY", "")
-    if not api_key:
-        typer.echo("[WARN] BDL_API_KEY not set — skipping API fetch.", err=True)
-        return []
-
-    try:
-        import requests
-    except ImportError:
-        typer.echo("[WARN] requests not installed.", err=True)
-        return []
-
-    team_ids = list(set(
-        feature_df["team_id"].dropna().astype(int).unique().tolist()
-        + (feature_df["opponent_team_id"].dropna().astype(int).unique().tolist()
-           if "opponent_team_id" in feature_df.columns else [])
-    ))
-
-    params: dict = {"per_page": 100}
-    params.update({f"team_ids[{i}]": tid for i, tid in enumerate(team_ids)})
-    headers = {"Authorization": api_key}
-
-    try:
-        resp = requests.get(
-            "https://api.balldontlie.io/wnba/v1/player_injuries",
-            params=params, headers=headers, timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        raw = data.get("data", data) if isinstance(data, dict) else data
-        typer.echo(f"[apply_injury] BDL: {len(raw)} injury records fetched")
-        return [_normalize_bdl_injury(r) for r in raw]
-    except Exception as exc:
-        typer.echo(f"[WARN] BDL injury fetch failed: {exc}", err=True)
-        return []
-
-
 def _normalize_bdl_injury(raw: dict) -> dict:
+    """Normalize a raw BDL injury record to internal format.
+
+    Preserves per-record source_updated_at (Defect 2: each record must carry its
+    own timestamp so build_availability_table can store distinct values per player).
+    """
     player = raw.get("player") or {}
     pid = raw.get("player_id") or player.get("id") or 0
     name = (
         raw.get("player_name")
         or f"{player.get('first_name', '')} {player.get('last_name', '')}".strip()
+    )
+    # Preserve the per-record source timestamp so build_availability_table
+    # stores distinct timestamps per player (not one shared snapshot timestamp).
+    src_ts = (
+        raw.get("source_updated_at")
+        or raw.get("updated_at")
+        or raw.get("created_at")
     )
     return {
         "player_id": int(pid),
@@ -536,6 +552,7 @@ def _normalize_bdl_injury(raw: dict) -> dict:
         "status": str(raw.get("status") or "available").lower(),
         "return_date": raw.get("return_date"),
         "comment": raw.get("comment"),
+        "source_updated_at": str(src_ts) if src_ts else None,
     }
 
 
