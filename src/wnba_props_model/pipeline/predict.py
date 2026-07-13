@@ -572,6 +572,8 @@ def _build_combo_pmf_rows(
             _combo_mean_err_val = _ipf_diag.get("combo_mean_error", 0.0)
             _joint_method = _ipf_diag.get("joint_method", "VALID_CORRELATED_IPF")
             _joint_status = _ipf_diag.get("joint_status", "OK")
+            # With the IPF repair ladder, all two-stat combos go through IPF diagnostics
+            _has_ipf = bool(_ipf_diag) and _joint_method not in ("", "independence")
 
             INTEGRITY_GATES = {
                 "combo_mean_error": (lambda v: v <= 1e-8, "Combo mean error > 1e-8 post-truncation"),
