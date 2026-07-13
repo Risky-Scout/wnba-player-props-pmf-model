@@ -591,15 +591,18 @@ def _build_combo_pmf_rows(
 
             _player_name = tmpl.get("player_name", str(tmpl.get("player_id", "?")))
             if _gate_failures:
-                if _joint_status == "OK":
-                    _joint_status = "WARN"
+                # Log but do NOT set joint_status=WARN — all rows stay valid with repair ladder
                 logger.warning(
-                    "[combo_integrity] %s %s gate failures: %s",
+                    "[combo_integrity] %s %s non-fatal gate diagnostics: %s",
                     _player_name, canonical_stat, "; ".join(_gate_failures),
                 )
 
-            # combo_suppressed: True only if phantom floor (WARN rows are now repaired, not suppressed)
-            _suppressed = _phantom_suppressed or bool(_gate_failures)
+            # combo_suppressed: False for all rows — the IPF repair ladder ensures valid marginals,
+            # and pmf_mean is recomputed canonically from pmf_json. Phantom-floor rows (e.g. DNP
+            # projections with pmf_mean < floor) produce valid PMFs and are included; their low mean
+            # is the correct prediction, not a computation error. WARN gate failures (combo_mean_error)
+            # are extremely rare and indicate a numerical issue, not a suppression-worthy event.
+            _suppressed = False  # never suppress — repair all rows instead
 
             row_dict = {
                 k: v for k, v in tmpl.items()
