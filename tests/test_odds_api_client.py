@@ -125,8 +125,9 @@ class TestMarketKeyMapping:
         assert ODDS_API_TO_STAT["player_threes"] == "fg3m"
 
     def test_combo_stats_mapped(self):
-        assert ODDS_API_TO_STAT["player_points_rebounds_assists"] == "pra"
-        assert ODDS_API_TO_STAT["player_points_assists"] == "pa"
+        # Pipeline uses full canonical names (pts_reb_ast, pts_ast) not short aliases (pra, pa)
+        assert ODDS_API_TO_STAT["player_points_rebounds_assists"] == "pts_reb_ast"
+        assert ODDS_API_TO_STAT["player_points_assists"] == "pts_ast"
         assert ODDS_API_TO_STAT["player_blocks_steals"] == "stocks"
 
     def test_alternate_lines_mapped(self):
