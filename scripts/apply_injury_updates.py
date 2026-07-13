@@ -237,6 +237,32 @@ def main(
                 "[apply_injury] Verified empty injury snapshot — "
                 "no injuries reported today. Slate unchanged."
             )
+            # Fix 3: Persist a status artifact for SUCCESS_EMPTY so that
+            # downstream pipeline steps can distinguish "verified no injuries"
+            # from "pipeline did not run".  Do NOT write this for FAILURE.
+            _empty_pulled_at = (
+                fetch_result.pulled_at_utc.isoformat()
+                if fetch_result.pulled_at_utc is not None
+                else datetime.now(timezone.utc).isoformat()
+            )
+            _pred_ts = (
+                prediction_timestamp_utc.strip()
+                if prediction_timestamp_utc.strip()
+                else _empty_pulled_at
+            )
+            _empty_artifact = {
+                "status": "SUCCESS_EMPTY",
+                "pulled_at_utc": _empty_pulled_at,
+                "prediction_timestamp_utc": _pred_ts,
+                "team_ids_queried": sorted(team_ids),
+                "record_count": 0,
+            }
+            _artifact_out_dir = Path(out_dir)
+            if not dry_run:
+                _artifact_out_dir.mkdir(parents=True, exist_ok=True)
+                _artifact_path = _artifact_out_dir / "injury_fetch_status.json"
+                _artifact_path.write_text(json.dumps(_empty_artifact, indent=2))
+                typer.echo(f"[apply_injury] Status artifact → {_artifact_path}")
             raise typer.Exit(0)
         else:
             # SUCCESS_WITH_ROWS: normalize each record, preserving per-record timestamps

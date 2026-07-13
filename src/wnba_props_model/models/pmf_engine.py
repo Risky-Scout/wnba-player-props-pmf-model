@@ -384,20 +384,51 @@ def build_all_pmfs(
         # For teammate boost (baseline=20, final=28): ratio=1.4 → PMF increased
         #
         # Do NOT apply availability_probability to the conditional performance PMF.
+        # Flags and saved pre-Fix1 parameters used later for Newton PMF-mean correction.
+        _fix1_applied = False
+        _p_nz_base_fix1: "np.ndarray | None" = None
+        _pos_mus_base_fix1: "np.ndarray | None" = None
+        _inj_ratio_fix1: "np.ndarray | None" = None
+
         if _inj_ratio_series is not None:
             _stat_idx = pd.MultiIndex.from_frame(stat_rows[["player_id", "game_id"]])
             _inj_ratio = _inj_ratio_series.reindex(_stat_idx).fillna(1.0).values.astype(float)
             if not np.allclose(_inj_ratio, 1.0):
                 baseline_stat_mean = stat_means.copy()
                 if p_nz is not None and pos_mus is not None:
-                    # Hurdle/ZINB: adjust P(nonzero) via hazard model + scale pos_mus.
-                    # p_nz_adj = 1 - (1 - p_nz)^ratio  (from exponential hazard model)
-                    _p_nz_clipped = np.clip(p_nz, 1e-9, 1.0 - 1e-9)
+                    # Correct hurdle/ZINB EV scaling (Fix 1):
+                    # 1. Compute target E[Y] = baseline_E[Y] * ratio  (linear EV scaling)
+                    # 2. Update P(nonzero) via exponential-hazard model
+                    # 3. Solve conditional positive mean: pos_mu = target / p_nz_adj
+                    # Do NOT also multiply pos_mus by ratio — that over-adjusts.
+                    #
+                    # Save baseline p_nz, pos_mus, and the injury ratio for the Newton
+                    # PMF-mean correction applied below (after effective_quant is known).
+                    _p_nz_base_fix1  = p_nz.copy()
+                    _pos_mus_base_fix1 = pos_mus.copy()
+                    _inj_ratio_fix1   = _inj_ratio.copy()
+                    _fix1_applied = True
+
+                    _epsilon = 1e-9
+                    _target_ev = baseline_stat_mean * _inj_ratio  # (n,) element-wise
+                    _p_nz_clipped = np.clip(p_nz, _epsilon, 1.0 - _epsilon)
                     p_nz = np.clip(
                         1.0 - np.power(1.0 - _p_nz_clipped, _inj_ratio),
-                        1e-9, 1.0 - 1e-9,
+                        _epsilon, 1.0 - _epsilon,
                     )
-                    pos_mus = np.maximum(pos_mus * _inj_ratio, 1e-9)
+                    # Solve conditional positive mean from target
+                    pos_mus = _target_ev / np.maximum(p_nz, _epsilon)
+                    # For zero-truncated positive-count distributions: if pos_mus_adj
+                    # would be below minimum feasible, reduce p_nz instead so that
+                    # p_nz * pos_mus == target_ev exactly.
+                    _min_pos_mu = _epsilon
+                    _too_small = pos_mus < _min_pos_mu
+                    if _too_small.any():
+                        pos_mus = np.where(_too_small, _min_pos_mu, pos_mus)
+                        p_nz = np.clip(
+                            np.where(_too_small, _target_ev / _min_pos_mu, p_nz),
+                            _epsilon, 1.0 - _epsilon,
+                        )
                     stat_means = p_nz * pos_mus
                 else:
                     stat_means = np.maximum(stat_means * _inj_ratio, 1e-9)
@@ -448,6 +479,9 @@ def build_all_pmfs(
             _use_rotation_quants = False
 
         use_marginalization = cfg.get("use_minutes_marginalization", False)
+        # Defaults for the Newton correction tracker (set to True/False inside each branch).
+        _pmf_built_marginalized = False
+        _pmf_built_quant_mat    = None
         if use_marginalization and hasattr(minutes_model, "_quantile_models") and minutes_model._quantile_models:
             # Retrieve per-player quantile minutes for quadrature
             X_for_quant = wide_df.set_index(["player_id", "game_id"]).reindex(
@@ -499,6 +533,8 @@ def build_all_pmfs(
                 stat_models, hurdle_models, cap, roles=roles,
                 stat_means=stat_means,
             )
+            _pmf_built_marginalized = True
+            _pmf_built_quant_mat = quant_mat  # pre-injury quantile matrix (for Newton baseline)
         else:
             # Extract per-player position for REB dispersion
             _positions = None
@@ -515,6 +551,74 @@ def build_all_pmfs(
                 stat_rows=stat_rows,
                 positions=_positions,
             )
+            _pmf_built_marginalized = False
+            _pmf_built_quant_mat = None
+
+        # ---- Fix 1 Newton PMF-mean correction (ZINB hurdle stats only) ------
+        # The initial Fix 1 formula targets p_nz * pos_mus = target_ev, but the
+        # actual PMF mean after cap truncation and renormalization may differ (by
+        # up to ~P_tail per element).  One Newton step corrects pos_mus so the
+        # built PMF mean equals baseline_pmf_mean * ratio within ~1e-14.
+        if _fix1_applied and _p_nz_base_fix1 is not None and _pos_mus_base_fix1 is not None:
+            from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBSMnc  # noqa: PLC0415
+            if stat in hurdle_models and isinstance(hurdle_models[stat], _ZINBSMnc):
+                _k_nc = np.arange(pmf_mat.shape[1], dtype=float)
+                _trial_pmf_mean_nc = (pmf_mat * _k_nc[np.newaxis, :]).sum(axis=1)
+
+                # Build baseline PMF (no injury) to get baseline_pmf_mean.
+                _pi_base_nc     = np.clip(1.0 - _p_nz_base_fix1, 0.0, 1.0)
+                _smbase_nc      = _p_nz_base_fix1 * _pos_mus_base_fix1
+                _r_nc           = hurdle_models[stat]._r
+                if _pmf_built_marginalized and _pmf_built_quant_mat is not None:
+                    _base_pmf_nc = _build_marginalized_pmf_matrix(
+                        stat, _pmf_built_quant_mat, quad_weights,
+                        _p_nz_base_fix1, _pos_mus_base_fix1,
+                        stat_models, hurdle_models, cap, roles=roles,
+                        stat_means=_smbase_nc,
+                    )
+                else:
+                    _base_pmf_nc = zinb_pmf_batch(_pi_base_nc, _pos_mus_base_fix1, _r_nc, cap)
+                _kbase_nc        = np.arange(_base_pmf_nc.shape[1], dtype=float)
+                _base_pmf_mean_nc = (_base_pmf_nc * _kbase_nc[np.newaxis, :]).sum(axis=1)
+                _target_pmf_mean_nc = _base_pmf_mean_nc * _inj_ratio_fix1
+
+                # Iterative Newton correction: scale pos_mus until PMF mean == target.
+                # One step reduces the residual by ~10-100x; 8 iterations reach 1e-14.
+                _pi_adj_nc  = np.clip(1.0 - p_nz, 0.0, 1.0)
+                _pos_mus_nc = pos_mus.copy()
+                _cur_mean_nc = _trial_pmf_mean_nc.copy()
+                for _nc_iter in range(8):
+                    _safe_cur  = np.maximum(_cur_mean_nc, 1e-15)
+                    _cf        = _target_pmf_mean_nc / _safe_cur
+                    _needs_nc  = np.abs(_cf - 1.0) > 1e-12
+                    if not _needs_nc.any():
+                        break
+                    _pos_mus_nc = np.where(_needs_nc, _pos_mus_nc * _cf, _pos_mus_nc)
+                    _pos_mus_nc = np.maximum(_pos_mus_nc, 1e-9)
+                    if _pmf_built_marginalized and _pmf_built_quant_mat is not None:
+                        _cur_pmf_nc = _build_marginalized_pmf_matrix(
+                            stat, effective_quant, quad_weights,
+                            p_nz, _pos_mus_nc,
+                            stat_models, hurdle_models, cap, roles=roles,
+                            stat_means=p_nz * _pos_mus_nc,
+                        )
+                    else:
+                        _cur_pmf_nc = zinb_pmf_batch(_pi_adj_nc, _pos_mus_nc, _r_nc, cap)
+                    _kc_nc      = np.arange(_cur_pmf_nc.shape[1], dtype=float)
+                    _cur_mean_nc = (_cur_pmf_nc * _kc_nc[np.newaxis, :]).sum(axis=1)
+
+                # Assign the converged PMF and update pos_mus / stat_means.
+                if _pmf_built_marginalized and _pmf_built_quant_mat is not None:
+                    pmf_mat = _build_marginalized_pmf_matrix(
+                        stat, effective_quant, quad_weights,
+                        p_nz, _pos_mus_nc,
+                        stat_models, hurdle_models, cap, roles=roles,
+                        stat_means=p_nz * _pos_mus_nc,
+                    )
+                else:
+                    pmf_mat = zinb_pmf_batch(_pi_adj_nc, _pos_mus_nc, _r_nc, cap)
+                pos_mus    = _pos_mus_nc
+                stat_means = p_nz * pos_mus
 
         # ---- Apply DNP blending -------------------------------------------
         p_dnp_arr = stat_rows["p_dnp"].fillna(0.0).values.astype(float)
@@ -585,6 +689,7 @@ def build_all_pmfs(
             "pmf_support_min":          0,
             "pmf_support_max":          cap,
             "pmf_mean":                 pmf_means,
+            "pmf_mean_engine":          pmf_means,  # engine float64 mean, not JSON-recomputed
             "pmf_variance":             pmf_vars,
             "p0":                       p0_arr,
             "p_ge_1":                   p_ge_1_arr,

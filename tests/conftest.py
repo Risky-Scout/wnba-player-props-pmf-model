@@ -9,11 +9,14 @@ artifacts.
 Fixture layout (all paths relative to the tmp session dir):
   model/
     minutes_model.joblib         — MinutesModel trained on 80 synthetic rows
-    stat_rate_models.joblib      — {pts: StatRateModel, reb: StatRateModel}
-    hurdle_models.joblib         — {} (empty)
+    stat_rate_models.joblib      — {pts, reb, ast: StatRateModel}
+    hurdle_models.joblib         — {stl: ZINBStatModel, blk: ZINBStatModel}
     feature_manifest.json        — minimal feature column list
   config.yaml                    — minimal stage4_baseline config
   cal/                           — empty (calibration disabled in tests)
+
+All five combo stats (pts_reb, pts_ast, reb_ast, pts_reb_ast, stocks) are
+supported by including ast (rate model) and stl/blk (hurdle models).
 """
 from __future__ import annotations
 
@@ -40,11 +43,10 @@ _N_TRAIN = 80
 _SEED = 42
 
 
-def _make_training_data(n: int = _N_TRAIN, seed: int = _SEED) -> tuple[pd.DataFrame, pd.Series, pd.Series, pd.DataFrame]:
+def _make_training_data(n: int = _N_TRAIN, seed: int = _SEED):
     """Build synthetic training data for the minimal fixture models.
 
-    Returns (X, y_minutes, y_pts, ctx_df) where ctx_df contains
-    actual_minutes, projected_minutes_bucket, role_uncertainty_bucket.
+    Returns (X, y_minutes, y_pts, y_reb, y_ast, y_stl, y_blk, ctx_df).
     """
     rng = np.random.default_rng(seed)
     X = pd.DataFrame({
@@ -52,17 +54,33 @@ def _make_training_data(n: int = _N_TRAIN, seed: int = _SEED) -> tuple[pd.DataFr
         "player_pts_mean_l5": rng.uniform(5, 25, n),
         "player_reb_mean_l5": rng.uniform(2, 10, n),
     })
-    # Targets: minutes ~ l5 + noise, pts ~ pts_l5 + noise, reb ~ reb_l5 + noise
     y_minutes = pd.Series(X["player_minutes_mean_l5"].values + rng.normal(0, 2, n))
     y_pts = pd.Series(X["player_pts_mean_l5"].values + rng.normal(0, 1.5, n))
     y_reb = pd.Series(X["player_reb_mean_l5"].values + rng.normal(0, 0.8, n))
+    y_ast = pd.Series(X["player_minutes_mean_l5"].values * 0.15 + rng.normal(0, 0.5, n))
+    # Sparse stats: mostly 0 with occasional 1-3 for realism
+    y_stl = pd.Series(
+        np.where(rng.random(n) < 0.45, rng.integers(1, 4, n).astype(float), 0.0)
+    )
+    y_blk = pd.Series(
+        np.where(rng.random(n) < 0.30, rng.integers(1, 3, n).astype(float), 0.0)
+    )
     ctx = pd.DataFrame({
         "actual_minutes": y_minutes.clip(lower=1.0),
         "projected_minutes_bucket": rng.choice(["low", "medium", "high"], n),
         "role_uncertainty_bucket": rng.choice(["low", "uncertain"], n),
         "did_play": np.ones(n, dtype=int),
     })
-    return X, y_minutes.clip(lower=0.0), y_pts.clip(lower=0.0), y_reb.clip(lower=0.0), ctx
+    return (
+        X,
+        y_minutes.clip(lower=0.0),
+        y_pts.clip(lower=0.0),
+        y_reb.clip(lower=0.0),
+        y_ast.clip(lower=0.0),
+        y_stl.clip(lower=0.0),
+        y_blk.clip(lower=0.0),
+        ctx,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -72,11 +90,17 @@ def injury_e2e_artifact_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     The directory is created once per test session and shared across all
     tests that need it.  Artifacts are written deterministically so that
     repeated runs produce identical results.
+
+    Includes ast (rate model) and stl/blk (ZINB hurdle models) so that all
+    five combo stats can be built: pts_reb, pts_ast, reb_ast, pts_reb_ast,
+    stocks.  The hurdle models for stl/blk also allow Fix 1 hurdle ratio
+    tests to run through the actual pmf_engine.
     """
     try:
         import joblib
         from wnba_props_model.models.minutes_model import MinutesModel
         from wnba_props_model.models.rate_model import StatRateModel
+        from wnba_props_model.models.hurdle import ZINBStatModel
     except ImportError as exc:
         pytest.skip(f"wnba_props_model not importable: {exc}")
 
@@ -86,7 +110,7 @@ def injury_e2e_artifact_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     cal_dir = base / "cal"
     cal_dir.mkdir(parents=True)
 
-    X, y_min, y_pts, y_reb, ctx = _make_training_data()
+    X, y_min, y_pts, y_reb, y_ast, y_stl, y_blk, ctx = _make_training_data()
 
     # ── MinutesModel ──────────────────────────────────────────────────────────
     min_cfg = {
@@ -100,32 +124,42 @@ def injury_e2e_artifact_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     min_model.fit(X, y_min, metadata_df=ctx)
     min_model.save(str(model_dir / "minutes_model.joblib"))
 
-    # ── StatRateModel — pts ───────────────────────────────────────────────────
-    pts_cfg = {
+    _stat_cfg = {
         "random_seed": _SEED,
         "hgb_regressor": {"max_iter": 30},
         "use_minutes_offset": False,
-        # Use squared_error loss so the stat mean is directly predicted
-        # (not quantile=0.5, which would skip dispersion slope fitting)
     }
-    pts_model = StatRateModel("pts_fixture", pts_cfg)
+
+    # ── StatRateModel — pts ───────────────────────────────────────────────────
+    pts_model = StatRateModel("pts_fixture", _stat_cfg)
     pts_model.fit(X, y_pts, context_df=ctx)
+    pts_model.stat = "pts"
 
     # ── StatRateModel — reb ───────────────────────────────────────────────────
-    reb_cfg = {
-        "random_seed": _SEED,
-        "hgb_regressor": {"max_iter": 30},
-        "use_minutes_offset": False,
-    }
-    reb_model = StatRateModel("reb_fixture", reb_cfg)
+    reb_model = StatRateModel("reb_fixture", _stat_cfg)
     reb_model.fit(X, y_reb, context_df=ctx)
-
-    # Register stat names so pmf_engine can look them up
-    pts_model.stat = "pts"
     reb_model.stat = "reb"
 
-    rate_models = {"pts": pts_model, "reb": reb_model}
-    hurdle_models: dict = {}
+    # ── StatRateModel — ast ───────────────────────────────────────────────────
+    # ast uses the same 3 features; a simple linear model is sufficient for tests.
+    ast_model = StatRateModel("ast_fixture", _stat_cfg)
+    ast_model.fit(X, y_ast, context_df=ctx)
+    ast_model.stat = "ast"
+
+    rate_models = {"pts": pts_model, "reb": reb_model, "ast": ast_model}
+
+    # ── ZINBStatModel — stl and blk (hurdle models for sparse stats) ──────────
+    _zinb_cfg = {
+        "random_seed": _SEED,
+        "hgb_regressor": {"max_iter": 30},
+    }
+    stl_model = ZINBStatModel("stl", _zinb_cfg)
+    stl_model.fit(X, y_stl, actual_minutes=ctx["actual_minutes"].values)
+
+    blk_model = ZINBStatModel("blk", _zinb_cfg)
+    blk_model.fit(X, y_blk, actual_minutes=ctx["actual_minutes"].values)
+
+    hurdle_models = {"stl": stl_model, "blk": blk_model}
 
     joblib.dump(rate_models, str(model_dir / "stat_rate_models.joblib"))
     joblib.dump(hurdle_models, str(model_dir / "hurdle_models.joblib"))
@@ -135,16 +169,18 @@ def injury_e2e_artifact_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     (model_dir / "feature_manifest.json").write_text(json.dumps(manifest, indent=2))
 
     # ── Minimal config YAML ───────────────────────────────────────────────────
-    # Use only pts and reb to keep the test fast.
+    # Include pts, reb, ast, stl, blk to support all five combo stats.
+    # sparse_stats: [stl, blk] routes stl/blk through the ZINB hurdle model path,
+    # enabling Fix 1 hurdle ratio tests to run through the actual pmf_engine.
     # use_minutes_marginalization=True so that OUT-player DNP blending fires
     # and produces {"0": 1.0} PMFs, which is the expected canonical behaviour.
     config = {
         "random_seed": _SEED,
-        "stats": ["pts", "reb"],
-        "sparse_stats": [],
+        "stats": ["pts", "reb", "ast", "stl", "blk"],
+        "sparse_stats": ["stl", "blk"],
         "use_minutes_marginalization": True,
         "minutes_marginalization_weights": [0.10, 0.15, 0.50, 0.15, 0.10],
-        "pmf_support_caps": {"pts": 40, "reb": 20},
+        "pmf_support_caps": {"pts": 40, "reb": 20, "ast": 15, "stl": 10, "blk": 10},
         "pmf_source": "e2e_fixture",
     }
     config_path = base / "config.yaml"

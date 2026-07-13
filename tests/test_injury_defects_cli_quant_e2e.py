@@ -981,3 +981,98 @@ def test_real_before_after_injury_pmf_rebuild(injury_e2e_artifact_dir):
         f"[Defect 6] Expected at least {len(all_player_ids) * n_base_stats} base stat rows, "
         f"got {actual_base_rows}"
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fix 3 — Verified-empty injury retrieval artifact
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_cli_success_empty_writes_status_artifact(cli_artifacts):
+    """Fix 3: SUCCESS_EMPTY must write a status artifact before exiting.
+
+    When the BDL API returns a verified-empty response, the CLI must:
+    - Write injury_fetch_status.json to out_dir
+    - The artifact must contain: status, pulled_at_utc, prediction_timestamp_utc,
+      team_ids_queried, record_count
+
+    The artifact must NOT be written for FAILURE responses.
+    """
+    ip = _get_pipeline()
+
+    pulled_ts = datetime(2026, 7, 13, 10, 0, 0, tzinfo=timezone.utc)
+    empty_result = ip.InjuryFetchResult(
+        status="SUCCESS_EMPTY",
+        records=[],
+        pulled_at_utc=pulled_ts,
+        error=None,
+    )
+
+    out_dir = Path(cli_artifacts["out_dir"])
+
+    with patch("wnba_props_model.pipeline.injury_pipeline.fetch_bdl_injuries",
+               return_value=empty_result):
+        result = _run_cli(_base_cli_args(cli_artifacts))
+
+    assert result.exit_code == 0, (
+        f"[Fix 3] CLI must exit 0 for SUCCESS_EMPTY. "
+        f"exit_code={result.exit_code}. Output: {result.output!r}"
+    )
+
+    artifact_path = out_dir / "injury_fetch_status.json"
+    assert artifact_path.exists(), (
+        f"[Fix 3] Status artifact must be written to {artifact_path} for SUCCESS_EMPTY. "
+        f"CLI output: {result.output!r}"
+    )
+
+    artifact = json.loads(artifact_path.read_text())
+
+    assert artifact.get("status") == "SUCCESS_EMPTY", (
+        f"[Fix 3] Artifact 'status' must be 'SUCCESS_EMPTY', got {artifact.get('status')!r}"
+    )
+    assert "pulled_at_utc" in artifact and artifact["pulled_at_utc"], (
+        f"[Fix 3] Artifact must contain non-empty 'pulled_at_utc'. Got: {artifact}"
+    )
+    assert "prediction_timestamp_utc" in artifact and artifact["prediction_timestamp_utc"], (
+        f"[Fix 3] Artifact must contain non-empty 'prediction_timestamp_utc'. Got: {artifact}"
+    )
+    assert "team_ids_queried" in artifact and isinstance(artifact["team_ids_queried"], list), (
+        f"[Fix 3] Artifact must contain 'team_ids_queried' list. Got: {artifact}"
+    )
+    assert artifact.get("record_count") == 0, (
+        f"[Fix 3] Artifact 'record_count' must be 0 for SUCCESS_EMPTY, "
+        f"got {artifact.get('record_count')!r}"
+    )
+
+
+def test_cli_failure_does_not_write_status_artifact(cli_artifacts):
+    """Fix 3: FAILURE must NOT write a status artifact.
+
+    Only SUCCESS_EMPTY triggers the status artifact write.
+    FAILURE exits nonzero and must not create injury_fetch_status.json.
+    """
+    ip = _get_pipeline()
+
+    failure_result = ip.InjuryFetchResult(
+        status="FAILURE",
+        records=[],
+        pulled_at_utc=None,
+        error="Missing API key: BDL_API_KEY not set",
+    )
+
+    out_dir = Path(cli_artifacts["out_dir"])
+    artifact_path = out_dir / "injury_fetch_status.json"
+    # Remove any artifact left over from a previous test
+    artifact_path.unlink(missing_ok=True)
+
+    with patch("wnba_props_model.pipeline.injury_pipeline.fetch_bdl_injuries",
+               return_value=failure_result):
+        result = _run_cli(_base_cli_args(cli_artifacts))
+
+    assert result.exit_code != 0, (
+        f"[Fix 3] CLI must exit nonzero for FAILURE. "
+        f"exit_code={result.exit_code}. Output: {result.output!r}"
+    )
+    assert not artifact_path.exists(), (
+        f"[Fix 3] Status artifact must NOT be written for FAILURE. "
+        f"Found artifact at {artifact_path}. Output: {result.output!r}"
+    )
