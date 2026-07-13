@@ -1,27 +1,50 @@
-"""Automated BDL injury poll → UTM redistribution engine (blueprint §5).
+"""Injury update engine — upstream PMF rebuild (blueprint §5).
 
-Polls the BDL /wnba/v1/player_injuries endpoint for all teams in tomorrow's
-games, applies the status-to-minutes mapping from blueprint Table 5.1, runs
-UTM redistribution for affected players, and writes:
+Architecture (corrected)
+------------------------
+This script applies point-in-time injury statuses BEFORE the PMF
+distribution is considered final.  It replaces the former mean-only
+scaling approach with a full distributional rebuild:
 
-  data/injuries/{date}.json         — raw BDL injury responses
-  deliveries/tonight/full_pmfs_wide.parquet  — updated PMF slate (in-place)
-  deliveries/tonight/injury_report_{date}.json — human-readable impact summary
+  1. Load pregame feature_df and PMF slate (for before/after comparison)
+  2. Load or fetch point-in-time injury statuses
+  3. Build availability table (per-player: status, probability, multiplier)
+  4. Apply minutes adjustments to feature_df (scale minutes feature cols)
+  5. Redistribute freed-up team minutes via UTM
+  6. Rebuild ALL affected base-stat PMFs by rerunning predict_player_pmfs()
+     with the updated feature_df
+  7. Rebuild ALL affected combo PMFs
+  8. Run integrity validation (fatal error on non-inactive zero-means)
+  9. Write updated slate
+  10. Write availability table and injury report
+  11. Write deterministic before/after comparison report
 
-Also outputs GTD dual-scenario records per blueprint §5.3.
+What this script does NOT do
+-----------------------------
+- Does NOT scale pmf_mean / stat_mean / mean as primary adjustment
+- Does NOT transform PMF support indices or multiply probabilities in-place
+- Does NOT drop rows using pmf_mean > 0 as the removal criterion
+- Does NOT set pmf_json={"0":1.0} except for confirmed-OUT players (whose
+  PMF is legitimately a Dirac at zero)
 
-Status → pipeline action mapping (blueprint §5.1):
-  out          → minutes = 0,  full UTM redistribution
-  doubtful     → minutes = 0,  full UTM redistribution + uncertainty flag
-  questionable → minutes × 0.50, proportional UTM
-  probable     → minutes × 0.85, proportional UTM
-  available / null → no change
-  GTD          → dual scenario: IN + OUT
+Confirmed-inactive (OUT) players
+---------------------------------
+- Rows are RETAINED in the full PMF parquet (availability_status="OUT")
+- pmf_json is set to {"0":1.0}, pmf_mean=0.0
+- is_market_actionable=False
+- Edge report filters these rows using the explicit confirmed_inactive_mask
+
+Fatal integrity errors (non-inactive rows)
+------------------------------------------
+- pmf_mean <= 0  → fatal
+- NaN pmf_mean   → fatal
+- Invalid pmf_json → fatal
 
 Usage:
     python scripts/apply_injury_updates.py \\
         --game-date 2026-06-25 \\
-        --slate deliveries/tonight/full_pmfs_wide.parquet
+        --slate deliveries/tonight/full_pmfs_wide.parquet \\
+        --features data/processed/wnba_player_game_features_wide.parquet
 
     # Dry-run (no writes):
     python scripts/apply_injury_updates.py --game-date 2026-06-25 --dry-run
@@ -29,39 +52,25 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import typer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 app = typer.Typer(add_completion=False)
-
-_STATUS_MINUTES_MULTIPLIER: dict[str, float] = {
-    "out": 0.0,
-    "inactive": 0.0,
-    "dnp": 0.0,
-    "doubtful": 0.0,
-    "unlikely": 0.0,
-    "questionable": 0.50,
-    "probable": 0.85,
-    "limited": 0.65,
-    "gtd": -1.0,      # sentinel → dual scenario
-    "game-time decision": -1.0,
-    "available": 1.0,
-    "active": 1.0,
-}
-
-_FULL_REDISTRIBUTION_STATUSES = {"out", "inactive", "dnp", "doubtful", "unlikely"}
-_DUAL_SCENARIO_STATUSES = {"gtd", "game-time decision"}
-
-# Stat columns scaled linearly with minutes when redistribution is applied
-_SCALABLE_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
-                   "pts_ast", "pts_reb", "reb_ast", "pts_reb_ast", "stocks"]
 
 
 @app.command()
@@ -70,6 +79,10 @@ def main(
     slate: str = typer.Option(
         "", "--slate",
         help="PMF parquet to update. Auto-detected if not set.",
+    ),
+    features: str = typer.Option(
+        "", "--features",
+        help="Wide feature parquet. Auto-detected if not set.",
     ),
     injuries_json: str = typer.Option(
         "", "--injuries-json",
@@ -80,163 +93,284 @@ def main(
         "--usage-parquet",
         help="Season usage% parquet for UTM.",
     ),
+    model_dir: str = typer.Option(
+        "artifacts/models/stage4_baseline",
+        "--model-dir",
+        help="Stage 4 model artifact directory.",
+    ),
+    cal_dir: str = typer.Option(
+        "artifacts/models/calibration",
+        "--cal-dir",
+        help="Calibration artifact directory.",
+    ),
     out_dir: str = typer.Option("deliveries/tonight", "--out-dir"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print changes, do not write."),
+    skip_rebuild: bool = typer.Option(
+        False, "--skip-rebuild",
+        help="Skip PMF rebuild (for debugging availability table only).",
+    ),
 ) -> None:
-    """Poll BDL injuries and apply UTM redistribution to the PMF slate."""
-    # ── Resolve slate ─────────────────────────────────────────────────────
+    """Apply injury statuses → rebuild affected PMFs with full distributional update."""
+    from wnba_props_model.pipeline.injury_pipeline import (
+        build_availability_table,
+        apply_injury_to_feature_df,
+        rebuild_affected_pmfs,
+        rebuild_combos_for_affected,
+        validate_injury_adjusted_pmfs,
+        build_before_after_report,
+        build_confirmed_inactive_mask,
+        INACTIVE_THRESHOLD,
+    )
+
+    # ── Resolve paths ──────────────────────────────────────────────────────
     slate_path = _resolve_slate(slate, game_date)
     if slate_path is None:
-        typer.echo("[WARN] No PMF slate found — nothing to update. Run predict_today.py first.", err=True)
+        typer.echo(
+            "[WARN] No PMF slate found — nothing to update. "
+            "Run predict_today.py first.",
+            err=True,
+        )
         raise typer.Exit(0)
 
-    pmfs_df = pd.read_parquet(slate_path)
-    typer.echo(f"Loaded {len(pmfs_df):,} PMF rows from {slate_path}")
+    features_path = _resolve_features(features)
+    if features_path is None:
+        typer.echo(
+            "[WARN] No feature parquet found — cannot rebuild PMFs. "
+            "Ensure data/processed/wnba_player_game_features_wide.parquet exists.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    typer.echo(f"[apply_injury] Loading PMF slate: {slate_path}")
+    pmfs_before = pd.read_parquet(slate_path)
+    typer.echo(f"[apply_injury] Loaded {len(pmfs_before):,} PMF rows")
+
+    typer.echo(f"[apply_injury] Loading feature matrix: {features_path}")
+    feature_df = pd.read_parquet(features_path)
+    typer.echo(f"[apply_injury] Loaded {len(feature_df):,} feature rows")
+
+    # Filter feature_df to upcoming game date only
+    if "game_date" in feature_df.columns:
+        feature_df = feature_df[
+            pd.to_datetime(feature_df["game_date"]).dt.strftime("%Y-%m-%d") == game_date
+        ].copy()
+        typer.echo(
+            f"[apply_injury] Feature rows for {game_date}: {len(feature_df):,}"
+        )
+
+    if feature_df.empty:
+        typer.echo(
+            f"[WARN] No feature rows found for game_date={game_date}. "
+            "Slate unchanged.",
+            err=True,
+        )
+        raise typer.Exit(0)
 
     # ── Load or fetch injuries ─────────────────────────────────────────────
     if injuries_json:
         injuries = _load_injuries_file(injuries_json)
     else:
-        injuries = _fetch_bdl_injuries(pmfs_df)
+        injuries = _fetch_bdl_injuries(feature_df)
 
     if not injuries:
-        typer.echo("No injury data found. Slate unchanged.")
+        typer.echo("[apply_injury] No injury data found. Slate unchanged.")
         raise typer.Exit(0)
 
-    typer.echo(f"Processing {len(injuries)} injury records")
+    typer.echo(f"[apply_injury] Processing {len(injuries)} injury records")
 
     # ── Save raw injury file ───────────────────────────────────────────────
     inj_dir = Path("data/injuries")
-    inj_dir.mkdir(parents=True, exist_ok=True)
-    inj_out = inj_dir / f"{game_date}.json"
     if not dry_run:
+        inj_dir.mkdir(parents=True, exist_ok=True)
+        inj_out = inj_dir / f"{game_date}.json"
         inj_out.write_text(json.dumps(injuries, indent=2))
-        typer.echo(f"Saved raw injuries → {inj_out}")
+        typer.echo(f"[apply_injury] Saved raw injuries → {inj_out}")
 
-    # ── Build UTM ──────────────────────────────────────────────────────────
-    utm = _load_utm(usage_parquet, pmfs_df)
+    # ── Build availability table ───────────────────────────────────────────
+    inj_ts = datetime.now(timezone.utc).isoformat()
+    availability = build_availability_table(
+        injuries=injuries,
+        feature_df=feature_df,
+        source_updated_at=inj_ts,
+    )
+    typer.echo(
+        f"[apply_injury] Availability table: {len(availability):,} rows, "
+        f"{availability['is_confirmed_inactive'].sum()} confirmed inactive"
+    )
 
-    # ── Apply injury adjustments per game ─────────────────────────────────
-    impact_report: list[dict] = []
-    gtd_scenarios: list[dict] = []
+    # Print dry-run summary
+    if dry_run:
+        _print_dry_run_summary(availability, feature_df)
+        raise typer.Exit(0)
 
-    for game_id in pmfs_df["game_id"].unique():
-        g_mask = pmfs_df["game_id"] == game_id
-        game_players = pmfs_df[g_mask]["player_id"].unique()
-        game_inj = [r for r in injuries if r.get("player_id") in game_players]
-        if not game_inj:
-            continue
+    # ── Load UTM ──────────────────────────────────────────────────────────
+    utm = _load_utm(usage_parquet, feature_df)
 
-        for inj in game_inj:
-            pid = int(inj.get("player_id", 0))
-            raw_status = str(inj.get("status") or "available").lower().strip()
-            multiplier = _STATUS_MINUTES_MULTIPLIER.get(raw_status, 1.0)
+    # ── Apply injury feature adjustments ──────────────────────────────────
+    feature_df_adjusted = apply_injury_to_feature_df(
+        feature_df=feature_df,
+        availability_table=availability,
+        utm=utm,
+    )
 
-            p_mask = g_mask & (pmfs_df["player_id"] == pid)
-            if not p_mask.any():
-                continue
+    # Identify all affected players (injury + UTM teammates)
+    affected_player_ids: set[int] = set()
+    mult_changed = feature_df_adjusted["_injury_minutes_multiplier"] != 1.0
+    if mult_changed.any():
+        affected_player_ids = set(
+            feature_df_adjusted.loc[mult_changed, "player_id"].astype(int).unique()
+        )
+    # Also include confirmed-inactive players (their PMF must be {0:1.0})
+    inactive_pids = set(
+        availability.loc[
+            availability["is_confirmed_inactive"], "player_id"
+        ].astype(int).unique()
+    )
+    affected_player_ids |= inactive_pids
 
-            base_mins = float(pmfs_df.loc[p_mask & (pmfs_df["stat"] == "pts"), "minutes_mean"].mean())
-            if pd.isna(base_mins):
-                base_mins = float(pmfs_df.loc[p_mask, "minutes_mean"].mean())
-            if pd.isna(base_mins):
-                continue
+    typer.echo(
+        f"[apply_injury] Affected players (injury + UTM): {len(affected_player_ids)}"
+    )
 
-            if multiplier == -1.0:  # GTD → dual scenario
-                gtd_rec = _build_gtd_scenario(pid, base_mins, pmfs_df, p_mask, inj, utm, game_id, pmfs_df[g_mask])
-                gtd_scenarios.append(gtd_rec)
-                impact_report.append({"player_id": pid, "status": raw_status, "action": "dual_gtd_scenario"})
-                continue
+    # ── Rebuild PMFs for affected players ────────────────────────────────
+    if skip_rebuild or not affected_player_ids:
+        pmfs_after = pmfs_before.copy()
+        typer.echo("[apply_injury] PMF rebuild skipped")
+    else:
+        typer.echo(
+            f"[apply_injury] Rebuilding PMFs for {len(affected_player_ids)} players …"
+        )
+        new_atom_pmfs = rebuild_affected_pmfs(
+            feature_df_adjusted=feature_df_adjusted,
+            affected_player_ids=affected_player_ids,
+            model_dir=model_dir,
+            cfg={},  # predict_player_pmfs loads its own cfg from config_path
+            cal_dir=cal_dir if Path(cal_dir).exists() else None,
+            apply_calibration=Path(cal_dir).exists(),
+            apply_shrinkage=True,
+        )
+        typer.echo(
+            f"[apply_injury] PMF rebuild complete: {len(new_atom_pmfs):,} new atom rows"
+        )
 
-            if multiplier == 1.0:
-                continue  # no change
+        # Merge new atom PMFs back into the full slate
+        COMBO_STATS = frozenset(
+            {"stocks", "pts_ast", "pts_reb", "reb_ast", "pts_reb_ast"}
+        )
+        ATOM_STATS = frozenset(
+            {"pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"}
+        )
+        # Remove old atom + combo rows for affected players
+        keep_mask = ~(
+            pmfs_before["player_id"].isin(affected_player_ids)
+            & pmfs_before["stat"].isin(ATOM_STATS | COMBO_STATS)
+        )
+        pmfs_base = pmfs_before[keep_mask].copy()
 
-            new_mins = base_mins * multiplier
-            delta_mins = base_mins - new_mins
+        # Append new atom PMFs
+        pmfs_after_atoms = pd.concat(
+            [pmfs_base, new_atom_pmfs], ignore_index=True
+        )
 
-            if dry_run:
-                typer.echo(
-                    f"[DRY] {inj.get('player_name', pid)} status={raw_status} "
-                    f"mins {base_mins:.1f} → {new_mins:.1f} (Δ={delta_mins:.1f})"
-                )
-            else:
-                # Update the player's minutes_mean
-                pmfs_df.loc[p_mask, "minutes_mean"] = new_mins
-                pmfs_df.loc[p_mask, "injury_flag"] = True
-                pmfs_df.loc[p_mask, "override_source"] = "injury_update"
+        # Rebuild combos for affected players using updated atoms
+        pmfs_after = rebuild_combos_for_affected(
+            full_pmfs_with_new_atoms=pmfs_after_atoms,
+            affected_player_ids=affected_player_ids,
+        )
+        typer.echo(
+            f"[apply_injury] Full slate after rebuild: {len(pmfs_after):,} rows"
+        )
 
-                # Scale stat_mean proportionally
-                if base_mins > 0:
-                    scale = new_mins / base_mins
-                    for col in ["stat_mean", "pmf_mean", "mean"]:
-                        if col in pmfs_df.columns:
-                            pmfs_df.loc[p_mask, col] = pmfs_df.loc[p_mask, col] * scale
+    # ── Apply confirmed-OUT players: set pmf_json = {0:1.0} ─────────────
+    _ZERO_PMF = json.dumps({"0": 1.0})
+    if inactive_pids and "pmf_json" in pmfs_after.columns:
+        inact_mask = pmfs_after["player_id"].isin(inactive_pids)
+        pmfs_after.loc[inact_mask, "pmf_json"] = _ZERO_PMF
+        pmfs_after.loc[inact_mask, "pmf_mean"] = 0.0
+        if "mean" in pmfs_after.columns:
+            pmfs_after.loc[inact_mask, "mean"] = 0.0
+        if "stat_mean" in pmfs_after.columns:
+            pmfs_after.loc[inact_mask, "stat_mean"] = 0.0
+        if "pmf_mean_full_precision" in pmfs_after.columns:
+            pmfs_after.loc[inact_mask, "pmf_mean_full_precision"] = 0.0
+        typer.echo(
+            f"[apply_injury] Set pmf_json={{0:1.0}} for "
+            f"{inact_mask.sum()} confirmed-inactive rows"
+        )
 
-                    # When scale == 0 (player is OUT), keep pmf_json consistent
-                    # with pmf_mean by collapsing the PMF to a Dirac at 0.
-                    # This prevents pmf_mean=0 / pmf_json=non-zero inconsistency.
-                    if scale == 0.0 and "pmf_json" in pmfs_df.columns:
-                        import json as _json  # noqa: PLC0415
-                        _zero_pmf = _json.dumps({"0": 1.0})
-                        pmfs_df.loc[p_mask, "pmf_json"] = _zero_pmf
-                        if "pmf_mean_full_precision" in pmfs_df.columns:
-                            pmfs_df.loc[p_mask, "pmf_mean_full_precision"] = 0.0
+    # ── Attach availability columns ───────────────────────────────────────
+    pmfs_after = _attach_availability_columns(pmfs_after, availability)
 
-            # UTM redistribution for freed-up minutes
-            if delta_mins > 0:
-                teammates = _get_teammates(pmfs_df, g_mask, pid)
-                redistribution = utm.redistribute(
-                    roster=teammates,
-                    out_player_ids=[pid],
-                    out_minutes_dict={pid: delta_mins},
-                )
-                if not dry_run:
-                    updated_roster, transfer_report = redistribution
-                    _apply_utm_to_df(pmfs_df, g_mask, updated_roster, base_mins_map={
-                        t["player_id"]: t.get("projected_minutes", 0.0) for t in teammates
-                    })
-                    impact_report.append({
-                        "player_id": pid,
-                        "player_name": inj.get("player_name"),
-                        "status": raw_status,
-                        "multiplier": multiplier,
-                        "base_minutes": round(base_mins, 1),
-                        "new_minutes": round(new_mins, 1),
-                        "delta_minutes": round(delta_mins, 1),
-                        "utm_transfers": transfer_report,
-                    })
+    # ── Integrity validation ──────────────────────────────────────────────
+    try:
+        validate_injury_adjusted_pmfs(pmfs_after, availability)
+        typer.echo("[apply_injury] Integrity validation PASS")
+    except ValueError as exc:
+        typer.echo(f"[FATAL] PMF integrity error: {exc}", err=True)
+        raise typer.Exit(1)
 
-    # ── Write updated slate ────────────────────────────────────────────────
+    # ── Build before/after comparison report ─────────────────────────────
+    before_after_report_df = build_before_after_report(
+        old_pmfs=pmfs_before,
+        new_pmfs=pmfs_after,
+        availability_table=availability,
+    )
+    if not before_after_report_df.empty:
+        # Only report rows where something actually changed
+        changed = before_after_report_df[
+            (before_after_report_df["pmf_mean_before"] - before_after_report_df["pmf_mean_after"]).abs() > 1e-6
+        ]
+        if not changed.empty:
+            typer.echo("\n[apply_injury] Before/after PMF changes:")
+            typer.echo(
+                changed[[
+                    "player_name", "stat", "injury_status",
+                    "minutes_before", "minutes_after",
+                    "pmf_mean_before", "pmf_mean_after",
+                    "P(over)_before", "P(over)_after",
+                ]].to_string(index=False)
+            )
+
+    # ── Verify PMF rebuild is real ─────────────────────────────────────────
+    # For each affected player, verify pmf_json changed (when material)
+    _verify_pmf_rebuild(
+        pmfs_before=pmfs_before,
+        pmfs_after=pmfs_after,
+        affected_player_ids=affected_player_ids,
+        availability=availability,
+    )
+
+    # ── Write outputs ────────────────────────────────────────────────────
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    if not dry_run:
-        # Drop rows for players who are fully OUT (pmf_mean == 0 after scaling).
-        # Out players have no signal for the board; keeping them would produce
-        # zero-mean rows that fail integrity checks.
-        _before = len(pmfs_df)
-        if "pmf_mean" in pmfs_df.columns:
-            pmfs_df = pmfs_df[pmfs_df["pmf_mean"].fillna(0) > 0].copy()
-        _dropped = _before - len(pmfs_df)
-        if _dropped:
-            typer.echo(f"Dropped {_dropped} zero-mean rows (OUT players) from slate")
-        pmfs_df.to_parquet(slate_path, index=False)
-        typer.echo(f"Updated slate written → {slate_path}")
+    pmfs_after.to_parquet(slate_path, index=False)
+    typer.echo(f"[apply_injury] Updated slate written → {slate_path}")
 
-        report_path = out_path / f"injury_report_{game_date}.json"
-        report_payload = {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "game_date": game_date,
-            "injuries_processed": len(injuries),
-            "players_adjusted": len(impact_report),
-            "gtd_scenarios": len(gtd_scenarios),
-            "adjustments": impact_report,
-            "gtd_scenarios_detail": gtd_scenarios,
-        }
-        report_path.write_text(json.dumps(report_payload, indent=2, default=str))
-        typer.echo(f"Saved injury report → {report_path}")
+    # Write availability table
+    avail_path = out_path / f"availability_table_{game_date}.parquet"
+    availability.to_parquet(avail_path, index=False)
+    typer.echo(f"[apply_injury] Availability table → {avail_path}")
 
-    typer.echo(f"\nSummary: {len(impact_report)} players adjusted, {len(gtd_scenarios)} GTD scenarios")
+    # Write before/after report
+    if not before_after_report_df.empty:
+        ba_path = out_path / f"injury_pmf_changes_{game_date}.parquet"
+        before_after_report_df.to_parquet(ba_path, index=False)
+        typer.echo(f"[apply_injury] Before/after report → {ba_path}")
+
+    # Write human-readable injury report JSON
+    impact_report = _build_impact_report(availability, before_after_report_df, game_date)
+    report_path = out_path / f"injury_report_{game_date}.json"
+    report_path.write_text(json.dumps(impact_report, indent=2, default=str))
+    typer.echo(f"[apply_injury] Injury report → {report_path}")
+
+    n_inactive = int(availability["is_confirmed_inactive"].sum())
+    n_adjusted = int((availability["minutes_multiplier"] != 1.0).sum())
+    typer.echo(
+        f"\n[apply_injury] Summary: {n_inactive} confirmed inactive, "
+        f"{n_adjusted} players adjusted, "
+        f"{len(affected_player_ids)} PMFs rebuilt"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,8 +391,20 @@ def _resolve_slate(slate_arg: str, game_date: str) -> Path | None:
     return None
 
 
-def _fetch_bdl_injuries(pmfs_df: pd.DataFrame) -> list[dict]:
-    """Fetch injuries from BDL API for all teams in the slate."""
+def _resolve_features(features_arg: str) -> Path | None:
+    if features_arg:
+        return Path(features_arg)
+    for c in [
+        "data/processed/wnba_player_game_features_wide.parquet",
+        "data/processed/features_wide.parquet",
+    ]:
+        p = Path(c)
+        if p.exists():
+            return p
+    return None
+
+
+def _fetch_bdl_injuries(feature_df: pd.DataFrame) -> list[dict]:
     api_key = os.environ.get("BDL_API_KEY", "")
     if not api_key:
         typer.echo("[WARN] BDL_API_KEY not set — skipping API fetch.", err=True)
@@ -271,8 +417,9 @@ def _fetch_bdl_injuries(pmfs_df: pd.DataFrame) -> list[dict]:
         return []
 
     team_ids = list(set(
-        pmfs_df["team_id"].dropna().astype(int).unique().tolist() +
-        pmfs_df["opponent_team_id"].dropna().astype(int).unique().tolist()
+        feature_df["team_id"].dropna().astype(int).unique().tolist()
+        + (feature_df["opponent_team_id"].dropna().astype(int).unique().tolist()
+           if "opponent_team_id" in feature_df.columns else [])
     ))
 
     params: dict = {"per_page": 100}
@@ -287,7 +434,7 @@ def _fetch_bdl_injuries(pmfs_df: pd.DataFrame) -> list[dict]:
         resp.raise_for_status()
         data = resp.json()
         raw = data.get("data", data) if isinstance(data, dict) else data
-        typer.echo(f"BDL injuries: {len(raw)} records fetched")
+        typer.echo(f"[apply_injury] BDL: {len(raw)} injury records fetched")
         return [_normalize_bdl_injury(r) for r in raw]
     except Exception as exc:
         typer.echo(f"[WARN] BDL injury fetch failed: {exc}", err=True)
@@ -297,7 +444,10 @@ def _fetch_bdl_injuries(pmfs_df: pd.DataFrame) -> list[dict]:
 def _normalize_bdl_injury(raw: dict) -> dict:
     player = raw.get("player") or {}
     pid = raw.get("player_id") or player.get("id") or 0
-    name = raw.get("player_name") or f"{player.get('first_name','')} {player.get('last_name','')}".strip()
+    name = (
+        raw.get("player_name")
+        or f"{player.get('first_name', '')} {player.get('last_name', '')}".strip()
+    )
     return {
         "player_id": int(pid),
         "player_name": name,
@@ -317,8 +467,7 @@ def _load_injuries_file(path: str) -> list[dict]:
     return raw.get("data", [raw])
 
 
-def _load_utm(usage_parquet: str, pmfs_df: pd.DataFrame):
-    """Load UsageTransferMatrix from parquet, falling back to uniform."""
+def _load_utm(usage_parquet: str, feature_df: pd.DataFrame):
     from wnba_props_model.models.usage_transfer import UsageTransferMatrix  # noqa: PLC0415
 
     p = Path(usage_parquet)
@@ -329,103 +478,193 @@ def _load_utm(usage_parquet: str, pmfs_df: pd.DataFrame):
         except Exception as exc:
             typer.echo(f"[WARN] Could not load UTM from {p}: {exc}", err=True)
 
-    # Fallback: build uniform UTM from pmfs_df player IDs
+    # Fallback: uniform UTM
     usg_df = pd.DataFrame({
-        "player_id": pmfs_df["player_id"].unique(),
+        "player_id": feature_df["player_id"].unique(),
         "usage_pct": 0.20,
     })
     return UsageTransferMatrix(usg_df)
 
 
-def _get_teammates(pmfs_df: pd.DataFrame, g_mask: "pd.Series", exclude_pid: int) -> list[dict]:
-    """Build roster dict list for UTM.redistribute()."""
-    game_df = pmfs_df[g_mask]
-    pts_rows = game_df[game_df["stat"] == "pts"]
-    roster = []
-    for _, row in pts_rows.iterrows():
-        pid = int(row["player_id"])
-        if pid == exclude_pid:
-            continue
-        roster.append({
-            "player_id": pid,
-            "projected_minutes": float(row.get("minutes_mean") or 0.0),
-        })
-    return roster
-
-
-def _apply_utm_to_df(
+def _attach_availability_columns(
     pmfs_df: pd.DataFrame,
-    g_mask: "pd.Series",
-    updated_roster: list[dict],
-    base_mins_map: dict[int, float],
-) -> None:
-    """Write UTM-boosted minutes back into the DataFrame."""
-    for p in updated_roster:
-        pid = int(p["player_id"])
-        new_mins = float(p.get("projected_minutes") or 0.0)
-        old_mins = base_mins_map.get(pid, new_mins)
-        p_mask = g_mask & (pmfs_df["player_id"] == pid)
-        if not p_mask.any():
-            continue
-        pmfs_df.loc[p_mask, "minutes_mean"] = new_mins
-        if old_mins > 0 and new_mins != old_mins:
-            scale = new_mins / old_mins
-            for col in ["stat_mean", "pmf_mean", "mean"]:
-                if col in pmfs_df.columns:
-                    pmfs_df.loc[p_mask, col] = pmfs_df.loc[p_mask, col] * scale
+    availability: pd.DataFrame,
+) -> pd.DataFrame:
+    """Attach availability metadata columns to the PMF DataFrame."""
+    if availability.empty:
+        return pmfs_df
 
-
-def _build_gtd_scenario(
-    pid: int,
-    base_mins: float,
-    pmfs_df: pd.DataFrame,
-    p_mask: "pd.Series",
-    inj: dict,
-    utm,
-    game_id: int,
-    game_df: pd.DataFrame,
-) -> dict:
-    """Build a GTD dual-scenario record per blueprint §5.3."""
-    # Scenario IN: no change to player's projections
-    scenario_in_pts = float(pmfs_df.loc[p_mask & (pmfs_df["stat"] == "pts"), "pmf_mean"].mean())
-
-    # Scenario OUT: player is removed, UTM redistributed
-    teammates = _get_teammates(pmfs_df, pmfs_df["game_id"] == game_id, pid)
-    updated_roster, transfer_report = utm.redistribute(
-        roster=teammates, out_player_ids=[pid], out_minutes_dict={pid: base_mins}
+    avail_cols = [
+        "player_id", "game_id",
+        "normalized_availability_status",
+        "availability_probability",
+        "is_confirmed_inactive",
+        "is_market_actionable",
+    ]
+    avail_sub = availability[[c for c in avail_cols if c in availability.columns]].copy()
+    avail_sub = avail_sub.rename(
+        columns={"normalized_availability_status": "availability_status"}
     )
 
-    teammate_impact = {}
-    for t in updated_roster:
-        tpid = t["player_id"]
-        old_mins = next((x.get("projected_minutes", 0.0) for x in teammates if x["player_id"] == tpid), 0.0)
-        delta = t.get("projected_minutes", 0.0) - old_mins
-        if abs(delta) > 0.5:
-            t_name_row = pmfs_df[(pmfs_df["player_id"] == tpid) & (pmfs_df["stat"] == "pts")]
-            t_name = str(t_name_row.iloc[0]["player_name"]) if not t_name_row.empty else str(tpid)
-            pts_per_min = float(t_name_row.iloc[0]["pmf_mean"] / max(old_mins, 1e-3)) if not t_name_row.empty else 0.0
-            teammate_impact[f"player_{tpid}"] = {
-                "player_name": t_name,
-                "added_minutes": round(delta, 1),
-                "points_boost": round(delta * pts_per_min, 1),
-            }
+    # Drop existing availability columns to avoid duplicates
+    drop_cols = [
+        c for c in avail_sub.columns
+        if c not in ("player_id", "game_id") and c in pmfs_df.columns
+    ]
+    pmfs_df = pmfs_df.drop(columns=drop_cols, errors="ignore")
+
+    merged = pmfs_df.merge(avail_sub, on=["player_id", "game_id"], how="left")
+
+    # Default: available for players not in availability table
+    if "availability_status" in merged.columns:
+        merged["availability_status"] = merged["availability_status"].fillna("AVAILABLE")
+    if "availability_probability" in merged.columns:
+        merged["availability_probability"] = merged["availability_probability"].fillna(1.0)
+    if "is_confirmed_inactive" in merged.columns:
+        merged["is_confirmed_inactive"] = merged["is_confirmed_inactive"].fillna(False)
+    if "is_market_actionable" in merged.columns:
+        merged["is_market_actionable"] = merged["is_market_actionable"].fillna(True)
+
+    return merged
+
+
+def _verify_pmf_rebuild(
+    pmfs_before: pd.DataFrame,
+    pmfs_after: pd.DataFrame,
+    affected_player_ids: set[int],
+    availability: pd.DataFrame,
+) -> None:
+    """Log warnings if a material adjustment did not change pmf_json."""
+    if "pmf_json" not in pmfs_before.columns or "pmf_json" not in pmfs_after.columns:
+        return
+
+    before_idx = pmfs_before.set_index(["player_id", "game_id", "stat"])["pmf_json"]
+    after_idx  = pmfs_after.set_index(["player_id", "game_id", "stat"])["pmf_json"]
+
+    avail_lu = (
+        availability
+        .set_index("player_id")[["minutes_multiplier", "is_confirmed_inactive"]]
+        .to_dict("index")
+    ) if not availability.empty else {}
+
+    n_checked = 0
+    n_unchanged = 0
+    unchanged_examples: list[str] = []
+
+    for pid in affected_player_ids:
+        info = avail_lu.get(int(pid), {})
+        mult = float(info.get("minutes_multiplier", 1.0))
+        is_inactive = bool(info.get("is_confirmed_inactive", False))
+
+        # Skip dual-scenario (GTD) and unchanged players
+        if mult == -1.0 or mult == 1.0:
+            continue
+
+        keys_before = [(idx, gid, stat) for idx, gid, stat in before_idx.index if idx == pid]
+        for key in keys_before:
+            if key not in after_idx.index:
+                continue
+            old_j = str(before_idx.loc[key])
+            new_j = str(after_idx.loc[key])
+            n_checked += 1
+            if old_j == new_j and not is_inactive:
+                n_unchanged += 1
+                if len(unchanged_examples) < 3:
+                    unchanged_examples.append(
+                        f"player_id={key[0]} game={key[1]} stat={key[2]}"
+                    )
+
+    if n_unchanged > 0:
+        logger.warning(
+            "[apply_injury] %d / %d material adjustments did not change pmf_json "
+            "(examples: %s) — verify PMF rebuild is working correctly",
+            n_unchanged, n_checked, unchanged_examples,
+        )
+    else:
+        logger.info(
+            "[apply_injury] PMF rebuild verified: all %d checked rows changed pmf_json",
+            n_checked,
+        )
+
+
+def _print_dry_run_summary(
+    availability: pd.DataFrame,
+    feature_df: pd.DataFrame,
+) -> None:
+    """Print a dry-run summary of what would change."""
+    typer.echo("\n[DRY RUN] Injury adjustment summary:")
+    typer.echo(f"  Total players: {len(availability):,}")
+    typer.echo(
+        f"  Confirmed inactive: {availability['is_confirmed_inactive'].sum()}"
+    )
+
+    non_trivial = availability[
+        availability["minutes_multiplier"].between(0.01, 0.99)
+    ]
+    if not non_trivial.empty:
+        typer.echo("  Partial availability:")
+        for _, row in non_trivial.iterrows():
+            mins_col = next(
+                (c for c in ["player_minutes_mean_l5", "player_minutes_mean_season"]
+                 if c in feature_df.columns),
+                None,
+            )
+            base_mins = (
+                float(feature_df.loc[
+                    feature_df["player_id"] == row["player_id"],
+                    mins_col
+                ].mean())
+                if mins_col else float("nan")
+            )
+            new_mins = base_mins * float(row["minutes_multiplier"])
+            typer.echo(
+                f"    player_id={row['player_id']} "
+                f"status={row['raw_injury_status']} "
+                f"multiplier={row['minutes_multiplier']:.2f} "
+                f"mins {base_mins:.1f}→{new_mins:.1f}"
+            )
+
+
+def _build_impact_report(
+    availability: pd.DataFrame,
+    before_after: pd.DataFrame,
+    game_date: str,
+) -> dict:
+    adjustments = []
+    for _, row in availability.iterrows():
+        if row["minutes_multiplier"] == 1.0 and not row["is_confirmed_inactive"]:
+            continue
+        adjustments.append({
+            "player_id": int(row["player_id"]),
+            "raw_injury_status": row["raw_injury_status"],
+            "availability_probability": float(row["availability_probability"]),
+            "minutes_multiplier": float(row["minutes_multiplier"]),
+            "is_confirmed_inactive": bool(row["is_confirmed_inactive"]),
+            "is_market_actionable": bool(row["is_market_actionable"]),
+        })
+
+    pmf_changes = []
+    if not before_after.empty:
+        for _, row in before_after.iterrows():
+            if abs(float(row.get("pmf_mean_before", 0)) - float(row.get("pmf_mean_after", 0))) < 1e-6:
+                continue
+            pmf_changes.append({
+                "player_id": int(row["player_id"]),
+                "player_name": str(row.get("player_name", row["player_id"])),
+                "stat": str(row["stat"]),
+                "pmf_mean_before": float(row.get("pmf_mean_before", float("nan"))),
+                "pmf_mean_after": float(row.get("pmf_mean_after", float("nan"))),
+                "p_over_before": float(row.get("P(over)_before", float("nan"))),
+                "p_over_after": float(row.get("P(over)_after", float("nan"))),
+            })
 
     return {
-        "player_id": pid,
-        "player_name": inj.get("player_name", str(pid)),
-        "injury_status": "GTD",
-        "comment": inj.get("comment", ""),
-        "scenario_in": {
-            "projected_minutes": {"mean": round(base_mins, 1)},
-            "stat_projections": {"points": {"mean": round(scenario_in_pts, 1)}},
-            "teammate_impact": None,
-        },
-        "scenario_out": {
-            "projected_minutes": {"mean": 0.0},
-            "stat_projections": {"points": {"mean": 0.0}},
-            "teammate_impact": teammate_impact,
-        },
-        "official_status_pending": True,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "game_date": game_date,
+        "players_adjusted": len(adjustments),
+        "pmf_rows_changed": len(pmf_changes),
+        "adjustments": adjustments,
+        "pmf_changes": pmf_changes,
     }
 
 

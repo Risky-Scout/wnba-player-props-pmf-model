@@ -188,6 +188,31 @@ def build_all_pmfs(
             import warnings as _w
             _w.warn(f"minutes_correction.correct() failed: {_mc_exc}; using raw predictions", stacklevel=2)
 
+    # Injury minutes override: if ``_injury_minutes_multiplier`` column is
+    # present in wide_df, apply it AFTER model prediction and corrections.
+    # This ensures PMFs for injured players are built from the correct
+    # expected minutes rather than just scaling post-hoc means.
+    # Multiplier = 0.0 → OUT player (p_dnp forced to 1.0, minutes forced to 0).
+    # Multiplier in (0, 1) → partial availability (questionable/probable).
+    # Multiplier > 1.0 → teammate receiving redistributed minutes.
+    if "_injury_minutes_multiplier" in wide_df.columns:
+        _mult = wide_df["_injury_minutes_multiplier"].fillna(1.0).values.astype(float)
+        _changed = _mult != 1.0
+        if _changed.any():
+            min_means  = min_means * _mult
+            min_sigmas = min_sigmas * np.clip(_mult, 0.0, None)
+            # OUT players (mult==0): force p_dnp=1.0 so DNP blending zeroes the PMF
+            _is_out = _mult <= 0.0
+            p_dnp = np.where(_is_out, 1.0, p_dnp)
+            import logging as _log_inj  # noqa: PLC0415
+            _log_inj.getLogger(__name__).info(
+                "[pmf_engine] _injury_minutes_multiplier applied to %d / %d rows "
+                "(%d OUT, %d partial)",
+                int(_changed.sum()), len(_mult),
+                int(_is_out.sum()),
+                int((_changed & ~_is_out).sum()),
+            )
+
     wide_with_min = wide_df.assign(
         minutes_mean=min_means,
         minutes_sigma=min_sigmas,
