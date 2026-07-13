@@ -594,7 +594,10 @@ def write_delivery(
     out.mkdir(parents=True, exist_ok=True)
 
     # Canonical pmf_mean recompute — prevents stale zeros from reaching the artifact.
+    print(f"[write_delivery] Running pmf_mean recompute on {len(pmfs)} rows", flush=True)
     pmfs = _recompute_pmf_mean(pmfs)
+    _zero_after = int((pmfs["pmf_mean"] == 0).sum()) if "pmf_mean" in pmfs.columns else -1
+    print(f"[write_delivery] pmf_mean=0 count after recompute: {_zero_after}", flush=True)
 
     full = add_pge_ladder(pmfs)
     # Final safety net: fix any remaining pmf_mean=0 where pmf_mean_full_precision > 0.
