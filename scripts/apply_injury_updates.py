@@ -172,6 +172,16 @@ def main(
                         if col in pmfs_df.columns:
                             pmfs_df.loc[p_mask, col] = pmfs_df.loc[p_mask, col] * scale
 
+                    # When scale == 0 (player is OUT), keep pmf_json consistent
+                    # with pmf_mean by collapsing the PMF to a Dirac at 0.
+                    # This prevents pmf_mean=0 / pmf_json=non-zero inconsistency.
+                    if scale == 0.0 and "pmf_json" in pmfs_df.columns:
+                        import json as _json  # noqa: PLC0415
+                        _zero_pmf = _json.dumps({"0": 1.0})
+                        pmfs_df.loc[p_mask, "pmf_json"] = _zero_pmf
+                        if "pmf_mean_full_precision" in pmfs_df.columns:
+                            pmfs_df.loc[p_mask, "pmf_mean_full_precision"] = 0.0
+
             # UTM redistribution for freed-up minutes
             if delta_mins > 0:
                 teammates = _get_teammates(pmfs_df, g_mask, pid)
@@ -201,6 +211,15 @@ def main(
     out_path.mkdir(parents=True, exist_ok=True)
 
     if not dry_run:
+        # Drop rows for players who are fully OUT (pmf_mean == 0 after scaling).
+        # Out players have no signal for the board; keeping them would produce
+        # zero-mean rows that fail integrity checks.
+        _before = len(pmfs_df)
+        if "pmf_mean" in pmfs_df.columns:
+            pmfs_df = pmfs_df[pmfs_df["pmf_mean"].fillna(0) > 0].copy()
+        _dropped = _before - len(pmfs_df)
+        if _dropped:
+            typer.echo(f"Dropped {_dropped} zero-mean rows (OUT players) from slate")
         pmfs_df.to_parquet(slate_path, index=False)
         typer.echo(f"Updated slate written → {slate_path}")
 
