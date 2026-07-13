@@ -147,10 +147,14 @@ def test_historical_minutes_features_are_not_mutated():
 
 
 def test_questionable_multiplier_is_applied_exactly_once():
-    """For a deterministic 30-min baseline and multiplier=0.50, final mean must be 15.
+    """Blocker 1: For a questionable player, p_active=0.50 must NOT be baked into
+    _injury_minutes_multiplier (cond_mult). The conditional PMF is for participation only.
 
-    Correct: pmf_engine applies 0.50 once to model output → 30 * 0.50 = 15.
-    Wrong (double): feature scaled to 15 → model output ~15 → pmf_engine applies 0.50 → ~7.5.
+    Correct (Blocker 1):
+      _injury_minutes_multiplier = cond_mult = 1.0  (PMF engine applies 1× to baseline)
+      availability_probability = 0.50               (carried separately for market/settlement)
+    Wrong (old behavior):
+      _injury_minutes_multiplier = p_active * cond_mult = 0.50 (halves the conditional PMF)
     """
     ip = _get_pipeline()
     feature_df = _make_feature_df()  # pid=102 has 25 min baseline
@@ -168,18 +172,28 @@ def test_questionable_multiplier_is_applied_exactly_once():
         f"Historical feature must be unchanged: orig={orig_mins}, adj={feat_mins}"
     )
 
-    # Step 2: effective multiplier is exactly 0.50 (applied once by pmf_engine)
+    # Step 2 (Blocker 1): _injury_minutes_multiplier = cond_mult = 1.0 for questionable.
+    # p_active is NOT baked in here; it goes to availability_probability.
     mult = float(p102["_injury_minutes_multiplier"].values[0])
-    assert abs(mult - 0.50) < 1e-9, f"Questionable multiplier must be 0.50, got {mult}"
+    assert abs(mult - 1.0) < 1e-9, (
+        f"[Blocker 1] _injury_minutes_multiplier for questionable must be cond_mult=1.0, "
+        f"got {mult}. p_active (0.50) must NOT be multiplied into conditional minutes."
+    )
 
-    # Step 3: adjusted_projected_minutes = orig * 0.50 (for traceability only)
+    # Step 2b: availability_probability carries p_active=0.50 separately
+    avail_prob = float(p102["availability_probability"].values[0])
+    assert abs(avail_prob - 0.50) < 1e-9, (
+        f"availability_probability for questionable must be 0.50, got {avail_prob}"
+    )
+
+    # Step 3: adjusted_projected_minutes = orig * p_active * cond_mult = orig * 0.50 (display)
     adj_mins = float(p102["adjusted_projected_minutes"].values[0])
     expected = orig_mins * 0.50
     assert abs(adj_mins - expected) < 1e-6, (
         f"adjusted_projected_minutes = {adj_mins}, expected {expected} (orig={orig_mins} × 0.50)"
     )
 
-    # Step 4: freed_minutes = orig * 0.50 (not passed to UTM as out_minutes)
+    # Step 4: freed_minutes = orig * p_active * cond_mult = orig * 0.50
     freed = float(p102["freed_minutes"].values[0])
     assert abs(freed - orig_mins * 0.50) < 1e-6, (
         f"freed_minutes = {freed}, expected {orig_mins * 0.50}"
@@ -187,7 +201,15 @@ def test_questionable_multiplier_is_applied_exactly_once():
 
 
 def test_probable_multiplier_is_applied_exactly_once():
-    """For a 32-min baseline and multiplier=0.85, final conditional mean must be 32*0.85=27.2."""
+    """Blocker 1: For a probable player, p_active=0.85 must NOT be baked into
+    _injury_minutes_multiplier (cond_mult). The conditional PMF is for participation only.
+
+    Correct (Blocker 1):
+      _injury_minutes_multiplier = cond_mult = 1.0  (PMF engine applies 1× to baseline)
+      availability_probability = 0.85               (carried separately for market/settlement)
+    Wrong (old behavior):
+      _injury_minutes_multiplier = p_active * cond_mult = 0.85 (scales the conditional PMF)
+    """
     ip = _get_pipeline()
     feature_df = _make_feature_df()  # pid=103 has 32 min baseline
 
@@ -203,8 +225,18 @@ def test_probable_multiplier_is_applied_exactly_once():
         f"Historical feature unchanged: orig={orig_mins}, adj={feat_mins}"
     )
 
+    # Blocker 1: _injury_minutes_multiplier = cond_mult = 1.0 for probable
     mult = float(p103["_injury_minutes_multiplier"].values[0])
-    assert abs(mult - 0.85) < 1e-9, f"Probable multiplier must be 0.85, got {mult}"
+    assert abs(mult - 1.0) < 1e-9, (
+        f"[Blocker 1] _injury_minutes_multiplier for probable must be cond_mult=1.0, "
+        f"got {mult}. p_active (0.85) must NOT be multiplied into conditional minutes."
+    )
+
+    # availability_probability carries p_active=0.85 separately
+    avail_prob = float(p103["availability_probability"].values[0])
+    assert abs(avail_prob - 0.85) < 1e-9, (
+        f"availability_probability for probable must be 0.85, got {avail_prob}"
+    )
 
     adj_mins = float(p103["adjusted_projected_minutes"].values[0])
     expected = orig_mins * 0.85
@@ -584,10 +616,19 @@ def test_real_integration_path_contract():
     out = adj[adj["player_id"] == 100]
     assert abs(float(out["_injury_minutes_multiplier"].values[0])) < 1e-9
 
-    # Partial players not treated as fully out
+    # Blocker 1: Partial players (questionable/probable) have cond_mult=1.0 in
+    # _injury_minutes_multiplier. p_active is in availability_probability, NOT mixed in.
     for pid in [102, 103]:
         part = adj[adj["player_id"] == pid]
         mult = float(part["_injury_minutes_multiplier"].values[0])
-        assert 0 < mult < 1.0, (
-            f"Partial-status player {pid} must have 0 < multiplier < 1.0, got {mult}"
+        avail_p = float(part["availability_probability"].values[0])
+        # cond_mult=1.0 (conditional PMF conditional on participation)
+        assert abs(mult - 1.0) < 1e-9, (
+            f"[Blocker 1] _injury_minutes_multiplier for partial-status pid={pid} "
+            f"must be cond_mult=1.0, got {mult}"
+        )
+        # availability_probability is < 1.0 (not full certainty)
+        assert 0 < avail_p < 1.0, (
+            f"availability_probability for partial-status pid={pid} must be in (0,1), "
+            f"got {avail_p}"
         )

@@ -34,18 +34,161 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Blocker 4 — Injury fetch result contract
+# ---------------------------------------------------------------------------
+
+@dataclass
+class InjuryFetchResult:
+    """Explicit result object for BDL injury data fetches.
+
+    status values:
+      "SUCCESS_WITH_ROWS" — HTTP 200, validated data array with records
+      "SUCCESS_EMPTY"     — HTTP 200, validated data array that is empty
+      "FAILURE"           — any error (missing key, HTTP error, timeout,
+                            malformed response, schema validation failure)
+
+    Only SUCCESS_EMPTY may be treated as "no injuries today".
+    FAILURE must NEVER be silently treated as no injuries.
+    """
+    status: str
+    records: list
+    pulled_at_utc: Optional[datetime]
+    error: Optional[str]
+
+
+def fetch_bdl_injuries(
+    api_key: str,
+    team_ids: list[int],
+    base_url: str = "https://api.balldontlie.io",
+    timeout: int = 20,
+) -> "InjuryFetchResult":
+    """Fetch WNBA player injury records from BDL API.
+
+    Returns an InjuryFetchResult with explicit status:
+      - FAILURE for any error condition (missing key, HTTP error, timeout,
+        malformed response, JSON parse error, schema validation failure)
+      - SUCCESS_EMPTY for a verified HTTP 200 with an empty data array
+      - SUCCESS_WITH_ROWS for a verified HTTP 200 with injury records
+
+    All error conditions are FATAL (status=FAILURE) — the caller must NOT
+    silently treat FAILURE as SUCCESS_EMPTY.
+    """
+    pulled_ts = datetime.now(timezone.utc)
+
+    if not api_key:
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error="BDL_API_KEY is required but was not provided",
+        )
+
+    try:
+        import requests as _requests
+    except ImportError:
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error="requests library is not installed (HTTP dependency missing)",
+        )
+
+    params: dict = {"per_page": 100}
+    for i, tid in enumerate(team_ids):
+        params[f"team_ids[{i}]"] = tid
+    headers = {"Authorization": api_key}
+
+    try:
+        resp = _requests.get(
+            f"{base_url.rstrip('/')}/wnba/v1/player_injuries",
+            params=params,
+            headers=headers,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+    except _requests.exceptions.Timeout as exc:
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error=f"Request timeout: {exc}",
+        )
+    except Exception as exc:
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error=f"HTTP error: {exc}",
+        )
+
+    try:
+        data = resp.json()
+    except Exception as exc:
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error=f"JSON parsing failure: {exc}",
+        )
+
+    if not isinstance(data, dict) or "data" not in data:
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error=(
+                f"Schema validation failure: response missing 'data' key. "
+                f"Got type={type(data).__name__}"
+            ),
+        )
+
+    raw = data["data"]
+    if not isinstance(raw, list):
+        return InjuryFetchResult(
+            status="FAILURE",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error=(
+                f"Schema validation failure: 'data' must be a list, "
+                f"got type={type(raw).__name__}"
+            ),
+        )
+
+    if len(raw) == 0:
+        return InjuryFetchResult(
+            status="SUCCESS_EMPTY",
+            records=[],
+            pulled_at_utc=pulled_ts,
+            error=None,
+        )
+
+    return InjuryFetchResult(
+        status="SUCCESS_WITH_ROWS",
+        records=raw,
+        pulled_at_utc=pulled_ts,
+        error=None,
+    )
+
 # ---------------------------------------------------------------------------
 # Status → availability configuration (blueprint Table 5.1)
 # ---------------------------------------------------------------------------
+#
+# Blocker 1: Status-to-probability mappings are defined in
+#   config/injury_status_config.yaml
+# and loaded/validated at import time.  The hard-coded fallback below is used
+# when the config file is absent (e.g. in tests without a repo root).
 #
 # Each entry defines:
 #   p_active: float — P(player participates in this game)
@@ -53,36 +196,73 @@ logger = logging.getLogger(__name__)
 #   cond_mult: float — expected minutes fraction GIVEN active
 #   cond_cap: float | None — hard minutes cap when active (None = no cap)
 #
-# Effective minutes multiplier for the PMF engine:
-#   p_active * cond_mult
-#
-# These values are the canonical configuration for status → probability
-# mappings.  Do NOT invent unsupported numerical mappings outside this table.
+# NOTE (Blocker 1): the PMF engine applies ONLY cond_mult to the conditional
+# distribution.  p_active is carried separately as availability_probability.
+# Do NOT compute the PMF engine multiplier as p_active * cond_mult.
 #
 # GTD (game-time decision): dual-scenario handling is NOT currently
 # implemented.  GTD is treated as a fallback to questionable (P(active)=0.50)
 # until a full dual-scenario implementation is delivered.  Do not claim
 # "dual scenario" in comments or documentation without generating two scenarios.
-STATUS_CONFIG: dict[str, dict] = {
+
+_STATUS_CONFIG_FALLBACK: dict[str, dict] = {
     "out":                {"p_active": 0.0,  "p_starter_if_active": 0.0,  "cond_mult": 0.0,  "cond_cap": 0.0},
     "inactive":           {"p_active": 0.0,  "p_starter_if_active": 0.0,  "cond_mult": 0.0,  "cond_cap": 0.0},
     "dnp":                {"p_active": 0.0,  "p_starter_if_active": 0.0,  "cond_mult": 0.0,  "cond_cap": 0.0},
-    # doubtful/unlikely: low but non-zero participation probability.
-    # Must NOT be auto-confirmed as OUT.
     "doubtful":           {"p_active": 0.15, "p_starter_if_active": 0.10, "cond_mult": 1.0,  "cond_cap": None},
     "unlikely":           {"p_active": 0.15, "p_starter_if_active": 0.10, "cond_mult": 1.0,  "cond_cap": None},
     "questionable":       {"p_active": 0.50, "p_starter_if_active": 0.40, "cond_mult": 1.0,  "cond_cap": None},
     "probable":           {"p_active": 0.85, "p_starter_if_active": 0.80, "cond_mult": 1.0,  "cond_cap": None},
-    # limited: will participate but with restricted minutes
     "limited":            {"p_active": 1.0,  "p_starter_if_active": 1.0,  "cond_mult": 0.65, "cond_cap": 20.0},
-    # GTD fallback: treated as questionable pending dual-scenario implementation
     "gtd":                {"p_active": 0.50, "p_starter_if_active": 0.40, "cond_mult": 1.0,  "cond_cap": None},
     "game-time decision": {"p_active": 0.50, "p_starter_if_active": 0.40, "cond_mult": 1.0,  "cond_cap": None},
     "available":          {"p_active": 1.0,  "p_starter_if_active": 1.0,  "cond_mult": 1.0,  "cond_cap": None},
     "active":             {"p_active": 1.0,  "p_starter_if_active": 1.0,  "cond_mult": 1.0,  "cond_cap": None},
 }
 
+
+def _load_status_config() -> dict[str, dict]:
+    """Load and validate status config from YAML; fall back to hard-coded defaults."""
+    _config_candidates = [
+        Path(__file__).parent.parent.parent.parent / "config" / "injury_status_config.yaml",
+        Path("config/injury_status_config.yaml"),
+    ]
+    for _cfg_path in _config_candidates:
+        if _cfg_path.exists():
+            try:
+                import yaml  # noqa: PLC0415
+                raw = yaml.safe_load(_cfg_path.read_text())
+                statuses = raw.get("statuses", {})
+                # Validate each entry has required keys
+                validated: dict[str, dict] = {}
+                for status_key, entry in statuses.items():
+                    if not isinstance(entry, dict):
+                        continue
+                    validated[str(status_key).lower()] = {
+                        "p_active":            float(entry.get("p_active", 1.0)),
+                        "p_starter_if_active": float(entry.get("p_starter_if_active", 1.0)),
+                        "cond_mult":           float(entry.get("cond_mult", 1.0)),
+                        "cond_cap":            float(entry["cond_cap"]) if entry.get("cond_cap") is not None else None,
+                    }
+                if validated:
+                    logger.debug(
+                        "[injury_pipeline] Loaded %d status configs from %s",
+                        len(validated), _cfg_path,
+                    )
+                    return validated
+            except Exception as _exc:
+                logger.warning(
+                    "[injury_pipeline] Could not load %s: %s — using hard-coded fallback",
+                    _cfg_path, _exc,
+                )
+    return dict(_STATUS_CONFIG_FALLBACK)
+
+
+STATUS_CONFIG: dict[str, dict] = _load_status_config()
+
 # Backward-compatible effective multiplier lookup (p_active * cond_mult).
+# NOTE: the PMF engine must use cond_mult (not this multiplier) for the
+# conditional distribution. This is for backward compatibility / display only.
 STATUS_MINUTES_MULTIPLIER: dict[str, float] = {
     k: v["p_active"] * v["cond_mult"] for k, v in STATUS_CONFIG.items()
 }
@@ -171,8 +351,8 @@ def build_availability_table(
     fallback to questionable (P(active)=0.50) pending dual-scenario support.
     """
     pulled_ts = datetime.now(timezone.utc).isoformat()
-    # Use the actual source timestamp from the feed; fall back only when absent.
-    source_ts = source_updated_at if source_updated_at is not None else pulled_ts
+    # Snapshot-level source timestamp: used as fallback when a record lacks its own.
+    snapshot_source_ts = source_updated_at if source_updated_at is not None else pulled_ts
 
     # Build a player_id → injury dict lookup (last record wins if duplicates)
     inj_by_pid: dict[int, dict] = {}
@@ -209,7 +389,9 @@ def build_availability_table(
         rec = inj_by_pid.get(pid)
 
         if rec is None:
-            # No injury record → fully available
+            # No injury record → fully available.
+            # source_updated_at for uninjured players is the snapshot timestamp
+            # (pulled_at_utc), stored separately from per-record source timestamps.
             rows.append({
                 "game_id":                       gid,
                 "player_id":                     pid,
@@ -223,7 +405,9 @@ def build_availability_table(
                 "minutes_cap":                    None,
                 "is_confirmed_inactive":          False,
                 "is_market_actionable":           True,
-                "source_updated_at":              source_ts,
+                # Blocker 5: for players without an injury record, source_updated_at
+                # is the snapshot time (pulled_at_utc), NOT a per-record timestamp.
+                "source_updated_at":              pulled_ts,
                 "pulled_at_utc":                  pulled_ts,
             })
             continue
@@ -237,7 +421,9 @@ def build_availability_table(
         cond_mult  = float(cfg["cond_mult"])
         cond_cap   = cfg["cond_cap"]
 
-        # Effective multiplier for the PMF engine (applied once after baseline model)
+        # Effective multiplier for backward-compat display (p_active * cond_mult).
+        # NOTE: the PMF engine uses ONLY cond_mult via _injury_minutes_multiplier.
+        # availability_probability (p_active) is carried separately.
         effective_mult = p_active * cond_mult
 
         # A player is confirmed inactive ONLY when their status is an explicit
@@ -247,6 +433,11 @@ def build_availability_table(
             and p_active <= INACTIVE_THRESHOLD
         )
         is_actionable = not is_inactive
+
+        # Blocker 5: use the per-record source_updated_at when available,
+        # fall back to snapshot-level timestamp only when absent.
+        rec_source_ts = rec.get("source_updated_at")
+        row_source_ts = str(rec_source_ts) if rec_source_ts else snapshot_source_ts
 
         rows.append({
             "game_id":                       gid,
@@ -261,7 +452,7 @@ def build_availability_table(
             "minutes_cap":                    float(cond_cap) if cond_cap is not None else None,
             "is_confirmed_inactive":          bool(is_inactive),
             "is_market_actionable":           bool(is_actionable),
-            "source_updated_at":              source_ts,
+            "source_updated_at":              row_source_ts,
             "pulled_at_utc":                  pulled_ts,
         })
 
@@ -316,9 +507,12 @@ def apply_injury_to_feature_df(
     df = feature_df.copy()
 
     # Scenario input columns — historical _MINUTES_FEATURE_COLS are NOT touched
+    # Blocker 1: _injury_minutes_multiplier = cond_mult ONLY (not p_active * cond_mult)
+    # availability_probability (p_active) is carried in its own column.
     df["_injury_minutes_multiplier"]    = 1.0
     df["conditional_minutes_multiplier"] = 1.0
     df["conditional_minutes_cap"]       = np.nan
+    df["availability_probability"]      = 1.0   # Blocker 1: separate from multiplier
     df["original_projected_minutes"]    = np.nan
     df["adjusted_projected_minutes"]    = np.nan
     df["freed_minutes"]                 = 0.0
@@ -346,28 +540,53 @@ def apply_injury_to_feature_df(
             except KeyError:
                 continue
 
-            effective_mult = float(avail["minutes_multiplier"])
-            cond_mult      = float(avail.get("conditional_minutes_multiplier", effective_mult))
+            # Blocker 1: separate availability_probability (p_active) from
+            # conditional_minutes_multiplier (cond_mult).
+            # _injury_minutes_multiplier = cond_mult ONLY — the PMF engine applies
+            # this conditional on the player participating.
+            # availability_probability is carried separately for market/settlement.
+            p_active_val   = float(avail.get("availability_probability", 1.0))
+            cond_mult      = float(avail.get("conditional_minutes_multiplier", 1.0))
             cond_cap_val   = avail.get("conditional_minutes_cap")
             is_inactive    = bool(avail["is_confirmed_inactive"])
 
-            if effective_mult == 1.0 and not is_inactive:
-                continue  # no adjustment needed
+            # Effective multiplier for traceability (p_active * cond_mult)
+            effective_mult_display = p_active_val * cond_mult
+
+            # Determine if any update is needed:
+            # - cond_mult != 1.0 (actual conditional minutes scaling)
+            # - is_inactive (confirmed OUT player)
+            # - p_active != 1.0 (partial availability to track separately)
+            needs_cond_scaling = abs(cond_mult - 1.0) > 1e-9
+            needs_any_update   = needs_cond_scaling or is_inactive or abs(p_active_val - 1.0) > 1e-9
+
+            if not needs_any_update:
+                continue  # fully available — defaults are correct
 
             p_mask = g_mask & (df["player_id"] == pid)
 
-            # Set scenario columns; do NOT modify historical minutes features
-            df.loc[p_mask, "_injury_minutes_multiplier"]    = effective_mult
+            # Blocker 1: set _injury_minutes_multiplier = cond_mult (NOT p_active * cond_mult)
+            # The PMF engine applies this to the conditional distribution.
+            df.loc[p_mask, "_injury_minutes_multiplier"]    = cond_mult
             df.loc[p_mask, "conditional_minutes_multiplier"] = cond_mult
-            df.loc[p_mask, "is_confirmed_inactive"]         = is_inactive
+            df.loc[p_mask, "availability_probability"]       = p_active_val
+            df.loc[p_mask, "is_confirmed_inactive"]          = is_inactive
 
+            # Blocker 2: store cap so PMF engine can apply it to the full distribution
             if cond_cap_val is not None and not (isinstance(cond_cap_val, float) and np.isnan(cond_cap_val)):
                 df.loc[p_mask, "conditional_minutes_cap"] = float(cond_cap_val)
 
-            # Record original/adjusted/freed for traceability and UTM input
+            # Record original/adjusted/freed for traceability and UTM input.
+            # adjusted_projected_minutes = expected minutes (p_active * cond_mult * orig),
+            # then capped by conditional_minutes_cap when applicable.
             orig_mins = float(row.get(min_col, 0) or 0) if min_col else 0.0
-            adj_mins  = orig_mins * effective_mult
-            freed     = orig_mins - adj_mins
+            adj_mins  = orig_mins * effective_mult_display
+
+            # Blocker 2: apply cap to adjusted_projected_minutes for traceability
+            if cond_cap_val is not None and not (isinstance(cond_cap_val, float) and np.isnan(cond_cap_val)):
+                adj_mins = min(adj_mins, float(cond_cap_val))
+
+            freed = orig_mins - adj_mins
 
             df.loc[p_mask, "original_projected_minutes"]  = orig_mins
             df.loc[p_mask, "adjusted_projected_minutes"]  = adj_mins
@@ -375,7 +594,7 @@ def apply_injury_to_feature_df(
 
             # Only confirmed-inactive (OUT/DNP/INACTIVE) players with p_active=0
             # are eligible for full UTM redistribution.
-            if is_inactive and effective_mult == 0.0:
+            if is_inactive and cond_mult == 0.0:
                 confirmed_inactive_out_minutes[pid] = orig_mins
 
         # UTM redistribution for confirmed-inactive players only
@@ -593,11 +812,32 @@ def rebuild_affected_pmfs(
 def rebuild_combos_for_affected(
     full_pmfs_with_new_atoms: pd.DataFrame,
     affected_player_ids: set[int],
+    model_dir: "str | Path | None" = None,
+    corr_map_by_pos: "dict | None" = None,
 ) -> pd.DataFrame:
     """Rebuild combo PMF rows for affected players.
 
     Removes existing combo rows for affected players, then re-convolves
     using the newly rebuilt atom PMFs.
+
+    Blocker 3: Uses the SAME correlation map, position map, and IPF configuration
+    as ordinary live inference.  Pass ``model_dir`` to load
+    ``combo_correlations_by_pos.json`` from the same artifact directory used by
+    ``predict_player_pmfs``.  Alternatively, pass ``corr_map_by_pos`` directly.
+    When neither is provided, falls back to _DEFAULT_CORRELATIONS (same as live
+    inference when the correlations file is absent).
+
+    Parameters
+    ----------
+    full_pmfs_with_new_atoms:
+        Complete PMF DataFrame with updated atom rows for affected players.
+    affected_player_ids:
+        Set of player_ids whose atom PMFs were rebuilt.
+    model_dir:
+        Model artifact directory.  When provided, ``combo_correlations_by_pos.json``
+        is loaded from this directory (same path as live inference).
+    corr_map_by_pos:
+        Position-stratified correlation map to pass directly (overrides model_dir).
 
     Returns
     -------
@@ -611,6 +851,25 @@ def rebuild_combos_for_affected(
     COMBO_STATS = frozenset(
         {"stocks", "pts_ast", "pts_reb", "reb_ast", "pts_reb_ast"}
     )
+
+    # Blocker 3: load the SAME correlation map used by live inference.
+    # Priority: explicit corr_map_by_pos > model_dir file > no map (uses defaults).
+    if corr_map_by_pos is None and model_dir is not None:
+        _corr_path = Path(model_dir) / "combo_correlations_by_pos.json"
+        if _corr_path.exists():
+            try:
+                with open(_corr_path) as _cf:
+                    corr_map_by_pos = json.load(_cf)
+                logger.debug(
+                    "[rebuild_combos_for_affected] Loaded correlation map from %s",
+                    _corr_path,
+                )
+            except Exception as _exc:
+                logger.warning(
+                    "[rebuild_combos_for_affected] Could not load %s: %s — "
+                    "falling back to default correlations",
+                    _corr_path, _exc,
+                )
 
     # Remove old combo rows for affected players
     is_combo = full_pmfs_with_new_atoms["stat"].isin(COMBO_STATS)
@@ -628,7 +887,12 @@ def rebuild_combos_for_affected(
     if affected_atom_pmfs.empty:
         return base_pmfs
 
-    new_combos = _build_combo_pmf_rows(affected_atom_pmfs)
+    # Blocker 3: pass corr_map_by_pos (loaded from model_dir or provided directly)
+    # so the same correlation structure as live inference is used.
+    new_combos = _build_combo_pmf_rows(
+        affected_atom_pmfs,
+        corr_map_by_pos=corr_map_by_pos,
+    )
 
     if new_combos.empty:
         return base_pmfs
@@ -933,6 +1197,81 @@ def verify_artifact_run_id(artifact: dict | str, expected_run_id: str) -> None:
             f"got run_id={actual!r}. "
             "Do not reuse deliveries/tonight from a previous run."
         )
+
+
+# ---------------------------------------------------------------------------
+# Blocker 5 — Per-record timestamp validation
+# ---------------------------------------------------------------------------
+
+def validate_injury_timestamps(
+    availability_table: pd.DataFrame,
+    prediction_timestamp_utc: str,
+    run_time_tolerance_seconds: float = 60.0,
+) -> None:
+    """Validate that all source_updated_at timestamps are valid and ≤ prediction_timestamp_utc.
+
+    Requirements (Blocker 5):
+    - source_updated_at must be parseable as a UTC datetime
+    - source_updated_at must be ≤ prediction_timestamp_utc + tolerance
+    - Future source timestamps are FATAL (indicate a data error)
+    - Malformed timestamps are FATAL
+
+    Parameters
+    ----------
+    availability_table:
+        Output of build_availability_table.  Must have source_updated_at column.
+    prediction_timestamp_utc:
+        ISO timestamp of the pipeline run (e.g. "2026-07-13T12:00:00+00:00").
+    run_time_tolerance_seconds:
+        Allowed tolerance for clock drift between source and pull timestamps.
+
+    Raises
+    ------
+    ValueError
+        If any source_updated_at is malformed or in the future.
+    """
+    if availability_table.empty or "source_updated_at" not in availability_table.columns:
+        return
+
+    try:
+        pred_ts = pd.Timestamp(prediction_timestamp_utc, tz="UTC")
+    except Exception as exc:
+        raise ValueError(
+            f"[validate_injury_timestamps] Malformed prediction_timestamp_utc: "
+            f"{prediction_timestamp_utc!r}. Parse error: {exc}"
+        ) from exc
+
+    tolerance = pd.Timedelta(seconds=run_time_tolerance_seconds)
+
+    for _, row in availability_table.iterrows():
+        ts_raw = row.get("source_updated_at")
+        if ts_raw is None or (isinstance(ts_raw, float) and np.isnan(ts_raw)):
+            continue
+
+        ts_str = str(ts_raw)
+        try:
+            src_ts = pd.to_datetime(ts_str, utc=True)
+        except Exception as exc:
+            raise ValueError(
+                f"[validate_injury_timestamps] FATAL: Malformed source_updated_at "
+                f"for player_id={row.get('player_id', '?')}: {ts_str!r}. "
+                f"Cannot parse as UTC datetime. Error: {exc}"
+            ) from exc
+
+        if pd.isna(src_ts):
+            raise ValueError(
+                f"[validate_injury_timestamps] FATAL: Malformed source_updated_at "
+                f"for player_id={row.get('player_id', '?')}: {ts_str!r}. "
+                "Parsed as NaT (unparseable timestamp)."
+            )
+
+        if src_ts > pred_ts + tolerance:
+            raise ValueError(
+                f"[validate_injury_timestamps] FATAL: source_updated_at={src_ts.isoformat()} "
+                f"is in the future relative to prediction_timestamp_utc={pred_ts.isoformat()} "
+                f"(player_id={row.get('player_id', '?')}, tolerance={run_time_tolerance_seconds}s). "
+                "Future injury timestamps indicate a data error in the source feed."
+            )
 
 
 # ---------------------------------------------------------------------------

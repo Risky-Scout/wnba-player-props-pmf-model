@@ -193,8 +193,10 @@ def build_all_pmfs(
     # This ensures PMFs for injured players are built from the correct
     # expected minutes rather than just scaling post-hoc means.
     # Multiplier = 0.0 → OUT player (p_dnp forced to 1.0, minutes forced to 0).
-    # Multiplier in (0, 1) → partial availability (questionable/probable).
+    # Multiplier in (0, 1) → limited status (reduced conditional minutes).
     # Multiplier > 1.0 → teammate receiving redistributed minutes.
+    # NOTE (Blocker 1): multiplier = cond_mult ONLY; availability_probability is
+    # carried separately and is NOT multiplied into conditional minutes.
     if "_injury_minutes_multiplier" in wide_df.columns:
         _mult = wide_df["_injury_minutes_multiplier"].fillna(1.0).values.astype(float)
         _changed = _mult != 1.0
@@ -212,6 +214,33 @@ def build_all_pmfs(
                 int(_is_out.sum()),
                 int((_changed & ~_is_out).sum()),
             )
+
+    # Blocker 2: apply conditional_minutes_cap to the complete minutes distribution.
+    # The cap is enforced AFTER multiplier application, ensuring the full
+    # distribution (mean, sigma) respects the cap.
+    if "conditional_minutes_cap" in wide_df.columns:
+        _cap_raw = wide_df["conditional_minutes_cap"].values
+        try:
+            _cap = _cap_raw.astype(float)
+        except Exception:
+            _cap = np.full(len(_cap_raw), np.nan, dtype=float)
+        _has_cap = np.isfinite(_cap) & (_cap > 0)
+        if _has_cap.any():
+            _needs_clamp = _has_cap & (min_means > _cap)
+            if _needs_clamp.any():
+                # Compute ratio to proportionally reduce sigma with the cap
+                _cap_ratio = np.where(
+                    _needs_clamp,
+                    _cap / np.maximum(min_means, 1e-9),
+                    1.0,
+                )
+                min_means  = np.where(_needs_clamp, _cap, min_means)
+                min_sigmas = np.where(_needs_clamp, min_sigmas * _cap_ratio, min_sigmas)
+                import logging as _log_cap  # noqa: PLC0415
+                _log_cap.getLogger(__name__).info(
+                    "[pmf_engine] conditional_minutes_cap applied to %d / %d rows",
+                    int(_needs_clamp.sum()), len(_cap),
+                )
 
     wide_with_min = wide_df.assign(
         minutes_mean=min_means,

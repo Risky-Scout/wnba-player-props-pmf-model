@@ -1,0 +1,106 @@
+# Injury status → probability configuration (blueprint §5, Blocker 1)
+#
+# Each entry defines:
+#   p_active            : P(player participates in this game)
+#   p_starter_if_active : P(player starts | active)
+#   cond_mult           : expected minutes fraction GIVEN active (applied to conditional distribution)
+#   cond_cap            : hard minutes cap when active (null = no cap)
+#
+# Design rules (Blocker 1):
+#   - cond_mult is applied by the PMF engine to the conditional minutes distribution.
+#   - p_active is carried separately as availability_probability.
+#   - Do NOT multiply conditional minutes by p_active.
+#   - Only confirmed-inactive players (out/inactive/dnp) get is_confirmed_inactive=True.
+#
+# GTD (game-time decision): treated as questionable fallback (p_active=0.50)
+# pending a full dual-scenario implementation. Do not claim "dual scenario"
+# without generating two separate scenarios.
+#
+# This file is the canonical source for status → probability mappings.
+# Do NOT hardcode numerical mappings in production code outside this file.
+
+statuses:
+  out:
+    p_active: 0.0
+    p_starter_if_active: 0.0
+    cond_mult: 0.0
+    cond_cap: 0.0
+
+  inactive:
+    p_active: 0.0
+    p_starter_if_active: 0.0
+    cond_mult: 0.0
+    cond_cap: 0.0
+
+  dnp:
+    p_active: 0.0
+    p_starter_if_active: 0.0
+    cond_mult: 0.0
+    cond_cap: 0.0
+
+  # doubtful/unlikely: low but non-zero participation probability.
+  # Must NOT be auto-confirmed as OUT (is_confirmed_inactive=False).
+  doubtful:
+    p_active: 0.15
+    p_starter_if_active: 0.10
+    cond_mult: 1.0
+    cond_cap: null
+
+  unlikely:
+    p_active: 0.15
+    p_starter_if_active: 0.10
+    cond_mult: 1.0
+    cond_cap: null
+
+  questionable:
+    p_active: 0.50
+    p_starter_if_active: 0.40
+    cond_mult: 1.0
+    cond_cap: null
+
+  probable:
+    p_active: 0.85
+    p_starter_if_active: 0.80
+    cond_mult: 1.0
+    cond_cap: null
+
+  # limited: participates but with restricted minutes
+  limited:
+    p_active: 1.0
+    p_starter_if_active: 1.0
+    cond_mult: 0.65
+    cond_cap: 20.0
+
+  # GTD fallback: treated as questionable pending dual-scenario implementation
+  gtd:
+    p_active: 0.50
+    p_starter_if_active: 0.40
+    cond_mult: 1.0
+    cond_cap: null
+
+  game-time decision:
+    p_active: 0.50
+    p_starter_if_active: 0.40
+    cond_mult: 1.0
+    cond_cap: null
+
+  available:
+    p_active: 1.0
+    p_starter_if_active: 1.0
+    cond_mult: 1.0
+    cond_cap: null
+
+  active:
+    p_active: 1.0
+    p_starter_if_active: 1.0
+    cond_mult: 1.0
+    cond_cap: null
+
+# Statuses that trigger full UTM minute redistribution (p_active must be 0.0)
+full_redistribution_statuses:
+  - out
+  - inactive
+  - dnp
+
+# Threshold for confirmed-inactive classification
+inactive_threshold: 0.05

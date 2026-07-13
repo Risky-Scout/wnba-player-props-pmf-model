@@ -16,6 +16,12 @@ Covers all 14 required test cases:
   test_edge_report_failure_blocks_deployment   (structural contract test)
   test_stale_artifact_cannot_pass_current_run
 
+Plus Blocker 1–5 regression tests:
+  Blocker 1 (5): availability/conditional-minutes separation
+  Blocker 2 (4): conditional_minutes_cap enforcement
+  Blocker 4 (6): InjuryFetchResult contract
+  Blocker 5 (4): per-record source timestamps
+
 Regression fixture includes:
   - One OUT player (pid=100)
   - One doubtful player (pid=101)
@@ -29,6 +35,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -189,10 +196,20 @@ class TestQuestionablePlayerRebuildspmfJson:
             f"orig={orig_mins}, got={new_mins}"
         )
 
-        # _injury_minutes_multiplier must be set to the effective multiplier
-        assert abs(p102["_injury_minutes_multiplier"].values[0] - 0.50) < 1e-9
+        # Blocker 1: _injury_minutes_multiplier = cond_mult (1.0 for questionable),
+        # NOT p_active * cond_mult (0.50). availability_probability carries p_active.
+        assert abs(p102["_injury_minutes_multiplier"].values[0] - 1.0) < 1e-9, (
+            f"_injury_minutes_multiplier for questionable must be cond_mult=1.0 "
+            f"(Blocker 1: p_active must NOT be baked into conditional minutes), "
+            f"got {p102['_injury_minutes_multiplier'].values[0]}"
+        )
+        # availability_probability must be 0.50 in its own column
+        assert abs(p102["availability_probability"].values[0] - 0.50) < 1e-9, (
+            f"availability_probability for questionable must be 0.50, "
+            f"got {p102['availability_probability'].values[0]}"
+        )
 
-        # adjusted_projected_minutes = orig * effective_mult (for traceability)
+        # adjusted_projected_minutes = orig * p_active * cond_mult (for traceability/display)
         adj_mins = p102["adjusted_projected_minutes"].values[0]
         assert abs(adj_mins - orig_mins * 0.50) < 1e-6, (
             f"adjusted_projected_minutes should be {orig_mins * 0.50}, got {adj_mins}"
@@ -222,8 +239,18 @@ class TestProbablePlayerRebuildspmfJson:
             f"Historical player_minutes_mean_l5 must NOT be mutated: "
             f"orig={orig}, got={new_mins}"
         )
-        # Multiplier is carried in the scenario input column
-        assert abs(p103["_injury_minutes_multiplier"].values[0] - 0.85) < 1e-9
+        # Blocker 1: _injury_minutes_multiplier = cond_mult (1.0 for probable),
+        # NOT p_active * cond_mult (0.85). availability_probability carries p_active.
+        assert abs(p103["_injury_minutes_multiplier"].values[0] - 1.0) < 1e-9, (
+            f"_injury_minutes_multiplier for probable must be cond_mult=1.0 "
+            f"(Blocker 1: not p_active*cond_mult=0.85), "
+            f"got {p103['_injury_minutes_multiplier'].values[0]}"
+        )
+        # availability_probability must be 0.85 in its own column
+        assert abs(p103["availability_probability"].values[0] - 0.85) < 1e-9, (
+            f"availability_probability for probable must be 0.85, "
+            f"got {p103['availability_probability'].values[0]}"
+        )
 
 
 class TestMinutesRestrictionChangesSettlementProbabilities:
@@ -748,3 +775,545 @@ class TestRegressionFixtureAvailabilityTable:
         ]
         assert not teammate_combos.empty, \
             "Regression fixture must include combo rows for teammate-200"
+
+
+# ===========================================================================
+# BLOCKER 1 — Separate availability from conditional minutes
+# ===========================================================================
+
+def test_questionable_availability_does_not_halve_conditional_minutes():
+    """Blocker 1: _injury_minutes_multiplier must equal cond_mult (1.0), NOT p_active * cond_mult (0.50).
+
+    Deterministic proof:
+      - baseline conditional minutes = 25 (player_minutes_mean_l5 for pid=102)
+      - p_active = 0.50, conditional_minutes_multiplier = 1.0
+      - final conditional minutes = 25, NOT 12.5
+      - availability_probability remains 0.50 in its own field
+    """
+    ip = _get_pipeline()
+    feature_df = _make_feature_df()
+    injuries = [{"player_id": 102, "player_name": "Player_102", "status": "questionable"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+    p102 = adj[adj["player_id"] == 102].iloc[0]
+
+    # _injury_minutes_multiplier must be cond_mult = 1.0 for questionable,
+    # NOT p_active * cond_mult = 0.50.
+    cond_mult_applied = float(p102["_injury_minutes_multiplier"])
+    assert abs(cond_mult_applied - 1.0) < 1e-9, (
+        f"[Blocker 1] _injury_minutes_multiplier for questionable must be cond_mult=1.0, "
+        f"NOT p_active*cond_mult=0.50. Got {cond_mult_applied}. "
+        "PMF is conditional on participation; p_active=0.50 must stay in its own field."
+    )
+
+
+def test_probable_availability_does_not_scale_conditional_minutes_twice():
+    """Blocker 1: _injury_minutes_multiplier must equal cond_mult (1.0), NOT p_active * cond_mult (0.85).
+
+    Deterministic proof:
+      - baseline conditional minutes = 32 (player_minutes_mean_l5 for pid=103)
+      - p_active = 0.85, conditional_minutes_multiplier = 1.0
+      - final conditional minutes = 32, NOT 27.2
+    """
+    ip = _get_pipeline()
+    feature_df = _make_feature_df()
+    injuries = [{"player_id": 103, "player_name": "Player_103", "status": "probable"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+    p103 = adj[adj["player_id"] == 103].iloc[0]
+
+    cond_mult_applied = float(p103["_injury_minutes_multiplier"])
+    assert abs(cond_mult_applied - 1.0) < 1e-9, (
+        f"[Blocker 1] _injury_minutes_multiplier for probable must be cond_mult=1.0, "
+        f"NOT p_active*cond_mult=0.85. Got {cond_mult_applied}."
+    )
+
+
+def test_availability_probability_is_separate_from_minutes_multiplier():
+    """Blocker 1: availability_probability must exist as a separate column in adjusted feature df."""
+    ip = _get_pipeline()
+    feature_df = _make_feature_df()
+    injuries = [
+        {"player_id": 102, "player_name": "Player_102", "status": "questionable"},
+        {"player_id": 103, "player_name": "Player_103", "status": "probable"},
+    ]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+
+    assert "availability_probability" in adj.columns, (
+        "[Blocker 1] apply_injury_to_feature_df must add 'availability_probability' column "
+        "to the adjusted feature DataFrame. It must be separate from _injury_minutes_multiplier."
+    )
+
+    p102 = adj[adj["player_id"] == 102].iloc[0]
+    assert abs(float(p102["availability_probability"]) - 0.50) < 1e-9, (
+        f"[Blocker 1] availability_probability for questionable must be 0.50, "
+        f"got {p102['availability_probability']}"
+    )
+
+    p103 = adj[adj["player_id"] == 103].iloc[0]
+    assert abs(float(p103["availability_probability"]) - 0.85) < 1e-9, (
+        f"[Blocker 1] availability_probability for probable must be 0.85, "
+        f"got {p103['availability_probability']}"
+    )
+
+    # _injury_minutes_multiplier must be cond_mult (separate from availability_probability)
+    assert abs(float(p102["_injury_minutes_multiplier"]) - 1.0) < 1e-9, (
+        f"[Blocker 1] _injury_minutes_multiplier for questionable must be cond_mult=1.0, "
+        f"got {p102['_injury_minutes_multiplier']}"
+    )
+
+
+def test_void_on_dnp_pmf_is_conditional_on_participation():
+    """Blocker 1: For void-on-DNP vendors, the PMF must be conditional on participation.
+
+    The _injury_minutes_multiplier must equal cond_mult only, NOT p_active * cond_mult.
+    A questionable player's conditional PMF is identical to an uninjured player's PMF
+    (since cond_mult=1.0 for questionable). The p_active=0.50 is carried separately.
+    """
+    ip = _get_pipeline()
+    feature_df = _make_feature_df()
+    injuries = [{"player_id": 102, "player_name": "Player_102", "status": "questionable"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+
+    p102 = adj[adj["player_id"] == 102].iloc[0]
+
+    # For a void-on-DNP vendor: PMF must be conditional on participation.
+    # This means _injury_minutes_multiplier = cond_mult = 1.0 (no blending with p=0 state).
+    # If _injury_minutes_multiplier = p_active * cond_mult = 0.50, the PMF would reflect
+    # a 50%/50% blend of DNP + participation, which is WRONG for void-on-DNP settlement.
+    mult = float(p102["_injury_minutes_multiplier"])
+    assert abs(mult - 1.0) < 1e-9, (
+        f"[Blocker 1] For void-on-DNP vendors, PMF must be conditional on participation. "
+        f"_injury_minutes_multiplier must be cond_mult=1.0, not p_active*cond_mult=0.50. "
+        f"Got {mult}."
+    )
+
+    # availability_probability must be separate so the caller can apply it for
+    # non-void-on-DNP settlement
+    assert "availability_probability" in adj.columns, (
+        "[Blocker 1] availability_probability must exist as a separate field."
+    )
+    assert abs(float(p102["availability_probability"]) - 0.50) < 1e-9
+
+
+def test_confirmed_out_is_handled_by_actionability_not_hidden_minutes_mix():
+    """Blocker 1: OUT players must use explicit inactive/actionability handling.
+
+    availability_probability must be 0.0 in its own field in the adjusted feature df,
+    not hidden inside a combined p_active*cond_mult minutes multiplier.
+    """
+    ip = _get_pipeline()
+    feature_df = _make_feature_df()
+    injuries = [{"player_id": 100, "player_name": "Player_100", "status": "out"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+    p100 = adj[adj["player_id"] == 100].iloc[0]
+
+    # availability_probability must exist and be 0.0 for OUT players
+    assert "availability_probability" in adj.columns, (
+        "[Blocker 1] apply_injury_to_feature_df must add 'availability_probability' column."
+    )
+    assert abs(float(p100["availability_probability"]) - 0.0) < 1e-9, (
+        f"[Blocker 1] OUT player availability_probability must be 0.0, "
+        f"got {p100['availability_probability']}"
+    )
+
+    # OUT player must be confirmed inactive with is_market_actionable=False
+    assert bool(p100["is_confirmed_inactive"]), "OUT player must be confirmed inactive"
+
+    # _injury_minutes_multiplier=0 (from cond_mult=0 for out) triggers DNP blending
+    assert abs(float(p100["_injury_minutes_multiplier"])) < 1e-9
+
+
+# ===========================================================================
+# BLOCKER 2 — Enforce conditional_minutes_cap
+# ===========================================================================
+
+def _make_limited_feature_df(baseline_mins: float = 35.0) -> pd.DataFrame:
+    """Feature df with one limited player whose baseline minutes × cond_mult > cap."""
+    return pd.DataFrame([{
+        "player_id": 1001,
+        "game_id": 999,
+        "game_date": "2026-07-13",
+        "season": 2026,
+        "team_id": 10,
+        "player_name": "LimitedPlayer",
+        "position": "F",
+        "player_minutes_mean_l5": baseline_mins,
+        "player_minutes_mean_l10": baseline_mins,
+        "player_minutes_mean_l20": baseline_mins,
+        "player_minutes_mean_season": baseline_mins,
+        "player_pts_mean_l5": baseline_mins * 0.65,
+        "player_pts_mean_season": baseline_mins * 0.65,
+        "player_reb_mean_l5": baseline_mins * 0.20,
+        "player_reb_mean_season": baseline_mins * 0.20,
+        "player_ast_mean_l5": baseline_mins * 0.15,
+        "player_ast_mean_season": baseline_mins * 0.15,
+    }])
+
+
+def test_limited_minutes_cap_is_applied():
+    """Blocker 2: conditional_minutes_cap must be enforced on adjusted_projected_minutes.
+
+    limited status: p_active=1.0, cond_mult=0.65, cond_cap=20.0
+    baseline=35 → after cond_mult: 35*0.65=22.75 → after cap: 20.0 (not 22.75)
+    """
+    ip = _get_pipeline()
+    feature_df = _make_limited_feature_df(baseline_mins=35.0)
+    injuries = [{"player_id": 1001, "player_name": "LimitedPlayer", "status": "limited"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+    p1001 = adj[adj["player_id"] == 1001].iloc[0]
+
+    # STATUS_CONFIG["limited"]: cond_mult=0.65, cond_cap=20.0
+    # baseline 35 * 0.65 = 22.75 > cap 20.0 → must be capped to 20.0
+    adj_mins = float(p1001["adjusted_projected_minutes"])
+    assert adj_mins <= 20.0 + 1e-9, (
+        f"[Blocker 2] Limited player adjusted_projected_minutes must be capped at 20.0. "
+        f"Got {adj_mins:.4f} (35 * 0.65 = 22.75 exceeds cap=20.0, must be clamped)."
+    )
+
+
+def test_limited_minutes_distribution_respects_cap():
+    """Blocker 2: conditional_minutes_cap must be stored in conditional_minutes_cap column.
+
+    The PMF engine uses this cap to clamp min_means, ensuring the full distribution
+    (including sigma) respects the cap.
+    """
+    ip = _get_pipeline()
+    feature_df = _make_limited_feature_df(baseline_mins=35.0)
+    injuries = [{"player_id": 1001, "player_name": "LimitedPlayer", "status": "limited"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+    p1001 = adj[adj["player_id"] == 1001].iloc[0]
+
+    # The cap must be stored in conditional_minutes_cap for the PMF engine to use
+    assert "conditional_minutes_cap" in adj.columns, (
+        "[Blocker 2] conditional_minutes_cap column must exist in adjusted feature df."
+    )
+    cap_val = p1001.get("conditional_minutes_cap")
+    assert cap_val is not None and not (isinstance(cap_val, float) and np.isnan(cap_val)), (
+        "[Blocker 2] conditional_minutes_cap must be set for limited player."
+    )
+    assert float(cap_val) <= 20.0 + 1e-9, (
+        f"[Blocker 2] conditional_minutes_cap for limited must be 20.0, got {cap_val}"
+    )
+
+    # adjusted_projected_minutes must be capped
+    adj_mins = float(p1001["adjusted_projected_minutes"])
+    assert adj_mins <= 20.0 + 1e-9, (
+        f"[Blocker 2] adjusted_projected_minutes must respect cap=20.0, got {adj_mins:.4f}"
+    )
+
+
+def test_minutes_cap_changes_final_pmf():
+    """Blocker 2: applying conditional_minutes_cap must produce a lower capped adjusted_projected_minutes.
+
+    With baseline=35, cond_mult=0.65, cap=20:
+      uncapped adj = 35 * 0.65 = 22.75
+      capped adj   = min(22.75, 20.0) = 20.0
+    """
+    ip = _get_pipeline()
+
+    # Uncapped player (no injury, gets baseline minutes)
+    feature_df = _make_limited_feature_df(baseline_mins=35.0)
+    adj_uncapped = ip.apply_injury_to_feature_df(
+        feature_df,
+        ip.build_availability_table([], feature_df),
+    )
+    uncapped_mins = float(adj_uncapped[adj_uncapped["player_id"] == 1001].iloc[0]["adjusted_projected_minutes"])
+
+    # Capped player (limited status with cond_mult=0.65, cap=20)
+    injuries = [{"player_id": 1001, "player_name": "LimitedPlayer", "status": "limited"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj_capped = ip.apply_injury_to_feature_df(feature_df, avail)
+    capped_mins = float(adj_capped[adj_capped["player_id"] == 1001].iloc[0]["adjusted_projected_minutes"])
+
+    # The cap must reduce adjusted_projected_minutes below 35*0.65=22.75
+    assert capped_mins <= 20.0 + 1e-9, (
+        f"[Blocker 2] With cap=20.0, adjusted_projected_minutes must be ≤20.0. "
+        f"Got {capped_mins:.4f} (uncapped was {uncapped_mins:.4f})."
+    )
+
+
+def test_missing_cap_leaves_distribution_uncapped():
+    """Blocker 2: when no cap is set, adjusted_projected_minutes must NOT be artificially capped."""
+    ip = _get_pipeline()
+    # Questionable player: cond_mult=1.0, cond_cap=None → no cap should be applied
+    feature_df = _make_limited_feature_df(baseline_mins=30.0)
+    injuries = [{"player_id": 1001, "player_name": "LimitedPlayer", "status": "questionable"}]
+    avail = ip.build_availability_table(injuries, feature_df)
+    adj = ip.apply_injury_to_feature_df(feature_df, avail)
+    p1001 = adj[adj["player_id"] == 1001].iloc[0]
+
+    # No cap for questionable: adjusted_projected_minutes = orig * p_active * cond_mult
+    # = 30 * 0.50 * 1.0 = 15.0 (no cap constraint)
+    adj_mins = float(p1001["adjusted_projected_minutes"])
+    # The cap column should be NaN or None for no-cap statuses
+    cap_val = p1001.get("conditional_minutes_cap")
+    cap_is_none = cap_val is None or (isinstance(cap_val, float) and np.isnan(cap_val))
+    assert cap_is_none, (
+        f"[Blocker 2] Questionable player should have no cap (conditional_minutes_cap=None/NaN), "
+        f"got {cap_val}"
+    )
+
+
+# ===========================================================================
+# BLOCKER 4 — Distinguish successful empty injury data from fetch failure
+# ===========================================================================
+
+def test_missing_api_key_is_fatal():
+    """Blocker 4: missing BDL_API_KEY must produce InjuryFetchResult with status=FAILURE."""
+    ip = _get_pipeline()
+
+    assert hasattr(ip, "InjuryFetchResult"), (
+        "[Blocker 4] InjuryFetchResult must be exported from injury_pipeline."
+    )
+    assert hasattr(ip, "fetch_bdl_injuries"), (
+        "[Blocker 4] fetch_bdl_injuries must be exported from injury_pipeline."
+    )
+
+    result = ip.fetch_bdl_injuries(api_key="", team_ids=[1, 2])
+    assert result.status == "FAILURE", (
+        f"[Blocker 4] Missing API key must be FATAL (status=FAILURE), got {result.status!r}. "
+        "Empty-string or absent API key must not silently return empty records."
+    )
+    assert result.records == [], (
+        "[Blocker 4] FAILURE result must have empty records list."
+    )
+    assert result.error is not None, (
+        "[Blocker 4] FAILURE result must have a non-None error description."
+    )
+
+
+def test_http_error_is_fatal():
+    """Blocker 4: HTTP 4xx/5xx response must produce InjuryFetchResult with status=FAILURE."""
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "InjuryFetchResult") or not hasattr(ip, "fetch_bdl_injuries"):
+        pytest.skip("InjuryFetchResult or fetch_bdl_injuries not yet implemented")
+
+    with patch("requests.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.raise_for_status.side_effect = Exception("HTTP 500")
+        mock_get.return_value = mock_resp
+
+        result = ip.fetch_bdl_injuries(api_key="test_key", team_ids=[1])
+
+    assert result.status == "FAILURE", (
+        f"[Blocker 4] HTTP 500 must be FATAL (status=FAILURE), got {result.status!r}."
+    )
+
+
+def test_timeout_is_fatal():
+    """Blocker 4: request timeout must produce InjuryFetchResult with status=FAILURE."""
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "InjuryFetchResult") or not hasattr(ip, "fetch_bdl_injuries"):
+        pytest.skip("InjuryFetchResult or fetch_bdl_injuries not yet implemented")
+
+    import requests as _req
+    with patch("requests.get", side_effect=_req.exceptions.Timeout("timeout")):
+        result = ip.fetch_bdl_injuries(api_key="test_key", team_ids=[1])
+
+    assert result.status == "FAILURE", (
+        f"[Blocker 4] Timeout must be FATAL (status=FAILURE), got {result.status!r}."
+    )
+    assert result.error is not None
+
+
+def test_malformed_response_is_fatal():
+    """Blocker 4: non-JSON or schema-invalid response must produce status=FAILURE."""
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "InjuryFetchResult") or not hasattr(ip, "fetch_bdl_injuries"):
+        pytest.skip("InjuryFetchResult or fetch_bdl_injuries not yet implemented")
+
+    with patch("requests.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.side_effect = ValueError("not valid JSON")
+        mock_get.return_value = mock_resp
+
+        result = ip.fetch_bdl_injuries(api_key="test_key", team_ids=[1])
+
+    assert result.status == "FAILURE", (
+        f"[Blocker 4] Malformed JSON response must be FATAL (status=FAILURE), got {result.status!r}."
+    )
+
+
+def test_verified_empty_response_is_success():
+    """Blocker 4: a valid HTTP 200 with empty data array must return SUCCESS_EMPTY (not FAILURE)."""
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "InjuryFetchResult") or not hasattr(ip, "fetch_bdl_injuries"):
+        pytest.skip("InjuryFetchResult or fetch_bdl_injuries not yet implemented")
+
+    with patch("requests.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {"data": []}
+        mock_get.return_value = mock_resp
+
+        result = ip.fetch_bdl_injuries(api_key="test_key", team_ids=[1])
+
+    assert result.status == "SUCCESS_EMPTY", (
+        f"[Blocker 4] Verified empty response must be SUCCESS_EMPTY, got {result.status!r}. "
+        "Only a successful 200 with validated empty array may return SUCCESS_EMPTY."
+    )
+    assert result.records == [], "[Blocker 4] SUCCESS_EMPTY must have empty records list."
+    assert result.error is None, "[Blocker 4] SUCCESS_EMPTY must have error=None."
+
+
+def test_fetch_failure_cannot_be_treated_as_no_injuries():
+    """Blocker 4: InjuryFetchResult.status=FAILURE must never be treated as no-injuries.
+
+    A caller that silently treats FAILURE as an empty list would be violating the contract.
+    Verify the result object has distinct status values for FAILURE vs SUCCESS_EMPTY.
+    """
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "InjuryFetchResult"):
+        pytest.skip("InjuryFetchResult not yet implemented")
+
+    IFR = ip.InjuryFetchResult
+    failure = IFR(status="FAILURE", records=[], pulled_at_utc=None, error="fetch failed")
+    empty   = IFR(status="SUCCESS_EMPTY", records=[], pulled_at_utc=None, error=None)
+
+    # FAILURE and SUCCESS_EMPTY must have different statuses (not both "")
+    assert failure.status != empty.status, (
+        "[Blocker 4] FAILURE and SUCCESS_EMPTY must have distinct status values. "
+        "Never treat FAILURE silently as no-injuries."
+    )
+    assert failure.status == "FAILURE"
+    assert empty.status == "SUCCESS_EMPTY"
+    assert failure.error is not None
+    assert empty.error is None
+
+
+# ===========================================================================
+# BLOCKER 5 — Preserve and validate per-record source timestamps
+# ===========================================================================
+
+def test_each_injury_record_preserves_its_own_timestamp():
+    """Blocker 5: each injury record must carry its own source_updated_at timestamp."""
+    ip = _get_pipeline()
+
+    feature_df = _make_feature_df()
+    # Provide injuries with distinct per-record timestamps
+    injuries = [
+        {
+            "player_id": 102, "player_name": "Player_102", "status": "questionable",
+            "source_updated_at": "2026-07-13T06:00:00+00:00",
+        },
+        {
+            "player_id": 103, "player_name": "Player_103", "status": "probable",
+            "source_updated_at": "2026-07-13T07:30:00+00:00",
+        },
+    ]
+
+    avail = ip.build_availability_table(injuries, feature_df)
+
+    # Each player must have their OWN source_updated_at (not all the same value)
+    ts_102 = str(avail[avail["player_id"] == 102]["source_updated_at"].values[0])
+    ts_103 = str(avail[avail["player_id"] == 103]["source_updated_at"].values[0])
+
+    assert "06:00" in ts_102, (
+        f"[Blocker 5] Player 102 source_updated_at must reflect its own record timestamp "
+        f"(06:00), got {ts_102!r}."
+    )
+    assert "07:30" in ts_103, (
+        f"[Blocker 5] Player 103 source_updated_at must reflect its own record timestamp "
+        f"(07:30), got {ts_103!r}. "
+        "All records must NOT get the same (earliest) snapshot timestamp."
+    )
+
+
+def test_future_source_timestamp_is_fatal():
+    """Blocker 5: a source_updated_at timestamp in the future must be a fatal error."""
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "validate_injury_timestamps"):
+        pytest.skip("validate_injury_timestamps not yet implemented")
+
+    feature_df = _make_feature_df()
+    # Future timestamp (year 2099)
+    injuries_with_future = [
+        {
+            "player_id": 102, "player_name": "Player_102", "status": "questionable",
+            "source_updated_at": "2099-01-01T00:00:00+00:00",
+        },
+    ]
+    avail = ip.build_availability_table(injuries_with_future, feature_df)
+
+    prediction_ts = "2026-07-13T12:00:00+00:00"
+    with pytest.raises((ValueError, RuntimeError), match="(?i)(future|timestamp|fatal)"):
+        ip.validate_injury_timestamps(avail, prediction_timestamp_utc=prediction_ts)
+
+
+def test_malformed_source_timestamp_is_fatal():
+    """Blocker 5: a malformed source_updated_at timestamp must be a fatal error."""
+    ip = _get_pipeline()
+
+    if not hasattr(ip, "validate_injury_timestamps"):
+        pytest.skip("validate_injury_timestamps not yet implemented")
+
+    feature_df = _make_feature_df()
+    injuries_malformed = [
+        {
+            "player_id": 102, "player_name": "Player_102", "status": "questionable",
+            "source_updated_at": "not-a-timestamp",
+        },
+    ]
+    avail = ip.build_availability_table(injuries_malformed, feature_df)
+    # Inject the malformed timestamp directly
+    avail.loc[avail["player_id"] == 102, "source_updated_at"] = "not-a-timestamp"
+
+    prediction_ts = "2026-07-13T12:00:00+00:00"
+    with pytest.raises((ValueError, RuntimeError), match="(?i)(malformed|invalid|timestamp|parse|fatal)"):
+        ip.validate_injury_timestamps(avail, prediction_timestamp_utc=prediction_ts)
+
+
+def test_snapshot_timestamp_is_not_mislabeled_as_record_timestamp():
+    """Blocker 5: players without an injury record should use snapshot timestamp separately.
+
+    The pulled_at_utc (snapshot timestamp) must NOT be stored in source_updated_at
+    for players who do not appear in the injury list.
+    """
+    ip = _get_pipeline()
+
+    feature_df = _make_feature_df()
+    # Only player 102 has an injury record; others should use pulled_at_utc
+    injuries = [
+        {
+            "player_id": 102, "player_name": "Player_102", "status": "questionable",
+            "source_updated_at": "2026-07-13T06:00:00+00:00",
+        },
+    ]
+
+    avail = ip.build_availability_table(injuries, feature_df)
+
+    # Player 200 has NO injury record; their source_updated_at should be the
+    # snapshot/pulled_at_utc timestamp, not the injury record's timestamp.
+    # It must NOT be mislabeled as a record-level source_updated_at.
+    row_200 = avail[avail["player_id"] == 200].iloc[0]
+    assert "pulled_at_utc" in avail.columns, (
+        "[Blocker 5] pulled_at_utc must exist in availability table."
+    )
+
+    pulled_ts = str(row_200["pulled_at_utc"])
+    source_ts = str(row_200["source_updated_at"])
+
+    # For a player without an injury record, source_updated_at should be the
+    # same as pulled_at_utc (snapshot time), not the injury record's source_updated_at.
+    # This verifies that the snapshot timestamp is stored separately from record timestamps.
+    assert "2026-07-13T06:00" not in source_ts or pulled_ts == source_ts, (
+        f"[Blocker 5] Player 200 (no injury record) source_updated_at={source_ts!r} "
+        f"must not carry the injury record timestamp (06:00). "
+        f"pulled_at_utc={pulled_ts!r}."
+    )

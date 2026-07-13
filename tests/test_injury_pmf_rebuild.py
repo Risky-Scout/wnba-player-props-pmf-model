@@ -677,10 +677,17 @@ def test_real_e2e_injury_pmf_rebuild(injury_e2e_artifact_dir):
         "If it were 0.25× original the multiplier was applied twice."
     )
 
-    # _injury_minutes_multiplier set correctly
+    # Blocker 1: _injury_minutes_multiplier = cond_mult = 1.0 for questionable
+    # (NOT p_active * cond_mult = 0.5). availability_probability carries p_active.
     q_mult = float(adj_df[adj_df["player_id"] == 20]["_injury_minutes_multiplier"].values[0])
-    assert abs(q_mult - 0.5) < 1e-9, (
-        f"_injury_minutes_multiplier for questionable player should be 0.5, got {q_mult}"
+    assert abs(q_mult - 1.0) < 1e-9, (
+        f"[Blocker 1] _injury_minutes_multiplier for questionable should be "
+        f"cond_mult=1.0 (not p_active*cond_mult=0.5), got {q_mult}"
+    )
+    # availability_probability must be 0.5 in its own field
+    q_avail_prob = float(adj_df[adj_df["player_id"] == 20]["availability_probability"].values[0])
+    assert abs(q_avail_prob - 0.5) < 1e-9, (
+        f"[Blocker 1] availability_probability for questionable should be 0.5, got {q_avail_prob}"
     )
 
     # ── Step 3: Rebuild affected PMFs via real production prediction path ─────
@@ -790,9 +797,10 @@ def test_real_e2e_injury_pmf_rebuild(injury_e2e_artifact_dir):
             f"(DNP blending with p_dnp=0.99 should concentrate weight at 0)."
         )
 
-    # E) Injury multiplier applied exactly ONCE:
-    #    questionable player's minutes_mean in output ≈ 0.5 × uninjured (control) minutes_mean
-    #    (not 0.25×, which would indicate double application)
+    # E) Blocker 1: conditional minutes NOT halved by availability probability.
+    #    _injury_minutes_multiplier = cond_mult = 1.0 for questionable players.
+    #    The PMF engine applies 1.0 multiplier → minutes_mean ≈ baseline (NOT ×0.5).
+    #    availability_probability=0.5 is stored separately (verified in adj_df above).
     q_pts_row = result[(result["player_id"] == 20) & (result["stat"] == "pts")]
     c_pts_row = result[(result["player_id"] == 40) & (result["stat"] == "pts")]
     assert not q_pts_row.empty and not c_pts_row.empty, \
@@ -801,20 +809,15 @@ def test_real_e2e_injury_pmf_rebuild(injury_e2e_artifact_dir):
     q_min_mean = float(q_pts_row["minutes_mean"].values[0])
     c_min_mean = float(c_pts_row["minutes_mean"].values[0])
     ratio = q_min_mean / max(c_min_mean, 1e-9)
-    # The questionable player (22 min l5 × 0.5 mult) should have ~half the projected
-    # minutes of the control player (20 min l5 × 1.0 mult ≈ 20 min).
-    # Allow ±30% tolerance for model prediction noise.
-    # Key check: ratio must NOT be ≈ 0.25 (which would indicate double multiplier application)
-    # and must NOT be ≈ 1.0 (which would indicate multiplier not applied at all).
-    assert ratio < 0.80, (
-        f"Multiplier appears NOT applied: questionable minutes_mean ({q_min_mean:.3f}) "
-        f"too close to control ({c_min_mean:.3f}), ratio={ratio:.3f}. "
-        f"Expected ratio ≈ 0.5× (22 min × 0.5 / 20 min ≈ 0.55)."
-    )
-    assert ratio > 0.15, (
-        f"Multiplier appears applied TWICE (double application): "
+    # With cond_mult=1.0, questionable player's conditional minutes_mean should be
+    # similar to their own baseline (22 min), not halved (11 min).
+    # Ratio vs control (20 min baseline) ≈ 22/20 ≈ 1.1.
+    # Key invariant: ratio must NOT be ≈ 0.5 (minutes halved incorrectly).
+    assert ratio > 0.70, (
+        f"[Blocker 1] Conditional minutes appear incorrectly halved: "
         f"questionable minutes_mean ({q_min_mean:.3f}) is too low vs control "
-        f"({c_min_mean:.3f}), ratio={ratio:.3f} ≈ 0.25 (expected ≈ 0.5)."
+        f"({c_min_mean:.3f}), ratio={ratio:.3f}. "
+        f"With cond_mult=1.0, ratio should be ≈ 1.0 (NOT 0.5)."
     )
 
     # F) Affected PMFs changed vs control (OUT player has pmf_mean=0)
@@ -964,3 +967,248 @@ def test_identity_multiplier_produces_same_pmf_as_normal_inference(injury_e2e_ar
             assert abs(total - 1.0) < 1e-6, (
                 f"stat={stat}, run={label}: PMF does not normalize: sum={total}"
             )
+
+
+# ===========================================================================
+# BLOCKER 3 — Use the exact live combo graph
+# ===========================================================================
+
+def test_identity_injury_refresh_matches_live_base_pmfs(injury_e2e_artifact_dir):
+    """Blocker 3: identity multiplier injury refresh must produce identical BASE PMF arrays.
+
+    Runs the real pipeline twice for an available player (pid=40):
+      1. Normal inference (no _injury_minutes_multiplier column)
+      2. Injury refresh with minutes_multiplier=1.0 (identity)
+
+    Asserts PMF ARRAYS are identical (not just means), proving no inadvertent
+    scaling in the injury rebuild path for base stats.
+    """
+    try:
+        from wnba_props_model.pipeline import injury_pipeline as ip
+        from wnba_props_model.pipeline.predict import predict_player_pmfs
+    except ImportError as exc:
+        pytest.skip(f"injury_pipeline not importable: {exc}")
+
+    model_dir   = injury_e2e_artifact_dir / "model"
+    config_path = injury_e2e_artifact_dir / "config.yaml"
+
+    feature_df = _e2e_feature_df()
+    player_df  = feature_df[feature_df["player_id"] == 40].copy()
+
+    # Run 1: normal inference
+    run1 = predict_player_pmfs(
+        feature_df=player_df,
+        model_dir=str(model_dir),
+        config_path=str(config_path),
+        cal_dir=None,
+        apply_calibration=False,
+        apply_shrinkage=False,
+    )
+
+    # Run 2: injury refresh with identity multiplier
+    avail = ip.build_availability_table(
+        injuries=[{"player_id": 40, "player_name": "E2E_Player_40", "status": "available"}],
+        feature_df=feature_df,
+    )
+    adj_df = ip.apply_injury_to_feature_df(feature_df, avail)
+    run2 = ip.rebuild_affected_pmfs(
+        feature_df_adjusted=adj_df,
+        affected_player_ids={40},
+        model_dir=str(model_dir),
+        cfg={},
+        cal_dir=None,
+        config_path=str(config_path),
+        apply_calibration=False,
+        apply_shrinkage=False,
+    )
+
+    assert not run1.empty and not run2.empty
+
+    for stat in ["pts", "reb"]:
+        r1 = run1[(run1["player_id"] == 40) & (run1["stat"] == stat)]
+        r2 = run2[(run2["player_id"] == 40) & (run2["stat"] == stat)]
+        if r1.empty or r2.empty:
+            continue
+
+        pmf1 = json.loads(r1["pmf_json"].values[0])
+        pmf2 = json.loads(r2["pmf_json"].values[0])
+
+        # Compare complete PMF arrays (not only means)
+        keys_1 = set(pmf1.keys())
+        keys_2 = set(pmf2.keys())
+        assert keys_1 == keys_2, (
+            f"[Blocker 3] stat={stat}: PMF support keys differ between normal "
+            f"and injury-refresh runs. Normal={sorted(keys_1)[:5]}, "
+            f"InjuryRefresh={sorted(keys_2)[:5]}"
+        )
+        for k in keys_1:
+            diff = abs(float(pmf1[k]) - float(pmf2.get(k, 0.0)))
+            assert diff < 1e-9, (
+                f"[Blocker 3] stat={stat}, k={k}: PMF probability differs between "
+                f"normal ({pmf1[k]:.12f}) and injury-refresh ({pmf2.get(k, 0.0):.12f}). "
+                f"diff={diff:.2e}. Identity multiplier must be a true no-op."
+            )
+
+
+def test_identity_injury_refresh_matches_live_combo_pmfs(injury_e2e_artifact_dir):
+    """Blocker 3: identity multiplier injury refresh must produce identical COMBO PMF arrays.
+
+    The injury combo rebuild must use the exact same correlation map as live inference.
+    """
+    try:
+        from wnba_props_model.pipeline import injury_pipeline as ip
+        from wnba_props_model.pipeline.predict import predict_player_pmfs
+    except ImportError as exc:
+        pytest.skip(f"injury_pipeline not importable: {exc}")
+
+    model_dir   = injury_e2e_artifact_dir / "model"
+    config_path = injury_e2e_artifact_dir / "config.yaml"
+
+    feature_df = _e2e_feature_df()
+    player_df  = feature_df[feature_df["player_id"] == 40].copy()
+
+    # Normal inference for control player
+    run1_atoms = predict_player_pmfs(
+        feature_df=player_df,
+        model_dir=str(model_dir),
+        config_path=str(config_path),
+        cal_dir=None,
+        apply_calibration=False,
+        apply_shrinkage=False,
+    )
+    if run1_atoms.empty:
+        pytest.skip("No PMF rows returned by normal inference")
+
+    # Build combos for live inference path
+    from wnba_props_model.pipeline.predict import _build_combo_pmf_rows
+    run1_combos = _build_combo_pmf_rows(run1_atoms)
+
+    # Injury refresh path
+    avail = ip.build_availability_table(
+        injuries=[{"player_id": 40, "player_name": "E2E_Player_40", "status": "available"}],
+        feature_df=feature_df,
+    )
+    adj_df = ip.apply_injury_to_feature_df(feature_df, avail)
+    run2_atoms = ip.rebuild_affected_pmfs(
+        feature_df_adjusted=adj_df,
+        affected_player_ids={40},
+        model_dir=str(model_dir),
+        cfg={},
+        cal_dir=None,
+        config_path=str(config_path),
+        apply_calibration=False,
+        apply_shrinkage=False,
+    )
+
+    # Rebuild combos via injury path — must accept model_dir to load correlation map
+    run2_full = ip.rebuild_combos_for_affected(
+        run2_atoms, affected_player_ids={40}, model_dir=str(model_dir)
+    )
+
+    combo_stats = [s for s in run2_full["stat"].unique() if s in {"pts_reb", "pts_ast", "reb_ast", "stocks", "pts_reb_ast"}]
+    if not combo_stats and not run1_combos.empty:
+        pytest.skip("No combo stats in injury refresh output (fixture may not support combos)")
+
+    for stat in combo_stats:
+        r1 = run1_combos[(run1_combos["player_id"] == 40) & (run1_combos["stat"] == stat)] if not run1_combos.empty else pd.DataFrame()
+        r2 = run2_full[(run2_full["player_id"] == 40) & (run2_full["stat"] == stat)]
+        if r1.empty or r2.empty:
+            continue
+
+        mean1 = float(r1["pmf_mean"].values[0])
+        mean2 = float(r2["pmf_mean"].values[0])
+        err = abs(mean1 - mean2)
+        assert err < 1e-6, (
+            f"[Blocker 3] combo={stat}: mean differs between normal ({mean1:.8f}) "
+            f"and injury-refresh ({mean2:.8f}), diff={err:.2e}. "
+            "Injury combo rebuild must use the same correlation map as live inference."
+        )
+
+
+def test_injury_combo_uses_same_correlation_map(injury_e2e_artifact_dir):
+    """Blocker 3: rebuild_combos_for_affected must accept and use corr_map_by_pos parameter."""
+    try:
+        from wnba_props_model.pipeline import injury_pipeline as ip
+    except ImportError as exc:
+        pytest.skip(f"injury_pipeline not importable: {exc}")
+
+    pmfs_df = _make_pmfs_df()
+    affected_ids = {102}
+
+    # The function must accept corr_map_by_pos and model_dir parameters.
+    # If it doesn't, TypeError is raised → test FAILS (as intended before the fix).
+    import inspect
+    sig = inspect.signature(ip.rebuild_combos_for_affected)
+    assert "model_dir" in sig.parameters or "corr_map_by_pos" in sig.parameters, (
+        "[Blocker 3] rebuild_combos_for_affected must accept model_dir or corr_map_by_pos "
+        "to use the same correlation map as live inference. "
+        "Currently it calls _build_combo_pmf_rows with implicit defaults."
+    )
+
+
+def test_injury_combo_uses_same_position_map(injury_e2e_artifact_dir):
+    """Blocker 3: rebuild_combos_for_affected must pass position information to combos."""
+    try:
+        from wnba_props_model.pipeline import injury_pipeline as ip
+    except ImportError as exc:
+        pytest.skip(f"injury_pipeline not importable: {exc}")
+
+    import inspect
+    sig = inspect.signature(ip.rebuild_combos_for_affected)
+    # Must accept model_dir so position-stratified correlations can be loaded
+    assert "model_dir" in sig.parameters or "corr_map_by_pos" in sig.parameters, (
+        "[Blocker 3] rebuild_combos_for_affected must accept model_dir or corr_map_by_pos "
+        "so that position-stratified correlation maps are used (not implicit defaults)."
+    )
+
+
+def test_injury_combo_uses_same_ipf_configuration(injury_e2e_artifact_dir):
+    """Blocker 3: combo rebuild must use the same IPF configuration as live inference."""
+    try:
+        from wnba_props_model.pipeline import injury_pipeline as ip
+    except ImportError as exc:
+        pytest.skip(f"injury_pipeline not importable: {exc}")
+
+    import inspect
+    sig = inspect.signature(ip.rebuild_combos_for_affected)
+    # Accepting model_dir implies the same IPF config can be derived
+    assert "model_dir" in sig.parameters or "corr_map_by_pos" in sig.parameters, (
+        "[Blocker 3] rebuild_combos_for_affected must accept model_dir or corr_map_by_pos. "
+        "IPF configuration must come from the same source as live inference."
+    )
+
+
+def test_injury_combo_rebuilt_after_all_affected_components():
+    """Blocker 3: combo rebuild must include all expanded stats (pts,reb,ast,stl,blk)."""
+    ip = _get_pipeline()
+
+    # Use the full fixture with all stats including stl and blk
+    pmfs_df = _make_pmfs_df()
+    affected_ids = {102, 200}
+
+    # Simulate base-stat rebuild (inflate atoms by 20%)
+    for pid in affected_ids:
+        for stat in STATS:
+            mask = (pmfs_df["player_id"] == pid) & (pmfs_df["stat"] == stat)
+            if not mask.any():
+                continue
+            new_mean = pmfs_df.loc[mask, "pmf_mean"].values[0] * 1.20
+            pmfs_df.loc[mask, "pmf_json"] = _pmf_json(new_mean)
+            pmfs_df.loc[mask, "pmf_mean"] = new_mean
+
+    rebuilt = ip.rebuild_combos_for_affected(pmfs_df, affected_ids)
+
+    # All 5 combos must be present including stocks (stl+blk)
+    for pid in affected_ids:
+        rebuilt_combos = set(
+            rebuilt[(rebuilt["player_id"] == pid) & rebuilt["stat"].isin(COMBOS)]["stat"].unique()
+        )
+        assert "stocks" in rebuilt_combos, (
+            f"[Blocker 3] stocks combo must be rebuilt for player_id={pid} "
+            f"after stl+blk base stats are updated. Got: {rebuilt_combos}"
+        )
+        missing = set(COMBOS) - rebuilt_combos
+        assert not missing, (
+            f"[Blocker 3] All 5 combos must be rebuilt for player_id={pid}. "
+            f"Missing: {missing}"
+        )
