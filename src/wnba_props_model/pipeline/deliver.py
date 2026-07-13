@@ -538,6 +538,37 @@ def build_projection_output(pmfs: pd.DataFrame, game_date: str | None = None) ->
     return out
 
 
+def _recompute_pmf_mean(pmfs: pd.DataFrame) -> pd.DataFrame:
+    """Recompute pmf_mean from pmf_json as the single source of truth.
+
+    This is the final guardrail before writing full_pmfs_wide.parquet.
+    Any upstream code that sets pmf_mean incorrectly (e.g. from a stale 0
+    value for DNP-projected players) is corrected here.
+    """
+    if "pmf_json" not in pmfs.columns:
+        return pmfs
+    out = pmfs.copy()
+
+    def _mean_from_json(s: str) -> float:
+        try:
+            d = json.loads(s)
+            if not d:
+                return float("nan")
+            ks = np.array([float(k) for k in d.keys()], dtype=float)
+            vs = np.array(list(d.values()), dtype=float)
+            total = vs.sum()
+            if total <= 0:
+                return float("nan")
+            return float((ks @ vs) / total)
+        except Exception:
+            return float("nan")
+
+    fp_means = out["pmf_json"].map(_mean_from_json)
+    out["pmf_mean_full_precision"] = fp_means
+    out["pmf_mean"] = fp_means.round(4)
+    return out
+
+
 def write_delivery(
     pmfs: pd.DataFrame,
     out_dir: str | Path,
@@ -546,6 +577,9 @@ def write_delivery(
 ) -> dict[str, Path]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+
+    # Canonical pmf_mean recompute — prevents stale zeros from reaching the artifact.
+    pmfs = _recompute_pmf_mean(pmfs)
 
     full = add_pge_ladder(pmfs)
     full_path = out / "full_pmfs_wide.parquet"
