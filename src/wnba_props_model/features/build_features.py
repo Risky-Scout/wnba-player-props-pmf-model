@@ -382,10 +382,18 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
     df["player_ts_pct_l10"] = (pts_l10 / (2.0 * tsa.clip(lower=1.0))).where(has_fga)
 
     # ── Effective FG% (eFG%) — only valid when FGA data exists ─────────────
+    # Correct formula: eFG = (FGM + 0.5 * FG3M) / FGA
+    # Previous code erroneously used FGA in the numerator instead of FGM.
+    # fgm_l10 is the L10 rolling mean of field goals made (comment at line 331
+    # confirms fgm_l10, fg3m_l10, fga_l10, fta_l10, pts_l10 are pre-computed).
+    fgm_l10 = df.get("player_fgm_mean_l10", pd.Series(np.nan, index=df.index))
+    # When FGA == 0: set eFG to missing (not zero efficiency — zero attempts)
     df["player_efg_pct_l10"] = (
-        (fga_l10.fillna(0) + 0.5 * fg3m_l10.fillna(0)) /
+        (fgm_l10.fillna(0) + 0.5 * fg3m_l10.fillna(0)) /
         fga_l10.clip(lower=1.0)
     ).where(has_fga)
+    # Missingness indicator when FGA data is absent
+    df["player_efg_pct_l10_missing"] = (~has_fga).astype(int)
 
     # ── FTA rate (FTA / FGA) — only valid when FGA data exists ─────────────
     df["player_fta_rate_l10"] = (fta_l10 / fga_l10.clip(lower=1.0)).where(has_fga)

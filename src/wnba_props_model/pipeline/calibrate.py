@@ -1381,3 +1381,82 @@ def fit_live_calibrators(
             logger.warning("[live_calibrators] %s: calibrator fitting failed: %s", stat, exc)
 
     return paths
+
+
+# ---------------------------------------------------------------------------
+# Push-aware calibration reconstruction (challenger requirement)
+# ---------------------------------------------------------------------------
+
+
+def calibrate_push_aware(
+    raw_pmf: "np.ndarray",
+    line: float,
+    binary_calibrator: "Any | None" = None,
+) -> tuple[float, float, float]:
+    """Compute push-aware calibrated (p_over, p_under, p_push) from a PMF.
+
+    For integer lines, correctly separates push mass before calibration:
+
+        raw_p_over_no_push = P(X > L) / max(P(X > L) + P(X < L), epsilon)
+        calibrated_no_push_over = calibrator(raw_p_over_no_push)
+        cal_p_over  = (1 - p_push) * calibrated_no_push_over
+        cal_p_under = (1 - p_push) * (1 - calibrated_no_push_over)
+        cal_p_push  = p_push  (push probability is not calibrated)
+
+    For half-point lines, p_push = 0 and this reduces to the standard case.
+
+    When no binary_calibrator is provided, the raw no-push over probability is
+    returned without transformation (identity calibration).
+
+    Asserts: cal_p_over + cal_p_under + cal_p_push = 1 within 1e-12.
+    """
+    import math as _math
+    import numpy as _np
+
+    raw_pmf = _np.asarray(raw_pmf, dtype=float)
+    norm = raw_pmf.sum()
+    if norm > 0:
+        raw_pmf = raw_pmf / norm
+
+    k = _np.arange(len(raw_pmf), dtype=float)
+    p_over_raw  = float(raw_pmf[k > float(line)].sum())
+    is_int_line = (float(line) == _math.floor(float(line)))
+    p_push_raw  = float(raw_pmf[int(line)]) if is_int_line and 0 <= int(line) < len(raw_pmf) else 0.0
+    p_under_raw = max(0.0, 1.0 - p_over_raw - p_push_raw)
+
+    # No-push over = P(over) conditional on not pushing
+    no_push_total = p_over_raw + p_under_raw
+    if no_push_total < 1e-12:
+        return 0.0, 0.0, p_push_raw
+
+    raw_no_push_over = p_over_raw / no_push_total
+
+    # Apply calibrator if provided
+    if binary_calibrator is not None:
+        try:
+            cal_no_push_over = float(_np.clip(
+                binary_calibrator.predict([float(raw_no_push_over)])[0], 1e-6, 1 - 1e-6
+            ))
+        except Exception:
+            cal_no_push_over = raw_no_push_over
+    else:
+        cal_no_push_over = raw_no_push_over
+
+    # Reconstruct three-way probabilities
+    cal_p_over  = (1.0 - p_push_raw) * cal_no_push_over
+    cal_p_under = (1.0 - p_push_raw) * (1.0 - cal_no_push_over)
+    cal_p_push  = p_push_raw
+
+    # Clamp floating-point errors
+    cal_p_over  = max(0.0, cal_p_over)
+    cal_p_under = max(0.0, cal_p_under)
+    total = cal_p_over + cal_p_under + cal_p_push
+    if total > 0:
+        cal_p_over /= total
+        cal_p_under /= total
+
+    assert abs(cal_p_over + cal_p_under + cal_p_push - 1.0) < 1e-10, (
+        f"Push-aware calibration sum != 1: {cal_p_over}+{cal_p_under}+{cal_p_push}={total}"
+    )
+
+    return cal_p_over, cal_p_under, cal_p_push

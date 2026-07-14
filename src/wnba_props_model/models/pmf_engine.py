@@ -357,9 +357,12 @@ def build_all_pmfs(
                 )
                 stat_means = np.clip(stat_means, 0.01, None)
 
-        # Part 6: CLV head signal — soft-nudge stat_mean by ≤5% based on
-        # whether the model's direction beats the closing line historically.
-        if stat in stat_models:
+        # Part 6: CLV head signal (disabled when disable_clv_head=True in config).
+        # When enabled: soft-nudge stat_mean by ≤5% based on historical
+        # closing-line beat rate.  This is a market-derived signal; the structural
+        # challenger disables it via config.
+        _disable_clv_head = cfg.get("disable_clv_head", False)
+        if not _disable_clv_head and stat in stat_models:
             _clv_model = stat_models[stat]
             _clv_head = getattr(_clv_model, "clv_head", None)
             if _clv_head is not None:
