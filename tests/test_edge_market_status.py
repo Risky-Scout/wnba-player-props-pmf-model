@@ -392,16 +392,27 @@ class TestPregameInitialWorkflowContract:
 
     def test_generate_web_pages_supports_market_audit_json_arg(self):
         """generate_web_pages.py must accept --market-audit-json."""
+        import re as _re  # noqa: PLC0415
         result = subprocess.run(
             [sys.executable, "scripts/generate_web_pages.py", "--help"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, env={**__import__("os").environ, "NO_COLOR": "1"},
         )
-        assert "--market-audit-json" in result.stdout
+        # Strip ANSI escape codes before checking
+        clean = _re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+        assert "--market-audit-json" in clean, (
+            f"generate_web_pages.py must support --market-audit-json. "
+            f"Help output (cleaned):\n{clean[:500]}"
+        )
 
     def test_generate_web_pages_supports_market_status_arg(self):
         """generate_web_pages.py must accept --market-status."""
+        import re as _re  # noqa: PLC0415
         result = subprocess.run(
             [sys.executable, "scripts/generate_web_pages.py", "--help"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, env={**__import__("os").environ, "NO_COLOR": "1"},
         )
-        assert "--market-status" in result.stdout
+        clean = _re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+        assert "--market-status" in clean, (
+            f"generate_web_pages.py must support --market-status. "
+            f"Help output (cleaned):\n{clean[:500]}"
+        )
