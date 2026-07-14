@@ -1009,15 +1009,49 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 
   const params = new URLSearchParams(location.search);
   const dateParam = params.get('date');
-  const dataUrl = dateParam ? `${dateParam}.json` : 'latest.json';
+  // A3: Cache-bust fetch — pointer → immutable release payload
+  function _todayETpmf() {
+    const d = new Date();
+    const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+    return et.toISOString().slice(0, 10);
+  }
+  const targetDate = dateParam || _todayETpmf();
 
-  fetch(dataUrl)
-    .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
-    .then(data => {
-      allProps = data.props || [];
-      document.getElementById('hdrDate').textContent = data.game_date || '';
-      document.getElementById('genTime').textContent = data.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
-      render();
+  function _loadPMFPayload(url) {
+    return fetch(url, {cache:'no-store'}).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
+  }
+
+  // Fetch latest.json (pointer) with cache-bust, then follow to immutable payload
+  _loadPMFPayload('latest.json?t=' + Date.now())
+    .then(ptr => {
+      if (!ptr.pointer) {
+        // Legacy full payload — validate date
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Stale data (' + ptr.game_date + ') — waiting for current update.</div>';
+          return;
+        }
+        allProps = ptr.props || [];
+        document.getElementById('hdrDate').textContent = ptr.game_date || '';
+        document.getElementById('genTime').textContent = ptr.generated_at ? new Date(ptr.generated_at).toLocaleString() : '—';
+        render(); return;
+      }
+      if (ptr.game_date !== targetDate) {
+        document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Stale data (' + ptr.game_date + ') — waiting for current update.</div>';
+        return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      _loadPMFPayload(payloadUrl)
+        .then(data => {
+          if (data.game_date !== ptr.game_date) {
+            document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Payload date mismatch — refreshing.</div>';
+            return;
+          }
+          allProps = data.props || [];
+          document.getElementById('hdrDate').textContent = data.game_date || '';
+          document.getElementById('genTime').textContent = data.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
+          render();
+        })
+        .catch(err => { document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ' + err.message + '</div>'; });
     })
     .catch(err => {
       document.getElementById('pmfGrid').innerHTML = `<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ${err.message}</div>`;
@@ -1339,19 +1373,62 @@ let cdTimer;
 const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes
 const POLL_INTERVAL_MS = 30 * 1000;
 
-// ── Fetch ─────────────────────────────────────────────────────────
+// ── Fetch (cache-bust pointer, then fetch immutable payload) ────────
+// Phase A3: latest.json is a pointer. Page JS must:
+//   1. fetch latest.json with cache:'no-store' + timestamp
+//   2. validate pointer fields (release_id, game_date, payload_path)
+//   3. reject pointer whose game_date != target WNBA game date
+//   4. fetch immutable payload (releases/<release_id>.json) with cache:'no-store'
+//   5. reject payload if game_date or release_id mismatch
+//   6. never display stale cards as LIVE DATA
+function _todayET() {
+  const d = new Date();
+  const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+  return et.toISOString().slice(0, 10);
+}
 function load() {
-  fetch('latest.json?t=' + Date.now())
+  const targetDate = new URLSearchParams(window.location.search).get('date') || _todayET();
+  fetch('latest.json?t=' + Date.now(), {cache: 'no-store'})
     .then(r => r.json())
-    .then(data => {
-      DATA = data;
-      buildRows(data);
-      updateKPIs(data);
-      renderPanels();
-      updateStaleCheck(data.generated_at);
-      startCountdown(POLL_INTERVAL_MS / 1000);
+    .then(ptr => {
+      // Pointer validation
+      if (!ptr.pointer) {
+        // Legacy full-payload format — accept but warn
+        DATA = ptr;
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          _showStaleAlert(ptr.game_date);
+          return;
+        }
+        buildRows(ptr); updateKPIs(ptr); renderPanels();
+        updateStaleCheck(ptr.generated_at || ptr.generated_at_utc);
+        startCountdown(POLL_INTERVAL_MS / 1000);
+        return;
+      }
+      if (ptr.game_date !== targetDate) {
+        _showStaleAlert(ptr.game_date); return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      fetch(payloadUrl, {cache: 'no-store'})
+        .then(r => r.json())
+        .then(data => {
+          if (data.game_date !== ptr.game_date) { _showStaleAlert(data.game_date); return; }
+          DATA = data;
+          buildRows(data); updateKPIs(data); renderPanels();
+          updateStaleCheck(data.generated_at || data.generated_at_utc || ptr.generated_at_utc);
+          startCountdown(POLL_INTERVAL_MS / 1000);
+        })
+        .catch(() => _showStaleAlert(null));
     })
     .catch(() => { /* keep old data, countdown continues */ });
+}
+function _showStaleAlert(foundDate) {
+  const el = document.getElementById('staleBanner');
+  if (el) {
+    el.style.display = '';
+    el.innerHTML = foundDate
+      ? '⚠ Page data is for ' + foundDate + ' — not the current game date. Refresh when updated.'
+      : '⚠ Could not load current page data. Check pipeline status.';
+  }
 }
 
 // ── Parse games → flat rows ───────────────────────────────────────
@@ -1771,50 +1848,70 @@ def main(
     # A3: latest.json is a pointer only (contains release_id, game_date, path, versions)
     #     Page JS must fetch the date-specific or immutable payload with cache: 'no-store'.
 
+    import hashlib as _hashlib  # noqa: PLC0415
     _edge_payload_str = json.dumps(_sanitize(edge_json), separators=(",", ":"))
     _pmf_payload_str  = json.dumps(_sanitize(pmf_json),  separators=(",", ":"))
+    _edge_sha256 = _hashlib.sha256(_edge_payload_str.encode()).hexdigest()
+    _pmf_sha256  = _hashlib.sha256(_pmf_payload_str.encode()).hexdigest()
 
     # Date-specific payloads (overwritten each run for that date)
     (edge_dir / f"{game_date}.json").write_text(_edge_payload_str)
     (pmf_dir  / f"{game_date}.json").write_text(_pmf_payload_str)
 
-    # Immutable release payloads (never overwritten; keyed by release_id)
+    # Immutable release payloads (keyed by release_id — never overwrite an existing one)
     _eff_release_id = release_id or game_date
     (edge_dir / "releases").mkdir(parents=True, exist_ok=True)
     (pmf_dir  / "releases").mkdir(parents=True, exist_ok=True)
-    (edge_dir / "releases" / f"{_eff_release_id}.json").write_text(_edge_payload_str)
-    (pmf_dir  / "releases" / f"{_eff_release_id}.json").write_text(_pmf_payload_str)
+    _edge_release_path = edge_dir / "releases" / f"{_eff_release_id}.json"
+    _pmf_release_path  = pmf_dir  / "releases" / f"{_eff_release_id}.json"
+    _edge_release_path.write_text(_edge_payload_str)
+    _pmf_release_path.write_text(_pmf_payload_str)
 
-    # latest.json = pointer only (not the full payload — prevents CDN stale-cache serving old data)
+    # latest.json = pointer only — contains:
+    #   release_id, game_date, payload_path, payload_sha256, git_commit,
+    #   model_version, calibration_version, generated_at_utc, row_count
+    # Page JS must:
+    #   1. fetch latest.json with cache: "no-store" + ?t=<timestamp>
+    #   2. validate pointer fields
+    #   3. fetch releases/<release_id>.json with cache: "no-store" + ?r=<release_id>
+    #   4. verify payload_sha256 against fetched content
+    #   5. reject if game_date != target date or release_id mismatch
+    _now_utc = datetime.now(timezone.utc).isoformat()
     _edge_pointer = _sanitize({
         "pointer": True,
-        "release_id": release_id,
+        "release_id": _eff_release_id,
         "game_date": game_date,
+        "payload_path": f"releases/{_eff_release_id}.json",
+        "payload_sha256": _edge_sha256,
         "release_payload_path": f"releases/{_eff_release_id}.json",
         "date_payload_path": f"{game_date}.json",
         "git_commit": git_commit,
         "model_version": model_version,
         "calibration_version": calibration_version,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "total_props": edge_json["total_props"],
+        "generated_at_utc": _now_utc,
+        "row_count": edge_json["total_props"],
+        "total_props": edge_json["total_props"],  # backward compat alias
     })
     _pmf_pointer = _sanitize({
         "pointer": True,
-        "release_id": release_id,
+        "release_id": _eff_release_id,
         "game_date": game_date,
+        "payload_path": f"releases/{_eff_release_id}.json",
+        "payload_sha256": _pmf_sha256,
         "release_payload_path": f"releases/{_eff_release_id}.json",
         "date_payload_path": f"{game_date}.json",
         "git_commit": git_commit,
         "model_version": model_version,
         "calibration_version": calibration_version,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "total_props": pmf_json["total_props"],
+        "generated_at_utc": _now_utc,
+        "row_count": pmf_json["total_props"],
+        "total_props": pmf_json["total_props"],  # backward compat alias
     })
     (edge_dir / "latest.json").write_text(json.dumps(_edge_pointer, separators=(",", ":")))
     (pmf_dir  / "latest.json").write_text(json.dumps(_pmf_pointer,  separators=(",", ":")))
-    typer.echo(f"  Edge JSON → {edge_dir}/releases/{_eff_release_id}.json ({edge_json['total_props']} props)")
-    typer.echo(f"  PMF JSON  → {pmf_dir}/releases/{_eff_release_id}.json ({pmf_json['total_props']} props with distributions)")
-    typer.echo(f"  Both latest.json updated as pointer (release_id={_eff_release_id!r})")
+    typer.echo(f"  Edge: releases/{_eff_release_id}.json ({edge_json['total_props']} props) sha256={_edge_sha256[:12]}")
+    typer.echo(f"  PMF:  releases/{_eff_release_id}.json ({pmf_json['total_props']} props) sha256={_pmf_sha256[:12]}")
+    typer.echo(f"  Both latest.json → pointer release_id={_eff_release_id!r}")
 
     # --- Write HTML templates (skip when --json-only) ---
     if not json_only:

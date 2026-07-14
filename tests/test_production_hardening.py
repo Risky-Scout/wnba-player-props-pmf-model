@@ -232,11 +232,22 @@ class TestCacheSafePayloads:
         # Check releases dir
         release_path = out / "PMF-Distributions" / "releases" / "TEST_RELEASE_001.json"
         assert release_path.exists(), f"Immutable release file must exist: {release_path}"
-        # Check latest.json is a pointer
+        # Check latest.json is a pointer with full required fields
+        import hashlib as _hl
         latest = json.loads((out / "PMF-Distributions" / "latest.json").read_text())
         assert latest.get("pointer") is True, "latest.json must be a pointer"
         assert latest.get("release_id") == "TEST_RELEASE_001"
-        assert "release_payload_path" in latest
+        assert "payload_path" in latest or "release_payload_path" in latest
+        assert "payload_sha256" in latest, "Pointer must include payload_sha256"
+        assert "row_count" in latest, "Pointer must include row_count"
+        assert "generated_at_utc" in latest, "Pointer must include generated_at_utc"
+        # Validate payload_sha256 matches actual release file
+        release_payload = release_path.read_text()
+        expected_sha = _hl.sha256(release_payload.encode()).hexdigest()
+        assert latest["payload_sha256"] == expected_sha, "payload_sha256 must match release file"
+        # Validate row_count matches actual props
+        release_data = json.loads(release_payload)
+        assert latest["row_count"] == release_data.get("total_props", 0)
 
     def test_latest_json_is_pointer_not_full_payload(self, tmp_path: Path):
         """latest.json must contain pointer fields, not the full props array."""

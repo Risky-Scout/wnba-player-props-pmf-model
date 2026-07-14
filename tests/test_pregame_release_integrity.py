@@ -226,23 +226,53 @@ def _run_generate_distributions(
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def _load_page_payload(base_dir: Path, page_name: str, game_date: str = GAME_DATE) -> dict:
-    """Load actual page payload following pointer if latest.json is a pointer."""
+def _load_page_payload(
+    base_dir: Path, page_name: str, game_date: str = GAME_DATE, *, validate_sha: bool = True
+) -> dict:
+    """Load actual page payload following pointer if latest.json is a pointer.
+
+    Phase 1 contract:
+      1. Load latest.json as a pointer.
+      2. Follow payload_path to the immutable release payload.
+      3. Validate payload_sha256 when present.
+      4. Assert row_count matches actual payload rows.
+    """
+    import hashlib as _hl
     latest_path = base_dir / "Pre-Game" / page_name / "latest.json"
     if not latest_path.exists():
         return {}
     latest = json.loads(latest_path.read_text())
-    # If latest.json is a pointer, follow it to the actual release payload
-    if latest.get("pointer") is True:
-        # Try release path first, then date-specific
-        if latest.get("release_payload_path"):
-            release_p = base_dir / "Pre-Game" / page_name / latest["release_payload_path"]
-            if release_p.exists():
-                return json.loads(release_p.read_text())
-        date_p = base_dir / "Pre-Game" / page_name / f"{game_date}.json"
-        if date_p.exists():
-            return json.loads(date_p.read_text())
-        return latest  # fallback: return pointer as-is
+    if latest.get("pointer") is not True:
+        return latest
+
+    # Follow pointer to immutable release payload
+    payload_path = latest.get("payload_path") or latest.get("release_payload_path")
+    release_p = base_dir / "Pre-Game" / page_name / payload_path if payload_path else None
+
+    if release_p and release_p.exists():
+        raw = release_p.read_text()
+        # Validate SHA-256 when stored in pointer
+        stored_sha = latest.get("payload_sha256")
+        if stored_sha and validate_sha:
+            actual_sha = _hl.sha256(raw.encode()).hexdigest()
+            assert actual_sha == stored_sha, (
+                f"Pointer payload_sha256 mismatch for {page_name}: "
+                f"stored={stored_sha[:16]} actual={actual_sha[:16]}"
+            )
+        payload = json.loads(raw)
+        # Validate row_count
+        stored_rows = latest.get("row_count")
+        if stored_rows is not None:
+            actual_rows = payload.get("total_props", len(payload.get("props", [])))
+            assert actual_rows == stored_rows, (
+                f"Pointer row_count={stored_rows} != actual={actual_rows} for {page_name}"
+            )
+        return payload
+
+    # Fallback to date-specific
+    date_p = base_dir / "Pre-Game" / page_name / f"{game_date}.json"
+    if date_p.exists():
+        return json.loads(date_p.read_text())
     return latest
 
 
