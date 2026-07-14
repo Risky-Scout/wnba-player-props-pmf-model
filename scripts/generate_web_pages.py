@@ -104,6 +104,9 @@ def _build_edge_json(
     raw_quote_count: int | None = None,
     reconciled_quote_count: int | None = None,
     market_request_timestamp_utc: str = "",
+    market_request_status: str = "ok",
+    fresh_quote_count: int | None = None,
+    rejection_counts: dict | None = None,
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -345,12 +348,16 @@ def _build_edge_json(
         market_status = inferred_status
 
     payload["market_status"] = market_status
+    payload["market_request_status"] = market_request_status or "ok"
     payload["raw_quote_count"] = raw_quote_count if raw_quote_count is not None else (
         len(edges_df) if edges_df is not None else 0
     )
+    payload["fresh_quote_count"] = fresh_quote_count if fresh_quote_count is not None else (
+        payload["raw_quote_count"]
+    )
     payload["reconciled_quote_count"] = reconciled_quote_count if reconciled_quote_count is not None else n_rows
-    if market_request_timestamp_utc:
-        payload["market_request_timestamp_utc"] = market_request_timestamp_utc
+    payload["rejection_counts"] = rejection_counts or {}
+    payload["market_request_timestamp_utc"] = market_request_timestamp_utc or datetime.now(timezone.utc).isoformat()
     return payload
 
 
@@ -1890,15 +1897,21 @@ def main(
     _raw_quote_count: int | None = None
     _reconciled_quote_count: int | None = None
     _market_req_ts: str = ""
+    _market_req_status: str = "ok"
+    _fresh_quote_count: int | None = None
+    _rejection_counts: dict | None = None
     if market_audit_json and Path(market_audit_json).exists():
         try:
             _audit = json.loads(Path(market_audit_json).read_text())
             if not market_status:
                 market_status = _audit.get("market_status", "")
-            _raw_quote_count = int(_audit.get("total_market_rows", 0))
-            _reconciled_quote_count = int(_audit.get("total_market_rows", 0))
-            _market_req_ts = _audit.get("generated_at", "")
-            typer.echo(f"  Market audit: status={market_status} raw={_raw_quote_count}")
+            _raw_quote_count = int(_audit.get("raw_quote_count", _audit.get("total_market_rows", 0)))
+            _reconciled_quote_count = int(_audit.get("reconciled_quote_count", _audit.get("total_market_rows", 0)))
+            _fresh_quote_count = int(_audit.get("fresh_quote_count", _raw_quote_count))
+            _market_req_status = _audit.get("market_request_status", "ok")
+            _rejection_counts = _audit.get("rejection_counts", {})
+            _market_req_ts = _audit.get("market_request_timestamp_utc", _audit.get("generated_at", ""))
+            typer.echo(f"  Market audit: status={market_status} raw={_raw_quote_count} fresh={_fresh_quote_count}")
         except Exception as exc:
             typer.echo(f"  [WARN] Could not read market audit JSON {market_audit_json}: {exc}", err=True)
 
@@ -1910,7 +1923,10 @@ def main(
                                  market_status=market_status,
                                  raw_quote_count=_raw_quote_count,
                                  reconciled_quote_count=_reconciled_quote_count,
-                                 market_request_timestamp_utc=_market_req_ts)
+                                 market_request_timestamp_utc=_market_req_ts,
+                                 market_request_status=_market_req_status,
+                                 fresh_quote_count=_fresh_quote_count,
+                                 rejection_counts=_rejection_counts)
     pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
                                  release_id=release_id, git_commit=git_commit,
                                  model_version=model_version,
