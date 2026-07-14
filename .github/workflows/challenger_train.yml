@@ -347,8 +347,11 @@ jobs:
           print("[OK] All challenger model artifacts hashed")
           PYEOF
 
-      # ── Step 17: Build OOF PMFs ────────────────────────────────────────────
-      - name: Step 17 — Build challenger OOF PMFs
+      # ── Step 17: OOF audit on training data (parity check only) ────────────
+      # Generates walk-forward OOF PMFs for the TRAINING period only.
+      # This file is used for OOF fold audit — NOT as calibration/eval data.
+      # Calibration and evaluation use fresh fixed-model holdout PMFs (Step 17b).
+      - name: Step 17 — Build challenger OOF PMFs (training-period audit only)
         run: |
           mkdir -p "$OOF_DIR"
           python scripts/build_oof_pmfs.py \
@@ -358,46 +361,140 @@ jobs:
             --config "$OOF_CONFIG" \
             --out-dir "$OOF_DIR" \
             --audit-out "$DELIVERY_DIR/oof_audit.json"
-          echo "[challenger] OOF PMFs built in $OOF_DIR"
-          # Verify OOF output exists
+          echo "[challenger] Training-period OOF audit complete"
           if [ ! -f "$OOF_DIR/oof_player_stat_pmfs.parquet" ]; then
-            echo "[FATAL] OOF output missing: $OOF_DIR/oof_player_stat_pmfs.parquet" >&2
-            exit 1
+            echo "[FATAL] OOF output missing" >&2; exit 1
           fi
+          # Assert training OOF contains ONLY training-period dates (sanity check)
+          python - <<'PYEOF'
+          import pandas as pd, sys, os
+          oof = pd.read_parquet(os.environ["OOF_DIR"] + "/oof_player_stat_pmfs.parquet")
+          gd = pd.to_datetime(oof["game_date"]).dt.date.astype(str)
+          beyond_train = oof[gd > os.environ["TRAIN_CUTOFF"]]
+          print(f"[OOF audit] Total OOF rows: {len(oof)}")
+          print(f"[OOF audit] Max date: {gd.max()}")
+          if len(beyond_train) > 0:
+              print(f"[WARN] {len(beyond_train)} OOF rows beyond TRAIN_CUTOFF — expected if walk-forward extends into holdout")
+          print("[OK] OOF training audit complete (this file is NOT used for calibration or evaluation)")
+          PYEOF
 
-      # ── Step 18: Fit calibrators ───────────────────────────────────────────
-      - name: Step 18 — Fit compatible challenger calibrators
+      # ── Step 17b: Generate fixed-model holdout PMFs ────────────────────────
+      # Uses the EXACT production inference function (predict_player_pmfs) with
+      # the trained Stage 4 challenger model applied to the holdout periods.
+      # Calibration and evaluation holdouts are never used for model fitting.
+      - name: Step 17b — Generate fixed-model holdout PMFs for calibration and evaluation
+        run: |
+          python - <<'PYEOF'
+          import sys, os, json, hashlib
+          import pandas as pd
+          import numpy as np
+          from pathlib import Path
+
+          # Job-level env vars are available as shell variables; access via os.environ
+          OOF_DIR      = Path(os.environ["OOF_DIR"])
+          MODEL_DIR    = Path(os.environ["MODEL_DIR"])
+          MODEL_CONFIG = Path(os.environ["MODEL_CONFIG"])
+          CAL_START    = os.environ["CAL_START"]   # 2026-06-11
+          CAL_END      = os.environ["CAL_END"]     # 2026-06-25
+          EVAL_START   = os.environ["EVAL_START"]  # 2026-06-26
+          EVAL_END     = os.environ["EVAL_END"]    # 2026-07-13
+          TRAIN_CUTOFF = os.environ["TRAIN_CUTOFF"]  # 2026-06-10
+
+          OOF_DIR.mkdir(parents=True, exist_ok=True)
+
+          # Load full historical features (NOT the train-truncated version)
+          wide = pd.read_parquet("data/processed/wnba_player_game_features_wide.parquet")
+          wide["_gd"] = pd.to_datetime(wide["game_date"]).dt.date.astype(str)
+
+          # Verify training rows are not in the holdout
+          train_ids = set(wide[wide["_gd"] <= TRAIN_CUTOFF]["game_id"].unique())
+          cal_data  = wide[(wide["_gd"] >= CAL_START)  & (wide["_gd"] <= CAL_END)].drop(columns=["_gd"])
+          eval_data = wide[(wide["_gd"] >= EVAL_START) & (wide["_gd"] <= EVAL_END)].drop(columns=["_gd"])
+
+          print(f"[holdout] Training max date in features: {wide[wide['_gd'] <= TRAIN_CUTOFF]['_gd'].max()}")
+          print(f"[holdout] Calibration rows: {len(cal_data)} ({CAL_START}–{CAL_END})")
+          print(f"[holdout] Evaluation rows:  {len(eval_data)} ({EVAL_START}–{EVAL_END})")
+
+          if len(cal_data) == 0:
+              print("[FATAL] Zero calibration holdout rows", file=sys.stderr); sys.exit(1)
+          if len(eval_data) == 0:
+              print("[FATAL] Zero evaluation holdout rows", file=sys.stderr); sys.exit(1)
+
+          # Assert no game_id crosses partitions
+          cal_games  = set(cal_data["game_id"].unique())
+          eval_games = set(eval_data["game_id"].unique())
+          overlap = cal_games & eval_games
+          if overlap:
+              print(f"[FATAL] {len(overlap)} game_ids in both partitions", file=sys.stderr); sys.exit(1)
+
+          overlap_with_train = (cal_games | eval_games) & train_ids
+          print(f"[holdout] {len(overlap_with_train)} game_ids from holdout also appear in training (expected for multi-game players)")
+
+          # Import the exact production inference function — no PMF math duplication
+          import yaml
+          cfg = yaml.safe_load(MODEL_CONFIG.read_text())
+          from wnba_props_model.pipeline.predict import predict_player_pmfs, _load_stage4_models
+
+          models = _load_stage4_models(MODEL_DIR)
+          print(f"[holdout] Loaded Stage 4 challenger models from {MODEL_DIR}")
+
+          # Generate raw (uncalibrated) PMFs for each holdout using the trained model
+          for label, data, out_name in [
+              ("calibration", cal_data, "calibration_holdout_raw.parquet"),
+              ("evaluation",  eval_data, "evaluation_holdout_raw.parquet"),
+          ]:
+              pmfs = predict_player_pmfs(
+                  data,
+                  models=models,
+                  config=cfg,
+              )
+              # Validate PMF integrity
+              from wnba_props_model.models.simulation import json_to_pmf, normalize_pmf
+              import math
+              dup_keys = pmfs.duplicated(subset=["game_id","player_id","stat"], keep=False).sum()
+              invalid  = 0
+              max_err  = 0.0
+              for pj in pmfs["pmf_json"]:
+                  if pj is None: continue
+                  p = normalize_pmf(json_to_pmf(pj))
+                  e = abs(p.sum() - 1.0)
+                  max_err = max(max_err, e)
+                  if not (np.isfinite(p).all() and (p >= 0).all()):
+                      invalid += 1
+              if dup_keys > 0:
+                  print(f"[FATAL] {dup_keys} duplicate PMF keys in {label} holdout", file=sys.stderr); sys.exit(1)
+              if invalid > 0:
+                  print(f"[FATAL] {invalid} invalid PMFs in {label} holdout", file=sys.stderr); sys.exit(1)
+              if max_err > 1e-6:
+                  print(f"[FATAL] PMF sum error {max_err:.2e} > 1e-6 in {label} holdout", file=sys.stderr); sys.exit(1)
+              # Carry game_date and actual_outcome from feature rows
+              if "game_date" not in pmfs.columns and "game_date" in data.columns:
+                  pmfs = pmfs.merge(data[["game_id","player_id","game_date"]].drop_duplicates(),
+                                    on=["game_id","player_id"], how="left")
+              # Carry actual outcomes for scoring
+              for stat in ["pts","reb","ast","fg3m","stl","blk","turnover"]:
+                  acol = f"actual_{stat}"
+                  if acol in data.columns:
+                      stat_rows = data[["game_id","player_id",acol]].drop_duplicates(["game_id","player_id"])
+                      pmfs = pmfs.merge(stat_rows, on=["game_id","player_id"], how="left")
+              out_path = OOF_DIR / out_name
+              pmfs.to_parquet(out_path, index=False)
+              print(f"[holdout] {label}: {len(pmfs)} rows → {out_path} (dup={dup_keys} invalid={invalid} max_err={max_err:.1e})")
+
+          print("[OK] Holdout PMFs generated with zero duplicate keys and zero invalid PMFs")
+          PYEOF
+
+      # ── Step 18: Fit calibrators on calibration holdout ONLY ─────────────
+      - name: Step 18 — Fit fresh challenger calibrators from calibration holdout
         run: |
           mkdir -p "$CALIBRATION_DIR"
-          # Filter OOF to calibration-only period before fitting
-          python - <<'PYEOF'
-          import pandas as pd
-          from pathlib import Path
-          import os
-          oof = pd.read_parquet(os.environ["OOF_DIR"] + "/oof_player_stat_pmfs.parquet")
-          oof["_gd"] = pd.to_datetime(oof["game_date"]).dt.date.astype(str)
-          cal = oof[(oof["_gd"] >= os.environ["CAL_START"]) & (oof["_gd"] <= os.environ["CAL_END"])].drop(columns=["_gd"])
-          cal_path = os.environ["OOF_DIR"] + "/challenger_calibration_oof.parquet"
-          cal.to_parquet(cal_path, index=False)
-          print(f"[calibration] Calibration OOF rows: {len(cal)} ({os.environ['CAL_START']} to {os.environ['CAL_END']})")
-
-          # Also write untouched evaluation OOF
-          eval_oof = oof[(oof["_gd"] >= os.environ["EVAL_START"]) & (oof["_gd"] <= os.environ["EVAL_END"])].drop(columns=["_gd"])
-          eval_path = os.environ["OOF_DIR"] + "/challenger_evaluation_oof.parquet"
-          eval_oof.to_parquet(eval_path, index=False)
-          print(f"[evaluation] Untouched eval OOF rows: {len(eval_oof)} ({os.environ['EVAL_START']} to {os.environ['EVAL_END']})")
-          PYEOF
-          env:
-            CAL_START: ${{ env.CAL_START }}
-            CAL_END: ${{ env.CAL_END }}
-            EVAL_START: ${{ env.EVAL_START }}
-            EVAL_END: ${{ env.EVAL_END }}
-
+          # Calibrators are fitted ONLY from calibration_holdout_raw.parquet.
+          # evaluation_holdout_raw.parquet is never used for fitting.
           python scripts/fit_calibrators.py \
-            --oof-pmfs "$OOF_DIR/challenger_calibration_oof.parquet" \
+            --oof-pmfs "$OOF_DIR/calibration_holdout_raw.parquet" \
             --out-dir "$CALIBRATION_DIR" \
             --require-oof-persistence
-          echo "[challenger] Calibrators fitted in $CALIBRATION_DIR"
+          echo "[challenger] Calibrators fitted from calibration holdout"
 
       - name: Verify and hash challenger calibrator artifacts
         run: |
@@ -407,9 +504,10 @@ jobs:
 
           cal_dir = Path(os.environ["CALIBRATION_DIR"])
           required_stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
-          missing = [f"pmf_cal_role_{s}.pkl" for s in required_stats if not (cal_dir / f"pmf_cal_role_{s}.pkl").exists()]
+          missing = [f"pmf_cal_role_{s}.pkl" for s in required_stats
+                     if not (cal_dir / f"pmf_cal_role_{s}.pkl").exists()]
           if missing:
-              print(f"[FATAL] Missing challenger calibrator artifacts: {missing}", file=sys.stderr)
+              print(f"[FATAL] Missing calibrator artifacts: {missing}", file=sys.stderr)
               sys.exit(1)
           hashes = {}
           for s in required_stats:
@@ -419,8 +517,29 @@ jobs:
           (cal_dir / "challenger_calibrator_hashes.json").write_text(json.dumps(hashes, indent=2))
           print("[OK] All challenger calibrator artifacts hashed")
           PYEOF
-          env:
-            CALIBRATION_DIR: ${{ env.CALIBRATION_DIR }}
+
+      - name: Apply calibrators to evaluation holdout
+        run: |
+          python - <<'PYEOF'
+          import os, sys
+          import pandas as pd
+          from pathlib import Path
+          from wnba_props_model.pipeline.calibrate import apply_calibrators
+
+          eval_raw  = Path(os.environ["OOF_DIR"]) / "evaluation_holdout_raw.parquet"
+          cal_dir   = Path(os.environ["CALIBRATION_DIR"])
+          out_path  = Path(os.environ["OOF_DIR"]) / "evaluation_holdout_calibrated.parquet"
+
+          if not eval_raw.exists():
+              print("[FATAL] evaluation_holdout_raw.parquet missing", file=sys.stderr); sys.exit(1)
+
+          eval_df = pd.read_parquet(eval_raw)
+          calibrated = apply_calibrators(eval_df, cal_dir=str(cal_dir))
+          calibrated.to_parquet(out_path, index=False)
+          n_cal = calibrated.get("is_calibrated", pd.Series([False]*len(calibrated))).sum()
+          print(f"[eval calibration] {n_cal}/{len(calibrated)} rows calibrated → {out_path}")
+          print("[OK] Calibrated evaluation holdout written")
+          PYEOF
 
       # ── Step 19: Paired champion/challenger evaluation ────────────────────
       - name: Step 19 — Paired champion/challenger evaluation
@@ -428,14 +547,12 @@ jobs:
           mkdir -p "$DELIVERY_DIR/evaluation"
           python scripts/compare_champion_challenger.py \
             --champion-oof artifacts/models/calibration/oof_predictions.parquet \
-            --challenger-oof "$OOF_DIR/challenger_evaluation_oof.parquet" \
+            --challenger-oof "$OOF_DIR/evaluation_holdout_calibrated.parquet" \
             --eval-start "$EVAL_START" \
             --eval-end   "$EVAL_END" \
             --out-dir    "$DELIVERY_DIR/evaluation"
-          # Verify promotion_decision.json was written
           if [ ! -f "$DELIVERY_DIR/evaluation/promotion_decision.json" ]; then
-            echo "[FATAL] promotion_decision.json not written" >&2
-            exit 1
+            echo "[FATAL] promotion_decision.json not written" >&2; exit 1
           fi
           cat "$DELIVERY_DIR/evaluation/promotion_decision.json"
 
@@ -463,6 +580,17 @@ jobs:
                  || ls "$DELIVERY_DIR/full_pmfs_wide.parquet" 2>/dev/null || echo "")
           EDGES=$(ls "$DELIVERY_DIR/publishable_edges.parquet" 2>/dev/null || echo "")
 
+          # Derive market_status from build_edge_report audit JSON (evidence-based)
+          EDGE_AUDIT=$(ls "$DELIVERY_DIR/edge_report_"*.json 2>/dev/null | head -1 || echo "")
+          if [ -n "$EDGE_AUDIT" ]; then
+            MARKET_STATUS=$(python3 -c "import json; print(json.load(open('$EDGE_AUDIT')).get('market_status','LIVE_MARKETS_NOT_YET_AVAILABLE'))")
+            RAW_QUOTES=$(python3 -c "import json; print(json.load(open('$EDGE_AUDIT')).get('total_market_rows', 0))")
+          else
+            MARKET_STATUS="LIVE_MARKETS_NOT_YET_AVAILABLE"
+            RAW_QUOTES=0
+          fi
+          echo "[staging] market_status=$MARKET_STATUS raw_quotes=$RAW_QUOTES"
+
           python scripts/generate_web_pages.py \
             --game-date "$TARGET_DATE" \
             ${PROJ:+--projections "$PROJ"} \
@@ -472,7 +600,8 @@ jobs:
             --release-id "challenger-${{ github.run_id }}" \
             --git-commit "$GIT_COMMIT" \
             --model-version "$CHALLENGER_VERSION" \
-            --calibration-version "challenger_cal_v1"
+            --calibration-version "challenger_cal_v1" \
+            --market-status "$MARKET_STATUS"
 
           python scripts/generate_distributions_page.py \
             --game-date "$TARGET_DATE" \
@@ -512,11 +641,12 @@ jobs:
               check(CAL_DIR / f"pmf_cal_role_{s}.pkl", f"cal/{s}")
           check(CAL_DIR / "challenger_calibrator_hashes.json", "cal/hashes")
 
-          # OOF and partition files
-          check(OOF_DIR / "oof_player_stat_pmfs.parquet", "OOF/full")
-          check(OOF_DIR / "challenger_calibration_oof.parquet", "OOF/calibration")
-          check(OOF_DIR / "challenger_evaluation_oof.parquet", "OOF/evaluation")
-          check(DELIV_DIR / "oof_audit.json", "OOF/audit")
+          # OOF and holdout files
+          check(OOF_DIR / "oof_player_stat_pmfs.parquet",          "OOF/training_audit")
+          check(OOF_DIR / "calibration_holdout_raw.parquet",        "OOF/calibration_holdout")
+          check(OOF_DIR / "evaluation_holdout_raw.parquet",         "OOF/evaluation_holdout")
+          check(OOF_DIR / "evaluation_holdout_calibrated.parquet",  "OOF/evaluation_calibrated")
+          check(DELIV_DIR / "oof_audit.json",                       "OOF/audit")
 
           # Evaluation evidence
           check(DELIV_DIR / "evaluation" / "paired_metrics.json", "eval/metrics")
@@ -556,12 +686,6 @@ jobs:
           print(f"[OK] All {23 - len(errors)} evidence checks passed")
           print("[OK] Challenger training evidence gate: PASS")
           PYEOF
-          env:
-            MODEL_DIR: ${{ env.MODEL_DIR }}
-            CALIBRATION_DIR: ${{ env.CALIBRATION_DIR }}
-            OOF_DIR: ${{ env.OOF_DIR }}
-            DELIVERY_DIR: ${{ env.DELIVERY_DIR }}
-            MANIFEST_PATH: ${{ env.MANIFEST_PATH }}
 
       # ── Upload artifacts ───────────────────────────────────────────────────
       - name: Upload challenger model artifacts

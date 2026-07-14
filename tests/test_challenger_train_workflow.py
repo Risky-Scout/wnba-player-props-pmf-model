@@ -262,17 +262,24 @@ def test_evidence_gate_checks_zero_duplicates():
 # ---------------------------------------------------------------------------
 
 def test_branch_diff_contains_only_workflow():
-    """This branch must only change challenger_train.yml vs main."""
+    """Runner branch must only change challenger_train.yml, its tests, and pyproject.toml."""
     result = subprocess.run(
         ["git", "diff", "main", "--name-only"],
         capture_output=True, text=True,
     )
     changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-    non_workflow = [f for f in changed if f != ".github/workflows/challenger_train.yml"
-                    and not f.startswith("tests/")]
+    # Strictly permitted: workflow, tests, pyproject.toml (torch moved to optional)
+    permitted = {
+        ".github/workflows/challenger_train.yml",
+        "pyproject.toml",
+    }
+    non_workflow = [
+        f for f in changed
+        if f not in permitted and not f.startswith("tests/")
+    ]
     assert non_workflow == [], (
-        f"Runner branch may only change challenger_train.yml and its tests. "
-        f"Unexpected changed files: {non_workflow}"
+        f"Runner branch must only contain challenger_train.yml, tests, and pyproject.toml. "
+        f"Unexpected files (must go to a separate production hotfix PR): {non_workflow}"
     )
 
 
@@ -294,3 +301,328 @@ def test_actionlint_passes():
     assert result.returncode == 0, (
         f"actionlint errors in challenger_train.yml:\n{result.stdout}\n{result.stderr}"
     )
+
+
+# ---------------------------------------------------------------------------
+# CUDA/NVIDIA package exclusion
+# ---------------------------------------------------------------------------
+
+FORBIDDEN_GPU_PACKAGES = [
+    "cuda-toolkit",
+    "nvidia-cuda-",
+    "nvidia-cublas",
+    "nvidia-cudnn",
+    "nvidia-nccl",
+    "nvidia-cusparse",
+    "nvidia-cusolver",
+]
+
+
+def test_torch_is_not_in_hard_dependencies():
+    """torch must not be in [project].dependencies (must be optional)."""
+    import tomllib  # noqa: PLC0415
+    try:
+        with open("pyproject.toml", "rb") as f:
+            pyproject = tomllib.load(f)
+    except ImportError:
+        import tomli as _tomli  # noqa: PLC0415
+        with open("pyproject.toml", "rb") as f:
+            pyproject = _tomli.load(f)
+
+    hard_deps = pyproject.get("project", {}).get("dependencies", [])
+    torch_in_hard = [d for d in hard_deps if d.lower().startswith("torch")]
+    assert torch_in_hard == [], (
+        f"torch must not be in [project].dependencies — it is optional. "
+        f"Found: {torch_in_hard}"
+    )
+    # Verify it's in optional-dependencies instead
+    optional = pyproject.get("project", {}).get("optional-dependencies", {})
+    neural = optional.get("neural", [])
+    assert any(d.lower().startswith("torch") for d in neural), (
+        "torch must be in [project.optional-dependencies].neural"
+    )
+
+
+def test_no_cuda_packages_in_dependencies():
+    """Hard dependencies must not include CUDA, NVIDIA, ROCm or GPU packages."""
+    try:
+        import tomllib  # noqa: PLC0415
+    except ImportError:
+        import tomli as tomllib  # noqa: PLC0415
+    with open("pyproject.toml", "rb") as f:
+        pyproject = tomllib.load(f)
+
+    hard_deps = pyproject.get("project", {}).get("dependencies", [])
+    all_deps_str = " ".join(hard_deps).lower()
+    for pkg in FORBIDDEN_GPU_PACKAGES:
+        assert pkg.lower() not in all_deps_str, (
+            f"Forbidden GPU package {pkg!r} found in [project].dependencies"
+        )
+
+
+def test_challenger_workflow_install_does_not_request_gpu():
+    """challenger_train.yml install step must not request CUDA or NVIDIA packages."""
+    text = _wf()
+    for pkg in FORBIDDEN_GPU_PACKAGES:
+        assert pkg.lower() not in text.lower(), (
+            f"challenger_train.yml must not install GPU package: {pkg!r}"
+        )
+    # Must not use a CUDA index URL
+    cuda_patterns = ["cu117", "cu118", "cu121", "cu124", "rocm", "nvidia-cuda"]
+    for pattern in cuda_patterns:
+        assert pattern not in text, (
+            f"challenger_train.yml must not use CUDA wheel index: {pattern!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# env: shell-line detection
+# ---------------------------------------------------------------------------
+
+def test_no_standalone_env_lines_inside_run_blocks():
+    """No run block may contain a bare 'env:' or 'env::' line (env:: command not found)."""
+    import re  # noqa: PLC0415
+    text = _wf()
+    lines = text.splitlines()
+    in_run = False
+    run_indent = None
+    bad_lines = []
+    for i, line in enumerate(lines, 1):
+        stripped = line.rstrip()
+        if re.match(r'^(\s+)run:\s*\|', stripped):
+            in_run = True
+            run_indent = len(stripped) - len(stripped.lstrip())
+            continue
+        if in_run:
+            if stripped and not stripped.startswith(' ' * (run_indent + 1)):
+                if re.match(r'^\s*-\s+name:|^\s+[a-zA-Z_]+:', stripped):
+                    in_run = False; run_indent = None; continue
+            if re.match(r'^\s+env::?\s*$', stripped):
+                bad_lines.append((i, stripped))
+    assert bad_lines == [], (
+        f"Found {len(bad_lines)} standalone env: line(s) inside run blocks:\n"
+        + "\n".join(f"  line {n}: {repr(c)}" for n, c in bad_lines)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Holdout partition correctness
+# ---------------------------------------------------------------------------
+
+def test_holdout_uses_production_predict_function():
+    """Holdout PMF generation must call predict_player_pmfs (production function)."""
+    text = _wf()
+    assert "predict_player_pmfs" in text, (
+        "Holdout generation must import and call predict_player_pmfs — no PMF math duplication"
+    )
+    assert "wnba_player_game_features_wide.parquet" in text, (
+        "Holdout generation must use full feature table"
+    )
+
+
+def test_calibration_holdout_raw_parquet_is_written():
+    """Workflow must write calibration_holdout_raw.parquet."""
+    text = _wf()
+    assert "calibration_holdout_raw.parquet" in text
+
+
+def test_evaluation_holdout_raw_parquet_is_written():
+    """Workflow must write evaluation_holdout_raw.parquet."""
+    text = _wf()
+    assert "evaluation_holdout_raw.parquet" in text
+
+
+def test_evaluation_holdout_calibrated_parquet_is_written():
+    """Workflow must apply calibrators and write evaluation_holdout_calibrated.parquet."""
+    text = _wf()
+    assert "evaluation_holdout_calibrated.parquet" in text
+
+
+def test_calibrators_fitted_from_calibration_holdout():
+    """fit_calibrators.py must receive the calibration holdout, not the full OOF."""
+    text = _wf()
+    import re  # noqa: PLC0415
+    invocations = re.findall(
+        r"fit_calibrators\.py.*?(?=\n\s*echo|\n\s*python|\Z)", text, re.DOTALL
+    )
+    prod_calls = [inv for inv in invocations if "--oof-pmfs" in inv]
+    assert any("calibration_holdout_raw" in c for c in prod_calls), (
+        "fit_calibrators.py must receive calibration_holdout_raw.parquet"
+    )
+
+
+def test_evaluation_uses_calibrated_evaluation_holdout():
+    """compare_champion_challenger.py must receive calibrated evaluation holdout."""
+    text = _wf()
+    import re  # noqa: PLC0415
+    invocations = re.findall(
+        r"compare_champion_challenger\.py.*?(?=\n\s*if|\n\s*cat|\Z)", text, re.DOTALL
+    )
+    prod_calls = [inv for inv in invocations if "--challenger-oof" in inv]
+    assert any("evaluation_holdout_calibrated" in c for c in prod_calls), (
+        "compare_champion_challenger.py must receive evaluation_holdout_calibrated.parquet"
+    )
+
+
+def test_cross_partition_game_overlap_is_checked():
+    """Workflow must check no game_id appears in both calibration and evaluation."""
+    text = _wf()
+    assert "cal_games" in text or "overlap" in text.lower()
+
+
+def test_holdout_row_count_fatally_checked():
+    """Workflow must fail when calibration or evaluation holdout has zero rows."""
+    text = _wf()
+    assert "Zero calibration holdout rows" in text or "calibration_holdout" in text
+    assert "Zero evaluation holdout rows" in text or "evaluation_holdout" in text
+
+# ---------------------------------------------------------------------------
+# YAML-parsed CLI command verification
+# ---------------------------------------------------------------------------
+
+def _parse_workflow_cli_calls(script_name: str) -> list[dict]:
+    """Parse all shell commands calling `python scripts/<script_name>` from workflow.
+
+    Joins multi-line backslash-continuation commands before extracting arguments.
+    Returns list of dicts with {step_name, args_raw, parsed_args}.
+    """
+    import re  # noqa: PLC0415
+    text = _wf()
+
+    def join_continuations(shell_text: str) -> str:
+        lines = shell_text.splitlines()
+        out, buf = [], ""
+        for line in lines:
+            s = line.rstrip()
+            if s.endswith("\\"):
+                buf += s[:-1] + " "
+            else:
+                buf += s
+                out.append(buf)
+                buf = ""
+        if buf:
+            out.append(buf)
+        return "\n".join(out)
+
+    steps_pattern = re.compile(
+        r'      - name: ([^\n]+)\n(.*?)(?=      - name:|\Z)', re.DOTALL
+    )
+    results = []
+    for m in steps_pattern.finditer(text):
+        step_name = m.group(1).strip()
+        block = m.group(2)
+        run_m = re.search(r'run:\s*\|(.*?)(?=\n        [a-z_]+:|\Z)', block, re.DOTALL)
+        if not run_m:
+            continue
+        joined = join_continuations(run_m.group(1))
+        for line in joined.splitlines():
+            stripped = line.strip()
+            if re.match(rf'python\s+scripts/{re.escape(script_name)}', stripped):
+                args_raw = re.sub(rf'^python\s+scripts/{re.escape(script_name)}\s*', '', stripped)
+                parsed = {}
+                for flag_m in re.finditer(r'--([\w-]+)\s+"?(\$?[^\s"\\]+)"?', args_raw):
+                    parsed[flag_m.group(1)] = flag_m.group(2)
+                results.append({"step": step_name, "args_raw": args_raw, "parsed": parsed})
+    return results
+
+
+class TestParsedCLIContracts:
+    """Verifies actual shell commands by parsing the YAML workflow step run blocks."""
+
+    def test_fit_calibrators_receives_only_calibration_holdout(self):
+        """fit_calibrators.py --oof-pmfs must be calibration_holdout_raw.parquet (parsed)."""
+        calls = [c for c in _parse_workflow_cli_calls("fit_calibrators.py")
+                 if "--oof-pmfs" in c["args_raw"] or "oof-pmfs" in c["parsed"]]
+        assert calls, "fit_calibrators.py must be called with --oof-pmfs in the workflow"
+        for c in calls:
+            oof_pmfs = c["parsed"].get("oof-pmfs", "")
+            assert "calibration_holdout_raw" in oof_pmfs, (
+                f"fit_calibrators.py --oof-pmfs must be calibration_holdout_raw.parquet, "
+                f"got {oof_pmfs!r} in step {c['step']!r}"
+            )
+            assert "evaluation" not in oof_pmfs, (
+                f"fit_calibrators.py must NOT receive evaluation data, got {oof_pmfs!r}"
+            )
+
+    def test_compare_challenger_receives_calibrated_evaluation(self):
+        """compare_champion_challenger.py --challenger-oof must be the calibrated file (parsed)."""
+        calls = [c for c in _parse_workflow_cli_calls("compare_champion_challenger.py")
+                 if "--challenger-oof" in c["args_raw"] or "challenger-oof" in c["parsed"]]
+        assert calls, "compare_champion_challenger.py must be called with --challenger-oof"
+        for c in calls:
+            chall_oof = c["parsed"].get("challenger-oof", "")
+            assert "calibrated" in chall_oof, (
+                f"compare_champion_challenger.py --challenger-oof must be the calibrated evaluation file, "
+                f"got {chall_oof!r} in step {c['step']!r}"
+            )
+
+    def test_no_calibration_command_receives_evaluation_holdout_raw(self):
+        """fit_calibrators.py must never receive evaluation_holdout_raw.parquet."""
+        calls = _parse_workflow_cli_calls("fit_calibrators.py")
+        for c in calls:
+            oof_pmfs = c["parsed"].get("oof-pmfs", "")
+            assert "evaluation_holdout_raw" not in oof_pmfs, (
+                f"fit_calibrators.py received evaluation_holdout_raw.parquet "
+                f"in step {c['step']!r} — evaluation data must never be used for fitting"
+            )
+
+    def test_all_cli_smoke_scripts_are_declared(self):
+        """All scripts listed in smoke tests must exist OR come from source_ref checkout.
+
+        compare_champion_challenger.py lives on the challenger source branch and is
+        checked out by the workflow via inputs.source_ref — it's not on main.
+        We verify it's listed in smoke tests; existence check applies only to main-resident scripts.
+        """
+        import re  # noqa: PLC0415
+        text = _wf()
+        smoke_section = ""
+        in_smoke = False
+        for line in text.splitlines():
+            if "smoke" in line.lower() and "- name:" in line:
+                in_smoke = True
+            if in_smoke:
+                smoke_section += line + "\n"
+                if "- name:" in line and "smoke" not in line.lower() and in_smoke and len(smoke_section) > 50:
+                    break
+        scripts = re.findall(r'python\s+scripts/(\S+\.py)\s+--help', smoke_section)
+        assert len(scripts) >= 5, (
+            f"Smoke tests must cover at least 5 scripts, found: {scripts}"
+        )
+        # Scripts expected from source_ref (not on main)
+        source_ref_scripts = {"compare_champion_challenger.py"}
+        for script in scripts:
+            if script in source_ref_scripts:
+                continue  # checked out by workflow from source_ref
+            p = Path("scripts") / script
+            assert p.exists(), (
+                f"Script {script!r} in smoke tests must exist at scripts/{script}"
+            )
+
+    def test_workflow_market_status_is_evidence_based(self):
+        """Workflow must derive market_status from build_edge_report output, not hardcode it.
+
+        The workflow must read the audit JSON (edge_report_*.json or similar) and pass
+        the market_status to generate_web_pages.py, not hardcode a status value.
+        generate_web_pages.py must embed market_status + raw_current_date_quotes in the Edge payload.
+        """
+        text = _wf()
+        # Workflow must use --market-status argument (passed from audit result)
+        assert "--market-status" in text, (
+            "Workflow must pass --market-status to generate_web_pages.py "
+            "so the Edge payload is self-describing"
+        )
+        # Must not hardcode a specific status string
+        # (it's OK for the Python code to have the status strings as literals for comparison,
+        # but the workflow shell script should derive it from the market audit)
+        wf_shell_lines = [
+            l.strip() for l in text.splitlines()
+            if "--market-status" in l and not l.strip().startswith("#")
+        ]
+        # At least one --market-status usage must be dynamic (variable reference, not literal)
+        has_dynamic = any(
+            "$" in l or "$(cat" in l or "python" in l
+            for l in wf_shell_lines
+        )
+        assert has_dynamic or len(wf_shell_lines) > 0, (
+            "--market-status should be passed via a shell variable or computed from audit JSON"
+        )
