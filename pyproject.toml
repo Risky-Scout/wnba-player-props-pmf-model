@@ -21,7 +21,6 @@ dependencies = [
   "pyarrow>=12.0",
   "penaltyblog>=0.16",
   "hmmlearn>=0.3",
-  "torch>=2.0",
   "shap>=0.44"
 ]
 
@@ -29,6 +28,11 @@ dependencies = [
 lgbm = ["lightgbm>=4.0"]
 tuning = ["optuna>=3.0"]
 dev = ["pytest>=7.0", "ruff>=0.3", "optuna>=3.0", "requests-mock>=1.9"]
+# torch is optional: only required by wnba2vec (Enhancement 12b), which is
+# guarded by try/except in build_features.py and is not called by any
+# challenger training path. Install CPU-only if needed:
+#   pip install torch>=2.0 --index-url https://download.pytorch.org/whl/cpu
+neural = ["torch>=2.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

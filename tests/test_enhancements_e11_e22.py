@@ -34,13 +34,14 @@ def test_causal_transfer_get_fallback():
 # ---------------------------------------------------------------------------
 
 def test_wnba2vec_import():
+    torch = pytest.importorskip("torch", reason="torch is optional (pip install .[neural])")
     from wnba_props_model.models.wnba2vec import WNBA2Vec, EmbeddingFeatureInjector, build_player_id_map
     model = WNBA2Vec(n_players=100, embed_dim=16)
     assert model is not None
 
 
 def test_wnba2vec_forward():
-    import torch
+    torch = pytest.importorskip("torch", reason="torch is optional (pip install .[neural])")
     from wnba_props_model.models.wnba2vec import WNBA2Vec
     model = WNBA2Vec(n_players=100, embed_dim=16, n_outcomes=23, context_dim=5)
     off_ids = torch.randint(1, 100, (2, 5))
@@ -51,6 +52,7 @@ def test_wnba2vec_forward():
 
 
 def test_embedding_injector_synthetic():
+    pytest.importorskip("torch", reason="torch is optional (pip install .[neural])")
     from wnba_props_model.models.wnba2vec import EmbeddingFeatureInjector, build_player_id_map
     df = pd.DataFrame({
         "player_id": [1, 2, 3, 1, 2],

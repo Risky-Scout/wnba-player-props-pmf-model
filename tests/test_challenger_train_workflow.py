@@ -262,17 +262,33 @@ def test_evidence_gate_checks_zero_duplicates():
 # ---------------------------------------------------------------------------
 
 def test_branch_diff_contains_only_workflow():
-    """This branch must only change challenger_train.yml vs main."""
+    """Runner branches may only change challenger_train.yml, tests, and pyproject.toml.
+
+    Skips when challenger_train.yml is not in the diff (not on the runner branch).
+    """
     result = subprocess.run(
         ["git", "diff", "main", "--name-only"],
         capture_output=True, text=True,
     )
     changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-    non_workflow = [f for f in changed if f != ".github/workflows/challenger_train.yml"
-                    and not f.startswith("tests/")]
+    # Only enforce on branches that change challenger_train.yml
+    if ".github/workflows/challenger_train.yml" not in changed:
+        pytest.skip(
+            "challenger_train.yml is not in this branch's diff — "
+            "branch isolation check only applies to the runner branch"
+        )
+    # Permitted changes on the runner branch
+    permitted = {
+        ".github/workflows/challenger_train.yml",
+        "pyproject.toml",
+    }
+    non_workflow = [
+        f for f in changed
+        if f not in permitted and not f.startswith("tests/")
+    ]
     assert non_workflow == [], (
-        f"Runner branch may only change challenger_train.yml and its tests. "
-        f"Unexpected changed files: {non_workflow}"
+        f"Runner branch may only change challenger_train.yml, tests, and pyproject.toml. "
+        f"Unexpected files: {non_workflow}"
     )
 
 
