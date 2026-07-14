@@ -1,0 +1,45 @@
+{
+  "selected_package": "KEEP_COMPLETE_CHAMPION",
+  "model_version": "hgb_v2.3.1_idr_beta_conformal",
+  "calibration_version": "idr_v12_beta_v12_conformal_v12",
+  "code_sha": "bd0b89d86e4c29c180ed07c695405eeeb58f8348",
+  "model_artifact_source_run": "29345176737",
+  "model_artifact_hashes": {
+    "minutes_model.joblib": "787d078540057755a30cb89db344787eeed17e061bf366ca35b6b0f7822dc139",
+    "stat_rate_models.joblib": "506c171c270c9b71c5cbe97b8679da2ffec0baa93da471810d5af5a503f5170d",
+    "hurdle_models.joblib": "cd6a48a38052b2ec45b5d9887bc7e518cec1b95912248d99f996b7f35c3be7a9",
+    "feature_manifest.json": "cf4cf628acfdc7a80a11626e8c9e94f8e53a6ffef974d2e083a4a97fae830c43"
+  },
+  "calibration_artifact_source_run": "29345176737",
+  "calibration_artifact_hashes": {
+    "pmf_cal_role_pts.pkl": "50895e0856c059bee1046371a39dc55f657d8d5d1e0b93c0385f1a39a349fa7e",
+    "pmf_cal_role_reb.pkl": "6d5d57aedff69a6c4569156d9722537de6e0933e8f4926ab49dc8531789c2a74",
+    "pmf_cal_role_ast.pkl": "6c1e52b4ce0496f1e63d818bc0a5cca070696a79d6144e9371933839fca04270",
+    "pmf_cal_role_fg3m.pkl": "a656043c266f4e7286e69832a0001c174360d12a3417a7a86a549d532cc75f50",
+    "pmf_cal_role_stl.pkl": "36af2d417b25b0830ba50c9d0ac8684809f7ae2f7d7275a5c38692086b542151",
+    "pmf_cal_role_blk.pkl": "39b2952db827d9fa17b9ba64c879df94105c553cf377f7d7aa8c8f783e5e3d61",
+    "pmf_cal_role_turnover.pkl": "62a489f706c6a299a11fa00facd35601b19495c91a508fae15137bfcd29b1e44",
+    "calibration_metadata.json": "6e9f25c28ab31f437bf85b6940b68cf9b9b1ed90da4d6fe1f47e0e2f98d4435c"
+  },
+  "feature_schema_version": "champion_baseline",
+  "training_cutoff": "2026-07-13",
+  "calibration_cutoff": "2026-07-13T17:41:14Z",
+  "evaluation_dates": "2026-06-26 through 2026-07-13",
+  "c6_method_by_stat": {
+    "pts": "USE_IDENTITY_C6",
+    "reb": "INSUFFICIENT_DATA",
+    "ast": "INSUFFICIENT_DATA",
+    "fg3m": "USE_IDENTITY_C6",
+    "stl": "PROMOTE_RATE_C6",
+    "blk": "PROMOTE_RATE_C6",
+    "turnover": "INSUFFICIENT_DATA"
+  },
+  "promotion_decision": "KEEP_COMPLETE_CHAMPION",
+  "promotion_reason": "Challenger training requires GitHub Actions workflow_dispatch (HTTP 403 in Cloud Agent environment). Champion passes all quality gates: 0 duplicate identities, 0 invalid PMFs, correct push probabilities, model_version + calibration_version present in all pages.",
+  "selected_at_utc": "2026-07-14T18:14:31.188458+00:00",
+  "rollback_package": {
+    "note": "Champion IS the current package. Rollback = re-run pregame_initial.yml from main@bd0b89d",
+    "main_sha": "bd0b89d86e4c29c180ed07c695405eeeb58f8348",
+    "artifact_run": "29345176737"
+  }
+}

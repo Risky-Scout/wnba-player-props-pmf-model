@@ -98,6 +98,8 @@ def _build_edge_json(
     v1_path: str | None = None,
     release_id: str = "",
     git_commit: str = "",
+    model_version: str = "",
+    calibration_version: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -308,6 +310,10 @@ def _build_edge_json(
         payload["release_id"] = release_id
     if git_commit:
         payload["git_commit"] = git_commit
+    if model_version:
+        payload["model_version"] = model_version
+    if calibration_version:
+        payload["calibration_version"] = calibration_version
     return payload
 
 
@@ -317,6 +323,8 @@ def _build_pmf_json(
     game_date: str,
     release_id: str = "",
     git_commit: str = "",
+    model_version: str = "",
+    calibration_version: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/PMF-Distributions/latest.json.
 
@@ -510,6 +518,10 @@ def _build_pmf_json(
         result["release_id"] = release_id
     if git_commit:
         result["git_commit"] = git_commit
+    if model_version:
+        result["model_version"] = model_version
+    if calibration_version:
+        result["calibration_version"] = calibration_version
     if _cal_over_hit_rate is not None:
         result["calibration_30d"] = {
             "over_hit_rate": _cal_over_hit_rate,
@@ -1632,6 +1644,16 @@ def main(
             "When scheduled_game_count == 0, exits 0 with VERIFIED_NO_GAMES status."
         ),
     ),
+    model_version: str = typer.Option(
+        "",
+        "--model-version",
+        help="Model version string written to both page JSON outputs for traceability.",
+    ),
+    calibration_version: str = typer.Option(
+        "",
+        "--calibration-version",
+        help="Calibration version string written to both page JSON outputs for traceability.",
+    ),
 ) -> None:
     """Generate all three web page directories (Edge, PMF-Distributions, Inplay/Edges)."""
     out = Path(out_dir)
@@ -1718,11 +1740,30 @@ def main(
                                           "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
         edges_df_loaded = False
 
+    # --- Apply canonical player identity resolution before building JSON ---
+    # Resolves duplicate BDL player IDs (e.g. two records for the same physical player)
+    # using config/player_identity_aliases.json. Must run on both proj_df and edges_df.
+    try:
+        from wnba_props_model.data.identity import (  # noqa: PLC0415
+            apply_canonical_ids, deduplicate_pmfs, validate_no_duplicate_identities
+        )
+        if "player_id" in proj_df.columns:
+            proj_df = apply_canonical_ids(proj_df, "player_id")
+            proj_df = deduplicate_pmfs(proj_df, key_cols=["game_id", "player_id", "stat"])
+        if "player_id" in edges_df.columns:
+            edges_df = apply_canonical_ids(edges_df, "player_id")
+    except Exception as _id_exc:
+        typer.echo(f"  [WARN] Identity resolution failed (non-fatal): {_id_exc}", err=True)
+
     # --- Build JSON ---
     edge_json = _build_edge_json(edges_df, proj_df, game_date,
-                                 release_id=release_id, git_commit=git_commit)
+                                 release_id=release_id, git_commit=git_commit,
+                                 model_version=model_version,
+                                 calibration_version=calibration_version)
     pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
-                                 release_id=release_id, git_commit=git_commit)
+                                 release_id=release_id, git_commit=git_commit,
+                                 model_version=model_version,
+                                 calibration_version=calibration_version)
 
     # Write Edge page JSON
     (edge_dir / "latest.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))

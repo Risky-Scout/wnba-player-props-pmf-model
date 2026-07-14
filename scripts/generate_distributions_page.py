@@ -863,6 +863,16 @@ def main(
         "--git-commit",
         help="Current git commit SHA. Written to output for traceability.",
     ),
+    model_version: str = typer.Option(
+        "",
+        "--model-version",
+        help="Model version string. Written to Distributions output for traceability.",
+    ),
+    calibration_version: str = typer.Option(
+        "",
+        "--calibration-version",
+        help="Calibration version string. Written to Distributions output for traceability.",
+    ),
 ) -> None:
     """Generate pure PMF visualization page at Pre-Game/Distributions/.
 
@@ -885,6 +895,10 @@ def main(
     try:
         payload = _build_json(pmf_path, game_date,
                               release_id=release_id, git_commit=git_commit)
+        if model_version:
+            payload["model_version"] = model_version
+        if calibration_version:
+            payload["calibration_version"] = calibration_version
     except (FileNotFoundError, ValueError) as exc:
         typer.echo(f"[FATAL] {exc}", err=True)
         raise typer.Exit(1)
