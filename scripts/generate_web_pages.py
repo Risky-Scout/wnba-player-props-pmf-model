@@ -410,6 +410,19 @@ def _build_pmf_json(
         if not pairs:
             print(f"  [WARN] Skipping {r.get('player_name','?')} {r.get('stat','?')} — no PMF data after merge (pmf_json={repr(raw_pmf)[:40]})")
             continue
+        # Compute pmf_full from raw JSON so it sums to 1.0 (no threshold filtering).
+        # _parse_pmf filters at 0.001 which causes pmf_full mass < 1; fix here.
+        try:
+            import json as _j
+            _d = _j.loads(pmf_str) if pmf_str and pmf_str != "{}" else {}
+            _k_raw = np.array([int(x) for x in _d.keys()], dtype=float)
+            _p_raw = np.array(list(_d.values()), dtype=float)
+            _total = _p_raw.sum()
+            if _total > 0:
+                _p_raw = _p_raw / _total
+            _pairs_full = [[int(kk), round(float(pp), 7)] for kk, pp in zip(_k_raw, _p_raw) if pp > 0]
+        except Exception:
+            _pairs_full = pairs
         edge = float(r.get("edge_over", 0) or 0)
         _cal_mean = r.get("pmf_mean") or r.get("pmf_mean_proj")
         _display_mean = round(float(_cal_mean), 2) if _cal_mean is not None and float(_cal_mean) > 0 else round(mu, 2)
@@ -445,11 +458,13 @@ def _build_pmf_json(
         _stat_raw = str(r.get("stat", ""))
         last_5_avg = _last5_lookup.get((_pid, _stat_raw)) if _pid is not None else None
 
-        # pmf_full: complete pairs summing to 1 (no filtering)
+        # pmf_full: ALL probability pairs from raw JSON (normalized, sums to 1)
         # pmf_chart: filtered for chart rendering (omit tiny masses for performance)
         _CHART_THRESHOLD = 0.001
-        pmf_chart = [[k, v] for k, v in pairs if v >= _CHART_THRESHOLD]
-        omitted_mass = round(sum(v for _, v in pairs) - sum(v for _, v in pmf_chart), 8)
+        pmf_chart = [[k, v] for k, v in _pairs_full if v >= _CHART_THRESHOLD]
+        omitted_mass = round(
+            sum(v for _, v in _pairs_full) - sum(v for _, v in pmf_chart), 8
+        )
 
         props.append({
             "player": r["player_name"],
@@ -475,13 +490,13 @@ def _build_pmf_json(
             "edge": round(edge, 4),
             "kelly_pct": round(float(r.get("kelly_fraction", 0) or 0) * 100, 2),
             "last_5_avg": last_5_avg,
-            # pmf_full: complete mass used for all probability calculations
-            "pmf_full": pairs,
+            # pmf_full: complete mass used for all probability calculations (sums to 1)
+            "pmf_full": _pairs_full,
             # pmf_chart: filtered for rendering performance
             "pmf_chart": pmf_chart,
             "omitted_chart_mass": omitted_mass if omitted_mass > 0 else None,
-            # Legacy alias
-            "pmf": pairs,
+            # Legacy alias (also full, not filtered)
+            "pmf": _pairs_full,
         })
     props.sort(key=lambda x: -abs(x["edge"]))
     result = {
