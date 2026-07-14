@@ -266,8 +266,36 @@ def test_branch_diff_contains_only_workflow():
 
     Skips when challenger_train.yml is not in the diff (not on the runner branch).
     """
+    # Determine the merge base using the PR base SHA when available (GitHub Actions
+    # sets GITHUB_BASE_SHA for pull_request events), otherwise use a verified remote
+    # or local ref, or compute the merge-base. Never assume local 'main' is current.
+    # No branch-name detection is used.
+    import os  # noqa: PLC0415
+
+    def _resolve_base() -> str:
+        # 1. GitHub Actions PR base SHA (most reliable in CI)
+        base_sha = os.environ.get("GITHUB_BASE_SHA", "").strip()
+        if base_sha:
+            check = subprocess.run(["git", "rev-parse", base_sha], capture_output=True)
+            if check.returncode == 0:
+                return base_sha
+        # 2. origin/main (fetched remote ref)
+        check = subprocess.run(["git", "rev-parse", "origin/main"], capture_output=True)
+        if check.returncode == 0:
+            return "origin/main"
+        # 3. Compute merge-base between HEAD and any available main ref
+        for ref in ("main", "origin/main", "refs/remotes/origin/main"):
+            mb = subprocess.run(
+                ["git", "merge-base", "HEAD", ref], capture_output=True, text=True
+            )
+            if mb.returncode == 0 and mb.stdout.strip():
+                return mb.stdout.strip()
+        # 4. Local main as last resort
+        return "main"
+
+    base = _resolve_base()
     result = subprocess.run(
-        ["git", "diff", "main", "--name-only"],
+        ["git", "diff", base, "--name-only"],
         capture_output=True, text=True,
     )
     changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
