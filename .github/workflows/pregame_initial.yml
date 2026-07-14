@@ -557,24 +557,22 @@ jobs:
 
       - name: Pull Odds API player props + deep links (BLOCKING when markets expected)
         run: |
-          python scripts/pull_odds_api_props.py \
+          python3 scripts/pull_odds_api_props.py \
             --game-date "$GAME_DATE" \
             --out-dir data/processed
           # Validate that the pull produced a non-empty market file.
           # An empty or absent file is NOT the same as "no markets yet posted".
-          python - <<'PYEOF'
+          python3 - <<'PYEOF'
           import sys, pathlib, os
           import pandas as pd
           game_date = os.environ.get("GAME_DATE", "")
           props_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
           slate_path = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
           if not props_path.exists():
-              # If there is an active slate, missing odds is fatal.
               if slate_path.exists():
                   slate = pd.read_parquet(slate_path)
                   if len(slate) > 0:
                       print(f"[FATAL] Odds file missing at {props_path} but slate has {len(slate)} players.", file=sys.stderr)
-                      print(f"[FATAL] Status: {os.environ.get('LIVE_MARKETS_STATUS', 'LIVE_MARKETS_NOT_YET_AVAILABLE')}", file=sys.stderr)
                       sys.exit(1)
               print(f"[INFO] No odds file and no active slate — status: LIVE_MARKETS_NOT_YET_AVAILABLE")
           else:
@@ -585,6 +583,129 @@ jobs:
                       print(f"[WARN] Odds file exists but is empty. Status: LIVE_MARKETS_NOT_YET_AVAILABLE")
               else:
                   print(f"[OK] Odds file: {len(df)} rows at {props_path}")
+          PYEOF
+        continue-on-error: false
+
+      - name: BDL props fallback — fetch and normalize when Odds API returns empty
+        # When the Odds API returns zero rows for an active slate, fetch live player
+        # props from BDL /wnba/v1/odds/player_props and write them as the canonical
+        # raw-props parquet consumed by build_edge_report.py.
+        # FAIL DEPLOYMENT when an active slate has zero reconciled market rows.
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, time, pathlib
+          import requests
+          import pandas as pd
+
+          game_date = os.environ.get("GAME_DATE", "")
+          bdl_key   = os.environ.get("BDL_API_KEY", "")
+          oddsapi_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          out_path     = pathlib.Path("data/processed/wnba_player_props.parquet")
+          slate_path   = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
+
+          # Only run fallback when Odds API result is empty and we have an active slate
+          oddsapi_empty = (not oddsapi_path.exists()) or pd.read_parquet(oddsapi_path).empty
+          if not oddsapi_empty:
+              print(f"[BDL-fallback] Odds API has data — skipping BDL fallback")
+              sys.exit(0)
+          if not slate_path.exists():
+              print(f"[BDL-fallback] No slate at {slate_path} — no games, skipping")
+              sys.exit(0)
+
+          slate = pd.read_parquet(slate_path)
+          if slate.empty:
+              print(f"[BDL-fallback] Empty slate — no games, skipping")
+              sys.exit(0)
+
+          print(f"[BDL-fallback] Odds API empty with {len(slate)} players on slate. Fetching BDL props.")
+
+          if not bdl_key:
+              print("[FATAL] BDL_API_KEY not set — cannot fetch BDL fallback props", file=sys.stderr)
+              sys.exit(1)
+
+          # Fetch all games for the game_date
+          r = requests.get(
+              "https://api.balldontlie.io/wnba/v1/games",
+              headers={"Authorization": bdl_key},
+              params={"dates[]": game_date, "per_page": 100}, timeout=20
+          )
+          games = r.json().get("data", []) if r.ok else []
+          print(f"[BDL-fallback] Games on {game_date}: {len(games)} (HTTP {r.status_code})")
+
+          # Fetch player props for each game
+          PROP_MAP = {
+              "points": "pts", "rebounds": "reb", "assists": "ast",
+              "threes": "fg3m", "blocks": "blk", "steals": "stl",
+              "turnovers": "turnover", "field_goals_made": "fgm",
+              "points_rebounds_assists": "pts_reb_ast",
+              "points_rebounds": "pts_reb",
+              "points_assists": "pts_ast",
+              "rebounds_assists": "reb_ast",
+              "blocks_steals": "stocks",
+          }
+          MODELED_STATS = set(PROP_MAP.values())
+
+          rows = []
+          raw_count = 0
+          for g in games:
+              gid = g["id"]
+              r2 = requests.get(
+                  "https://api.balldontlie.io/wnba/v1/odds/player_props",
+                  headers={"Authorization": bdl_key},
+                  params={"game_id": gid, "per_page": 100}, timeout=20
+              )
+              props = r2.json().get("data", []) if r2.ok else []
+              raw_count += len(props)
+              for p in props:
+                  mkt   = p.get("market", {})
+                  mtype = mkt.get("type", "")
+                  pt    = p.get("prop_type", "")
+                  stat  = PROP_MAP.get(pt)
+                  if not stat or stat not in MODELED_STATS:
+                      continue
+                  if mtype != "over_under":
+                      continue
+                  over_odds  = mkt.get("over_odds")
+                  under_odds = mkt.get("under_odds")
+                  if over_odds is None or under_odds is None:
+                      continue
+                  rows.append({
+                      "game_id":    int(gid),
+                      "game_date":  game_date,
+                      "player_id":  int(p["player_id"]),
+                      "vendor":     p.get("vendor", "bdl"),
+                      "stat":       stat,
+                      "line":       float(p.get("line_value", 0.0)),
+                      "over_odds":  float(over_odds),
+                      "under_odds": float(under_odds),
+                      "market_type": mtype,
+                      "updated_at": p.get("updated_at"),
+                  })
+              time.sleep(0.1)
+
+          print(f"[BDL-fallback] Raw props: {raw_count} total, {len(rows)} over-under modeled")
+
+          if not rows:
+              print(f"[FATAL] BDL fallback returned 0 usable props for active slate ({len(slate)} players). "
+                    "Cannot deploy with zero reconciled market rows.", file=sys.stderr)
+              sys.exit(1)
+
+          # Enrich with player names from existing PMF data
+          pmf_paths = list(pathlib.Path("deliveries/tonight").glob("full_pmfs_wide.parquet"))
+          if pmf_paths:
+              pmf = pd.read_parquet(pmf_paths[0])
+              if "player_id" in pmf.columns and "player_name" in pmf.columns:
+                  id_name = dict(zip(pmf["player_id"].astype(int), pmf["player_name"]))
+                  for row in rows:
+                      row["player_name"] = id_name.get(row["player_id"])
+                  rows = [r for r in rows if r.get("player_name")]
+                  print(f"[BDL-fallback] After name enrichment: {len(rows)} rows")
+
+          df = pd.DataFrame(rows)
+          df.to_parquet(out_path, index=False)
+          print(f"[BDL-fallback] Written {len(df)} rows → {out_path}")
           PYEOF
         continue-on-error: false
 
