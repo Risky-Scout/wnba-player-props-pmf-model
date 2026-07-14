@@ -492,17 +492,46 @@ let statFilt = '', dirFilt = '', searchFilt = '', sortKey = 'edge';
 const charts = {};
 let cdTimer;
 
-// ── Fetch ──────────────────────────────────────────────────────────
+// ── Fetch (pointer-aware, cache-busted) ────────────────────────────
+// A3: latest.json is a pointer. Follow it to the immutable release payload.
+//   1. fetch latest.json with cache:'no-store' + ?t=timestamp
+//   2. validate pointer.game_date == target date
+//   3. fetch pointer.payload_path with cache:'no-store' + ?r=release_id
+//   4. reject payload whose game_date differs from pointer
+//   5. never display stale cards as LIVE DATA
+function _todayETdist() {
+  const d = new Date();
+  const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+  return et.toISOString().slice(0, 10);
+}
 function load() {
-  fetch('latest.json?t=' + Date.now())
+  const params = new URLSearchParams(location.search);
+  const targetDate = params.get('date') || _todayETdist();
+  fetch('latest.json?t=' + Date.now(), {cache:'no-store'})
     .then(r => r.json())
-    .then(data => {
-      ALL = data.props || [];
-      updateKPIs(data);
-      render();
-      startCountdown(300);
+    .then(ptr => {
+      if (!ptr.pointer) {
+        // Legacy full-payload — accept if game_date matches
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          console.warn('[WOO] Stale pointer game_date', ptr.game_date, '!= target', targetDate);
+          return;
+        }
+        ALL = ptr.props || []; updateKPIs(ptr); render(); startCountdown(300); return;
+      }
+      if (ptr.game_date !== targetDate) {
+        console.warn('[WOO] Stale pointer game_date', ptr.game_date, '!= target', targetDate);
+        return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      fetch(payloadUrl, {cache:'no-store'})
+        .then(r => r.json())
+        .then(data => {
+          if (data.game_date !== ptr.game_date) { console.warn('[WOO] Payload/pointer date mismatch'); return; }
+          ALL = data.props || []; updateKPIs(data); render(); startCountdown(300);
+        })
+        .catch(err => console.warn('[WOO] payload fetch failed:', err));
     })
-    .catch(err => console.warn('[WOO] fetch failed:', err));
+    .catch(err => console.warn('[WOO] pointer fetch failed:', err));
 }
 
 function updateKPIs(data) {
@@ -906,35 +935,42 @@ def main(
         typer.echo(f"[FATAL] {exc}", err=True)
         raise typer.Exit(1)
 
+    import hashlib as _hashlib  # noqa: PLC0415
     # A3: Cache-safe payload structure — immutable release + date-specific + pointer latest.json
     _payload_str = json.dumps(_sanitize(payload), separators=(",", ":"))
+    _payload_sha256 = _hashlib.sha256(_payload_str.encode()).hexdigest()
     _eff_release_id = release_id or game_date
 
     (out_dir / f"{game_date}.json").write_text(_payload_str)
 
     (out_dir / "releases").mkdir(parents=True, exist_ok=True)
-    (out_dir / "releases" / f"{_eff_release_id}.json").write_text(_payload_str)
+    _release_path = out_dir / "releases" / f"{_eff_release_id}.json"
+    _release_path.write_text(_payload_str)
 
+    _now_utc = datetime.now(timezone.utc).isoformat()
     _pointer = _sanitize({
         "pointer": True,
-        "release_id": release_id,
+        "release_id": _eff_release_id,
         "game_date": game_date,
+        "payload_path": f"releases/{_eff_release_id}.json",
+        "payload_sha256": _payload_sha256,
         "release_payload_path": f"releases/{_eff_release_id}.json",
         "date_payload_path": f"{game_date}.json",
         "git_commit": git_commit,
         "model_version": model_version,
         "calibration_version": calibration_version,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "total_props": payload["total_props"],
+        "generated_at_utc": _now_utc,
+        "row_count": payload["total_props"],
+        "total_props": payload["total_props"],  # backward compat alias
     })
     (out_dir / "latest.json").write_text(json.dumps(_pointer, separators=(",", ":")))
 
     if not json_only:
         (out_dir / "index.html").write_text(_HTML)
 
-    typer.echo(f"  → releases/{_eff_release_id}.json ({payload['total_props']} props)")
+    typer.echo(f"  → releases/{_eff_release_id}.json ({payload['total_props']} props) sha256={_payload_sha256[:12]}")
     typer.echo(f"  → {game_date}.json")
-    typer.echo(f"  → latest.json (pointer, release_id={_eff_release_id!r})")
+    typer.echo(f"  → latest.json (pointer, release_id={_eff_release_id!r}, row_count={payload['total_props']})")
     if not json_only:
         typer.echo(f"  → index.html")
     typer.echo("[generate_distributions_page] Done.")
