@@ -699,6 +699,72 @@ jobs:
         # Note: --game-totals-mode is a no-op if the flag is unknown;
         # a full game totals calibrator script can be wired here when OOF game totals exist.
 
+      - name: Generate calibrator artifact manifest (Gap 1 — artifact provenance)
+        # Emit artifact_manifest_calibrator.json so pregame_initial.yml can validate
+        # the calibrator's provenance before use.  gate_status=PASS is recorded here
+        # because this step only runs when the cal-gate has already passed.
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          workflow_name = os.environ.get("GITHUB_WORKFLOW", "Weekly OOF Refresh & Calibration")
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          except Exception:
+              git_commit = "unknown"
+
+          cal_dir = Path("artifacts/models/calibration")
+          cal_dir.mkdir(parents=True, exist_ok=True)
+
+          # Feature manifest hash
+          feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+          feature_manifest_hash = ""
+          if feat_manifest_path.exists():
+              feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+          # Config hash
+          config_path = Path("config/model/stage6_calibration.yaml")
+          if not config_path.exists():
+              config_path = Path("config/model/stage5_oof.yaml")
+          config_hash = ""
+          if config_path.exists():
+              config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()[:16]
+
+          # Calibration cutoff: latest game date in OOF data
+          calibration_cutoff = ""
+          try:
+              import pandas as pd
+              oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+              if oof_path.exists():
+                  df = pd.read_parquet(oof_path)
+                  date_col = next((c for c in ["game_date", "date"] if c in df.columns), None)
+                  if date_col:
+                      latest = pd.to_datetime(df[date_col]).max()
+                      calibration_cutoff = latest.strftime("%Y-%m-%dT00:00:00Z")
+          except Exception:
+              pass
+
+          manifest = {
+              "artifact_type": "calibrator",
+              "artifact_schema_version": "1",
+              "source_workflow": workflow_name,
+              "source_run_id": run_id,
+              "source_commit": git_commit,
+              "created_at_utc": datetime.now(timezone.utc).isoformat(),
+              "calibration_cutoff": calibration_cutoff,
+              "feature_manifest_hash": feature_manifest_hash,
+              "config_hash": config_hash,
+              "gate_status": "PASS",
+          }
+          out_path = cal_dir / "artifact_manifest_calibrator.json"
+          out_path.write_text(json.dumps(manifest, indent=2))
+          print(f"Calibrator artifact manifest written: {manifest}")
+          PYEOF
+
       - name: Promote calibrators (gate passed)
         # Only upload new calibrators when the post-cal gate passes.
         # Game totals calibrator (if built above) is included in the same artifact.

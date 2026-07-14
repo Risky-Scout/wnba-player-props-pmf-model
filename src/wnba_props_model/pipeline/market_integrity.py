@@ -107,6 +107,10 @@ class StaleFallbackForbiddenError(MarketIntegrityError):
     """Raised when a current-run artifact is missing and a stale fallback would otherwise be used."""
 
 
+class ArtifactManifestError(MarketIntegrityError):
+    """Raised when an artifact manifest is missing, invalid, or incompatible."""
+
+
 # ---------------------------------------------------------------------------
 # PMF probability computation
 # ---------------------------------------------------------------------------
@@ -848,6 +852,130 @@ _REQUIRED_LINEAGE_FIELDS = [
     "feature_manifest_hash",
     "artifact_schema_version",
 ]
+
+
+ARTIFACT_MANIFEST_SCHEMA_VERSION = "1"
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({"1"})
+
+
+def validate_artifact_manifest(
+    manifest: dict,
+    expected_artifact_type: str,
+    prediction_timestamp_utc: str,
+    feature_manifest_hash: "str | None" = None,
+    config_hash: "str | None" = None,
+    source_run_id: "str | None" = None,
+    source_commit: "str | None" = None,
+) -> None:
+    """Validate an artifact manifest for production use.
+
+    Checks:
+    - supported schema version
+    - expected artifact type
+    - required fields present
+    - training_cutoff (model_training_cutoff or calibration_cutoff) < prediction_timestamp
+    - calibration_cutoff < prediction_timestamp (if present)
+    - feature_manifest_hash matches (if provided)
+    - config_hash matches (if provided)
+    - gate_status == PASS (if present in manifest)
+    - source_run_id matches (if provided)
+    - source_commit matches (if provided)
+
+    Raises ArtifactManifestError on any validation failure.
+    """
+    errors: list[str] = []
+
+    # Schema version
+    schema_ver = str(manifest.get("artifact_schema_version", ""))
+    if schema_ver not in _SUPPORTED_SCHEMA_VERSIONS:
+        errors.append(
+            f"Unsupported artifact_schema_version={schema_ver!r}; "
+            f"supported: {sorted(_SUPPORTED_SCHEMA_VERSIONS)}"
+        )
+
+    # Artifact type
+    manifest_type = str(manifest.get("artifact_type", ""))
+    if manifest_type != expected_artifact_type:
+        errors.append(
+            f"Expected artifact_type={expected_artifact_type!r}, "
+            f"got {manifest_type!r}"
+        )
+
+    # Required fields
+    required_fields = [
+        "artifact_type", "artifact_schema_version", "source_workflow",
+        "source_run_id", "source_commit", "created_at_utc",
+        "feature_manifest_hash", "config_hash",
+    ]
+    for field in required_fields:
+        if field not in manifest or not manifest[field]:
+            errors.append(f"Missing required manifest field: {field!r}")
+
+    # source_run_id match
+    if source_run_id is not None:
+        manifest_run = str(manifest.get("source_run_id", ""))
+        if manifest_run != str(source_run_id):
+            errors.append(
+                f"source_run_id mismatch: manifest={manifest_run!r}, "
+                f"expected={source_run_id!r}"
+            )
+
+    # source_commit match
+    if source_commit is not None:
+        manifest_commit = str(manifest.get("source_commit", ""))
+        if manifest_commit != str(source_commit):
+            errors.append(
+                f"source_commit mismatch: manifest={manifest_commit!r}, "
+                f"expected={source_commit!r}"
+            )
+
+    # feature_manifest_hash match
+    if feature_manifest_hash is not None:
+        manifest_fmh = str(manifest.get("feature_manifest_hash", ""))
+        if manifest_fmh != str(feature_manifest_hash):
+            errors.append(
+                f"feature_manifest_hash mismatch: manifest={manifest_fmh!r}, "
+                f"expected={feature_manifest_hash!r}"
+            )
+
+    # config_hash match
+    if config_hash is not None:
+        manifest_ch = str(manifest.get("config_hash", ""))
+        if manifest_ch != str(config_hash):
+            errors.append(
+                f"config_hash mismatch: manifest={manifest_ch!r}, "
+                f"expected={config_hash!r}"
+            )
+
+    # training/calibration cutoff must be before prediction timestamp
+    pred_ts = _parse_utc(prediction_timestamp_utc)
+    if pred_ts is not None:
+        for cutoff_field in ("model_training_cutoff", "calibration_cutoff"):
+            cutoff_str = manifest.get(cutoff_field)
+            if not cutoff_str:
+                continue
+            cutoff_ts = _parse_utc(str(cutoff_str))
+            if cutoff_ts is None:
+                errors.append(f"Cannot parse {cutoff_field}={cutoff_str!r} as UTC timestamp")
+                continue
+            if cutoff_ts >= pred_ts:
+                errors.append(
+                    f"{cutoff_field}={cutoff_str!r} is not before "
+                    f"prediction_timestamp_utc={prediction_timestamp_utc!r}"
+                )
+
+    # gate_status must be PASS when present
+    gate_status = manifest.get("gate_status")
+    if gate_status is not None and str(gate_status) != "PASS":
+        errors.append(
+            f"gate_status={gate_status!r} — must be PASS for promoted artifacts"
+        )
+
+    if errors:
+        raise ArtifactManifestError(
+            f"Artifact manifest validation failed ({len(errors)} error(s)): "
+            + "; ".join(errors[:5])
+        )
 
 
 def build_artifact_metadata(

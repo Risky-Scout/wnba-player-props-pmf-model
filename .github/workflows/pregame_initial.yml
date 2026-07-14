@@ -56,25 +56,52 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Download calibrators (exact-run or explicit successful upstream run)
-        # For workflow_run triggers: use the exact triggering run's calibrators artifact.
-        # For scheduled/manual runs: resolve an explicit successful refit_calibrators run on main.
+      - name: Download calibrators (trigger-aware exact-run or compatible upstream run)
+        # Routing policy (Gap 1 — trigger-aware):
+        #   Daily trigger  ("Daily WNBA PMF Pipeline"):
+        #     calibrators = most recent successful weekly_calibration run on main
+        #     (the exact triggering daily run trains a model, not calibrators)
+        #   Weekly trigger ("Weekly OOF Refresh & Calibration"):
+        #     calibrators = exact triggering run (freshly fitted calibrators)
+        #   Scheduled/manual:
+        #     calibrators = most recent successful weekly_calibration run on main
         # NEVER select by latest name alone. Fail if no compatible artifact is found.
+        # Gap 2: The downloaded calibration artifact is the sole authoritative source.
+        #        Do NOT overwrite any downloaded calibration files with git-committed versions.
         run: |
           mkdir -p artifacts/models/calibration
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+          TRIGGER_WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Weekly OOF Refresh & Calibration" ]; then
+            # Weekly trigger: calibrators = exact triggering run
             TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
-            echo "workflow_run trigger: resolving calibrators from exact triggering run ${TRIGGER_RUN_ID}"
+            echo "Weekly trigger: resolving calibrators from exact triggering run ${TRIGGER_RUN_ID}"
             AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
               --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
             SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
-          else
-            echo "scheduled/manual trigger: resolving calibrators from last successful refit_calibrators run on main"
-            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/refit_calibrators.yml/runs?branch=main&status=success&per_page=1" \
+          elif [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Daily WNBA PMF Pipeline" ]; then
+            # Daily trigger: calibrators = most recent compatible weekly_calibration run on main
+            echo "Daily trigger: resolving calibrators from most recent weekly_calibration run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/weekly_calibration.yml/runs?branch=main&status=success&per_page=1" \
               --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
             if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
-              echo "[FATAL] No successful refit_calibrators run found on main." >&2
+              echo "[FATAL] No successful weekly_calibration run found on main for Daily trigger calibrators." >&2
               exit 1
+            fi
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+          else
+            # Scheduled/manual: calibrators from most recent weekly_calibration run on main
+            echo "Scheduled/manual trigger: resolving calibrators from most recent weekly_calibration run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/weekly_calibration.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+              SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/refit_calibrators.yml/runs?branch=main&status=success&per_page=1" \
+                --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+              if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+                echo "[FATAL] No successful weekly_calibration or refit_calibrators run found on main." >&2
+                exit 1
+              fi
             fi
             AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
               --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
@@ -88,62 +115,59 @@ jobs:
           unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
           echo "SOURCE_CALIBRATORS_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
           echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
+          # Validate artifact manifest if present (Gap 1)
+          if [ -f "artifacts/models/calibration/artifact_manifest_calibrator.json" ]; then
+            python3 - <<'PYEOF'
+import json, sys
+from pathlib import Path
+manifest = json.loads(Path("artifacts/models/calibration/artifact_manifest_calibrator.json").read_text())
+schema_ver = str(manifest.get("artifact_schema_version", ""))
+if schema_ver not in ("1",):
+    print(f"[FATAL] Unsupported artifact_schema_version: {schema_ver!r}", file=sys.stderr)
+    sys.exit(1)
+if manifest.get("artifact_type") != "calibrator":
+    print(f"[FATAL] Expected artifact_type='calibrator', got {manifest.get('artifact_type')!r}", file=sys.stderr)
+    sys.exit(1)
+gate = manifest.get("gate_status", "")
+if gate and gate != "PASS":
+    print(f"[FATAL] Calibrator gate_status={gate!r} — must be PASS", file=sys.stderr)
+    sys.exit(1)
+print(f"Calibrator manifest validated OK: type=calibrator, schema={schema_ver}, gate={gate or 'n/a'}")
+PYEOF
+          else
+            echo "[INFO] No artifact_manifest_calibrator.json — skipping manifest validation (pre-manifest artifact)"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: false
 
-      - name: Restore git bias_corrections (guard against stale artifact overwrite)
-        # The artifact download can overwrite our git-committed bias_corrections.json
-        # with stale values from a previous weekly_calibration run. Always prefer the
-        # git-committed version, which is the OOF-fitted result from weekly_calibration.
-        # NOTE: OOF-derived corrections for pts/reb/ast are typically in the 0.65-0.75
-        # range (not 0.90) because the raw model overshoots by ~45-60% before calibration.
-        # Do NOT revert these to 0.90 — the 0.741/0.678 values are empirically correct.
-        # Hard floor is 0.50 (see sanity gate below); values between 0.50-0.90 are valid.
-        run: |
-          git checkout HEAD -- artifacts/models/calibration/bias_corrections.json 2>/dev/null || true
-          git checkout HEAD -- artifacts/models/calibration/bias_corrections_by_role.json 2>/dev/null || true
-          git checkout HEAD -- artifacts/models/calibration/player_form_corrections_2026.json 2>/dev/null || true
-          git checkout HEAD -- artifacts/models/calibration/variance_compress.json 2>/dev/null || true
-          python3 - <<'EOF'
-          import json, pathlib
-          bc_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
-          if bc_path.exists():
-              bc = json.loads(bc_path.read_text())
-              print(f"bias_corrections (git version): {bc}")
-              low = {s: v for s, v in bc.items() if isinstance(v, (int, float)) and v < 0.50}
-              if low:
-                  print(f"WARNING: bias_corrections below hard floor 0.50 — check OOF run: {low}")
-              else:
-                  numeric_vals = [v for v in bc.values() if isinstance(v, (int, float))]
-                  print(f"OK: all bias_corrections >= 0.50 (min={min(numeric_vals):.3f})")
-          else:
-              print("bias_corrections.json not found — skipping guard")
-          br_path = pathlib.Path("artifacts/models/calibration/bias_corrections_by_role.json")
-          if br_path.exists():
-              br = json.loads(br_path.read_text())
-              starters = {k: v for k, v in br.get("corrections", {}).items() if k.startswith("starter|")}
-              print(f"bias_corrections_by_role starter corrections (git version): {starters}")
-          EOF
-
-      - name: Download stage4 model (exact-run or explicit successful upstream run)
-        # For workflow_run triggers: use the exact triggering run's model artifact.
-        # For scheduled/manual runs: resolve an explicit successful daily_pipeline run on main.
+      - name: Download stage4 model (trigger-aware exact-run or compatible upstream run)
+        # Routing policy (Gap 1 — trigger-aware):
+        #   Daily trigger  ("Daily WNBA PMF Pipeline"):
+        #     model = exact triggering run (just trained)
+        #   Weekly trigger ("Weekly OOF Refresh & Calibration"):
+        #     model = most recent successful daily_pipeline run on main
+        #   Scheduled/manual:
+        #     model = most recent successful daily_pipeline run on main
         # NEVER select by latest name alone. A missing model artifact must exit nonzero.
         run: |
           mkdir -p artifacts/models/stage4_baseline
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+          TRIGGER_WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Daily WNBA PMF Pipeline" ]; then
+            # Daily trigger: model = exact triggering run
             TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
-            echo "workflow_run trigger: resolving model from exact triggering run ${TRIGGER_RUN_ID}"
+            echo "Daily trigger: resolving model from exact triggering run ${TRIGGER_RUN_ID}"
             AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
               --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
             SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
           else
-            echo "scheduled/manual trigger: resolving model from last successful daily_pipeline run on main"
+            # Weekly trigger or scheduled/manual: model from most recent daily_pipeline run on main
+            echo "Weekly/scheduled/manual trigger: resolving model from most recent daily_pipeline run on main"
             SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/daily_pipeline.yml/runs?branch=main&status=success&per_page=1" \
               --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
             if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
-              echo "[FATAL] No successful daily_pipeline run found on main." >&2
+              echo "[FATAL] No successful daily_pipeline run found on main. A missing model artifact must exit nonzero. The pregame publishing workflow must never train a replacement model." >&2
               exit 1
             fi
             AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
@@ -158,6 +182,24 @@ jobs:
           unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
           echo "SOURCE_MODEL_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
           echo "Stage4 model downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
+          # Validate artifact manifest if present (Gap 1)
+          if [ -f "artifacts/models/stage4_baseline/artifact_manifest_model.json" ]; then
+            python3 - <<'PYEOF'
+import json, sys
+from pathlib import Path
+manifest = json.loads(Path("artifacts/models/stage4_baseline/artifact_manifest_model.json").read_text())
+schema_ver = str(manifest.get("artifact_schema_version", ""))
+if schema_ver not in ("1",):
+    print(f"[FATAL] Unsupported artifact_schema_version: {schema_ver!r}", file=sys.stderr)
+    sys.exit(1)
+if manifest.get("artifact_type") != "model":
+    print(f"[FATAL] Expected artifact_type='model', got {manifest.get('artifact_type')!r}", file=sys.stderr)
+    sys.exit(1)
+print(f"Model manifest validated OK: type=model, schema={schema_ver}")
+PYEOF
+          else
+            echo "[INFO] No artifact_manifest_model.json — skipping manifest validation (pre-manifest artifact)"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: false
@@ -921,17 +963,70 @@ jobs:
           else:
               actual_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
 
-          # ── Integrity check: expected vs actual PMFs ───────────────────────
+          # ── Integrity check: expected vs actual PMFs (Gap 3) ────────────
+          # Keep expected and actual data strictly independent.
+          # Expected = slate + availability + supported stats (NOT derived from actual PMFs).
+          # Actual   = final full_pmfs_wide.parquet after injury-adjusted rebuild.
           if not expected_pmf.empty and not actual_pmf.empty:
-              exp_keys = set(map(tuple, expected_pmf[["game_id", "player_id", "stat"]].values))
-              act_keys = set(map(tuple, actual_pmf[["game_id", "player_id", "stat"]].values))
-              missing_pmfs = exp_keys - act_keys
+              pmf_key_cols = ["game_id", "player_id", "stat"]
+              exp_keys = set(map(tuple, expected_pmf[pmf_key_cols].values))
+              act_keys = set(map(tuple, actual_pmf[pmf_key_cols].values))
+              missing_pmfs  = exp_keys - act_keys
+              unexpected_pmfs = act_keys - exp_keys
+              dup_mask = actual_pmf.duplicated(subset=pmf_key_cols, keep=False)
+              duplicate_pmfs = actual_pmf[dup_mask]
+              pmf_errors = []
               if missing_pmfs:
-                  print(f"[FATAL] PMF integrity: {len(missing_pmfs)} expected PMFs missing from actual "
-                        f"(expected={len(exp_keys)}, actual={len(act_keys)}). "
-                        f"Sample missing: {list(missing_pmfs)[:3]}", file=sys.stderr)
+                  pmf_errors.append(f"{len(missing_pmfs)} expected PMFs missing (sample: {sorted(missing_pmfs)[:3]})")
+              if unexpected_pmfs:
+                  pmf_errors.append(f"{len(unexpected_pmfs)} unexpected PMFs (sample: {sorted(unexpected_pmfs)[:3]})")
+              if not duplicate_pmfs.empty:
+                  pmf_errors.append(f"{len(duplicate_pmfs)} duplicate PMF rows")
+              if pmf_errors:
+                  print(f"[FATAL] PMF manifest integrity: {'; '.join(pmf_errors)}", file=sys.stderr)
                   sys.exit(1)
-              print(f"PMF manifest OK: expected={len(exp_keys)}, actual={len(act_keys)}, missing=0")
+              print(f"PMF manifest OK: expected={len(exp_keys)}, actual={len(act_keys)}, missing=0, unexpected=0, duplicates=0")
+
+          # ── Integrity check: expected vs actual edges (Gap 3) ────────────
+          # Expected edge keys come from validated market rows BEFORE edge calculation.
+          # Actual edge keys come from market_comparison.parquet — NOT publishable_edges.
+          live_markets_status = "LIVE_MARKETS_NOT_YET_AVAILABLE"
+          edge_completeness_status = "NOT_CHECKED"
+          if expected_edge.empty and actual_edge.empty:
+              print(f"[INFO] No market rows and no edge rows — market_status={live_markets_status}")
+              edge_completeness_status = live_markets_status
+          elif not expected_edge.empty and actual_edge.empty:
+              print(f"[WARN] Expected {len(expected_edge)} edge rows but market_comparison.parquet is empty. "
+                    f"market_status={live_markets_status}")
+              edge_completeness_status = live_markets_status
+          elif not expected_edge.empty and not actual_edge.empty:
+              live_markets_status = "SUCCESS_WITH_MARKETS"
+              market_status = live_markets_status
+              edge_key_cols_check = ["game_id", "player_id", "stat", "vendor", "line"]
+              exp_ecols = [c for c in edge_key_cols_check if c in expected_edge.columns]
+              act_ecols = [c for c in edge_key_cols_check if c in actual_edge.columns]
+              exp_edge_keys = set(
+                  tuple(r) for r in expected_edge[exp_ecols].itertuples(index=False, name=None)
+              ) if exp_ecols else set()
+              act_edge_keys = set(
+                  tuple(r) for r in actual_edge[act_ecols].itertuples(index=False, name=None)
+              ) if act_ecols else set()
+              missing_edges   = exp_edge_keys - act_edge_keys
+              unexpected_edges = act_edge_keys - exp_edge_keys
+              dup_edge_mask = actual_edge.duplicated(subset=act_ecols, keep=False) if act_ecols else pd.Series(False, index=actual_edge.index)
+              edge_errors = []
+              if missing_edges:
+                  edge_errors.append(f"{len(missing_edges)} expected edges missing (sample: {sorted(str(x) for x in missing_edges)[:3]})")
+              if unexpected_edges:
+                  edge_errors.append(f"{len(unexpected_edges)} unexpected edges (sample: {sorted(str(x) for x in unexpected_edges)[:3]})")
+              if dup_edge_mask.any():
+                  edge_errors.append(f"{int(dup_edge_mask.sum())} duplicate edge rows")
+              if edge_errors:
+                  print(f"[FATAL] Edge manifest integrity: {'; '.join(edge_errors)}", file=sys.stderr)
+                  sys.exit(1)
+              edge_completeness_status = "PASS"
+              print(f"Edge manifest OK: expected={len(exp_edge_keys)}, actual={len(act_edge_keys)}, "
+                    f"missing=0, unexpected=0, duplicates=0, market_status={live_markets_status}")
 
           # ── Lineage report (in deliveries/tonight — not artifacts/audits) ──
           import subprocess, hashlib
@@ -961,6 +1056,8 @@ jobs:
               "actual_pmf_count": len(actual_pmf),
               "expected_edge_count": len(expected_edge),
               "actual_edge_count": len(actual_edge),
+              "live_markets_status": live_markets_status,
+              "edge_completeness_status": edge_completeness_status,
           }
           lineage_path = out_dir / "artifact_lineage_report.json"
           out_dir.mkdir(parents=True, exist_ok=True)
