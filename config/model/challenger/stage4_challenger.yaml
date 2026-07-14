@@ -135,27 +135,34 @@ disable_clv_head: true
 disable_market_features_in_structural_model: true
 use_live_calibrators: false
 pi_rating_use_model_baseline: false
-use_advanced_features: true
-new_features:
-- player_usage_pct
+# CHALLENGER: unsafe advanced features disabled for this same-day build.
+# The following advanced builders have NOT been fully repaired for point-in-time
+# safety and are excluded from both live and OOF challenger manifests:
+#   - player_usage_pct_ewma10: requires verified shifted-EWMA prior to use
+#   - opp_def_rating_ewma10: final-row opponent defensive summary (not as-of dated)
+#   - opp_pace_ewma10: final-row opponent pace summary (not as-of dated)
+#   - game_pace_predicted: depends on opponent pace (contaminated)
+#   - team_playoff_seed / team_games_behind: undated standings (full-season leakage)
+#   - player_pct_fg_*: shot-location season aggregates without per-game dating
+# Safe baseline rolling, matchup, schedule, injury-count and role features
+# (all produced through shift(1)/as-of logic) are retained.
+use_advanced_features: false
+
+# Unsafe advanced columns excluded from BOTH live and OOF challenger manifests.
+# Any column listed here is forbidden in the challenger feature matrix.
+challenger_unsafe_advanced_columns:
 - player_usage_pct_ewma10
-- player_usage_pct_vs_avg
-- player_pct_fg_restricted
-- player_pct_fg_corner3
-- player_pct_fg_midrange
-- player_fg_pct_restricted
-- shot_quality_score
-- teammate_out_count
-- teammate_questionable_count
-- team_total_usage_of_out_players
 - opp_def_rating_ewma10
 - opp_pace_ewma10
 - game_pace_predicted
 - team_playoff_seed
 - team_games_behind
-- player_efg_pct
-- player_ft_rate
-- player_tov_pct
+- player_pct_fg_restricted
+- player_pct_fg_corner3
+- player_pct_fg_midrange
+- player_fg_pct_restricted
+- shot_quality_score
+- player_usage_pct_vs_avg
 
 # ── Challenger-specific settings ─────────────────────────────────────────────
 # Version tag for artifact lineage

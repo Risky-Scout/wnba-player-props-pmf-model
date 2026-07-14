@@ -143,6 +143,39 @@ jobs:
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
           echo "yesterday=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
+      # ── Challenger mode detection ──────────────────────────────────────────
+      # When running on the challenger branch, override key paths/configs so the
+      # same workflow builds, evaluates and stages the challenger without touching
+      # champion artifacts.  Production scheduled runs on main are unaffected.
+      - name: Detect challenger mode and set env overrides
+        id: challenger
+        run: |
+          if [ "${{ github.ref_name }}" = "cursor/core-probability-optimization-06e5" ]; then
+            echo "CHALLENGER_MODE=true"                                              >> "$GITHUB_ENV"
+            echo "MODEL_CONFIG=config/model/challenger/stage4_challenger.yaml"      >> "$GITHUB_ENV"
+            echo "OOF_CONFIG=config/model/challenger/stage5_challenger.yaml"        >> "$GITHUB_ENV"
+            echo "MODEL_DIR=artifacts/models/challenger_v1"                         >> "$GITHUB_ENV"
+            echo "MODEL_OUTPUT=data/model_outputs/challenger_v1"                    >> "$GITHUB_ENV"
+            echo "OOF_DIR=data/oof/challenger_v1"                                   >> "$GITHUB_ENV"
+            echo "CALIBRATION_DIR=artifacts/models/calibration/challenger_v1"       >> "$GITHUB_ENV"
+            echo "DELIVERY_DIR=deliveries/staging/challenger_${{ github.run_id }}"  >> "$GITHUB_ENV"
+            echo "ARTIFACT_PREFIX=challenger-v1"                                    >> "$GITHUB_ENV"
+            echo "is_challenger=true"                                                >> "$GITHUB_OUTPUT"
+            echo "[challenger] Challenger mode ACTIVE — all artifacts routed to challenger_v1 paths"
+          else
+            echo "CHALLENGER_MODE=false"                                             >> "$GITHUB_ENV"
+            echo "MODEL_CONFIG=config/model/stage4_baseline.yaml"                   >> "$GITHUB_ENV"
+            echo "OOF_CONFIG=config/model/stage5_oof.yaml"                          >> "$GITHUB_ENV"
+            echo "MODEL_DIR=artifacts/models/stage4_baseline"                       >> "$GITHUB_ENV"
+            echo "MODEL_OUTPUT=data/model_outputs/stage4_baseline"                  >> "$GITHUB_ENV"
+            echo "OOF_DIR=data/oof"                                                 >> "$GITHUB_ENV"
+            echo "CALIBRATION_DIR=artifacts/models/calibration"                     >> "$GITHUB_ENV"
+            echo "DELIVERY_DIR=deliveries/tonight"                                  >> "$GITHUB_ENV"
+            echo "ARTIFACT_PREFIX=model-stage4"                                     >> "$GITHUB_ENV"
+            echo "is_challenger=false"                                               >> "$GITHUB_OUTPUT"
+            echo "[challenger] Production mode — champion paths"
+          fi
+
       - name: Pull BDL history (full history 2022–current for rich training data)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -193,10 +226,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Train baseline PMFs (Stage 4)
+      - name: Train baseline PMFs (Stage 4 / Challenger)
         if: github.event.inputs.skip_train != 'true'
         run: |
+          mkdir -p "$MODEL_DIR" "$MODEL_OUTPUT"
           python scripts/train_baseline_pmfs.py \
+            --config "$MODEL_CONFIG" \
+            --model-dir "$MODEL_DIR" \
+            --out-dir "$MODEL_OUTPUT" \
             --time-decay-xi 0.003
 
       - name: Build game totals model (daily retrain)
@@ -294,10 +331,13 @@ jobs:
           else
             FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
           fi
+          mkdir -p "$DELIVERY_DIR"
           python scripts/predict_today.py \
             --features-wide "$FEATURES_SRC" \
+            --model-dir "$MODEL_DIR" \
+            --config "$MODEL_CONFIG" \
             --game-date ${{ steps.date.outputs.target_date }} \
-            --out-dir deliveries/next_game
+            --out-dir "$DELIVERY_DIR"
 
       - name: Predict game totals (D+1)
         run: |
@@ -509,6 +549,82 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      # ── Challenger-only: build OOF PMFs + fit challenger calibrators ─────────
+      - name: Build challenger OOF PMFs (challenger branch only)
+        if: steps.challenger.outputs.is_challenger == 'true' && github.event.inputs.skip_train != 'true'
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          mkdir -p "$OOF_DIR"
+          python scripts/build_oof_pmfs.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --model-dir "$MODEL_DIR" \
+            --config "$OOF_CONFIG" \
+            --out-dir "$OOF_DIR"
+          echo "[challenger] OOF PMFs written to $OOF_DIR"
+        continue-on-error: false
+
+      - name: Fit challenger calibrators (challenger branch only)
+        if: steps.challenger.outputs.is_challenger == 'true' && github.event.inputs.skip_train != 'true'
+        run: |
+          mkdir -p "$CALIBRATION_DIR"
+          python scripts/fit_calibrators.py \
+            --oof-pmfs "$OOF_DIR/oof_player_stat_pmfs.parquet" \
+            --out-dir "$CALIBRATION_DIR" \
+            --require-oof-persistence
+          echo "[challenger] Challenger calibrators fitted in $CALIBRATION_DIR"
+        continue-on-error: false
+
+      - name: Evaluate challenger vs champion (challenger branch only)
+        if: steps.challenger.outputs.is_challenger == 'true' && github.event.inputs.skip_train != 'true'
+        run: |
+          python scripts/score_oof_pmfs.py \
+            --oof-pmfs "$OOF_DIR/oof_player_stat_pmfs.parquet" \
+            --champion-oof artifacts/models/calibration/oof_predictions.parquet \
+            --eval-start 2026-06-26 \
+            --eval-end   2026-07-13 \
+            --out-dir    "$DELIVERY_DIR/evaluation"
+          echo "[challenger] Evaluation complete"
+        continue-on-error: true
+
+      - name: Upload challenger model artifacts
+        if: steps.challenger.outputs.is_challenger == 'true' && github.event.inputs.skip_train != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: challenger-v1-model-${{ github.run_id }}
+          path: |
+            ${{ env.MODEL_DIR }}/
+            ${{ env.MODEL_OUTPUT }}/
+          retention-days: 14
+        continue-on-error: true
+
+      - name: Upload challenger calibrator artifacts
+        if: steps.challenger.outputs.is_challenger == 'true' && github.event.inputs.skip_train != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: challenger-v1-calibrators-${{ github.run_id }}
+          path: ${{ env.CALIBRATION_DIR }}/
+          retention-days: 14
+        continue-on-error: true
+
+      - name: Upload challenger OOF artifacts
+        if: steps.challenger.outputs.is_challenger == 'true' && github.event.inputs.skip_train != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: challenger-v1-oof-${{ github.run_id }}
+          path: ${{ env.OOF_DIR }}/
+          retention-days: 14
+        continue-on-error: true
+
+      - name: Upload challenger evaluation artifacts
+        if: steps.challenger.outputs.is_challenger == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: challenger-v1-evaluation-${{ github.run_id }}
+          path: ${{ env.DELIVERY_DIR }}/evaluation/
+          retention-days: 14
+        continue-on-error: true
+
       - name: Auto-refit calibrators on hard drift
         # Only triggered when drift-check exits 1 (hard drift detected).
         if: steps.drift-check.outcome == 'failure'
@@ -608,9 +724,69 @@ jobs:
           print(f"Model artifact manifest written: {manifest}")
           PYEOF
 
+      # ── Challenger staging page generation ────────────────────────────────────
+      - name: Generate challenger staging pages (challenger branch only)
+        if: steps.challenger.outputs.is_challenger == 'true'
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          GAME_DATE=${{ steps.date.outputs.target_date }}
+          STAGING_BASE="$DELIVERY_DIR/pages"
+          mkdir -p "$STAGING_BASE/Pre-Game/Edge" "$STAGING_BASE/Pre-Game/Distributions"
+          GIT_COMMIT=$(git rev-parse HEAD)
+
+          # Build PMF projections from challenger models
+          PROJ=$(ls "$DELIVERY_DIR/player_projections_${GAME_DATE}.parquet" 2>/dev/null \
+                 || ls "$DELIVERY_DIR/full_pmfs_wide.parquet" 2>/dev/null || echo "")
+          EDGES=$(ls "$DELIVERY_DIR/publishable_edges.parquet" 2>/dev/null || echo "")
+
+          # Generate Edge + PMF-Distributions pages
+          python scripts/generate_web_pages.py \
+            --game-date "$GAME_DATE" \
+            ${PROJ:+--projections "$PROJ"} \
+            ${EDGES:+--edges "$EDGES"} \
+            --out-dir "$STAGING_BASE/Pre-Game" \
+            --json-only \
+            --release-id "challenger-${{ github.run_id }}" \
+            --git-commit "$GIT_COMMIT"
+
+          # Generate public Distributions page
+          python scripts/generate_distributions_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir "$STAGING_BASE" \
+            --json-only \
+            --release-id "challenger-${{ github.run_id }}" \
+            --git-commit "$GIT_COMMIT"
+
+          echo "[challenger] Staging pages written to $STAGING_BASE"
+          ls "$STAGING_BASE/Pre-Game/Edge/" "$STAGING_BASE/Pre-Game/Distributions/" 2>/dev/null || true
+        continue-on-error: true
+
+      - name: Upload challenger staging pages
+        if: steps.challenger.outputs.is_challenger == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: challenger-v1-staging-pages-${{ github.run_id }}
+          path: ${{ env.DELIVERY_DIR }}/pages/
+          retention-days: 14
+        continue-on-error: true
+
+      - name: Upload challenger lineage
+        if: steps.challenger.outputs.is_challenger == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: challenger-v1-lineage-${{ github.run_id }}
+          path: |
+            config/model/challenger/
+            artifacts/models/calibration/challenger_v1/calibration_metadata.json
+          retention-days: 14
+        continue-on-error: true
+
       - name: Upload stage4 model (stable artifact for pregame workflows)
         # Must only run after training, validation, and manifest generation succeed.
         # No conditional guard — GitHub Actions default: skip on any prior failure.
+        # Skip on challenger branch — champion artifacts must not be overwritten.
+        if: steps.challenger.outputs.is_challenger != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: model-stage4-latest

@@ -18,8 +18,19 @@ def main(
     out_dir: str = typer.Option("artifacts/models/calibration"),
     props_parquet: str = typer.Option("", help="Optional path to historical player props parquet for beta calibrator line joining."),
     game_totals_mode: bool = typer.Option(False, "--game-totals-mode", help="No-op flag for game totals calibration (future use)."),
+    require_oof_persistence: bool = typer.Option(
+        False, "--require-oof-persistence/--no-require-oof-persistence",
+        help=(
+            "When set (challenger mode), OOF persistence failure is fatal. "
+            "Prevents silently degraded calibration from passing unchecked."
+        ),
+    ),
 ):
-    paths = fit(oof_pmfs, out_dir, props_parquet_path=props_parquet if props_parquet else None)
+    paths = fit(
+        oof_pmfs, out_dir,
+        props_parquet_path=props_parquet if props_parquet else None,
+        require_oof_persistence=require_oof_persistence,
+    )
     for stat, path in paths.items():
         typer.echo(f"{stat}: {path}")
 
@@ -28,10 +39,12 @@ def main(
         oof_raw = pd.read_parquet(oof_pmfs)
         oof_path = Path(out_dir) / "oof_predictions.parquet"
         oof_path.parent.mkdir(parents=True, exist_ok=True)
-        # Persist all available columns (superset of required); downstream can select.
         oof_raw.to_parquet(oof_path, index=False)
         typer.echo(f"OOF predictions persisted: {oof_path} ({len(oof_raw):,} rows)")
     except Exception as _oof_exc:
+        if require_oof_persistence:
+            typer.echo(f"[FATAL] OOF persistence failed (--require-oof-persistence is set): {_oof_exc}", err=True)
+            raise typer.Exit(1)
         typer.echo(f"[WARN] OOF persistence failed (non-fatal): {_oof_exc}", err=True)
 
     # Per-line isotonic calibrators: P(over|line_bucket) correction
@@ -110,7 +123,9 @@ def _fit_per_line_calibrators(oof_df: pd.DataFrame, stats: list[str]) -> dict:
                     try:
                         pmf = json_to_pmf(row["pmf_json"])
                         ln = float(line_vals.loc[row.name]) if hasattr(line_vals, "loc") else float(stat_oof["pmf_mean"].loc[row.name])
-                        p_o = float(pmf[math.ceil(ln):].sum()) if math.ceil(ln) < len(pmf) else 0.0
+                        # Push-aware: P(X > line), not P(X >= line)
+                        k_arr = np.arange(len(pmf), dtype=float)
+                        p_o = float(pmf[k_arr > ln].sum())
                         p_overs.append(p_o)
                     except Exception:
                         p_overs.append(0.5)

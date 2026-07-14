@@ -405,12 +405,18 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
     ).where(has_fga)
 
     # ── Shot quality delta proxy (hot/cold streak signal) ───────────────────
-    # Only meaningful when we have valid eFG%; falls back to 0 (neutral) otherwise.
+    # Correct season eFG: (player_fgm_mean_season + 0.5*fg3m_mean_season) / fga_mean_season
+    # Previous code used fga in the numerator (same bug as L10 path, now fixed).
+    _fgm_season  = df.get("player_fgm_mean_season",  pd.Series(np.nan, index=df.index))
+    _fg3m_season = df.get("player_fg3m_mean_season", pd.Series(np.nan, index=df.index))
+    _fga_season  = df.get("player_fga_mean_season",  pd.Series(np.nan, index=df.index))
+    _has_fga_season = _fga_season.fillna(0) > 0
     efg_season = (
-        (df.get("player_fga_mean_season", pd.Series(np.nan, index=df.index)).fillna(0) +
-         0.5 * df.get("player_fg3m_mean_season", pd.Series(np.nan, index=df.index)).fillna(0)) /
-        df.get("player_fga_mean_season", pd.Series(1.0, index=df.index)).clip(lower=1.0)
-    )
+        (_fgm_season.fillna(0) + 0.5 * _fg3m_season.fillna(0)) /
+        _fga_season.clip(lower=1.0)
+    ).where(_has_fga_season)
+    df["player_efg_pct_season"]         = efg_season
+    df["player_efg_pct_season_missing"] = (~_has_fga_season).astype(int)
     df["shot_quality_delta_l10"] = df["player_efg_pct_l10"].fillna(0) - efg_season.fillna(0)
 
     # ── Hot/cold flags ───────────────────────────────────────────────────────

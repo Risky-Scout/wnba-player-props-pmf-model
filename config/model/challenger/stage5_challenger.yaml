@@ -1,0 +1,104 @@
+# Challenger Stage 5 OOF configuration.
+# Aligned exactly with stage4_challenger.yaml settings and feature manifest.
+# Do NOT use the baseline stage5_oof.yaml when it differs from the challenger config.
+
+random_seed: 20260714
+use_log_linear: true
+validation_window_days: 7
+oof_first_val_date: '2026-05-01'
+min_train_long_rows: 2000
+min_train_stat_rows: 250
+min_sparse_positive_rows: 50
+dnp_minutes_threshold: 1.0
+low_minutes_zero_inflation_enabled: true
+
+stats:
+  - pts
+  - reb
+  - ast
+  - fg3m
+  - stl
+  - blk
+  - turnover
+
+sparse_stats:
+  - stl
+  - blk
+
+pmf_support_caps:
+  pts: 60
+  reb: 30
+  ast: 25
+  fg3m: 15
+  stl: 10
+  blk: 10
+  turnover: 12
+
+calibration_eligible_prediction_types:
+  - model_oof
+
+pmf_source: challenger_v1_walk_forward_oof_uncalibrated
+
+# Must match challenger Stage 4 exactly
+sample_weight_halflife_days: 42
+
+hgb_regressor:
+  max_iter: 300
+  max_leaf_nodes: 63
+  learning_rate: 0.08
+  min_samples_leaf: 10
+
+hgb_classifier:
+  max_iter: 300
+  max_leaf_nodes: 63
+  learning_rate: 0.08
+  min_samples_leaf: 10
+
+# Challenger: same quadrature as Stage 4
+use_minutes_marginalization: true
+minutes_marginalization_quadrature_points:
+  - 0.10
+  - 0.25
+  - 0.50
+  - 0.75
+  - 0.90
+minutes_marginalization_weights:
+  - 0.10
+  - 0.15
+  - 0.50
+  - 0.15
+  - 0.10
+
+use_zinb_for_sparse_stats: true
+no_vig_method: shin
+secondary_no_vig_method: power
+
+# Challenger: market signals disabled in structural model
+market_prior_lambda: 0.0
+disable_clv_head: true
+disable_market_features_in_structural_model: true
+
+# Advanced features disabled (same as Stage 4 challenger)
+use_advanced_features: false
+
+# Challenger artifact paths
+model_artifact_dir: artifacts/models/challenger_v1
+output_dir: data/oof/challenger_v1
+
+# Feature schema must match challenger Stage 4
+feature_schema_version: "challenger_v1"
+challenger_version: "challenger_v1_2026-07-14"
+
+# OOF-specific: use trained challenger Stage 4 artifacts
+use_tuned_hyperparams: false
+use_model_ensemble: false
+use_mean_dependent_dispersion: true
+use_beta_binomial: false
+
+stat_overrides:
+  fg3m:
+    use_beta_binomial: true
+  turnover:
+    use_minutes_offset: true
+  ast:
+    use_minutes_offset: true

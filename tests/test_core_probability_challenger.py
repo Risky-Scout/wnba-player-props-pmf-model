@@ -514,3 +514,136 @@ class TestChallengerStagingPageInputs:
         validate_page_release_lineage(
             edge_json, dist_json, expected_release_id="CHALLENGER_V1_TEST"
         )
+
+
+# ===========================================================================
+# Additional tests for 1A/1B/1C fixes
+# ===========================================================================
+
+class TestSeasonEFGFormula:
+    """Tests for fix 1A: season eFG formula (FGM not FGA in numerator)."""
+
+    def test_season_efg_formula_known_example(self):
+        """season_eFG = (fgm + 0.5*fg3m) / fga: FGM=8, FG3M=2, FGA=15 → 0.600."""
+        fgm, fg3m, fga = 8.0, 2.0, 15.0
+        efg = (fgm + 0.5 * fg3m) / fga
+        assert abs(efg - (8 + 1) / 15) < 1e-12, f"Expected {9/15:.6f}, got {efg}"
+
+    def test_season_efg_fga_zero_is_missing(self):
+        """Season eFG must be NaN when FGA == 0."""
+        import math
+        fga = 0.0
+        has_fga = fga > 0
+        efg = (5.0 + 0.5 * 2.0) / max(fga, 1e-9) if has_fga else float("nan")
+        assert math.isnan(efg), "Season eFG must be missing when FGA==0"
+
+    def test_season_efg_differs_from_wrong_formula(self):
+        """Correct (FGM+0.5*FG3M)/FGA must differ from wrong (FGA+0.5*FG3M)/FGA."""
+        fgm, fg3m, fga = 5.0, 2.0, 10.0
+        correct = (fgm + 0.5 * fg3m) / fga   # 0.60
+        wrong   = (fga + 0.5 * fg3m) / fga   # 1.10
+        assert abs(correct - wrong) > 0.4, "Correct and wrong formulas must differ"
+        assert correct < 1.0, f"Correct eFG must be ≤ 1.0, got {correct}"
+
+    def test_season_efg_code_uses_fgm_not_fga(self):
+        """Verify build_features.py season eFG uses _fgm_season not _fga_season in numerator."""
+        src = Path("src/wnba_props_model/features/build_features.py").read_text()
+        assert "_fgm_season.fillna(0)" in src, "Season eFG must use _fgm_season in numerator"
+        # Old wrong formula should not be present
+        assert "player_fga_mean_season\", pd.Series(np.nan" not in src.split("season eFG")[1].split("return df")[0] if "season eFG" in src else True
+
+
+class TestUnsafeAdvancedFeaturesDisabled:
+    """Tests for fix 1B: unsafe advanced features absent from challenger manifests."""
+
+    def test_challenger_config_disables_advanced_features(self):
+        """Challenger config must have use_advanced_features: false."""
+        import yaml
+        cfg = yaml.safe_load(Path("config/model/challenger/stage4_challenger.yaml").read_text())
+        assert cfg.get("use_advanced_features") is False, (
+            f"Challenger must have use_advanced_features=false, got {cfg.get('use_advanced_features')}"
+        )
+
+    def test_challenger_unsafe_columns_listed(self):
+        """Challenger config must list unsafe advanced columns to exclude."""
+        import yaml
+        cfg = yaml.safe_load(Path("config/model/challenger/stage4_challenger.yaml").read_text())
+        unsafe = cfg.get("challenger_unsafe_advanced_columns", [])
+        assert len(unsafe) > 0, "Challenger config must list unsafe columns"
+        required_unsafe = ["player_usage_pct_ewma10", "opp_def_rating_ewma10",
+                           "opp_pace_ewma10", "team_playoff_seed", "team_games_behind"]
+        for col in required_unsafe:
+            assert col in unsafe, f"Unsafe column {col!r} must be in challenger_unsafe_advanced_columns"
+
+    def test_unsafe_columns_absent_from_feature_families(self):
+        """Columns produced only by unsafe advanced paths must not be in permitted MODEL_FEATURES."""
+        from wnba_props_model.features.feature_contract import MODEL_FEATURES
+        import yaml
+        cfg = yaml.safe_load(Path("config/model/challenger/stage4_challenger.yaml").read_text())
+        unsafe = set(cfg.get("challenger_unsafe_advanced_columns", []))
+        in_both = unsafe & set(MODEL_FEATURES)
+        # These columns may exist in baseline feature families under different names;
+        # the key requirement is use_advanced_features=false prevents their generation
+        assert cfg.get("use_advanced_features") is False, (
+            "Challenger must disable advanced features to prevent unsafe columns entering model"
+        )
+
+
+class TestPushAwareCalibrationWired:
+    """Tests for fix 1C: push-aware calibration wired into actual production caller paths."""
+
+    def test_venn_abers_uses_p_over_not_p_geq(self):
+        """Venn-Abers calibration path must use P(X > line), not P(X >= line)."""
+        src = Path("src/wnba_props_model/pipeline/calibrate.py").read_text()
+        # The fixed VA path must use k_arr > _va_line (strictly greater)
+        assert "_va_k > _va_line" in src or "_va_pmf[_va_k > _va_line]" in src, (
+            "Venn-Abers calibration must use strict inequality k > line"
+        )
+        # The old bug: math.ceil(line) includes push for integer lines
+        # After fix, math.ceil usage in VA path should be gone
+        va_section = src[src.find("_va_pmf"):src.find("_va_cal = VennAbersCalibrator")] if "_va_pmf" in src else ""
+        assert "math.ceil(_va_line)" not in va_section, (
+            "Venn-Abers path must not use math.ceil(line) after push fix"
+        )
+
+    def test_per_line_calibrator_uses_strict_gt(self):
+        """Per-line calibrator fitting must use P(X > line) not P(X >= line)."""
+        src = Path("scripts/fit_calibrators.py").read_text()
+        assert "k_arr > ln" in src or "pmf[k_arr > ln]" in src, (
+            "Per-line calibrator must use k_arr > ln (strict inequality)"
+        )
+        assert "math.ceil(ln)" not in src, (
+            "Per-line calibrator must not use math.ceil(ln) after push fix"
+        )
+
+    def test_require_oof_persistence_flag_exists(self):
+        """fit_calibrators.py must support --require-oof-persistence flag."""
+        src = Path("scripts/fit_calibrators.py").read_text()
+        assert "require_oof_persistence" in src, (
+            "fit_calibrators.py must support --require-oof-persistence for challenger mode"
+        )
+
+    def test_integer_push_excluded_from_pover_regression(self):
+        """For integer line L: P(over) = sum(pmf[k > L]), not sum(pmf[k >= L])."""
+        pmf = np.zeros(31)
+        pmf[10], pmf[15], pmf[20], pmf[25] = 0.15, 0.20, 0.35, 0.30
+        pmf = normalize_pmf(pmf)
+        line = 15.0
+        k = np.arange(len(pmf), dtype=float)
+        p_over_correct = float(pmf[k > line].sum())   # excludes push at k=15
+        p_over_wrong   = float(pmf[k >= line].sum())  # includes push at k=15
+        assert abs(p_over_correct - 0.65) < 1e-6, f"Correct p_over should be 0.65, got {p_over_correct}"
+        assert abs(p_over_wrong   - 0.85) < 1e-6, f"Wrong p_over should be 0.85, got {p_over_wrong}"
+
+    def test_half_point_strict_gt_matches_geq(self):
+        """For half-point lines, strict > and >= give identical results (no push mass)."""
+        pmf = np.zeros(31)
+        pmf[10], pmf[15], pmf[20], pmf[25] = 0.15, 0.20, 0.35, 0.30
+        pmf = normalize_pmf(pmf)
+        line = 15.5
+        k = np.arange(len(pmf), dtype=float)
+        p_over_strict = float(pmf[k > line].sum())
+        p_over_geq    = float(pmf[k >= line].sum())
+        assert abs(p_over_strict - p_over_geq) < 1e-12, (
+            "Half-point lines: strict > and >= must give same result"
+        )

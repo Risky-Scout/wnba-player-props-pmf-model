@@ -364,6 +364,7 @@ def fit_calibrators(
     oof_pmfs_path: str | Path,
     out_dir: str | Path = "artifacts/models/calibration",
     props_parquet_path: str | Path | None = None,
+    require_oof_persistence: bool = False,
 ) -> dict[str, Path]:
     """Fit per-stat role-aware isotonic calibrators from OOF PMFs.
 
@@ -373,6 +374,13 @@ def fit_calibrators(
     For combo stats (stocks, pts_ast, pts_reb, reb_ast, pts_reb_ast): generate
     OOF combo PMFs on the fly via convolution if not already present, then fit
     global-only (role_bucket=all) calibrators.
+
+    Parameters
+    ----------
+    require_oof_persistence : bool
+        When True (challenger mode), any failure to load or persist OOF data
+        raises a RuntimeError instead of logging a warning. Use this to prevent
+        silent degraded calibration from passing unchecked.
     """
     oof = pd.read_parquet(oof_pmfs_path).copy()
 
@@ -707,7 +715,21 @@ def fit_calibrators(
                         try:
                             _va_pmf = normalize_pmf(json_to_pmf(_va_row["pmf_json"]))
                             _va_line = float(_va_row["line"])
-                            _va_p = float(_va_pmf[_math.ceil(_va_line):].sum())
+                            # Push-aware P(over): P(X > line), not P(X >= line).
+                            # For integer lines math.ceil(L)==L so pmf[ceil(L):]
+                            # erroneously included the push atom pmf[L].
+                            # Correct: sum atoms where index > line (strictly).
+                            _va_k = np.arange(len(_va_pmf), dtype=float)
+                            _va_p_over = float(_va_pmf[_va_k > _va_line].sum())
+                            _va_p_push = float(
+                                _va_pmf[int(_va_line)]
+                                if _va_line == _math.floor(_va_line) and 0 <= int(_va_line) < len(_va_pmf)
+                                else 0.0
+                            )
+                            _va_p_under = max(0.0, 1.0 - _va_p_over - _va_p_push)
+                            # Calibrate no-push over: P(over | not push)
+                            _np_denom = max(_va_p_over + _va_p_under, 1e-12)
+                            _va_p = _va_p_over / _np_denom
                             _va_label = float(_va_row["outcome"] > _va_line)
                             if _va_row["outcome"] != _va_line:  # skip pushes
                                 _va_scores.append(_va_p)
