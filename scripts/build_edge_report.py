@@ -369,6 +369,8 @@ def main(
             raise typer.Exit(1)
 
     # ── Markets empty: LIVE_MARKETS_NOT_YET_AVAILABLE vs fatal ───────────────
+    # Write expected_market_comparison_manifest.parquet (empty) BEFORE exiting,
+    # so the workflow has a reconciled-zero record to validate against.
     if props_df.empty:
         if source_policy == POLICY_ODDS_API_REQUIRED:
             typer.echo(
@@ -378,12 +380,48 @@ def main(
             _write_status(out, STATUS_FAILURE, today, edge_threshold,
                           error="odds_api_required_but_empty")
             raise typer.Exit(1)
+        # Persist empty expected manifest to record the verified-zero state.
+        _empty_expected_manifest = pd.DataFrame(
+            columns=["game_id", "player_id", "stat", "vendor", "line"]
+        )
+        _empty_expected_manifest.to_parquet(
+            out / "expected_market_comparison_manifest.parquet", index=False
+        )
         typer.echo(
-            f"[INFO] No market lines available yet. Status: {STATUS_LIVE_MARKETS_NOT_YET_AVAILABLE}"
+            f"[INFO] No market lines available yet. "
+            f"expected_market_comparison_manifest.parquet written (0 rows). "
+            f"Status: {STATUS_LIVE_MARKETS_NOT_YET_AVAILABLE}"
         )
         _write_status(out, STATUS_LIVE_MARKETS_NOT_YET_AVAILABLE, today, edge_threshold,
                       props_source=props_source)
         raise typer.Exit(0)
+
+    # ── Persist expected_market_comparison_manifest.parquet ───────────────────
+    # Written here: AFTER market validation + identity reconciliation,
+    # BEFORE probability/edge construction.
+    # Keyed by (game_id, player_id, stat, vendor, line).
+    # This represents every validated, actionable, reconciled current-run quote.
+    _expected_manifest_key_cols = [
+        c for c in ["game_id", "player_id", "stat", "vendor", "line"]
+        if c in props_df.columns
+    ]
+    if _expected_manifest_key_cols:
+        _expected_manifest = (
+            props_df[_expected_manifest_key_cols]
+            .dropna(subset=[c for c in ["vendor", "line"] if c in _expected_manifest_key_cols])
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
+    else:
+        _expected_manifest = pd.DataFrame(
+            columns=["game_id", "player_id", "stat", "vendor", "line"]
+        )
+    _expected_manifest_path = out / "expected_market_comparison_manifest.parquet"
+    _expected_manifest.to_parquet(_expected_manifest_path, index=False)
+    typer.echo(
+        f"Wrote expected_market_comparison_manifest → {_expected_manifest_path} "
+        f"({len(_expected_manifest):,} rows)"
+    )
 
     # ── Game_ID cross-join guard: fatal if markets nonempty but no shared games ─
     if "game_id" in pmfs_df.columns and "game_id" in props_df.columns:

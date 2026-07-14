@@ -115,28 +115,13 @@ jobs:
           unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
           echo "SOURCE_CALIBRATORS_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
           echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
-          # Validate artifact manifest if present (Gap 1)
-          if [ -f "artifacts/models/calibration/artifact_manifest_calibrator.json" ]; then
-            python3 - <<'PYEOF'
-import json, sys
-from pathlib import Path
-manifest = json.loads(Path("artifacts/models/calibration/artifact_manifest_calibrator.json").read_text())
-schema_ver = str(manifest.get("artifact_schema_version", ""))
-if schema_ver not in ("1",):
-    print(f"[FATAL] Unsupported artifact_schema_version: {schema_ver!r}", file=sys.stderr)
-    sys.exit(1)
-if manifest.get("artifact_type") != "calibrator":
-    print(f"[FATAL] Expected artifact_type='calibrator', got {manifest.get('artifact_type')!r}", file=sys.stderr)
-    sys.exit(1)
-gate = manifest.get("gate_status", "")
-if gate and gate != "PASS":
-    print(f"[FATAL] Calibrator gate_status={gate!r} — must be PASS", file=sys.stderr)
-    sys.exit(1)
-print(f"Calibrator manifest validated OK: type=calibrator, schema={schema_ver}, gate={gate or 'n/a'}")
-PYEOF
-          else
-            echo "[INFO] No artifact_manifest_calibrator.json — skipping manifest validation (pre-manifest artifact)"
+          # Manifest existence check only — full validation via shared validator runs in
+          # "Validate artifact manifests" step (after feature build when hashes are available).
+          if [ ! -f "artifacts/models/calibration/artifact_manifest_calibrator.json" ]; then
+            echo "[FATAL] No artifact_manifest_calibrator.json found after download. A missing artifact manifest is FATAL." >&2
+            exit 1
           fi
+          echo "Calibrator manifest found — full validation deferred to post-feature-build step."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: false
@@ -182,24 +167,13 @@ PYEOF
           unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
           echo "SOURCE_MODEL_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
           echo "Stage4 model downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
-          # Validate artifact manifest if present (Gap 1)
-          if [ -f "artifacts/models/stage4_baseline/artifact_manifest_model.json" ]; then
-            python3 - <<'PYEOF'
-import json, sys
-from pathlib import Path
-manifest = json.loads(Path("artifacts/models/stage4_baseline/artifact_manifest_model.json").read_text())
-schema_ver = str(manifest.get("artifact_schema_version", ""))
-if schema_ver not in ("1",):
-    print(f"[FATAL] Unsupported artifact_schema_version: {schema_ver!r}", file=sys.stderr)
-    sys.exit(1)
-if manifest.get("artifact_type") != "model":
-    print(f"[FATAL] Expected artifact_type='model', got {manifest.get('artifact_type')!r}", file=sys.stderr)
-    sys.exit(1)
-print(f"Model manifest validated OK: type=model, schema={schema_ver}")
-PYEOF
-          else
-            echo "[INFO] No artifact_manifest_model.json — skipping manifest validation (pre-manifest artifact)"
+          # Manifest existence check only — full validation via shared validator runs in
+          # "Validate artifact manifests" step (after feature build when hashes are available).
+          if [ ! -f "artifacts/models/stage4_baseline/artifact_manifest_model.json" ]; then
+            echo "[FATAL] No artifact_manifest_model.json found after download. A missing artifact manifest is FATAL." >&2
+            exit 1
           fi
+          echo "Model manifest found — full validation deferred to post-feature-build step."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: false
@@ -264,6 +238,108 @@ PYEOF
         run: |
           python scripts/build_features.py \
             --data-dir data/processed
+        continue-on-error: false
+
+      - name: Validate artifact manifests — model and calibrator (Fix 1 — BLOCKING)
+        # Call shared validate_artifact_manifest() for both artifacts.
+        # A missing manifest, wrong source_run_id/commit, missing cutoff, or blank hash = FATAL.
+        # Run AFTER feature build so feature_schema_manifest.json exists for hash validation.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch source_commit for calibrator run from GitHub API
+          CAL_HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_CALIBRATORS_RUN_ID}" \
+            --jq '.head_sha' 2>/dev/null || echo "")
+          if [ -z "$CAL_HEAD_SHA" ] || [ "$CAL_HEAD_SHA" = "null" ]; then
+            echo "[FATAL] Cannot fetch head_sha for calibrator source run ${SOURCE_CALIBRATORS_RUN_ID}." >&2
+            exit 1
+          fi
+          # Fetch source_commit for model run from GitHub API
+          MODEL_HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_MODEL_RUN_ID}" \
+            --jq '.head_sha' 2>/dev/null || echo "")
+          if [ -z "$MODEL_HEAD_SHA" ] || [ "$MODEL_HEAD_SHA" = "null" ]; then
+            echo "[FATAL] Cannot fetch head_sha for model source run ${SOURCE_MODEL_RUN_ID}." >&2
+            exit 1
+          fi
+          export EXPECTED_CAL_SOURCE_RUN_ID="${SOURCE_CALIBRATORS_RUN_ID}"
+          export EXPECTED_CAL_SOURCE_COMMIT="${CAL_HEAD_SHA}"
+          export EXPECTED_MODEL_SOURCE_RUN_ID="${SOURCE_MODEL_RUN_ID}"
+          export EXPECTED_MODEL_SOURCE_COMMIT="${MODEL_HEAD_SHA}"
+          python3 - <<'PYEOF'
+import hashlib, json, os, sys
+from pathlib import Path
+from datetime import datetime, timezone
+from wnba_props_model.pipeline.market_integrity import validate_artifact_manifest, ArtifactManifestError
+
+prediction_ts = datetime.now(timezone.utc).isoformat()
+
+feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+if not feat_manifest_path.exists():
+    print(f"[FATAL] feature_schema_manifest.json not found at {feat_manifest_path}. "
+          "Cannot validate artifact manifests without it.", file=sys.stderr)
+    sys.exit(1)
+feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+# ── Validate calibrator manifest ─────────────────────────────────────────────
+cal_manifest_path = Path("artifacts/models/calibration/artifact_manifest_calibrator.json")
+if not cal_manifest_path.exists():
+    print(f"[FATAL] No artifact_manifest_calibrator.json — missing manifest is FATAL.", file=sys.stderr)
+    sys.exit(1)
+cal_manifest = json.loads(cal_manifest_path.read_text())
+
+cal_config_path = Path("config/model/stage6_calibration.yaml")
+if not cal_config_path.exists():
+    cal_config_path = Path("config/model/stage5_oof.yaml")
+cal_config_hash = (hashlib.sha256(cal_config_path.read_bytes()).hexdigest()[:16]
+                   if cal_config_path.exists() else None)
+
+try:
+    validate_artifact_manifest(
+        cal_manifest,
+        expected_artifact_type="calibrator",
+        prediction_timestamp_utc=prediction_ts,
+        source_run_id=os.environ.get("EXPECTED_CAL_SOURCE_RUN_ID"),
+        source_commit=os.environ.get("EXPECTED_CAL_SOURCE_COMMIT"),
+        feature_manifest_hash=feature_manifest_hash,
+        config_hash=cal_config_hash,
+    )
+    print(f"Calibrator manifest validated OK: "
+          f"source_run={cal_manifest.get('source_run_id')}, "
+          f"commit={cal_manifest.get('source_commit','')[:8]}, "
+          f"gate={cal_manifest.get('gate_status')}")
+except ArtifactManifestError as exc:
+    print(f"[FATAL] Calibrator artifact manifest validation failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+# ── Validate model manifest ───────────────────────────────────────────────────
+model_manifest_path = Path("artifacts/models/stage4_baseline/artifact_manifest_model.json")
+if not model_manifest_path.exists():
+    print(f"[FATAL] No artifact_manifest_model.json — missing manifest is FATAL.", file=sys.stderr)
+    sys.exit(1)
+model_manifest = json.loads(model_manifest_path.read_text())
+
+model_config_path = Path("config/model/stage4_baseline.yaml")
+model_config_hash = (hashlib.sha256(model_config_path.read_bytes()).hexdigest()[:16]
+                     if model_config_path.exists() else None)
+
+try:
+    validate_artifact_manifest(
+        model_manifest,
+        expected_artifact_type="model",
+        prediction_timestamp_utc=prediction_ts,
+        source_run_id=os.environ.get("EXPECTED_MODEL_SOURCE_RUN_ID"),
+        source_commit=os.environ.get("EXPECTED_MODEL_SOURCE_COMMIT"),
+        feature_manifest_hash=feature_manifest_hash,
+        config_hash=model_config_hash,
+    )
+    print(f"Model manifest validated OK: "
+          f"source_run={model_manifest.get('source_run_id')}, "
+          f"commit={model_manifest.get('source_commit','')[:8]}, "
+          f"cutoff={model_manifest.get('model_training_cutoff')}")
+except ArtifactManifestError as exc:
+    print(f"[FATAL] Model artifact manifest validation failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
         continue-on-error: false
 
       - name: Build next-game slate (BDL games + roster)
@@ -866,206 +942,188 @@ PYEOF
         continue-on-error: false
 
       - name: Build expected PMF and edge manifests from upstream inputs (BLOCKING)
-        # Expected manifests are derived BEFORE prediction from:
-        #   - validated slate (game/player roster) + eligible active players + supported stats
-        #   - validated current-run market rows + resolved game/player identity + vendor/line
-        # Do NOT create expected manifests from actual PMF or edge outputs.
+        # Fix 3: Expected PMF manifest derived from final availability/actionability output
+        #   (availability_table_{date}.parquet) — NOT from original slate["status"].
+        # Fix 4: Expected edge manifest read from expected_market_comparison_manifest.parquet
+        #   written by build_edge_report.py AFTER market reconciliation — NOT raw odds parquet.
+        # PMF comparison is unconditional when games exist; missing/unexpected/duplicate = FATAL.
+        # Edge comparison uses validate_edge_manifest(); expected_nonempty+actual_empty = FATAL.
         run: |
-          python - <<'PYEOF'
-          import json, os, sys
-          from pathlib import Path
-          from datetime import datetime, timezone
+          python3 - <<'PYEOF'
+import hashlib, json, os, subprocess, sys
+from pathlib import Path
+from datetime import datetime, timezone
 
-          try:
-              import pandas as pd
-          except ImportError:
-              print("[FATAL] pandas not available", file=sys.stderr)
-              sys.exit(1)
+try:
+    import pandas as pd
+except ImportError:
+    print("[FATAL] pandas not available", file=sys.stderr)
+    sys.exit(1)
 
-          game_date  = os.environ.get("GAME_DATE", "")
-          run_id     = os.environ.get("GITHUB_RUN_ID", "")
-          out_dir    = Path("deliveries/tonight")
+from wnba_props_model.pipeline.market_integrity import (
+    validate_pmf_manifest,
+    validate_edge_manifest,
+    MissingPMFError,
+    DuplicatePMFError,
+    MissingEdgeError,
+    DuplicateEdgeError,
+)
 
-          # Supported stats for PMF generation (must match predict_today.py config)
-          SUPPORTED_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
-                             "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"]
+game_date = os.environ.get("GAME_DATE", "")
+run_id    = os.environ.get("GITHUB_RUN_ID", "")
+out_dir   = Path("deliveries/tonight")
 
-          # ── Expected PMF manifest — built from slate before prediction ─────
-          slate_path = out_dir / f"slate_{game_date}.parquet"
-          if slate_path.exists():
-              slate = pd.read_parquet(slate_path)
-              # Eligible players: active or questionable (not confirmed inactive)
-              if "status" in slate.columns:
-                  eligible = slate[~slate["status"].str.lower().isin(["inactive", "out"])].copy()
-              else:
-                  eligible = slate.copy()
+# Supported stats for PMF generation (must match predict_today.py config)
+SUPPORTED_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
+                   "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"]
 
-              key_cols = [c for c in ["game_id", "player_id"] if c in eligible.columns]
-              if key_cols and len(eligible) > 0:
-                  rows = []
-                  for _, row in eligible[key_cols].drop_duplicates().iterrows():
-                      for stat in SUPPORTED_STATS:
-                          rows.append({**row.to_dict(), "stat": stat})
-                  expected_pmf = pd.DataFrame(rows)
-                  print(f"Expected PMF manifest: {len(expected_pmf)} rows "
-                        f"({len(eligible)} players × {len(SUPPORTED_STATS)} stats)")
-              else:
-                  expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-                  print(f"[WARN] Slate exists but no eligible players or missing key columns")
-          else:
-              expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-              print(f"[INFO] No slate at {slate_path} — no games scheduled")
+# ── Expected PMF manifest — from final Ticket 1 availability output (Fix 3) ─
+# Use availability_table_{date}.parquet produced by apply_injury_updates.py.
+# Filter by is_market_actionable == True.
+# Do NOT use original slate["status"] as the final injury truth.
+slate_path = out_dir / f"slate_{game_date}.parquet"
+avail_path = out_dir / f"availability_table_{game_date}.parquet"
+scheduled_games_exist = slate_path.exists()
 
-          # ── Actual PMF manifest — from full_pmfs_wide.parquet ─────────────
-          pmf_path = out_dir / "full_pmfs_wide.parquet"
-          if pmf_path.exists():
-              pmfs = pd.read_parquet(pmf_path)
-              pmf_key_cols = [c for c in ["game_id", "player_id", "stat"] if c in pmfs.columns]
-              if pmf_key_cols:
-                  actual_pmf = pmfs[pmf_key_cols].drop_duplicates()
-                  # Duplicate check
-                  dupes = pmfs[pmfs.duplicated(subset=pmf_key_cols, keep=False)]
-                  if not dupes.empty:
-                      print(f"[FATAL] {len(dupes)} duplicate PMF rows detected", file=sys.stderr)
-                      sys.exit(1)
-              else:
-                  actual_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-          else:
-              actual_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-              if not expected_pmf.empty:
-                  print(f"[FATAL] PMF file missing at {pmf_path} but slate has games", file=sys.stderr)
-                  sys.exit(1)
+if avail_path.exists():
+    avail = pd.read_parquet(avail_path)
+    if "is_market_actionable" in avail.columns:
+        eligible = avail[avail["is_market_actionable"] == True].copy()
+    elif "availability_status" in avail.columns:
+        eligible = avail[~avail["availability_status"].str.lower().isin(
+            ["inactive", "out", "dnp"]
+        )].copy()
+    else:
+        eligible = avail.copy()
+    key_cols = [c for c in ["game_id", "player_id"] if c in eligible.columns]
+    if key_cols and len(eligible) > 0:
+        rows = []
+        for _, row in eligible[key_cols].drop_duplicates().iterrows():
+            for stat in SUPPORTED_STATS:
+                rows.append({**row.to_dict(), "stat": stat})
+        expected_pmf = pd.DataFrame(rows)
+        print(f"Expected PMF manifest (from availability_table): {len(expected_pmf)} rows "
+              f"({len(eligible)} actionable players × {len(SUPPORTED_STATS)} stats)")
+    else:
+        expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+        print("[WARN] Availability table has no actionable players or missing key columns")
+elif scheduled_games_exist:
+    print(f"[FATAL] availability_table_{game_date}.parquet not found but slate exists. "
+          "apply_injury_updates must produce availability_table before PMF validation.",
+          file=sys.stderr)
+    sys.exit(1)
+else:
+    expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+    print(f"[INFO] No availability table or slate — no games scheduled for {game_date}")
 
-          # ── Expected edge manifest — from validated current-run market rows ─
-          market_path = Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
-          if not market_path.exists():
-              market_path = Path("data/processed/wnba_player_props.parquet")
-          if market_path.exists():
-              markets = pd.read_parquet(market_path)
-              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"]
-                               if c in markets.columns]
-              if edge_key_cols:
-                  expected_edge = markets[edge_key_cols].dropna(
-                      subset=[c for c in ["vendor", "line"] if c in edge_key_cols]
-                  ).drop_duplicates()
-              else:
-                  expected_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
-          else:
-              expected_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
+# ── Actual PMF manifest — from full_pmfs_wide.parquet ─────────────────────
+pmf_path = out_dir / "full_pmfs_wide.parquet"
+if pmf_path.exists():
+    pmfs = pd.read_parquet(pmf_path)
+    pmf_key_cols = [c for c in ["game_id", "player_id", "stat"] if c in pmfs.columns]
+    actual_pmf = pmfs[pmf_key_cols].drop_duplicates() if pmf_key_cols else pd.DataFrame(
+        columns=["game_id", "player_id", "stat"])
+else:
+    actual_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
 
-          # ── Actual edge manifest — from full market_comparison.parquet ─────
-          mc_path = out_dir / "market_comparison.parquet"
-          if mc_path.exists():
-              mc = pd.read_parquet(mc_path)
-              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"]
-                               if c in mc.columns]
-              actual_edge = mc[edge_key_cols].drop_duplicates() if edge_key_cols else pd.DataFrame()
-          else:
-              actual_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
+# ── PMF integrity check — unconditional when games exist (Fix 3) ───────────
+# expected nonempty + actual empty = FATAL
+# missing / unexpected / duplicate keys = FATAL
+# Only validated scheduled_game_count == 0 may skip.
+if not expected_pmf.empty or not actual_pmf.empty:
+    try:
+        validate_pmf_manifest(expected_pmf, actual_pmf)
+        print(f"PMF manifest OK: expected={len(expected_pmf)}, actual={len(actual_pmf)}, "
+              "missing=0, unexpected=0, duplicates=0")
+    except (MissingPMFError, DuplicatePMFError) as exc:
+        print(f"[FATAL] PMF manifest integrity: {exc}", file=sys.stderr)
+        sys.exit(1)
+else:
+    print("[INFO] Both expected and actual PMF sets are empty — no games scheduled")
 
-          # ── Integrity check: expected vs actual PMFs (Gap 3) ────────────
-          # Keep expected and actual data strictly independent.
-          # Expected = slate + availability + supported stats (NOT derived from actual PMFs).
-          # Actual   = final full_pmfs_wide.parquet after injury-adjusted rebuild.
-          if not expected_pmf.empty and not actual_pmf.empty:
-              pmf_key_cols = ["game_id", "player_id", "stat"]
-              exp_keys = set(map(tuple, expected_pmf[pmf_key_cols].values))
-              act_keys = set(map(tuple, actual_pmf[pmf_key_cols].values))
-              missing_pmfs  = exp_keys - act_keys
-              unexpected_pmfs = act_keys - exp_keys
-              dup_mask = actual_pmf.duplicated(subset=pmf_key_cols, keep=False)
-              duplicate_pmfs = actual_pmf[dup_mask]
-              pmf_errors = []
-              if missing_pmfs:
-                  pmf_errors.append(f"{len(missing_pmfs)} expected PMFs missing (sample: {sorted(missing_pmfs)[:3]})")
-              if unexpected_pmfs:
-                  pmf_errors.append(f"{len(unexpected_pmfs)} unexpected PMFs (sample: {sorted(unexpected_pmfs)[:3]})")
-              if not duplicate_pmfs.empty:
-                  pmf_errors.append(f"{len(duplicate_pmfs)} duplicate PMF rows")
-              if pmf_errors:
-                  print(f"[FATAL] PMF manifest integrity: {'; '.join(pmf_errors)}", file=sys.stderr)
-                  sys.exit(1)
-              print(f"PMF manifest OK: expected={len(exp_keys)}, actual={len(act_keys)}, missing=0, unexpected=0, duplicates=0")
+# ── Expected edge manifest — from reconciled market manifest (Fix 4) ───────
+# Read expected_market_comparison_manifest.parquet written by build_edge_report.py
+# AFTER market validation and identity reconciliation, BEFORE edge construction.
+# Do NOT build expected edges directly from raw odds parquet.
+expected_edge_manifest_path = out_dir / "expected_market_comparison_manifest.parquet"
+if expected_edge_manifest_path.exists():
+    expected_edge = pd.read_parquet(expected_edge_manifest_path)
+    print(f"Expected edge manifest (from reconciled markets): {len(expected_edge)} rows")
+else:
+    expected_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
+    print("[INFO] expected_market_comparison_manifest.parquet not found — assuming no markets")
 
-          # ── Integrity check: expected vs actual edges (Gap 3) ────────────
-          # Expected edge keys come from validated market rows BEFORE edge calculation.
-          # Actual edge keys come from market_comparison.parquet — NOT publishable_edges.
-          live_markets_status = "LIVE_MARKETS_NOT_YET_AVAILABLE"
-          edge_completeness_status = "NOT_CHECKED"
-          if expected_edge.empty and actual_edge.empty:
-              print(f"[INFO] No market rows and no edge rows — market_status={live_markets_status}")
-              edge_completeness_status = live_markets_status
-          elif not expected_edge.empty and actual_edge.empty:
-              print(f"[WARN] Expected {len(expected_edge)} edge rows but market_comparison.parquet is empty. "
-                    f"market_status={live_markets_status}")
-              edge_completeness_status = live_markets_status
-          elif not expected_edge.empty and not actual_edge.empty:
-              live_markets_status = "SUCCESS_WITH_MARKETS"
-              market_status = live_markets_status
-              edge_key_cols_check = ["game_id", "player_id", "stat", "vendor", "line"]
-              exp_ecols = [c for c in edge_key_cols_check if c in expected_edge.columns]
-              act_ecols = [c for c in edge_key_cols_check if c in actual_edge.columns]
-              exp_edge_keys = set(
-                  tuple(r) for r in expected_edge[exp_ecols].itertuples(index=False, name=None)
-              ) if exp_ecols else set()
-              act_edge_keys = set(
-                  tuple(r) for r in actual_edge[act_ecols].itertuples(index=False, name=None)
-              ) if act_ecols else set()
-              missing_edges   = exp_edge_keys - act_edge_keys
-              unexpected_edges = act_edge_keys - exp_edge_keys
-              dup_edge_mask = actual_edge.duplicated(subset=act_ecols, keep=False) if act_ecols else pd.Series(False, index=actual_edge.index)
-              edge_errors = []
-              if missing_edges:
-                  edge_errors.append(f"{len(missing_edges)} expected edges missing (sample: {sorted(str(x) for x in missing_edges)[:3]})")
-              if unexpected_edges:
-                  edge_errors.append(f"{len(unexpected_edges)} unexpected edges (sample: {sorted(str(x) for x in unexpected_edges)[:3]})")
-              if dup_edge_mask.any():
-                  edge_errors.append(f"{int(dup_edge_mask.sum())} duplicate edge rows")
-              if edge_errors:
-                  print(f"[FATAL] Edge manifest integrity: {'; '.join(edge_errors)}", file=sys.stderr)
-                  sys.exit(1)
-              edge_completeness_status = "PASS"
-              print(f"Edge manifest OK: expected={len(exp_edge_keys)}, actual={len(act_edge_keys)}, "
-                    f"missing=0, unexpected=0, duplicates=0, market_status={live_markets_status}")
+# ── Actual edge manifest — from market_comparison.parquet ─────────────────
+mc_path = out_dir / "market_comparison.parquet"
+if mc_path.exists():
+    mc = pd.read_parquet(mc_path)
+    edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"]
+                     if c in mc.columns]
+    actual_edge = mc[edge_key_cols].drop_duplicates() if edge_key_cols else pd.DataFrame(
+        columns=["game_id", "player_id", "stat", "vendor", "line"])
+else:
+    actual_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
 
-          # ── Lineage report (in deliveries/tonight — not artifacts/audits) ──
-          import subprocess, hashlib
-          try:
-              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-              git_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
-          except Exception:
-              git_commit = git_branch = "unknown"
+# ── Edge integrity check — unconditional when expected manifest exists (Fix 4) ─
+# expected nonempty + actual empty = FATAL (NOT LIVE_MARKETS_NOT_YET_AVAILABLE)
+# missing / unexpected / duplicate rows = FATAL
+# LIVE_MARKETS_NOT_YET_AVAILABLE valid ONLY when verified-zero markets (both empty).
+live_markets_status = "LIVE_MARKETS_NOT_YET_AVAILABLE"
+edge_completeness_status = "NOT_CHECKED"
+if not expected_edge.empty or not actual_edge.empty:
+    try:
+        validate_edge_manifest(expected_edge, actual_edge)
+        live_markets_status = (
+            "SUCCESS_WITH_MARKETS" if not expected_edge.empty
+            else "LIVE_MARKETS_NOT_YET_AVAILABLE"
+        )
+        edge_completeness_status = "PASS"
+        print(f"Edge manifest OK: expected={len(expected_edge)}, actual={len(actual_edge)}, "
+              f"missing=0, unexpected=0, duplicates=0, market_status={live_markets_status}")
+    except (MissingEdgeError, DuplicateEdgeError) as exc:
+        print(f"[FATAL] Edge manifest integrity: {exc}", file=sys.stderr)
+        sys.exit(1)
+else:
+    print(f"[INFO] No expected or actual edge rows — market_status={live_markets_status}")
+    edge_completeness_status = live_markets_status
 
-          artifact_hashes = {}
-          for p in out_dir.glob("*.parquet"):
-              artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
-          for p in out_dir.glob("*.json"):
-              artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+# ── Lineage report ─────────────────────────────────────────────────────────
+try:
+    git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    git_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+except Exception:
+    git_commit = git_branch = "unknown"
 
-          lineage_report = {
-              "github_run_id": run_id,
-              "git_commit": git_commit,
-              "branch": git_branch,
-              "game_date": game_date,
-              "game_date_resolution_method": os.environ.get("GAME_DATE_RESOLUTION_METHOD", ""),
-              "source_calibrators_run_id": os.environ.get("SOURCE_CALIBRATORS_RUN_ID", ""),
-              "source_model_run_id": os.environ.get("SOURCE_MODEL_RUN_ID", ""),
-              "prediction_timestamp_utc": datetime.now(timezone.utc).isoformat(),
-              "artifact_hashes": artifact_hashes,
-              "expected_pmf_count": len(expected_pmf),
-              "actual_pmf_count": len(actual_pmf),
-              "expected_edge_count": len(expected_edge),
-              "actual_edge_count": len(actual_edge),
-              "live_markets_status": live_markets_status,
-              "edge_completeness_status": edge_completeness_status,
-          }
-          lineage_path = out_dir / "artifact_lineage_report.json"
-          out_dir.mkdir(parents=True, exist_ok=True)
-          lineage_path.write_text(json.dumps(lineage_report, indent=2))
-          print(f"Artifact lineage report written → {lineage_path}")
-          print(f"Expected PMFs: {len(expected_pmf)}, Actual PMFs: {len(actual_pmf)}")
-          print(f"Expected edges: {len(expected_edge)}, Actual edges: {len(actual_edge)}")
-          PYEOF
+artifact_hashes = {}
+for p in out_dir.glob("*.parquet"):
+    artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+for p in out_dir.glob("*.json"):
+    artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+
+lineage_report = {
+    "github_run_id": run_id,
+    "git_commit": git_commit,
+    "branch": git_branch,
+    "game_date": game_date,
+    "game_date_resolution_method": os.environ.get("GAME_DATE_RESOLUTION_METHOD", ""),
+    "source_calibrators_run_id": os.environ.get("SOURCE_CALIBRATORS_RUN_ID", ""),
+    "source_model_run_id": os.environ.get("SOURCE_MODEL_RUN_ID", ""),
+    "prediction_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    "artifact_hashes": artifact_hashes,
+    "expected_pmf_count": len(expected_pmf),
+    "actual_pmf_count": len(actual_pmf),
+    "expected_edge_count": len(expected_edge),
+    "actual_edge_count": len(actual_edge),
+    "live_markets_status": live_markets_status,
+    "edge_completeness_status": edge_completeness_status,
+}
+lineage_path = out_dir / "artifact_lineage_report.json"
+out_dir.mkdir(parents=True, exist_ok=True)
+lineage_path.write_text(json.dumps(lineage_report, indent=2))
+print(f"Artifact lineage report written → {lineage_path}")
+print(f"Expected PMFs: {len(expected_pmf)}, Actual PMFs: {len(actual_pmf)}")
+print(f"Expected edges: {len(expected_edge)}, Actual edges: {len(actual_edge)}")
+PYEOF
         env:
           GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: false

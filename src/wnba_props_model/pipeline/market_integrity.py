@@ -947,20 +947,30 @@ def validate_artifact_manifest(
                 f"expected={config_hash!r}"
             )
 
-    # training/calibration cutoff must be before prediction timestamp
+    # training/calibration cutoff must be PRESENT and before prediction timestamp.
+    # A missing or blank cutoff for the expected artifact type is a fatal error.
+    _ARTIFACT_CUTOFF_FIELDS: dict[str, str] = {
+        "model": "model_training_cutoff",
+        "calibrator": "calibration_cutoff",
+    }
     pred_ts = _parse_utc(prediction_timestamp_utc)
-    if pred_ts is not None:
-        for cutoff_field in ("model_training_cutoff", "calibration_cutoff"):
-            cutoff_str = manifest.get(cutoff_field)
-            if not cutoff_str:
-                continue
+    expected_cutoff_field = _ARTIFACT_CUTOFF_FIELDS.get(expected_artifact_type)
+    if expected_cutoff_field:
+        cutoff_str = manifest.get(expected_cutoff_field)
+        if not cutoff_str:
+            errors.append(
+                f"Missing required cutoff field: {expected_cutoff_field!r} "
+                f"(must be present and non-empty for artifact_type={expected_artifact_type!r})"
+            )
+        elif pred_ts is not None:
             cutoff_ts = _parse_utc(str(cutoff_str))
             if cutoff_ts is None:
-                errors.append(f"Cannot parse {cutoff_field}={cutoff_str!r} as UTC timestamp")
-                continue
-            if cutoff_ts >= pred_ts:
                 errors.append(
-                    f"{cutoff_field}={cutoff_str!r} is not before "
+                    f"Cannot parse {expected_cutoff_field}={cutoff_str!r} as UTC timestamp"
+                )
+            elif cutoff_ts >= pred_ts:
+                errors.append(
+                    f"{expected_cutoff_field}={cutoff_str!r} is not before "
                     f"prediction_timestamp_utc={prediction_timestamp_utc!r}"
                 )
 
