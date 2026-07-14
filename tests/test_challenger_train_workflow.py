@@ -266,8 +266,14 @@ def test_branch_diff_contains_only_workflow():
 
     Skips when challenger_train.yml is not in the diff (not on the runner branch).
     """
+    # Use origin/main as the baseline so local stale refs don't cause false positives.
+    # Fall back to local main if origin/main is not available.
+    base = "origin/main"
+    check = subprocess.run(["git", "rev-parse", base], capture_output=True)
+    if check.returncode != 0:
+        base = "main"
     result = subprocess.run(
-        ["git", "diff", "main", "--name-only"],
+        ["git", "diff", base, "--name-only"],
         capture_output=True, text=True,
     )
     changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
