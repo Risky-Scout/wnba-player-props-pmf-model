@@ -43,6 +43,7 @@ main{max-width:1500px;margin:20px auto;padding:0 20px}
 .kpi .val.gold{color:var(--gold)}
 .kpi .val.green{color:var(--green)}
 .kpi .val.red{color:var(--red)}
+.kpi .val.amber{color:var(--amber)}
 .kpi .lbl{font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
 
 /* Filters */
@@ -80,9 +81,9 @@ tr.row-b td{background:rgba(212,175,55,.02)}
 .rlm-badge{background:rgba(123,79,207,.12);border:1px solid rgba(123,79,207,.35);color:#9386f2;border-radius:3px;font-size:.6rem;padding:1px 5px}
 .stat-chip{background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:1px 7px;font-size:.67rem;font-weight:600;color:var(--text2)}
 .dir-over{color:var(--green);font-weight:700}
-.dir-under{color:var(--red);font-weight:700}
+.dir-under{color:var(--amber);font-weight:700}
 .edge-pos{color:var(--green);font-weight:700}
-.edge-neg{color:var(--red);font-weight:700}
+.edge-neg{color:var(--amber);font-weight:700}
 .prob-val{color:var(--text2)}
 
 /* Action badges */
@@ -140,7 +141,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
   <div class="kpis">
     <div class="kpi"><div class="val" id="kTotal">—</div><div class="lbl">Props Analyzed</div></div>
     <div class="kpi"><div class="val green" id="kOver">—</div><div class="lbl">Over Signals</div></div>
-    <div class="kpi"><div class="val red" id="kUnder">—</div><div class="lbl">Under Signals</div></div>
+    <div class="kpi"><div class="val amber" id="kUnder">—</div><div class="lbl">Under Signals</div></div>
     <div class="kpi"><div class="val gold" id="kBet">—</div><div class="lbl">BET Signals</div></div>
     <div class="kpi"><div class="val" id="kTopEdge">—</div><div class="lbl">Best Edge</div></div>
   </div>
@@ -155,7 +156,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
       <button class="pill" data-stat="FG3M">3PM</button>
       <button class="pill" data-stat="STL">STL</button>
       <button class="pill" data-stat="BLK">BLK</button>
-      <button class="pill" data-stat="PRA">PRA</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
     </div>
     <div id="dirPills">
       <button class="pill active" data-dir="">Both</button>
@@ -242,9 +243,14 @@ function updateKPIs(data) {
     : '';
 }
 
+const _STAT_DISPLAY = {
+  'FG3M':'3PM','PTS_REB':'Pts+Reb','PTS_AST':'Pts+Ast',
+  'REB_AST':'Reb+Ast','PTS_REB_AST':'Pts+Reb+Ast','STOCKS':'Stl+Blk','TURNOVER':'TO'
+};
+
 function filtered() {
   return ALL.filter(p => {
-    if (statFilt) { const st = p.stat === 'FG3M' ? '3PM' : p.stat; if (st !== statFilt && p.stat !== statFilt) return false; }
+    if (statFilt && p.stat !== statFilt) return false;
     if (dirFilt && p.direction !== dirFilt) return false;
     if (actionFilt && p.action !== actionFilt) return false;
     if (searchFilt && !p.player.toLowerCase().includes(searchFilt)) return false;
@@ -284,7 +290,7 @@ function render() {
     const tierCls = p.confidence === 'A' ? 'tier-a' : p.confidence === 'B' ? 'tier-b' : p.confidence === 'C' ? 'tier-c' : 'tier-d';
 
     const rlm = p.reverse_line_movement ? '<span class="rlm-badge">RLM</span>' : '';
-    const st = p.stat === 'FG3M' ? '3PM' : p.stat;
+    const st = _STAT_DISPLAY[p.stat] || p.stat;
 
     // Best odds cell
     let oddsCell;

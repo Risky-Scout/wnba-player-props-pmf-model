@@ -1893,6 +1893,23 @@ def main(
     except Exception as _id_exc:
         typer.echo(f"  [WARN] Identity resolution failed (non-fatal): {_id_exc}", err=True)
 
+    # Deduplicate edges on (player_id, stat, line): multiple bookmakers offering the
+    # same line produce one row per vendor. Keep the row with the largest |edge| so
+    # the best bookmaker signal is preserved. This must run AFTER identity resolution.
+    if not edges_df.empty and all(c in edges_df.columns for c in ("player_id", "stat", "line")):
+        sort_col = "edge_over" if "edge_over" in edges_df.columns else None
+        if sort_col:
+            edges_df = (
+                edges_df
+                .assign(_abs_edge=edges_df[sort_col].abs())
+                .sort_values("_abs_edge", ascending=False)
+                .drop_duplicates(subset=["player_id", "stat", "line"])
+                .drop(columns=["_abs_edge"])
+                .reset_index(drop=True)
+            )
+        else:
+            edges_df = edges_df.drop_duplicates(subset=["player_id", "stat", "line"]).reset_index(drop=True)
+
     # --- Read market audit JSON for evidence-based market status ---
     _raw_quote_count: int | None = None
     _reconciled_quote_count: int | None = None

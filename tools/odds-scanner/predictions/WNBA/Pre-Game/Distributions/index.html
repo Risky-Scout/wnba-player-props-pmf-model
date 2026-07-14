@@ -72,7 +72,8 @@ main{max-width:1400px;margin:20px auto;padding:0 20px}
 .player-name{font-family:'Fraunces',serif;font-size:1rem;font-weight:600;color:var(--text)}
 .edge-badge{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:5px;white-space:nowrap;flex-shrink:0}
 .edge-pos{background:var(--green-dim);border:1px solid var(--green-border);color:var(--green)}
-.edge-neg{background:var(--red-dim);border:1px solid var(--red-border);color:var(--red)}
+.edge-neg{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
+.edge-none{background:var(--surface3);border:1px solid var(--border2);color:var(--text3)}
 .card-meta{display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--text3)}
 .stat-chip{background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:1px 8px;font-size:.68rem;font-weight:600;color:var(--text2)}
 .line-chip{background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:4px;padding:1px 8px;font-size:.68rem;font-weight:600;color:var(--gold)}
@@ -89,7 +90,7 @@ main{max-width:1400px;margin:20px auto;padding:0 20px}
 .prob-model{color:var(--green)}
 .prob-mkt{color:var(--text3)}
 .prob-edge-pos{color:var(--green)}
-.prob-edge-neg{color:var(--red)}
+.prob-edge-neg{color:var(--amber)}
 
 /* Stats grid */
 .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
@@ -152,7 +153,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
       <button class="pill" data-stat="FG3M">3PM</button>
       <button class="pill" data-stat="STL">STL</button>
       <button class="pill" data-stat="BLK">BLK</button>
-      <button class="pill" data-stat="PRA">PRA</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
     </div>
     <div class="filter-row" id="dirPills">
       <button class="pill active" data-dir="">Both</button>
@@ -182,7 +183,7 @@ footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px
 <footer>
   <div>WNBA Pre-Game Probability Distributions — WizardOfOdds Sports Analytics</div>
   <div>PMF computed from Bayesian hierarchical model with isotonic distribution regression (IDR) calibration</div>
-  <div>Bars: green = over market line · red = under · dashed line = market line · Edge = Model P(over) − Market P(no-vig)</div>
+  <div>Bars: green = over market line · red = under · gold dashed = market line · blue dashed = slider query threshold · Edge = Model P(over) − Market P(no-vig) · UNDER edge = amber</div>
   <div style="margin-top:4px;color:var(--text3)">For entertainment and research purposes only. Gamble responsibly. 21+</div>
 </footer>
 
@@ -195,22 +196,51 @@ let statFilt = '', dirFilt = '', searchFilt = '', sortKey = 'edge';
 const charts = {};
 let cdTimer;
 
-// ── Fetch ──────────────────────────────────────────────────────────
+// ── Fetch (pointer-aware, cache-busted) ────────────────────────────
+// A3: latest.json is a pointer. Follow it to the immutable release payload.
+//   1. fetch latest.json with cache:'no-store' + ?t=timestamp
+//   2. validate pointer.game_date == target date
+//   3. fetch pointer.payload_path with cache:'no-store' + ?r=release_id
+//   4. reject payload whose game_date differs from pointer
+//   5. never display stale cards as LIVE DATA
+function _todayETdist() {
+  const d = new Date();
+  const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+  return et.toISOString().slice(0, 10);
+}
 function load() {
-  fetch('latest.json?t=' + Date.now())
+  const params = new URLSearchParams(location.search);
+  const targetDate = params.get('date') || _todayETdist();
+  fetch('latest.json?t=' + Date.now(), {cache:'no-store'})
     .then(r => r.json())
-    .then(data => {
-      ALL = data.props || [];
-      updateKPIs(data);
-      render();
-      startCountdown(300);
+    .then(ptr => {
+      if (!ptr.pointer) {
+        // Legacy full-payload — accept if game_date matches
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          console.warn('[WOO] Stale pointer game_date', ptr.game_date, '!= target', targetDate);
+          return;
+        }
+        ALL = ptr.props || []; updateKPIs(ptr); render(); startCountdown(300); return;
+      }
+      if (ptr.game_date !== targetDate) {
+        console.warn('[WOO] Stale pointer game_date', ptr.game_date, '!= target', targetDate);
+        return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      fetch(payloadUrl, {cache:'no-store'})
+        .then(r => r.json())
+        .then(data => {
+          if (data.game_date !== ptr.game_date) { console.warn('[WOO] Payload/pointer date mismatch'); return; }
+          ALL = data.props || []; updateKPIs(data); render(); startCountdown(300);
+        })
+        .catch(err => console.warn('[WOO] payload fetch failed:', err));
     })
-    .catch(err => console.warn('[WOO] fetch failed:', err));
+    .catch(err => console.warn('[WOO] pointer fetch failed:', err));
 }
 
 function updateKPIs(data) {
   document.getElementById('kTotal').textContent = data.total_props ?? ALL.length;
-  const pos = ALL.filter(p => p.edge_pp > 0).length;
+  const pos = ALL.filter(p => p.edge_pp !== null && p.edge_pp > 0).length;
   document.getElementById('kPos').textContent = pos;
   const statTypes = new Set(ALL.map(p => p.stat)).size;
   document.getElementById('kGames').textContent = statTypes;
@@ -226,6 +256,8 @@ function filtered() {
   return ALL.filter(p => {
     if (statFilt && p.stat !== statFilt) return false;
     if (dirFilt) {
+      // Props with no market line have no edge signal — exclude from directional filters
+      if (!p.has_market_line || p.edge_pp === null) return false;
       const isOver = p.edge_pp >= 0;
       if (dirFilt === 'OVER' && !isOver) return false;
       if (dirFilt === 'UNDER' && isOver) return false;
@@ -271,18 +303,19 @@ function render() {
 }
 
 function buildCard(p, i) {
-  const ep = p.edge_pp || 0;
-  const epCls = ep >= 0 ? 'edge-pos' : 'edge-neg';
-  const epLabel = (ep >= 0 ? '+' : '') + ep.toFixed(1) + '% edge';
+  const hasEdge = p.has_market_line && p.edge_pp !== null;
+  const ep = hasEdge ? p.edge_pp : 0;
+  const epCls = !hasEdge ? 'edge-none' : ep >= 0 ? 'edge-pos' : 'edge-neg';
+  const epLabel = !hasEdge ? 'No market line' : (ep >= 0 ? '+' : '') + ep.toFixed(1) + '% edge';
   const statLabel = p.stat_label || p.stat;
 
   const f2 = v => v != null ? (+v).toFixed(2) : '—';
   const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
 
   const modelP = pct(p.model_p_over);
-  const mktP = pct(p.market_p_over);
-  const edgePctLabel = (ep >= 0 ? '+' : '') + ep.toFixed(1) + '%';
-  const edgePCls = ep >= 0 ? 'prob-edge-pos' : 'prob-edge-neg';
+  const mktP = hasEdge ? pct(p.market_p_over) : '—';
+  const edgePctLabel = !hasEdge ? '—' : (ep >= 0 ? '+' : '') + ep.toFixed(1) + '%';
+  const edgePCls = !hasEdge ? 'prob-mkt' : ep >= 0 ? 'prob-edge-pos' : 'prob-edge-neg';
 
   const minK = p.pmf.length ? p.pmf[0][0] : 0;
   const maxK = p.pmf.length ? p.pmf[p.pmf.length - 1][0] : 30;
@@ -349,6 +382,9 @@ function updateSlider(inp) {
   const vsLine = n === Math.ceil(line) ? ' (at line)' : n > line ? ' (above)' : ' (below)';
   document.getElementById('cr_' + i).textContent =
     'P(X ≥ ' + n + ') = ' + (prob * 100).toFixed(1) + '%' + vsLine;
+  // ── Bug 4: move the slider query line on the chart ──
+  const ch = charts['ch_' + i];
+  if (ch) { ch.options._sliderLine = n; ch.update('none'); }
 }
 
 // ── Chart drawing ──────────────────────────────────────────────────
@@ -380,7 +416,7 @@ function drawCharts(rows) {
     const lineIdx = labels.findIndex(k => k >= line);
 
     try {
-      charts['ch_' + i] = new Chart(canvas.getContext('2d'), {
+      const ch = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
           labels,
@@ -400,6 +436,7 @@ function drawCharts(rows) {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
+          _sliderLine: null,  // updated by updateSlider on user interaction
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -432,39 +469,50 @@ function drawCharts(rows) {
         plugins: [{
           id: 'linemarker',
           afterDraw(chart) {
-            // Draw dashed vertical line at market line
-            const { ctx, chartArea, scales } = chart;
-            if (lineIdx < 0) return;
-            const xScale = scales.x;
-            // find pixel for the first bar at or above line
-            let xPos = null;
-            for (let li = 0; li < labels.length; li++) {
-              if (labels[li] >= line) {
-                const meta = chart.getDatasetMeta(0);
-                if (meta.data[li]) {
-                  xPos = meta.data[li].x - (meta.data[li].width || 8) / 2;
+            const { ctx, chartArea } = chart;
+            const meta = chart.getDatasetMeta(0);
+
+            // Helper: resolve pixel x for a given threshold value
+            const xPosFor = v => {
+              for (let li = 0; li < labels.length; li++) {
+                if (labels[li] >= v) {
+                  if (meta.data[li]) return meta.data[li].x - (meta.data[li].width || 8) / 2;
+                  break;
                 }
-                break;
               }
+              return null;
+            };
+
+            const drawVLine = (v, color, labelText) => {
+              const xPos = xPosFor(v);
+              if (xPos === null) return;
+              ctx.save();
+              ctx.strokeStyle = color;
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([4, 3]);
+              ctx.beginPath();
+              ctx.moveTo(xPos, chartArea.top);
+              ctx.lineTo(xPos, chartArea.bottom);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.fillStyle = color;
+              ctx.font = '9px JetBrains Mono';
+              ctx.fillText(labelText, xPos + 3, chartArea.top + 9);
+              ctx.restore();
+            };
+
+            // Gold dashed line = fixed market line
+            if (line > 0) drawVLine(line, 'rgba(212,175,55,.85)', 'Line ' + line);
+
+            // Blue dashed line = slider query threshold (only when different from market line)
+            const sliderLine = chart.options._sliderLine;
+            if (sliderLine != null && sliderLine !== Math.ceil(line)) {
+              drawVLine(sliderLine, 'rgba(99,179,237,.9)', 'n=' + sliderLine);
             }
-            if (xPos === null) return;
-            ctx.save();
-            ctx.strokeStyle = 'rgba(212,175,55,.8)';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([4, 3]);
-            ctx.beginPath();
-            ctx.moveTo(xPos, chartArea.top);
-            ctx.lineTo(xPos, chartArea.bottom);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            // Label
-            ctx.fillStyle = 'rgba(212,175,55,.9)';
-            ctx.font = '9px JetBrains Mono';
-            ctx.fillText('Line ' + line, xPos + 3, chartArea.top + 9);
-            ctx.restore();
           }
         }]
       });
+      charts['ch_' + i] = ch;
     } catch(e) {
       console.warn('[WOO] Chart error:', e);
     }

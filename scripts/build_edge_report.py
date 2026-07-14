@@ -821,6 +821,14 @@ def main(
             else float("nan")
         ) if len(edges) else None,
         "quality_status_counts": _qs_counts,
+        # Evidence-based sportsbook quote counts — read by generate_web_pages.py
+        # via --market-audit-json and embedded in the Edge page payload.
+        "raw_quote_count": int(len(props_df)),
+        "fresh_quote_count": int(len(comp)),
+        "reconciled_quote_count": int(len(edges)),
+        "rejection_counts": {},
+        "market_request_status": "ok",
+        "market_request_timestamp_utc": datetime.now(timezone.utc).isoformat(),
     }
     audit_path = out / f"edge_report_{today}.json"
     audit_path.write_text(json.dumps(audit, indent=2))
