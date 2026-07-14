@@ -21,6 +21,8 @@ jobs:
       - name: Install actionlint
         run: |
           bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.7
+          sudo mv actionlint /usr/local/bin/actionlint
+          actionlint -version
       - name: Run actionlint
         run: actionlint -shellcheck= -pyflakes= .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
 
