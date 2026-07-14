@@ -1,16 +1,25 @@
-# Challenger Stage 5 OOF configuration.
-# Aligned exactly with stage4_challenger.yaml settings and feature manifest.
-# Do NOT use the baseline stage5_oof.yaml when it differs from the challenger config.
+# ============================================================
+# Challenger Stage 5 — OOF walk-forward evaluation config
+# ============================================================
+# PARITY RULE: Every non-fold setting must match stage4_challenger.yaml.
+# Only fold mechanics, OOF output paths, and calibration_eligible logic differ.
 
 random_seed: 20260714
+
 use_log_linear: true
-validation_window_days: 7
+
+# OOF fold settings
 oof_first_val_date: '2026-05-01'
+validation_window_days: 7
 min_train_long_rows: 2000
 min_train_stat_rows: 250
 min_sparse_positive_rows: 50
 dnp_minutes_threshold: 1.0
 low_minutes_zero_inflation_enabled: true
+calibration_eligible_prediction_types:
+  - model_oof
+
+pmf_source: challenger_v1_walk_forward_oof_uncalibrated
 
 stats:
   - pts
@@ -34,27 +43,36 @@ pmf_support_caps:
   blk: 10
   turnover: 12
 
-calibration_eligible_prediction_types:
-  - model_oof
+minutes_clip_min: 0.0
+minutes_clip_max: 48.0
+min_minutes_sigma: 3.0
+uncertain_sigma_multiplier: 1.5
+min_stat_mean: 0.01
 
-pmf_source: challenger_v1_walk_forward_oof_uncalibrated
+# ── Challenger artifact paths ──────────────────────────────
+model_feature_manifest_path: data/processed/challenger_feature_schema_manifest.json
+model_artifact_dir: artifacts/models/challenger_v1
+output_dir: data/oof/challenger_v1
 
-# Must match challenger Stage 4 exactly
+# ── Sample weighting (identical to stage4) ───────────────
 sample_weight_halflife_days: 42
 
+# ── HGB parameters (identical to stage4) ─────────────────
 hgb_regressor:
   max_iter: 300
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
+  early_stopping: false
 
 hgb_classifier:
   max_iter: 300
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
+  early_stopping: false
 
-# Challenger: same quadrature as Stage 4
+# ── Minutes marginalization (identical to stage4) ────────
 use_minutes_marginalization: true
 minutes_marginalization_quadrature_points:
   - 0.10
@@ -70,35 +88,57 @@ minutes_marginalization_weights:
   - 0.10
 
 use_zinb_for_sparse_stats: true
+
 no_vig_method: shin
 secondary_no_vig_method: power
 
-# Challenger: market signals disabled in structural model
-market_prior_lambda: 0.0
-disable_clv_head: true
-disable_market_features_in_structural_model: true
-
-# Advanced features disabled (same as Stage 4 challenger)
-use_advanced_features: false
-
-# Challenger artifact paths
-model_artifact_dir: artifacts/models/challenger_v1
-output_dir: data/oof/challenger_v1
-
-# Feature schema must match challenger Stage 4
-feature_schema_version: "challenger_v1"
-challenger_version: "challenger_v1_2026-07-14"
-
-# OOF-specific: use trained challenger Stage 4 artifacts
-use_tuned_hyperparams: false
-use_model_ensemble: false
-use_mean_dependent_dispersion: true
-use_beta_binomial: false
-
+# ── Per-stat overrides (identical to stage4) ─────────────
 stat_overrides:
   fg3m:
     use_beta_binomial: true
-  turnover:
-    use_minutes_offset: true
   ast:
     use_minutes_offset: true
+  turnover:
+    use_minutes_offset: true
+
+# ── Model architecture flags (identical to stage4) ────────
+use_positional_defense_features: true
+use_ewma_features: true
+use_matchup_features: true
+use_mean_dependent_dispersion: true
+use_tuned_hyperparams: false
+use_model_ensemble: false
+use_role_stratified_training: true
+use_per_player_dispersion: true
+
+# ── Market isolation (identical to stage4) ────────────────
+market_prior_lambda: 0.0
+market_prior_lambda_display: 0.0
+disable_clv_head: true
+disable_market_features_in_structural_model: true
+
+# ── Advanced feature safety (identical to stage4) ─────────
+use_advanced_features: false
+use_live_calibrators: false
+pi_rating_use_model_baseline: false
+
+challenger_unsafe_advanced_columns:
+  - player_usage_pct_ewma10
+  - opp_def_rating_ewma10
+  - opp_pace_ewma10
+  - game_pace_predicted
+  - team_playoff_seed
+  - team_games_behind
+  - player_pct_fg_restricted
+  - player_pct_fg_corner3
+  - player_pct_fg_midrange
+  - player_fg_pct_restricted
+  - shot_quality_score
+  - player_usage_pct_vs_avg
+
+challenger_unsafe_learned_transforms:
+  - player_svd_dim_
+
+# ── Challenger versioning (identical to stage4) ───────────
+challenger_version: "challenger_v1_2026-07-14"
+feature_schema_version: "challenger_v1"

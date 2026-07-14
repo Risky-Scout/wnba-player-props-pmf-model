@@ -1,66 +1,26 @@
-random_seed: 42
+# ============================================================
+# Challenger Stage 4 — Structural PMF training config
+# ============================================================
+# PARITY RULE: Every setting below must match stage5_challenger.yaml
+# except for output paths and fold mechanics.
+
+random_seed: 20260714
+
 use_log_linear: true
+
 stats:
-- pts
-- reb
-- ast
-- fg3m
-- stl
-- blk
-- turnover
+  - pts
+  - reb
+  - ast
+  - fg3m
+  - stl
+  - blk
+  - turnover
+
 sparse_stats:
-- stl
-- blk
-dispersion_r_by_role:
-  pts:
-    rotation: 1.2207
-    bench: 0.7186
-    core: 1.9459
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 2.5297
-  reb:
-    rotation: 1.2129
-    bench: 0.781
-    core: 1.6227
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 1.8853
-  ast:
-    rotation: 0.7248
-    bench: 0.379
-    core: 1.1699
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 1.3786
-  fg3m:
-    rotation: 0.7962
-    bench: 0.6007
-    core: 0.9944
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 1.2455
-  stl:
-    rotation: 0.6442
-    bench: 0.3333
-    core: 1.0183
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 1.3306
-  blk:
-    rotation: 0.3
-    bench: 0.3
-    core: 0.3
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 0.32
-  turnover:
-    rotation: 1.9972
-    bench: 0.9511
-    core: 3.18
-    fringe: 0.3
-    inactive_risk: 0.3
-    starter: 3.7631
+  - stl
+  - blk
+
 pmf_support_caps:
   pts: 60
   reb: 30
@@ -69,124 +29,110 @@ pmf_support_caps:
   stl: 10
   blk: 10
   turnover: 12
+
 minutes_clip_min: 0.0
 minutes_clip_max: 48.0
 min_minutes_sigma: 3.0
 uncertain_sigma_multiplier: 1.5
 min_stat_mean: 0.01
-model_feature_manifest_path: data/processed/feature_schema_manifest.json
-input_wide_path: data/processed/wnba_player_game_features_wide.parquet
-input_long_path: data/processed/wnba_player_game_features_long.parquet
-output_dir: data/model_outputs/stage4_baseline
-model_artifact_dir: artifacts/models/stage4_baseline
-pmf_source: stage4_baseline_uncalibrated_model_only
-sample_weight_halflife_days: 45
+
+# ── Challenger artifact paths ──────────────────────────────
+model_feature_manifest_path: data/processed/challenger_feature_schema_manifest.json
+input_wide_path: data/processed/challenger_train_wide.parquet
+input_long_path: data/processed/challenger_train_long.parquet
+output_dir: data/model_outputs/challenger_v1
+model_artifact_dir: artifacts/models/challenger_v1
+pmf_source: challenger_v1_uncalibrated
+
+# ── Sample weighting ──────────────────────────────────────
+sample_weight_halflife_days: 42
+# No --time-decay-xi override in the workflow
+
+# ── HGB parameters (identical to stage5) ─────────────────
 hgb_regressor:
-  loss: squared_error
-  max_iter: 150
+  max_iter: 300
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
-  early_stopping: true
-  n_iter_no_change: 10
-  tol: 0.001
+  early_stopping: false
+
 hgb_classifier:
-  max_iter: 150
+  max_iter: 300
   max_leaf_nodes: 63
   learning_rate: 0.08
   min_samples_leaf: 10
-  early_stopping: true
-  n_iter_no_change: 10
-  tol: 0.001
+  early_stopping: false
+
+# ── Minutes marginalization ───────────────────────────────
 use_minutes_marginalization: true
 minutes_marginalization_quadrature_points:
-- 0.1
-- 0.25
-- 0.5
-- 0.75
-- 0.9
+  - 0.10
+  - 0.25
+  - 0.50
+  - 0.75
+  - 0.90
 minutes_marginalization_weights:
-- 0.1
-- 0.15
-- 0.5
-- 0.15
-- 0.1
+  - 0.10
+  - 0.15
+  - 0.50
+  - 0.15
+  - 0.10
+
+# ── Sparse stat handling ──────────────────────────────────
 use_zinb_for_sparse_stats: true
+
 no_vig_method: shin
 secondary_no_vig_method: power
+
+# ── Per-stat overrides (identical to stage5) ─────────────
 stat_overrides:
   fg3m:
     use_beta_binomial: true
+  ast:
+    use_minutes_offset: true
   turnover:
     use_minutes_offset: true
+
+# ── Model architecture flags (identical to stage5) ────────
 use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true
 use_mean_dependent_dispersion: true
-use_tuned_hyperparams: true
-hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
-use_model_ensemble: true
+use_tuned_hyperparams: false
+use_model_ensemble: false
 use_role_stratified_training: true
 use_per_player_dispersion: true
-# CHALLENGER: structural model — market signals disabled
+
+# ── Market isolation (structural challenger) ─────────────
 market_prior_lambda: 0.0
 market_prior_lambda_display: 0.0
 disable_clv_head: true
 disable_market_features_in_structural_model: true
+
+# ── Advanced feature safety ───────────────────────────────
+use_advanced_features: false
 use_live_calibrators: false
 pi_rating_use_model_baseline: false
-# CHALLENGER: unsafe advanced features disabled for this same-day build.
-# The following advanced builders have NOT been fully repaired for point-in-time
-# safety and are excluded from both live and OOF challenger manifests:
-#   - player_usage_pct_ewma10: requires verified shifted-EWMA prior to use
-#   - opp_def_rating_ewma10: final-row opponent defensive summary (not as-of dated)
-#   - opp_pace_ewma10: final-row opponent pace summary (not as-of dated)
-#   - game_pace_predicted: depends on opponent pace (contaminated)
-#   - team_playoff_seed / team_games_behind: undated standings (full-season leakage)
-#   - player_pct_fg_*: shot-location season aggregates without per-game dating
-# Safe baseline rolling, matchup, schedule, injury-count and role features
-# (all produced through shift(1)/as-of logic) are retained.
-use_advanced_features: false
 
-# Unsafe advanced columns excluded from BOTH live and OOF challenger manifests.
-# Any column listed here is forbidden in the challenger feature matrix.
+# Unsafe columns excluded from BOTH live and OOF manifests
 challenger_unsafe_advanced_columns:
-- player_usage_pct_ewma10
-- opp_def_rating_ewma10
-- opp_pace_ewma10
-- game_pace_predicted
-- team_playoff_seed
-- team_games_behind
-- player_pct_fg_restricted
-- player_pct_fg_corner3
-- player_pct_fg_midrange
-- player_fg_pct_restricted
-- shot_quality_score
-- player_usage_pct_vs_avg
+  - player_usage_pct_ewma10
+  - opp_def_rating_ewma10
+  - opp_pace_ewma10
+  - game_pace_predicted
+  - team_playoff_seed
+  - team_games_behind
+  - player_pct_fg_restricted
+  - player_pct_fg_corner3
+  - player_pct_fg_midrange
+  - player_fg_pct_restricted
+  - shot_quality_score
+  - player_usage_pct_vs_avg
 
-# ── Challenger-specific settings ─────────────────────────────────────────────
-# Version tag for artifact lineage
+# Also exclude any learned SVD/PCA embeddings
+challenger_unsafe_learned_transforms:
+  - player_svd_dim_
+
+# ── Challenger versioning ─────────────────────────────────
 challenger_version: "challenger_v1_2026-07-14"
 feature_schema_version: "challenger_v1"
-
-# Output directories (never overwrite champion)
-output_dir: data/model_outputs/challenger_v1
-model_artifact_dir: artifacts/models/challenger_v1
-
-# PMF source label
-pmf_source: challenger_v1_uncalibrated
-
-# Deterministic seed
-random_seed: 20260714
-
-# C.6 form correction: use per-minute rate (challenger uses B path for all stats)
-c6_correction_mode: per_minute_rate
-
-# Enable safe mode enforcement
-production:
-  demo_safe_mode: true
-  fail_on_feature_leakage: true
-  disable_market_features_in_structural_model: true
-  require_calibration_cutoff_before_prediction: true
-  deterministic_seed: 20260714
-  strip_market_prior_features_in_safe_mode: true
