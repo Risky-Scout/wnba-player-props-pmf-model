@@ -1018,3 +1018,137 @@ def build_artifact_metadata(
         "feature_manifest_hash": feature_manifest_hash,
         "artifact_schema_version": artifact_schema_version,
     }
+
+
+# ---------------------------------------------------------------------------
+# Page release lineage validation
+# ---------------------------------------------------------------------------
+
+
+class PageProbabilityError(MarketIntegrityError):
+    """Raised when a page's model probability doesn't match the final PMF at the market line."""
+
+
+def validate_page_release_lineage(
+    edge_page_json: dict,
+    pmf_page_json: dict,
+    expected_release_id: str,
+) -> None:
+    """Validate that both pre-game pages share one release ID.
+
+    Checks:
+      1. Both pages carry a release_id field.
+      2. Both release_ids are identical (one release per deployment).
+      3. Both release_ids match expected_release_id (current run only).
+
+    Raises ArtifactLineageMismatchError on any failure.
+    """
+    errors: list[str] = []
+
+    edge_rid = edge_page_json.get("release_id")
+    pmf_rid  = pmf_page_json.get("release_id")
+
+    if not edge_rid:
+        errors.append("edge_page missing release_id")
+    if not pmf_rid:
+        errors.append("pmf_page missing release_id")
+
+    if edge_rid and pmf_rid and edge_rid != pmf_rid:
+        errors.append(
+            f"edge_page release_id={edge_rid!r} != pmf_page release_id={pmf_rid!r} "
+            "(both pages must come from the same release)"
+        )
+
+    if edge_rid and edge_rid != expected_release_id:
+        errors.append(
+            f"edge_page release_id={edge_rid!r} != expected={expected_release_id!r}"
+        )
+
+    if pmf_rid and pmf_rid != expected_release_id:
+        errors.append(
+            f"pmf_page release_id={pmf_rid!r} != expected={expected_release_id!r}"
+        )
+
+    if errors:
+        raise ArtifactLineageMismatchError(
+            f"Page release lineage validation failed ({len(errors)} error(s)): "
+            + "; ".join(errors)
+        )
+
+
+def validate_page_probabilities(
+    page_props: "list[dict]",
+    pmf_df: "pd.DataFrame",
+    tolerance: float = 1e-8,
+) -> None:
+    """Validate that page model_p_over matches P(X > line) from the final PMF parquet.
+
+    For each prop in page_props, looks up the matching row in pmf_df by
+    (player_name, stat) and verifies:
+        abs(page_model_p_over - pmf_p_over_at_line) <= tolerance
+
+    Raises PageProbabilityError if any row exceeds tolerance.
+    Does not raise if a page prop has no matching PMF row (skips gracefully).
+    """
+    import math as _math
+    import numpy as _np
+
+    if not page_props or pmf_df is None or pmf_df.empty:
+        return
+
+    # Build lookup: (player_name_lower, stat_lower) → (pmf_json, line)
+    lookup: dict[tuple, dict] = {}
+    for _, row in pmf_df.iterrows():
+        pname = str(row.get("player_name", "")).lower().strip()
+        stat  = str(row.get("stat", "")).lower().strip()
+        if pname and stat:
+            lookup[(pname, stat)] = {
+                "pmf_json": row.get("pmf_json"),
+                "line": float(row.get("line", 0.0) or 0.0),
+            }
+
+    errors: list[str] = []
+
+    for prop in page_props:
+        pname = str(prop.get("player", "")).lower().strip()
+        stat  = str(prop.get("stat", "")).lower().strip()
+        key = (pname, stat)
+        if key not in lookup:
+            continue
+        info = lookup[key]
+        pmf_json_str = info.get("pmf_json")
+        if not pmf_json_str:
+            continue
+
+        try:
+            import json as _json
+            d = _json.loads(pmf_json_str)
+            k_arr = _np.array([int(x) for x in d.keys()], dtype=float)
+            p_arr = _np.array(list(d.values()), dtype=float)
+            total = p_arr.sum()
+            if total > 0:
+                p_arr = p_arr / total
+        except Exception as exc:
+            errors.append(f"{pname}/{stat}: PMF parse error: {exc}")
+            continue
+
+        line = info["line"]
+        p_over_from_pmf = float(p_arr[k_arr > float(line)].sum())
+        page_p_over = float(prop.get("model_p_over", float("nan")))
+
+        if _math.isnan(page_p_over):
+            continue
+
+        err = abs(p_over_from_pmf - page_p_over)
+        if err > tolerance:
+            errors.append(
+                f"{pname}/{stat} line={line}: "
+                f"page model_p_over={page_p_over:.8f} != "
+                f"pmf_p_over={p_over_from_pmf:.8f} (err={err:.2e} > {tolerance:.1e})"
+            )
+
+    if errors:
+        raise PageProbabilityError(
+            f"Page probability validation failed ({len(errors)} row(s)): "
+            + "; ".join(errors[:5])
+        )

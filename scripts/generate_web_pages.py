@@ -96,6 +96,8 @@ def _build_edge_json(
     proj_df: pd.DataFrame,
     game_date: str,
     v1_path: str | None = None,
+    release_id: str = "",
+    git_commit: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -287,7 +289,7 @@ def _build_edge_json(
         })
 
     rows.sort(key=lambda x: -x["abs_edge"])
-    return {
+    payload: dict = {
         "schema_version": "2.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "game_date": game_date,
@@ -296,9 +298,20 @@ def _build_edge_json(
         "under_signals": sum(1 for r in rows if r["direction"] == "UNDER"),
         "props": rows,
     }
+    if release_id:
+        payload["release_id"] = release_id
+    if git_commit:
+        payload["git_commit"] = git_commit
+    return payload
 
 
-def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: str) -> dict:
+def _build_pmf_json(
+    edges_df: pd.DataFrame,
+    proj_df: pd.DataFrame,
+    game_date: str,
+    release_id: str = "",
+    git_commit: str = "",
+) -> dict:
     """Build the payload for Pre-Game/PMF-Distributions/latest.json.
 
     Shows ALL players × ALL stats (except suppressed stats). Edge columns are
@@ -441,6 +454,10 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
         "total_props": len(props),
         "props": props,
     }
+    if release_id:
+        result["release_id"] = release_id
+    if git_commit:
+        result["git_commit"] = git_commit
     if _cal_over_hit_rate is not None:
         result["calibration_30d"] = {
             "over_hit_rate": _cal_over_hit_rate,
@@ -1539,6 +1556,20 @@ def main(
     ),
     skip_live_html: bool = typer.Option(False, "--skip-live-html", help="Skip writing the live page HTML"),
     json_only: bool = typer.Option(False, "--json-only", help="Write only JSON data files, skip index.html regeneration."),
+    release_id: str = typer.Option(
+        "",
+        "--release-id",
+        help=(
+            "Current-run release identifier (GITHUB_RUN_ID or equivalent). "
+            "Written to both page JSON outputs so consumers can verify both pages "
+            "come from the same run. Required for release lineage validation."
+        ),
+    ),
+    git_commit: str = typer.Option(
+        "",
+        "--git-commit",
+        help="Current git commit SHA. Written to both page JSON outputs for traceability.",
+    ),
 ) -> None:
     """Generate all three web page directories (Edge, PMF-Distributions, Inplay/Edges)."""
     out = Path(out_dir)
@@ -1574,8 +1605,10 @@ def main(
                                           "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
 
     # --- Build JSON ---
-    edge_json = _build_edge_json(edges_df, proj_df, game_date)
-    pmf_json = _build_pmf_json(edges_df, proj_df, game_date)
+    edge_json = _build_edge_json(edges_df, proj_df, game_date,
+                                 release_id=release_id, git_commit=git_commit)
+    pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
+                                 release_id=release_id, git_commit=git_commit)
 
     # Write Edge page JSON
     (edge_dir / "latest.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))
