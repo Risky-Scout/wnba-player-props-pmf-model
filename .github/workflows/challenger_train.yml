@@ -1,6 +1,7 @@
 name: Challenger Train and Evaluate
 
-# Training-only workflow. Never deploys pages. Never changes selected_production_package.json.
+# Training-only workflow. Never deploys pages. Never changes
+# selected_production_package.json automatically.
 # Must be dispatched manually with explicit source_ref.
 
 on:
@@ -24,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: write
+      actions: read
     timeout-minutes: 240
 
     env:
@@ -41,6 +42,7 @@ jobs:
       CAL_END: "2026-06-25"
       EVAL_START: "2026-06-26"
       EVAL_END: "2026-07-13"
+      MANIFEST_PATH: data/processed/challenger_feature_schema_manifest.json
 
     steps:
       - name: Checkout challenger source ref
@@ -69,7 +71,33 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Confirm BDL_API_KEY is present (never print value)
+      # ── CLI smoke tests — fail fast before running the real pipeline ──────
+      - name: Smoke-test all workflow CLI commands
+        run: |
+          echo "[smoke] Testing build_oof_pmfs.py CLI"
+          python scripts/build_oof_pmfs.py --help > /dev/null
+
+          echo "[smoke] Testing train_baseline_pmfs.py CLI"
+          python scripts/train_baseline_pmfs.py --help > /dev/null
+
+          echo "[smoke] Testing fit_calibrators.py CLI"
+          python scripts/fit_calibrators.py --help > /dev/null
+
+          echo "[smoke] Testing compare_champion_challenger.py CLI"
+          python scripts/compare_champion_challenger.py --help > /dev/null
+
+          echo "[smoke] Testing predict_today.py CLI"
+          python scripts/predict_today.py --help > /dev/null
+
+          echo "[smoke] Testing generate_web_pages.py CLI"
+          python scripts/generate_web_pages.py --help > /dev/null
+
+          echo "[smoke] Testing generate_distributions_page.py CLI"
+          python scripts/generate_distributions_page.py --help > /dev/null
+
+          echo "[smoke] All CLI smoke tests PASS"
+
+      - name: Confirm BDL_API_KEY is present (value never printed)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
@@ -79,52 +107,103 @@ jobs:
           fi
           echo "[OK] BDL_API_KEY is present (${#BDL_API_KEY} chars)"
 
-      - name: Verify challenger code requirements before training
+      - name: Verify challenger Stage 4 / Stage 5 config parity
         run: |
           python - <<'PYEOF'
-          import sys, yaml, pathlib
-          cfg_path = pathlib.Path("config/model/challenger/stage4_challenger.yaml")
-          if not cfg_path.exists():
-              print("[FATAL] Challenger config not found", file=sys.stderr); sys.exit(1)
-          cfg = yaml.safe_load(cfg_path.read_text())
+          import sys, yaml
+          from pathlib import Path
+
+          s4 = yaml.safe_load(Path("config/model/challenger/stage4_challenger.yaml").read_text())
+          s5 = yaml.safe_load(Path("config/model/challenger/stage5_challenger.yaml").read_text())
+
+          # Fields that must be identical between Stage 4 and Stage 5
+          PARITY_FIELDS = [
+              "random_seed", "use_log_linear", "stats", "sparse_stats",
+              "pmf_support_caps", "sample_weight_halflife_days",
+              "use_minutes_marginalization", "minutes_marginalization_quadrature_points",
+              "minutes_marginalization_weights", "use_zinb_for_sparse_stats",
+              "stat_overrides", "use_positional_defense_features", "use_ewma_features",
+              "use_matchup_features", "use_mean_dependent_dispersion",
+              "use_tuned_hyperparams", "use_model_ensemble",
+              "use_role_stratified_training", "use_per_player_dispersion",
+              "market_prior_lambda", "disable_clv_head",
+              "disable_market_features_in_structural_model",
+              "use_advanced_features", "challenger_version", "feature_schema_version",
+          ]
+
+          # Required absolute values
+          REQUIRED = {
+              "market_prior_lambda": 0.0,
+              "disable_clv_head": True,
+              "use_advanced_features": False,
+              "use_tuned_hyperparams": False,
+              "use_model_ensemble": False,
+              "sample_weight_halflife_days": 42,
+          }
+
           errors = []
-          if cfg.get("market_prior_lambda", 1.0) != 0.0:
-              errors.append(f"market_prior_lambda={cfg.get('market_prior_lambda')} (must be 0.0)")
-          if not cfg.get("disable_clv_head", False):
-              errors.append("disable_clv_head must be true")
-          if cfg.get("use_advanced_features", True):
-              errors.append("use_advanced_features must be false for challenger")
+          for field in PARITY_FIELDS:
+              v4 = s4.get(field)
+              v5 = s5.get(field)
+              if v4 != v5:
+                  errors.append(f"PARITY FAIL {field}: stage4={v4!r} vs stage5={v5!r}")
+
+          for field, expected in REQUIRED.items():
+              actual = s4.get(field)
+              if actual != expected:
+                  errors.append(f"REQUIRED {field}={expected!r} but got {actual!r}")
+
           if errors:
-              print("[FATAL] Challenger config fails pre-training checks:", file=sys.stderr)
+              print("[FATAL] Stage 4/5 parity failures:", file=sys.stderr)
               for e in errors: print(f"  {e}", file=sys.stderr)
               sys.exit(1)
-          print(f"[OK] Challenger config verified: market_prior_lambda=0, clv_head=disabled, advanced=false")
+
+          # Verify HGB max_iter matches
+          s4_iter = s4.get("hgb_regressor", {}).get("max_iter", 0)
+          s5_iter = s5.get("hgb_regressor", {}).get("max_iter", 0)
+          if s4_iter != s5_iter:
+              print(f"[FATAL] hgb max_iter mismatch: s4={s4_iter} s5={s5_iter}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"[OK] Stage 4/5 parity verified ({len(PARITY_FIELDS)} fields match)")
+          print(f"[OK] market_prior_lambda=0, disable_clv_head=True, use_advanced_features=False")
           PYEOF
 
-      - name: Download champion champion artifacts for evaluation baseline
+      - name: Download champion OOF for evaluation baseline
         run: |
           mkdir -p artifacts/models/stage4_baseline artifacts/models/calibration
+          # Champion model
           AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=5&name=model-stage4-latest" \
-            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null || echo "")
           if [ -n "$AID" ] && [ "$AID" != "null" ]; then
             gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/champ_model.zip
             unzip -o /tmp/champ_model.zip -d artifacts/models/stage4_baseline/
             echo "[OK] Champion model downloaded (id=$AID)"
           else
-            echo "[WARN] Champion model artifact not found"
+            echo "[FATAL] Champion model artifact not found — cannot evaluate without baseline" >&2
+            exit 1
           fi
+          # Champion OOF / calibrators
           CAL_AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=5&name=calibrators-latest" \
-            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null || echo "")
           if [ -n "$CAL_AID" ] && [ "$CAL_AID" != "null" ]; then
             gh api "repos/${{ github.repository }}/actions/artifacts/$CAL_AID/zip" > /tmp/champ_cal.zip
             unzip -o /tmp/champ_cal.zip -d artifacts/models/calibration/
-            echo "[OK] Champion calibrators downloaded (id=$CAL_AID)"
+            echo "[OK] Champion calibrators/OOF downloaded (id=$CAL_AID)"
+          else
+            echo "[FATAL] Champion calibration artifact not found" >&2
+            exit 1
           fi
+          # Verify champion OOF exists for evaluation
+          if [ ! -f "artifacts/models/calibration/oof_predictions.parquet" ]; then
+            echo "[FATAL] Champion OOF predictions not found: artifacts/models/calibration/oof_predictions.parquet" >&2
+            exit 1
+          fi
+          echo "[OK] MISSING_CHAMPION_EVALUATION_ARTIFACT check passed"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
-      # ── Step 1-3: Historical data and features ─────────────────────────────
+      # ── Step 1-3: Historical data ──────────────────────────────────────────
       - name: Step 1 — Pull historical BDL data
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -133,54 +212,115 @@ jobs:
           python scripts/pull_bdl_history.py \
             --start-season 2022 --end-season $YEAR \
             --out-dir data/raw/bdl
-        continue-on-error: false
 
       - name: Step 2 — Build canonical tables
         run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
-        continue-on-error: false
 
       - name: Step 3 — Build corrected challenger features
-        run: |
-          python scripts/build_features.py --data-dir data/processed
-          echo "[challenger] Feature build complete: $(python -c "import pandas as pd; df=pd.read_parquet('data/processed/wnba_player_game_features_wide.parquet'); print(df.shape)")"
-        continue-on-error: false
+        run: python scripts/build_features.py --data-dir data/processed
 
-      - name: Step 4 — Write challenger feature schema and manifest
+      # ── Step 4: Immutable date partitions ─────────────────────────────────
+      - name: Step 4 — Enforce immutable date partitions and write feature manifest
         run: |
           python - <<'PYEOF'
-          import json, hashlib, pathlib, pandas as pd
-          from datetime import datetime, timezone
+          import hashlib, json, sys
+          import pandas as pd
+          from pathlib import Path
+
           wide = pd.read_parquet("data/processed/wnba_player_game_features_wide.parquet")
+          long_path = Path("data/processed/wnba_player_game_features_long.parquet")
+          long = pd.read_parquet(long_path) if long_path.exists() else pd.DataFrame()
+
+          TRAIN_END = "2026-06-10"
+          CAL_START = "2026-06-11"
+          CAL_END   = "2026-06-25"
+          EVAL_START = "2026-06-26"
+          EVAL_END   = "2026-07-13"
+
+          wide["_gd"] = pd.to_datetime(wide["game_date"]).dt.date.astype(str)
+
+          train_wide = wide[wide["_gd"] <= TRAIN_END].drop(columns=["_gd"])
+          train_wide.to_parquet("data/processed/challenger_train_wide.parquet", index=False)
+          print(f"[partition] train_wide: {len(train_wide)} rows (≤{TRAIN_END})")
+
+          if not long.empty and "game_date" in long.columns:
+              long["_gd"] = pd.to_datetime(long["game_date"]).dt.date.astype(str)
+              train_long = long[long["_gd"] <= TRAIN_END].drop(columns=["_gd"])
+              train_long.to_parquet("data/processed/challenger_train_long.parquet", index=False)
+              print(f"[partition] train_long: {len(train_long)} rows")
+          else:
+              pd.DataFrame().to_parquet("data/processed/challenger_train_long.parquet", index=False)
+
+          # Verify no game_id appears in multiple partitions
+          if "game_id" in wide.columns and "game_date" in wide.columns:
+              wide["_gd2"] = pd.to_datetime(wide["game_date"]).dt.date.astype(str)
+              for g_id in wide["game_id"].unique():
+                  gd_vals = wide[wide["game_id"] == g_id]["_gd2"].unique()
+                  if len(gd_vals) == 0:
+                      continue
+                  gd = gd_vals[0]
+                  partitions = []
+                  if gd <= TRAIN_END: partitions.append("train")
+                  if CAL_START <= gd <= CAL_END: partitions.append("cal")
+                  if EVAL_START <= gd <= EVAL_END: partitions.append("eval")
+                  if len(partitions) > 1:
+                      print(f"[FATAL] game_id={g_id} gd={gd} in multiple partitions: {partitions}", file=sys.stderr)
+                      sys.exit(1)
+
+          # Feature manifest — exclude unsafe columns
+          import yaml
+          cfg = yaml.safe_load(Path("config/model/challenger/stage4_challenger.yaml").read_text())
+          from wnba_props_model.features.feature_contract import MODEL_FEATURES, FORBIDDEN_MODEL_FEATURES
+
+          unsafe_from_cfg = set(cfg.get("challenger_unsafe_advanced_columns", []))
+          unsafe_svd_prefix = cfg.get("challenger_unsafe_learned_transforms", ["player_svd_dim_"])
+          market_forbidden = set(FORBIDDEN_MODEL_FEATURES)
+
+          all_cols = set(train_wide.columns)
+          safe_model_cols = []
+          excluded = []
+          for col in MODEL_FEATURES:
+              if col in market_forbidden:
+                  excluded.append(col)
+              elif col in unsafe_from_cfg:
+                  excluded.append(col)
+              elif any(col.startswith(pfx) for pfx in unsafe_svd_prefix):
+                  excluded.append(col)
+              elif col not in all_cols:
+                  pass  # not present — skip
+              else:
+                  safe_model_cols.append(col)
+
           manifest = {
               "feature_schema_version": "challenger_v1",
-              "columns": sorted(wide.columns.tolist()),
-              "n_features": len(wide.columns),
-              "n_rows": len(wide),
-              "created_at": datetime.now(timezone.utc).isoformat(),
-              "efg_formula": "FGM_shifted + 0.5 * FG3M_shifted / FGA_shifted",
-              "unsafe_advanced_features_disabled": True,
+              "model_feature_columns": safe_model_cols,
+              "target_columns": ["actual_pts","actual_reb","actual_ast","actual_fg3m","actual_stl","actual_blk","actual_turnover"],
+              "unsafe_excluded_columns": sorted(excluded),
+              "n_features": len(safe_model_cols),
+              "n_rows_train": len(train_wide),
           }
-          p = pathlib.Path("data/processed/challenger_feature_manifest.json")
-          p.write_text(json.dumps(manifest, indent=2))
-          manifest_hash = hashlib.sha256(p.read_bytes()).hexdigest()
-          print(f"[challenger] Feature manifest written: {p} (hash={manifest_hash[:16]})")
-          print(f"  n_features={manifest['n_features']}, n_rows={manifest['n_rows']}")
+          manifest_str = json.dumps(manifest, indent=2)
+          manifest["sha256"] = hashlib.sha256(manifest_str.encode()).hexdigest()
+          Path("data/processed/challenger_feature_schema_manifest.json").write_text(json.dumps(manifest, indent=2))
+          print(f"[manifest] {len(safe_model_cols)} safe features, {len(excluded)} excluded")
+          print(f"[manifest] sha256={manifest['sha256'][:16]}")
+          print(f"[manifest] Written: data/processed/challenger_feature_schema_manifest.json")
           PYEOF
-        continue-on-error: false
 
-      # ── Step 5-16: Train all challenger model artifacts ────────────────────
+      # ── Steps 5-16: Train Stage 4 challenger artifacts ────────────────────
       - name: Steps 5-16 — Train challenger Stage 4 model artifacts
         run: |
           mkdir -p "$MODEL_DIR" data/model_outputs/challenger_v1
           python scripts/train_baseline_pmfs.py \
+            --features-wide data/processed/challenger_train_wide.parquet \
+            --features-long data/processed/challenger_train_long.parquet \
+            --manifest "$MANIFEST_PATH" \
             --config "$MODEL_CONFIG" \
             --model-dir "$MODEL_DIR" \
-            --out-dir data/model_outputs/challenger_v1 \
-            --time-decay-xi 0.003
+            --out-dir data/model_outputs/challenger_v1
           echo "[challenger] Stage 4 training complete"
-        continue-on-error: false
 
-      - name: Verify required challenger model artifacts exist
+      - name: Verify and hash challenger model artifacts
         run: |
           python - <<'PYEOF'
           import hashlib, json, sys
@@ -203,45 +343,69 @@ jobs:
               hashes[f] = hashlib.sha256(p.read_bytes()).hexdigest()
               print(f"  {f}: {hashes[f][:16]}")
 
-          hash_manifest_path = model_dir / "challenger_artifact_hashes.json"
-          hash_manifest_path.write_text(json.dumps(hashes, indent=2))
-          print(f"[OK] All required challenger model artifacts verified, hashes written to {hash_manifest_path}")
+          (model_dir / "challenger_model_hashes.json").write_text(json.dumps(hashes, indent=2))
+          print("[OK] All challenger model artifacts hashed")
           PYEOF
-        continue-on-error: false
 
       # ── Step 17: Build OOF PMFs ────────────────────────────────────────────
       - name: Step 17 — Build challenger OOF PMFs
         run: |
           mkdir -p "$OOF_DIR"
           python scripts/build_oof_pmfs.py \
-            --features-wide data/processed/wnba_player_game_features_wide.parquet \
-            --model-dir "$MODEL_DIR" \
+            --features-wide data/processed/challenger_train_wide.parquet \
+            --features-long data/processed/challenger_train_long.parquet \
+            --manifest "$MANIFEST_PATH" \
             --config "$OOF_CONFIG" \
-            --out-dir "$OOF_DIR"
-          echo "[challenger] OOF PMFs built"
-        continue-on-error: false
+            --out-dir "$OOF_DIR" \
+            --audit-out "$DELIVERY_DIR/oof_audit.json"
+          echo "[challenger] OOF PMFs built in $OOF_DIR"
+          # Verify OOF output exists
+          if [ ! -f "$OOF_DIR/oof_player_stat_pmfs.parquet" ]; then
+            echo "[FATAL] OOF output missing: $OOF_DIR/oof_player_stat_pmfs.parquet" >&2
+            exit 1
+          fi
 
       # ── Step 18: Fit calibrators ───────────────────────────────────────────
       - name: Step 18 — Fit compatible challenger calibrators
         run: |
           mkdir -p "$CALIBRATION_DIR"
+          # Filter OOF to calibration-only period before fitting
+          python - <<'PYEOF'
+          import pandas as pd
+          from pathlib import Path
+          import os
+          oof = pd.read_parquet(os.environ["OOF_DIR"] + "/oof_player_stat_pmfs.parquet")
+          oof["_gd"] = pd.to_datetime(oof["game_date"]).dt.date.astype(str)
+          cal = oof[(oof["_gd"] >= os.environ["CAL_START"]) & (oof["_gd"] <= os.environ["CAL_END"])].drop(columns=["_gd"])
+          cal_path = os.environ["OOF_DIR"] + "/challenger_calibration_oof.parquet"
+          cal.to_parquet(cal_path, index=False)
+          print(f"[calibration] Calibration OOF rows: {len(cal)} ({os.environ['CAL_START']} to {os.environ['CAL_END']})")
+
+          # Also write untouched evaluation OOF
+          eval_oof = oof[(oof["_gd"] >= os.environ["EVAL_START"]) & (oof["_gd"] <= os.environ["EVAL_END"])].drop(columns=["_gd"])
+          eval_path = os.environ["OOF_DIR"] + "/challenger_evaluation_oof.parquet"
+          eval_oof.to_parquet(eval_path, index=False)
+          print(f"[evaluation] Untouched eval OOF rows: {len(eval_oof)} ({os.environ['EVAL_START']} to {os.environ['EVAL_END']})")
+          PYEOF
+          env:
+            CAL_START: ${{ env.CAL_START }}
+            CAL_END: ${{ env.CAL_END }}
+            EVAL_START: ${{ env.EVAL_START }}
+            EVAL_END: ${{ env.EVAL_END }}
+
           python scripts/fit_calibrators.py \
-            --oof-pmfs "$OOF_DIR/oof_player_stat_pmfs.parquet" \
+            --oof-pmfs "$OOF_DIR/challenger_calibration_oof.parquet" \
             --out-dir "$CALIBRATION_DIR" \
             --require-oof-persistence
           echo "[challenger] Calibrators fitted in $CALIBRATION_DIR"
-        continue-on-error: false
 
-      - name: Verify required challenger calibrator artifacts exist
+      - name: Verify and hash challenger calibrator artifacts
         run: |
           python - <<'PYEOF'
-          import hashlib, json, sys
+          import hashlib, json, sys, os
           from pathlib import Path
 
-          cal_dir = Path("$CALIBRATION_DIR".replace("$CALIBRATION_DIR", "artifacts/models/calibration/challenger_v1"))
-          # Use env var
-          import os
-          cal_dir = Path(os.environ.get("CALIBRATION_DIR", "artifacts/models/calibration/challenger_v1"))
+          cal_dir = Path(os.environ["CALIBRATION_DIR"])
           required_stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
           missing = [f"pmf_cal_role_{s}.pkl" for s in required_stats if not (cal_dir / f"pmf_cal_role_{s}.pkl").exists()]
           if missing:
@@ -250,30 +414,32 @@ jobs:
           hashes = {}
           for s in required_stats:
               f = f"pmf_cal_role_{s}.pkl"
-              p = cal_dir / f
-              hashes[f] = hashlib.sha256(p.read_bytes()).hexdigest()
+              hashes[f] = hashlib.sha256((cal_dir / f).read_bytes()).hexdigest()
               print(f"  {f}: {hashes[f][:16]}")
           (cal_dir / "challenger_calibrator_hashes.json").write_text(json.dumps(hashes, indent=2))
-          print("[OK] All required challenger calibrator artifacts verified")
+          print("[OK] All challenger calibrator artifacts hashed")
           PYEOF
-        env:
-          CALIBRATION_DIR: ${{ env.CALIBRATION_DIR }}
-        continue-on-error: false
+          env:
+            CALIBRATION_DIR: ${{ env.CALIBRATION_DIR }}
 
-      # ── Step 19: Evaluate champion vs challenger ───────────────────────────
-      - name: Step 19 — C.6 selection and champion/challenger evaluation
+      # ── Step 19: Paired champion/challenger evaluation ────────────────────
+      - name: Step 19 — Paired champion/challenger evaluation
         run: |
-          python scripts/score_oof_pmfs.py \
-            --oof-pmfs "$OOF_DIR/oof_player_stat_pmfs.parquet" \
+          mkdir -p "$DELIVERY_DIR/evaluation"
+          python scripts/compare_champion_challenger.py \
             --champion-oof artifacts/models/calibration/oof_predictions.parquet \
+            --challenger-oof "$OOF_DIR/challenger_evaluation_oof.parquet" \
             --eval-start "$EVAL_START" \
             --eval-end   "$EVAL_END" \
-            --training-end "$CAL_END" \
             --out-dir    "$DELIVERY_DIR/evaluation"
-          echo "[challenger] Evaluation complete"
-        continue-on-error: true
+          # Verify promotion_decision.json was written
+          if [ ! -f "$DELIVERY_DIR/evaluation/promotion_decision.json" ]; then
+            echo "[FATAL] promotion_decision.json not written" >&2
+            exit 1
+          fi
+          cat "$DELIVERY_DIR/evaluation/promotion_decision.json"
 
-      # ── Step 20-21: Current slate + staging pages ──────────────────────────
+      # ── Step 20: Predict current slate ────────────────────────────────────
       - name: Step 20 — Predict current slate with challenger
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -285,16 +451,18 @@ jobs:
             --config "$MODEL_CONFIG" \
             --game-date "$TARGET_DATE" \
             --out-dir "$DELIVERY_DIR"
-        continue-on-error: true
 
+      # ── Step 21: Staging pages ─────────────────────────────────────────────
       - name: Step 21 — Generate challenger staging page payloads
         run: |
           GIT_COMMIT=$(git rev-parse HEAD)
           STAGING_DIR="$DELIVERY_DIR/pages"
-          mkdir -p "$STAGING_DIR/Pre-Game/Edge" "$STAGING_DIR/Pre-Game/Distributions"
-          PROJ=$(ls "$DELIVERY_DIR/player_projections_${TARGET_DATE}.parquet" 2>/dev/null || \
-                 ls "$DELIVERY_DIR/full_pmfs_wide.parquet" 2>/dev/null || echo "")
+          mkdir -p "$STAGING_DIR/Pre-Game"
+
+          PROJ=$(ls "$DELIVERY_DIR/player_projections_${TARGET_DATE}.parquet" 2>/dev/null \
+                 || ls "$DELIVERY_DIR/full_pmfs_wide.parquet" 2>/dev/null || echo "")
           EDGES=$(ls "$DELIVERY_DIR/publishable_edges.parquet" 2>/dev/null || echo "")
+
           python scripts/generate_web_pages.py \
             --game-date "$TARGET_DATE" \
             ${PROJ:+--projections "$PROJ"} \
@@ -303,20 +471,99 @@ jobs:
             --json-only \
             --release-id "challenger-${{ github.run_id }}" \
             --git-commit "$GIT_COMMIT" \
-            --model-version "${CHALLENGER_VERSION}" \
+            --model-version "$CHALLENGER_VERSION" \
             --calibration-version "challenger_cal_v1"
+
           python scripts/generate_distributions_page.py \
             --game-date "$TARGET_DATE" \
             --base-dir "$STAGING_DIR" \
             --json-only \
             --release-id "challenger-${{ github.run_id }}" \
             --git-commit "$GIT_COMMIT" \
-            --model-version "${CHALLENGER_VERSION}" \
+            --model-version "$CHALLENGER_VERSION" \
             --calibration-version "challenger_cal_v1"
-          echo "[challenger] Staging pages written to $STAGING_DIR"
-        continue-on-error: true
 
-      # ── Upload all artifacts ───────────────────────────────────────────────
+          echo "[challenger] Staging pages written"
+
+      # ── Final evidence gate ────────────────────────────────────────────────
+      - name: Final evidence gate — verify all required artifacts exist
+        run: |
+          python - <<'PYEOF'
+          import json, sys, os
+          from pathlib import Path
+
+          errors = []
+          MODEL_DIR = Path(os.environ["MODEL_DIR"])
+          CAL_DIR   = Path(os.environ["CALIBRATION_DIR"])
+          OOF_DIR   = Path(os.environ["OOF_DIR"])
+          DELIV_DIR = Path(os.environ["DELIVERY_DIR"])
+
+          def check(p, label):
+              if not Path(p).exists():
+                  errors.append(f"MISSING: {label} ({p})")
+
+          # Model binaries
+          for f in ["minutes_model.joblib", "stat_rate_models.joblib", "hurdle_models.joblib"]:
+              check(MODEL_DIR / f, f"model/{f}")
+          check(MODEL_DIR / "challenger_model_hashes.json", "model/hashes")
+
+          # Calibrator binaries
+          for s in ["pts","reb","ast","fg3m","stl","blk","turnover"]:
+              check(CAL_DIR / f"pmf_cal_role_{s}.pkl", f"cal/{s}")
+          check(CAL_DIR / "challenger_calibrator_hashes.json", "cal/hashes")
+
+          # OOF and partition files
+          check(OOF_DIR / "oof_player_stat_pmfs.parquet", "OOF/full")
+          check(OOF_DIR / "challenger_calibration_oof.parquet", "OOF/calibration")
+          check(OOF_DIR / "challenger_evaluation_oof.parquet", "OOF/evaluation")
+          check(DELIV_DIR / "oof_audit.json", "OOF/audit")
+
+          # Evaluation evidence
+          check(DELIV_DIR / "evaluation" / "paired_metrics.json", "eval/metrics")
+          check(DELIV_DIR / "evaluation" / "promotion_decision.json", "eval/decision")
+
+          # Feature manifest
+          check(os.environ["MANIFEST_PATH"], "feature_manifest")
+
+          # Staging pages
+          staging = DELIV_DIR / "pages" / "Pre-Game"
+          check(staging / "Distributions" / "releases", "staging/distributions")
+          check(staging / "Edge" / "releases", "staging/edge")
+
+          # Validate no duplicate or invalid PMFs in staging
+          pmf_page = staging / "PMF-Distributions"
+          if pmf_page.exists():
+              import json as _j
+              for f in pmf_page.glob("releases/*.json"):
+                  d = _j.loads(f.read_text())
+                  props = d.get("props", [])
+                  import numpy as np
+                  for p in props:
+                      pmf = p.get("pmf_full") or p.get("pmf", [])
+                      if pmf:
+                          total = sum(float(pair[1]) for pair in pmf)
+                          if abs(total - 1.0) > 1e-4:
+                              errors.append(f"INVALID PMF: {p.get('player')}/{p.get('stat')} sum={total}")
+                  keys = [(p.get("player"), p.get("stat")) for p in props]
+                  if len(keys) != len(set(keys)):
+                      errors.append(f"DUPLICATE PMFs in staging page: {f}")
+
+          if errors:
+              print(f"[FATAL] Evidence gate FAILED ({len(errors)} errors):", file=sys.stderr)
+              for e in errors: print(f"  {e}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"[OK] All {23 - len(errors)} evidence checks passed")
+          print("[OK] Challenger training evidence gate: PASS")
+          PYEOF
+          env:
+            MODEL_DIR: ${{ env.MODEL_DIR }}
+            CALIBRATION_DIR: ${{ env.CALIBRATION_DIR }}
+            OOF_DIR: ${{ env.OOF_DIR }}
+            DELIVERY_DIR: ${{ env.DELIVERY_DIR }}
+            MANIFEST_PATH: ${{ env.MANIFEST_PATH }}
+
+      # ── Upload artifacts ───────────────────────────────────────────────────
       - name: Upload challenger model artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -338,45 +585,46 @@ jobs:
           path: data/oof/challenger_v1/
           retention-days: 30
 
-      - name: Upload challenger evaluation
+      - name: Upload evaluation evidence
         uses: actions/upload-artifact@v4
         with:
           name: challenger-v1-evaluation-${{ github.run_id }}
           path: ${{ env.DELIVERY_DIR }}/evaluation/
           retention-days: 30
-        continue-on-error: true
 
-      - name: Upload challenger staging pages
+      - name: Upload staging pages
         uses: actions/upload-artifact@v4
         with:
           name: challenger-v1-staging-pages-${{ github.run_id }}
           path: ${{ env.DELIVERY_DIR }}/pages/
           retention-days: 30
-        continue-on-error: true
 
-      - name: Upload challenger lineage manifest
+      - name: Upload challenger lineage and hashes
         uses: actions/upload-artifact@v4
         with:
           name: challenger-v1-lineage-${{ github.run_id }}
           path: |
             config/model/challenger/
-            data/processed/challenger_feature_manifest.json
-            artifacts/models/challenger_v1/challenger_artifact_hashes.json
+            data/processed/challenger_feature_schema_manifest.json
+            artifacts/models/challenger_v1/challenger_model_hashes.json
             artifacts/models/calibration/challenger_v1/challenger_calibrator_hashes.json
           retention-days: 30
 
       - name: Print challenger run summary
         run: |
-          echo "============================================"
-          echo "CHALLENGER TRAINING RUN COMPLETE"
-          echo "  source_ref:    ${{ github.event.inputs.source_ref }}"
-          echo "  sha:           $CHALLENGER_SHA"
-          echo "  challenger_version: $CHALLENGER_VERSION"
-          echo "  target_date:   $TARGET_DATE"
-          echo "  run_id:        ${{ github.run_id }}"
-          echo "============================================"
-          echo "NEXT STEP: Review evaluation results, then"
-          echo "  - If PROMOTE: update config/selected_production_package.json"
-          echo "  - If KEEP CHAMPION: record REJECTED status"
+          echo "=================================================="
+          echo "CHALLENGER TRAINING COMPLETE — $(date -u)"
+          echo "  source_ref:  ${{ github.event.inputs.source_ref }}"
+          echo "  sha:         $CHALLENGER_SHA"
+          echo "  version:     $CHALLENGER_VERSION"
+          echo "  target_date: $TARGET_DATE"
+          echo "  run_id:      ${{ github.run_id }}"
+          echo "=================================================="
+          echo "PROMOTION DECISION:"
+          cat "$DELIVERY_DIR/evaluation/promotion_decision.json" 2>/dev/null || echo "  (file not found)"
+          echo "=================================================="
+          echo "NEXT: Review evidence, then:"
+          echo "  PROMOTE → update config/selected_production_package.json"
+          echo "  REJECT  → keep ENHANCED_CHAMPION"
           echo "  This workflow does NOT deploy or promote automatically."
-          echo "============================================"
+          echo "=================================================="
