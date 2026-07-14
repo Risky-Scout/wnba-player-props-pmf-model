@@ -226,6 +226,26 @@ def _run_generate_distributions(
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
+def _load_page_payload(base_dir: Path, page_name: str, game_date: str = GAME_DATE) -> dict:
+    """Load actual page payload following pointer if latest.json is a pointer."""
+    latest_path = base_dir / "Pre-Game" / page_name / "latest.json"
+    if not latest_path.exists():
+        return {}
+    latest = json.loads(latest_path.read_text())
+    # If latest.json is a pointer, follow it to the actual release payload
+    if latest.get("pointer") is True:
+        # Try release path first, then date-specific
+        if latest.get("release_payload_path"):
+            release_p = base_dir / "Pre-Game" / page_name / latest["release_payload_path"]
+            if release_p.exists():
+                return json.loads(release_p.read_text())
+        date_p = base_dir / "Pre-Game" / page_name / f"{game_date}.json"
+        if date_p.exists():
+            return json.loads(date_p.read_text())
+        return latest  # fallback: return pointer as-is
+    return latest
+
+
 def _build_full_pages(tmp_path: Path) -> tuple[dict, dict, dict]:
     """Run the full page pipeline and return (edge_json, pmf_json, dist_json)."""
     proj = _write_proj(tmp_path)
@@ -237,10 +257,10 @@ def _build_full_pages(tmp_path: Path) -> tuple[dict, dict, dict]:
     r2 = _run_generate_distributions(tmp_path, base_dir=tmp_path)
     assert r2.returncode == 0, f"generate_distributions failed: {r2.stderr[:300]}"
 
-    edge_json = json.loads((out / "Edge" / "latest.json").read_text())
-    pmf_json  = json.loads((out / "PMF-Distributions" / "latest.json").read_text())
-    dist_path = tmp_path / "Pre-Game" / "Distributions" / "latest.json"
-    dist_json = json.loads(dist_path.read_text()) if dist_path.exists() else {}
+    # Load actual payloads (following pointer if latest.json is a pointer)
+    edge_json = _load_page_payload(tmp_path, "Edge")
+    pmf_json  = _load_page_payload(tmp_path, "PMF-Distributions")
+    dist_json = _load_page_payload(tmp_path, "Distributions")
     return edge_json, pmf_json, dist_json
 
 
@@ -599,10 +619,9 @@ class TestNoStatSuppression:
         r2 = _run_generate_distributions(tmp_path, base_dir=tmp_path)
         if r2.returncode != 0:
             pytest.skip(f"Distributions page gen failed: {r2.stderr[:200]}")
-        dist_path = tmp_path / "Pre-Game" / "Distributions" / "latest.json"
-        if not dist_path.exists():
+        dist_json = _load_page_payload(tmp_path, "Distributions")
+        if not dist_json:
             pytest.skip("Distributions page not generated")
-        dist_json = json.loads(dist_path.read_text())
         found_stats = {p.get("stat", "").lower() for p in dist_json.get("props", [])}
         suppressed = [s for s in all_supported if s not in found_stats]
         assert suppressed == [], f"Stats incorrectly suppressed from public page: {suppressed}"

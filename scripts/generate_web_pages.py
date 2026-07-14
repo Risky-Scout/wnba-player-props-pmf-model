@@ -98,6 +98,8 @@ def _build_edge_json(
     v1_path: str | None = None,
     release_id: str = "",
     git_commit: str = "",
+    model_version: str = "",
+    calibration_version: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -308,6 +310,10 @@ def _build_edge_json(
         payload["release_id"] = release_id
     if git_commit:
         payload["git_commit"] = git_commit
+    if model_version:
+        payload["model_version"] = model_version
+    if calibration_version:
+        payload["calibration_version"] = calibration_version
     return payload
 
 
@@ -317,6 +323,8 @@ def _build_pmf_json(
     game_date: str,
     release_id: str = "",
     git_commit: str = "",
+    model_version: str = "",
+    calibration_version: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/PMF-Distributions/latest.json.
 
@@ -410,6 +418,19 @@ def _build_pmf_json(
         if not pairs:
             print(f"  [WARN] Skipping {r.get('player_name','?')} {r.get('stat','?')} — no PMF data after merge (pmf_json={repr(raw_pmf)[:40]})")
             continue
+        # Compute pmf_full from raw JSON so it sums to 1.0 (no threshold filtering).
+        # _parse_pmf filters at 0.001 which causes pmf_full mass < 1; fix here.
+        try:
+            import json as _j
+            _d = _j.loads(pmf_str) if pmf_str and pmf_str != "{}" else {}
+            _k_raw = np.array([int(x) for x in _d.keys()], dtype=float)
+            _p_raw = np.array(list(_d.values()), dtype=float)
+            _total = _p_raw.sum()
+            if _total > 0:
+                _p_raw = _p_raw / _total
+            _pairs_full = [[int(kk), round(float(pp), 7)] for kk, pp in zip(_k_raw, _p_raw) if pp > 0]
+        except Exception:
+            _pairs_full = pairs
         edge = float(r.get("edge_over", 0) or 0)
         _cal_mean = r.get("pmf_mean") or r.get("pmf_mean_proj")
         _display_mean = round(float(_cal_mean), 2) if _cal_mean is not None and float(_cal_mean) > 0 else round(mu, 2)
@@ -445,11 +466,13 @@ def _build_pmf_json(
         _stat_raw = str(r.get("stat", ""))
         last_5_avg = _last5_lookup.get((_pid, _stat_raw)) if _pid is not None else None
 
-        # pmf_full: complete pairs summing to 1 (no filtering)
+        # pmf_full: ALL probability pairs from raw JSON (normalized, sums to 1)
         # pmf_chart: filtered for chart rendering (omit tiny masses for performance)
         _CHART_THRESHOLD = 0.001
-        pmf_chart = [[k, v] for k, v in pairs if v >= _CHART_THRESHOLD]
-        omitted_mass = round(sum(v for _, v in pairs) - sum(v for _, v in pmf_chart), 8)
+        pmf_chart = [[k, v] for k, v in _pairs_full if v >= _CHART_THRESHOLD]
+        omitted_mass = round(
+            sum(v for _, v in _pairs_full) - sum(v for _, v in pmf_chart), 8
+        )
 
         props.append({
             "player": r["player_name"],
@@ -475,13 +498,13 @@ def _build_pmf_json(
             "edge": round(edge, 4),
             "kelly_pct": round(float(r.get("kelly_fraction", 0) or 0) * 100, 2),
             "last_5_avg": last_5_avg,
-            # pmf_full: complete mass used for all probability calculations
-            "pmf_full": pairs,
+            # pmf_full: complete mass used for all probability calculations (sums to 1)
+            "pmf_full": _pairs_full,
             # pmf_chart: filtered for rendering performance
             "pmf_chart": pmf_chart,
             "omitted_chart_mass": omitted_mass if omitted_mass > 0 else None,
-            # Legacy alias
-            "pmf": pairs,
+            # Legacy alias (also full, not filtered)
+            "pmf": _pairs_full,
         })
     props.sort(key=lambda x: -abs(x["edge"]))
     result = {
@@ -495,6 +518,10 @@ def _build_pmf_json(
         result["release_id"] = release_id
     if git_commit:
         result["git_commit"] = git_commit
+    if model_version:
+        result["model_version"] = model_version
+    if calibration_version:
+        result["calibration_version"] = calibration_version
     if _cal_over_hit_rate is not None:
         result["calibration_30d"] = {
             "over_hit_rate": _cal_over_hit_rate,
@@ -1617,6 +1644,16 @@ def main(
             "When scheduled_game_count == 0, exits 0 with VERIFIED_NO_GAMES status."
         ),
     ),
+    model_version: str = typer.Option(
+        "",
+        "--model-version",
+        help="Model version string written to both page JSON outputs for traceability.",
+    ),
+    calibration_version: str = typer.Option(
+        "",
+        "--calibration-version",
+        help="Calibration version string written to both page JSON outputs for traceability.",
+    ),
 ) -> None:
     """Generate all three web page directories (Edge, PMF-Distributions, Inplay/Edges)."""
     out = Path(out_dir)
@@ -1703,21 +1740,81 @@ def main(
                                           "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
         edges_df_loaded = False
 
+    # --- Apply canonical player identity resolution before building JSON ---
+    # Resolves duplicate BDL player IDs (e.g. two records for the same physical player)
+    # using config/player_identity_aliases.json. Must run on both proj_df and edges_df.
+    try:
+        from wnba_props_model.data.identity import (  # noqa: PLC0415
+            apply_canonical_ids, deduplicate_pmfs, validate_no_duplicate_identities
+        )
+        if "player_id" in proj_df.columns:
+            proj_df = apply_canonical_ids(proj_df, "player_id")
+            proj_df = deduplicate_pmfs(proj_df, key_cols=["game_id", "player_id", "stat"])
+        if "player_id" in edges_df.columns:
+            edges_df = apply_canonical_ids(edges_df, "player_id")
+    except Exception as _id_exc:
+        typer.echo(f"  [WARN] Identity resolution failed (non-fatal): {_id_exc}", err=True)
+
     # --- Build JSON ---
     edge_json = _build_edge_json(edges_df, proj_df, game_date,
-                                 release_id=release_id, git_commit=git_commit)
+                                 release_id=release_id, git_commit=git_commit,
+                                 model_version=model_version,
+                                 calibration_version=calibration_version)
     pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
-                                 release_id=release_id, git_commit=git_commit)
+                                 release_id=release_id, git_commit=git_commit,
+                                 model_version=model_version,
+                                 calibration_version=calibration_version)
 
-    # Write Edge page JSON
-    (edge_dir / "latest.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))
-    (edge_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))
-    typer.echo(f"  Edge JSON → {edge_dir}/latest.json ({edge_json['total_props']} props)")
+    # --- Write immutable release payloads and cache-safe latest.json pointer ---
+    # A3: Immutable release files at releases/<release_id>.json
+    # A3: Date-specific files at <game_date>.json
+    # A3: latest.json is a pointer only (contains release_id, game_date, path, versions)
+    #     Page JS must fetch the date-specific or immutable payload with cache: 'no-store'.
 
-    # Write PMF page JSON
-    (pmf_dir / "latest.json").write_text(json.dumps(_sanitize(pmf_json), separators=(",", ":")))
-    (pmf_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(pmf_json), separators=(",", ":")))
-    typer.echo(f"  PMF JSON → {pmf_dir}/latest.json ({pmf_json['total_props']} props with distributions)")
+    _edge_payload_str = json.dumps(_sanitize(edge_json), separators=(",", ":"))
+    _pmf_payload_str  = json.dumps(_sanitize(pmf_json),  separators=(",", ":"))
+
+    # Date-specific payloads (overwritten each run for that date)
+    (edge_dir / f"{game_date}.json").write_text(_edge_payload_str)
+    (pmf_dir  / f"{game_date}.json").write_text(_pmf_payload_str)
+
+    # Immutable release payloads (never overwritten; keyed by release_id)
+    _eff_release_id = release_id or game_date
+    (edge_dir / "releases").mkdir(parents=True, exist_ok=True)
+    (pmf_dir  / "releases").mkdir(parents=True, exist_ok=True)
+    (edge_dir / "releases" / f"{_eff_release_id}.json").write_text(_edge_payload_str)
+    (pmf_dir  / "releases" / f"{_eff_release_id}.json").write_text(_pmf_payload_str)
+
+    # latest.json = pointer only (not the full payload — prevents CDN stale-cache serving old data)
+    _edge_pointer = _sanitize({
+        "pointer": True,
+        "release_id": release_id,
+        "game_date": game_date,
+        "release_payload_path": f"releases/{_eff_release_id}.json",
+        "date_payload_path": f"{game_date}.json",
+        "git_commit": git_commit,
+        "model_version": model_version,
+        "calibration_version": calibration_version,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_props": edge_json["total_props"],
+    })
+    _pmf_pointer = _sanitize({
+        "pointer": True,
+        "release_id": release_id,
+        "game_date": game_date,
+        "release_payload_path": f"releases/{_eff_release_id}.json",
+        "date_payload_path": f"{game_date}.json",
+        "git_commit": git_commit,
+        "model_version": model_version,
+        "calibration_version": calibration_version,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_props": pmf_json["total_props"],
+    })
+    (edge_dir / "latest.json").write_text(json.dumps(_edge_pointer, separators=(",", ":")))
+    (pmf_dir  / "latest.json").write_text(json.dumps(_pmf_pointer,  separators=(",", ":")))
+    typer.echo(f"  Edge JSON → {edge_dir}/releases/{_eff_release_id}.json ({edge_json['total_props']} props)")
+    typer.echo(f"  PMF JSON  → {pmf_dir}/releases/{_eff_release_id}.json ({pmf_json['total_props']} props with distributions)")
+    typer.echo(f"  Both latest.json updated as pointer (release_id={_eff_release_id!r})")
 
     # --- Write HTML templates (skip when --json-only) ---
     if not json_only:
