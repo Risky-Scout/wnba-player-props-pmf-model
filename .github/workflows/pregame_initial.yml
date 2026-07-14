@@ -219,6 +219,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve selected production package (A4 — required before any model load)
+        run: |
+          python - <<'EOF'
+          import json, sys
+          from pathlib import Path
+          pkg_path = Path("config/selected_production_package.json")
+          if not pkg_path.exists():
+              print("[FATAL] config/selected_production_package.json not found", file=sys.stderr)
+              sys.exit(1)
+          pkg = json.loads(pkg_path.read_text())
+          print(f"[A4] Selected package: {pkg.get('selected_package')}")
+          print(f"[A4] model_version:       {pkg.get('model_version')}")
+          print(f"[A4] calibration_version: {pkg.get('calibration_version')}")
+          print(f"[A4] challenger_status:   {pkg.get('challenger_status','UNKNOWN')}")
+          print(f"[A4] selected_at_utc:     {pkg.get('selected_at_utc')}")
+          if pkg.get("selected_package") not in ("ENHANCED_CHAMPION", "OPTIMIZED_CHALLENGER"):
+              print(f"[FATAL] Unknown selected_package={pkg.get('selected_package')!r}", file=sys.stderr)
+              sys.exit(1)
+          print("[A4] Production package resolved successfully")
+          EOF
+
       - name: Pull BDL current-season data
         run: |
           YEAR=$(date -u +%Y)
@@ -817,6 +838,10 @@ jobs:
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
           GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 
+          # Read model_version and calibration_version from manifests if available
+          MODEL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/stage4_baseline/model_manifest.json')); print(m.get('model_version','hgb_v2.3.1_idr_beta_conformal'))" 2>/dev/null || echo "hgb_v2.3.1_idr_beta_conformal")
+          CAL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/calibration/calibration_metadata.json')); print(m.get('calibration_version','idr_v12_beta_v12_conformal_v12'))" 2>/dev/null || echo "idr_v12_beta_v12_conformal_v12")
+
           python scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
             ${PROJ_FILE:+--projections "$PROJ_FILE"} \
@@ -825,7 +850,9 @@ jobs:
             --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges \
             --skip-live-html \
             --release-id "$GITHUB_RUN_ID" \
-            --git-commit "$GIT_COMMIT"
+            --git-commit "$GIT_COMMIT" \
+            --model-version "$MODEL_VER" \
+            --calibration-version "$CAL_VER"
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
         continue-on-error: false
 
@@ -879,9 +906,16 @@ jobs:
 
       - name: Generate Distributions page (BLOCKING — combined Edges + PMF)
         run: |
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          MODEL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/stage4_baseline/model_manifest.json')); print(m.get('model_version','hgb_v2.3.1_idr_beta_conformal'))" 2>/dev/null || echo "hgb_v2.3.1_idr_beta_conformal")
+          CAL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/calibration/calibration_metadata.json')); print(m.get('calibration_version','idr_v12_beta_v12_conformal_v12'))" 2>/dev/null || echo "idr_v12_beta_v12_conformal_v12")
           python scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
-            --base-dir tools/odds-scanner/predictions/WNBA
+            --base-dir tools/odds-scanner/predictions/WNBA \
+            --release-id "$GITHUB_RUN_ID" \
+            --git-commit "$GIT_COMMIT" \
+            --model-version "$MODEL_VER" \
+            --calibration-version "$CAL_VER"
           echo "Distributions page generated for ${GAME_DATE}"
         continue-on-error: false
 

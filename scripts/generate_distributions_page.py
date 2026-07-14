@@ -863,6 +863,16 @@ def main(
         "--git-commit",
         help="Current git commit SHA. Written to output for traceability.",
     ),
+    model_version: str = typer.Option(
+        "",
+        "--model-version",
+        help="Model version string. Written to Distributions output for traceability.",
+    ),
+    calibration_version: str = typer.Option(
+        "",
+        "--calibration-version",
+        help="Calibration version string. Written to Distributions output for traceability.",
+    ),
 ) -> None:
     """Generate pure PMF visualization page at Pre-Game/Distributions/.
 
@@ -874,7 +884,10 @@ def main(
         game_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     base = Path(base_dir)
-    pmf_path = base / "Pre-Game" / "PMF-Distributions" / "latest.json"
+    # A3: Prefer date-specific PMF payload over latest.json pointer
+    _pmf_date_path  = base / "Pre-Game" / "PMF-Distributions" / f"{game_date}.json"
+    _pmf_latest_path = base / "Pre-Game" / "PMF-Distributions" / "latest.json"
+    pmf_path = _pmf_date_path if _pmf_date_path.exists() else _pmf_latest_path
     out_dir  = base / "Pre-Game" / "Distributions"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -885,17 +898,43 @@ def main(
     try:
         payload = _build_json(pmf_path, game_date,
                               release_id=release_id, git_commit=git_commit)
+        if model_version:
+            payload["model_version"] = model_version
+        if calibration_version:
+            payload["calibration_version"] = calibration_version
     except (FileNotFoundError, ValueError) as exc:
         typer.echo(f"[FATAL] {exc}", err=True)
         raise typer.Exit(1)
 
-    (out_dir / "latest.json").write_text(json.dumps(_sanitize(payload), separators=(",", ":")))
-    (out_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(payload), separators=(",", ":")))
+    # A3: Cache-safe payload structure — immutable release + date-specific + pointer latest.json
+    _payload_str = json.dumps(_sanitize(payload), separators=(",", ":"))
+    _eff_release_id = release_id or game_date
+
+    (out_dir / f"{game_date}.json").write_text(_payload_str)
+
+    (out_dir / "releases").mkdir(parents=True, exist_ok=True)
+    (out_dir / "releases" / f"{_eff_release_id}.json").write_text(_payload_str)
+
+    _pointer = _sanitize({
+        "pointer": True,
+        "release_id": release_id,
+        "game_date": game_date,
+        "release_payload_path": f"releases/{_eff_release_id}.json",
+        "date_payload_path": f"{game_date}.json",
+        "git_commit": git_commit,
+        "model_version": model_version,
+        "calibration_version": calibration_version,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_props": payload["total_props"],
+    })
+    (out_dir / "latest.json").write_text(json.dumps(_pointer, separators=(",", ":")))
+
     if not json_only:
         (out_dir / "index.html").write_text(_HTML)
 
-    typer.echo(f"  → latest.json ({payload['total_props']} props)")
+    typer.echo(f"  → releases/{_eff_release_id}.json ({payload['total_props']} props)")
     typer.echo(f"  → {game_date}.json")
+    typer.echo(f"  → latest.json (pointer, release_id={_eff_release_id!r})")
     if not json_only:
         typer.echo(f"  → index.html")
     typer.echo("[generate_distributions_page] Done.")
