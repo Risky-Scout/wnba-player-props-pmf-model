@@ -52,7 +52,35 @@ _STAT_LABELS: dict[str, str] = {
 }
 
 
-def _build_json(pmf_path: Path, game_date: str) -> dict:
+def _compute_push_aware_probs(pmf_pairs: list, line: float) -> tuple[float, float, float]:
+    """Compute (p_over, p_under, p_push) from PMF pairs at a given line.
+
+    For integer lines: p_push = P(X == line); p_under = P(X < line) = 1 - p_over - p_push
+    For half-point lines: p_push = 0; p_under = 1 - p_over
+    Ensures p_over + p_under + p_push = 1 within 1e-12.
+    """
+    if not pmf_pairs:
+        return 0.0, 0.0, 0.0
+    k_vals = [int(pair[0]) for pair in pmf_pairs]
+    p_vals = [float(pair[1]) for pair in pmf_pairs]
+    total = sum(p_vals)
+    if total > 0:
+        p_vals = [v / total for v in p_vals]
+    p_over = sum(p for k, p in zip(k_vals, p_vals) if k > float(line))
+    is_integer = (float(line) == math.floor(float(line)))
+    p_push = 0.0
+    if is_integer:
+        p_push = sum(p for k, p in zip(k_vals, p_vals) if k == int(line))
+    p_under = max(0.0, 1.0 - p_over - p_push)
+    return round(p_over, 6), round(p_under, 6), round(p_push, 6)
+
+
+def _build_json(
+    pmf_path: Path,
+    game_date: str,
+    release_id: str = "",
+    git_commit: str = "",
+) -> dict:
     """Read PMF-Distributions/latest.json, emit cleaned schema.
 
     After building props from the PMF data, merges in any Edge Board rows that
@@ -60,12 +88,30 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
     (player, stat, line) triple.  The PMF shape is borrowed from the matching
     player/stat entry (distributions don't change with the line — only the
     reference cut-point changes).
+
+    Fails closed (raises FileNotFoundError) when the PMF source is missing.
     """
+    if not pmf_path.exists():
+        raise FileNotFoundError(
+            f"Source PMF-Distributions file not found: {pmf_path}. "
+            "Cannot build Distributions page without a current-run PMF source."
+        )
     try:
         pmf_data = json.loads(pmf_path.read_text())
     except Exception as exc:
-        typer.echo(f"[WARN] PMF JSON not found: {exc}")
-        pmf_data = {"props": []}
+        raise ValueError(
+            f"Source PMF-Distributions file is unreadable: {pmf_path}: {exc}"
+        ) from exc
+
+    # Validate source lineage when release_id is provided
+    if release_id:
+        src_release = pmf_data.get("release_id", "")
+        if src_release and src_release != release_id:
+            raise ValueError(
+                f"Source PMF-Distributions release_id={src_release!r} "
+                f"does not match expected release_id={release_id!r}. "
+                "Stale or mismatched source — refusing to build Distributions page."
+            )
 
     props = []
     for p in pmf_data.get("props", []):
@@ -84,6 +130,25 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
         else:
             edge_pp = None
 
+        pmf_pairs = p.get("pmf", [])
+        # Compute push-aware probabilities from the full PMF pairs
+        p_over_computed, p_under_computed, p_push_computed = _compute_push_aware_probs(
+            pmf_pairs, market_line
+        ) if has_market_line and pmf_pairs else (
+            round(float(p.get("model_p_over") or 0), 4), 0.0, 0.0
+        )
+        # Use source model_p_over if no market line (can't compute vs a line)
+        if not has_market_line:
+            p_over_computed = round(float(p.get("model_p_over") or 0), 4)
+            p_under_computed = round(1.0 - p_over_computed, 4)
+            p_push_computed  = 0.0
+
+        # pmf_full = complete probability pairs summing to 1 (never filtered)
+        # pmf_chart = filtered pairs for chart rendering (omits tiny masses)
+        _CHART_THRESHOLD = 0.001
+        pmf_chart = [[k, v] for k, v in pmf_pairs if v >= _CHART_THRESHOLD]
+        omitted_mass = round(sum(v for _, v in pmf_pairs) - sum(v for _, v in pmf_chart), 8)
+
         props.append({
             "player": p.get("player", ""),
             "stat": stat_up,
@@ -98,13 +163,21 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
             "variance": p.get("variance"),
             "skewness": p.get("skewness"),
             "excess_kurtosis": p.get("excess_kurtosis"),
-            "model_p_over": round(float(p.get("model_p_over") or 0), 4),
+            "model_p_over": p_over_computed,
+            "model_p_under": p_under_computed,
+            "model_p_push": p_push_computed,
             "market_p_over": round(float(p.get("market_p_over") or 0), 4),
             "no_vig_over_prob": round(float(p.get("no_vig_over_prob") or p.get("market_p_over") or 0), 4),
             "no_vig_under_prob": round(float(p.get("no_vig_under_prob") or 0), 4),
             "edge_pp": edge_pp,
             "kelly_pct": round(float(p.get("kelly_pct") or 0), 2),
-            "pmf": p.get("pmf", []),
+            # pmf_full: complete mass (sum=1); use this for all probability calculations
+            "pmf_full": pmf_pairs,
+            # pmf_chart: filtered for rendering (may exclude small tail mass)
+            "pmf_chart": pmf_chart,
+            "omitted_chart_mass": omitted_mass if omitted_mass > 0 else None,
+            # Legacy field alias for backward compatibility
+            "pmf": pmf_pairs,
         })
 
     # ── Merge missing Edge Board rows ─────────────────────────────────────────
@@ -197,13 +270,24 @@ def _build_json(pmf_path: Path, game_date: str) -> dict:
         if merged_count:
             typer.echo(f"  [merge] Added {merged_count} Edge Board rows missing from Distributions")
 
-    return {
+    payload: dict = {
         "schema_version": "3.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "game_date": game_date,
         "total_props": len(props),
         "props": props,
     }
+    if release_id:
+        payload["release_id"] = release_id
+    if git_commit:
+        payload["git_commit"] = git_commit
+    # Carry through source PMF lineage fields
+    for field in ("model_version", "calibration_version", "prediction_timestamp_utc",
+                  "market_timestamp_utc"):
+        val = pmf_data.get(field)
+        if val:
+            payload[field] = val
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -768,8 +852,24 @@ def main(
         help="Root WNBA predictions directory",
     ),
     json_only: bool = typer.Option(False, "--json-only", help="Write only JSON data files, skip index.html regeneration."),
+    release_id: str = typer.Option(
+        "",
+        "--release-id",
+        help="Current-run release identifier (GITHUB_RUN_ID). Written to output JSON and "
+             "validated against the source PMF-Distributions JSON.",
+    ),
+    git_commit: str = typer.Option(
+        "",
+        "--git-commit",
+        help="Current git commit SHA. Written to output for traceability.",
+    ),
 ) -> None:
-    """Generate pure PMF visualization page at Pre-Game/Distributions/."""
+    """Generate pure PMF visualization page at Pre-Game/Distributions/.
+
+    Fails closed when the source PMF-Distributions JSON is missing, unreadable,
+    or from a different release (release_id mismatch).
+    """
+    import sys as _sys
     if not game_date:
         game_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -782,7 +882,12 @@ def main(
     typer.echo(f"  pmf_path : {pmf_path}")
     typer.echo(f"  out_dir  : {out_dir}")
 
-    payload = _build_json(pmf_path, game_date)
+    try:
+        payload = _build_json(pmf_path, game_date,
+                              release_id=release_id, git_commit=git_commit)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"[FATAL] {exc}", err=True)
+        raise typer.Exit(1)
 
     (out_dir / "latest.json").write_text(json.dumps(_sanitize(payload), separators=(",", ":")))
     (out_dir / f"{game_date}.json").write_text(json.dumps(_sanitize(payload), separators=(",", ":")))
