@@ -699,6 +699,85 @@ jobs:
         # Note: --game-totals-mode is a no-op if the flag is unknown;
         # a full game totals calibrator script can be wired here when OOF game totals exist.
 
+      - name: Generate calibrator artifact manifest (Gap 1 — artifact provenance)
+        # Emit artifact_manifest_calibrator.json so pregame_initial.yml can validate
+        # the calibrator's provenance before use.  gate_status=PASS is recorded here
+        # because this step only runs when the cal-gate has already passed.
+        # If any required field cannot be computed, exit nonzero; do NOT produce a
+        # manifest with blank or "unknown" fields.
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, subprocess, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          workflow_name = os.environ.get("GITHUB_WORKFLOW", "Weekly OOF Refresh & Calibration")
+
+          # git commit — FATAL if unreachable
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              if not git_commit:
+                  raise ValueError("git rev-parse HEAD returned empty string")
+          except Exception as exc:
+              print(f"[FATAL] Cannot compute git HEAD commit: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          cal_dir = Path("artifacts/models/calibration")
+          cal_dir.mkdir(parents=True, exist_ok=True)
+
+          # Feature manifest hash — FATAL if file missing
+          feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+          if not feat_manifest_path.exists():
+              print(f"[FATAL] Feature schema manifest not found at {feat_manifest_path}. "
+                    "Cannot produce a valid calibrator manifest without it.", file=sys.stderr)
+              sys.exit(1)
+          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+          # Config hash — FATAL if no calibration config found
+          config_path = Path("config/model/stage6_calibration.yaml")
+          if not config_path.exists():
+              config_path = Path("config/model/stage5_oof.yaml")
+          if not config_path.exists():
+              print(f"[FATAL] Neither stage6_calibration.yaml nor stage5_oof.yaml found. "
+                    "Cannot compute calibration config_hash.", file=sys.stderr)
+              sys.exit(1)
+          config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()[:16]
+
+          # Calibration cutoff: latest game date in OOF data — FATAL if unavailable
+          import pandas as pd
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print(f"[FATAL] OOF parquet not found at {oof_path}. "
+                    "Cannot compute calibration_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          df = pd.read_parquet(oof_path)
+          date_col = next((c for c in ["game_date", "date"] if c in df.columns), None)
+          if not date_col:
+              print(f"[FATAL] No date column in OOF parquet. "
+                    "Cannot compute calibration_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          latest = pd.to_datetime(df[date_col]).max()
+          calibration_cutoff = latest.strftime("%Y-%m-%dT00:00:00Z")
+
+          manifest = {
+              "artifact_type": "calibrator",
+              "artifact_schema_version": "1",
+              "source_workflow": workflow_name,
+              "source_run_id": run_id,
+              "source_commit": git_commit,
+              "created_at_utc": datetime.now(timezone.utc).isoformat(),
+              "calibration_cutoff": calibration_cutoff,
+              "feature_manifest_hash": feature_manifest_hash,
+              "config_hash": config_hash,
+              "gate_status": "PASS",
+          }
+          out_path = cal_dir / "artifact_manifest_calibrator.json"
+          out_path.write_text(json.dumps(manifest, indent=2))
+          print(f"Calibrator artifact manifest written: {manifest}")
+          PYEOF
+
       - name: Promote calibrators (gate passed)
         # Only upload new calibrators when the post-cal gate passes.
         # Game totals calibrator (if built above) is included in the same artifact.

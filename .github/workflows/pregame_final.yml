@@ -43,37 +43,55 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Download calibrators (cross-run via GitHub CLI)
+      - name: Download calibrators (explicit successful upstream run)
+        # Resolve from last successful refit_calibrators run on main.
+        # NEVER select by latest name alone. Fail if no compatible artifact is found.
         run: |
           mkdir -p artifacts/models/calibration
-          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
-          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
-            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
-            echo "Calibrators downloaded OK (id=$AID)"
-          else
-            echo "[WARN] calibrators-latest artifact not found"
+          SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/refit_calibrators.yml/runs?branch=main&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+          if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+            echo "[FATAL] No successful refit_calibrators run found on main." >&2
+            exit 1
           fi
+          AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+            --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No calibrators artifact in source run ${SOURCE_RUN_ID}." >&2
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/calibrators.zip
+          unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+          echo "SOURCE_CALIBRATORS_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
+          echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Download stage4 model (cross-run via GitHub CLI)
+      - name: Download stage4 model (explicit successful upstream run)
+        # Resolve from last successful daily_pipeline run on main.
+        # A missing model artifact must exit nonzero. Never trains a replacement model.
         run: |
           mkdir -p artifacts/models/stage4_baseline
-          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=model-stage4-latest" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
-          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/model_stage4.zip
-            unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
-            echo "Stage4 model downloaded OK (id=$AID)"
-          else
-            echo "[WARN] model-stage4-latest artifact not found"
+          SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/daily_pipeline.yml/runs?branch=main&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+          if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+            echo "[FATAL] No successful daily_pipeline run found on main." >&2
+            exit 1
           fi
+          AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+            --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No model-stage4 artifact in source run ${SOURCE_RUN_ID}. A missing model must exit nonzero." >&2
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/model_stage4.zip
+          unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
+          echo "SOURCE_MODEL_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
+          echo "Stage4 model downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Resolve game date
         run: |
@@ -83,81 +101,63 @@ jobs:
             echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
           fi
 
-      - name: Download injury-update artifact (cross-run via GitHub CLI)
+      - name: Download pregame-initial artifact for this game date (BLOCKING)
+        # Resolves the exact current-game-date pregame-initial artifact.
+        # If the artifact or PMF file is unavailable, exit nonzero.
+        # The pregame publishing workflow must never train a replacement model.
         run: |
           mkdir -p deliveries/tonight
           for ARTIFACT_NAME in "pregame-injury-update-${{ env.GAME_DATE }}" "pregame-initial-${{ env.GAME_DATE }}"; do
             AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}" \
-              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+              --jq '[.artifacts[] | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
             if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-              gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/pregame_artifact.zip
+              gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/pregame_artifact.zip
               unzip -o /tmp/pregame_artifact.zip -d .
-              echo "Downloaded ${ARTIFACT_NAME} (id=$AID)"
+              echo "Downloaded ${ARTIFACT_NAME} (id=${AID})"
               break
             fi
           done
           if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
-            echo "[WARN] No pregame PMF artifact found — will regenerate below"
+            echo "[FATAL] No pregame PMF artifact found for game date ${{ env.GAME_DATE }}." >&2
+            echo "[FATAL] The pregame publishing workflow must never regenerate or train a model." >&2
+            exit 1
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Regenerate if no artifact
-        run: |
-          if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
-            SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
-            if [ -f "$SLATE" ]; then
-              FEATURES_SRC="$SLATE"
-              echo "Using slate: $FEATURES_SRC"
-            elif [ -f "data/processed/wnba_player_game_features_wide.parquet" ]; then
-              FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
-              echo "Using historical features: $FEATURES_SRC"
-            else
-              echo "[WARN] No features or slate found and no cached PMFs — skipping regeneration"
-              exit 0
-            fi
-            python scripts/predict_today.py \
-              --features-wide "$FEATURES_SRC" \
-              --game-date "$GAME_DATE" \
-              --out-dir deliveries/tonight \
-              --overrides config/player_overrides.json
-          else
-            echo "[OK] full_pmfs_wide.parquet already present — skipping regeneration"
-          fi
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Apply manual overrides from config/player_overrides.json (blueprint §6.1)
         run: |
           if [ ! -f "deliveries/tonight/full_pmfs_wide.parquet" ]; then
-            echo "[WARN] No PMFs available — skipping overrides application"
-            exit 0
+            echo "[FATAL] No PMFs available — cannot apply overrides without a current-run PMF artifact" >&2
+            exit 1
           fi
           SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
-          if [ -f "$SLATE" ]; then
-            FEATURES_SRC="$SLATE"
-            echo "Using slate: $FEATURES_SRC"
-          elif [ -f "data/processed/wnba_player_game_features_wide.parquet" ]; then
-            FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
-            echo "Using historical features: $FEATURES_SRC"
-          else
-            echo "[WARN] No features found — skipping overrides application"
-            exit 0
+          if [ ! -f "$SLATE" ]; then
+            echo "[FATAL] No current-run slate found at ${SLATE} — stale historical-feature fallback is forbidden." >&2
+            exit 1
           fi
           python scripts/predict_today.py \
-            --features-wide "$FEATURES_SRC" \
+            --features-wide "$SLATE" \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --model-dir artifacts/models/stage4_baseline \
             --cal-dir artifacts/models/calibration \
             --overrides config/player_overrides.json
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Fetch and cache injury report (BDL — final update)
+      - name: Fetch injury report — Ticket 1 typed path (final update, BLOCKING)
+        # Gap 4: Use the Ticket 1 typed injury-fetch path.
+        # Preserves source_updated_at, pulled_at_utc, and typed fetch status per record.
+        # FAILURE: exit nonzero.
+        # SUCCESS_EMPTY: continue with the persisted verified-empty artifact.
+        # SUCCESS_WITH_ROWS: preserve per-record timestamps and continue.
+        # Do NOT write a simplified injury JSON that discards source_updated_at or pulled_at_utc.
         run: |
           mkdir -p data/injuries
           python - <<'PYEOF'
           import json, os, sys, requests
+          from datetime import datetime, timezone
           from pathlib import Path
 
           api_key = os.environ.get("BDL_API_KEY", "")
@@ -165,9 +165,10 @@ jobs:
           out_path = Path(f"data/injuries/{game_date}.json")
 
           if not api_key:
-              print("[WARN] BDL_API_KEY not set — keeping existing injury file")
-              sys.exit(0)
+              print("[FATAL] BDL_API_KEY not set — cannot fetch injury report.", file=sys.stderr)
+              sys.exit(1)
 
+          pulled_at_utc = datetime.now(timezone.utc).isoformat()
           params = {"per_page": 100}
           headers = {"Authorization": api_key}
           try:
@@ -184,24 +185,35 @@ jobs:
                   pid = r.get("player_id") or player.get("id") or 0
                   name = r.get("player_name") or f"{player.get('first_name','')} {player.get('last_name','')}".strip()
                   normalized.append({
-                      "player_id": int(pid), "player_name": name,
+                      "player_id": int(pid),
+                      "player_name": name,
                       "status": str(r.get("status") or "available").lower(),
-                      "return_date": r.get("return_date"), "comment": r.get("comment"),
+                      "return_date": r.get("return_date"),
+                      "comment": r.get("comment"),
+                      "source_updated_at": r.get("updated_at") or r.get("source_updated_at") or "",
+                      "pulled_at_utc": pulled_at_utc,
+                      "fetch_status": "SUCCESS_WITH_ROWS" if injuries else "SUCCESS_EMPTY",
                   })
-              out_path.write_text(json.dumps(normalized, indent=2))
-              print(f"Final injury update: {len(normalized)} records → {out_path}")
+              fetch_status = "SUCCESS_WITH_ROWS" if normalized else "SUCCESS_EMPTY"
+              out_path.write_text(json.dumps({"fetch_status": fetch_status, "pulled_at_utc": pulled_at_utc, "data": normalized}, indent=2))
+              print(f"Final injury update [{fetch_status}]: {len(normalized)} records → {out_path}")
           except Exception as exc:
-              print(f"[WARN] BDL injury fetch failed: {exc}")
+              print(f"[FATAL] BDL injury fetch failed: {exc} — run must fail to prevent stale injury data.", file=sys.stderr)
+              sys.exit(1)
           PYEOF
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Apply confirmed lineups / late injury updates (UTM)
+      - name: Apply confirmed lineups / late injury updates (Ticket 1 path, BLOCKING)
+        # Gap 4: Use Ticket 1 typed injury-fetch and processing path. BLOCKING.
+        # FAILURE: exit nonzero (blocks edge generation).
+        # SUCCESS_EMPTY: continue with persisted verified-empty artifact.
+        # SUCCESS_WITH_ROWS: preserve per-record timestamps and continue.
         run: |
           python scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --injuries-json "data/injuries/${GAME_DATE}.json"
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Pull final Odds API props + deep links
         run: |
@@ -258,16 +270,19 @@ jobs:
           PYEOF
         continue-on-error: true
 
-      - name: Build final edge report
+      - name: Build final edge report (BLOCKING)
         run: |
           python scripts/build_edge_report.py \
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
+            --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
-            --cal-dir artifacts/models/calibration
-        continue-on-error: true
+            --cal-dir artifacts/models/calibration \
+            --require-venn-abers \
+            --source-policy odds_api_then_bdl
+        continue-on-error: false
 
       - name: Format final JSON output
         run: |

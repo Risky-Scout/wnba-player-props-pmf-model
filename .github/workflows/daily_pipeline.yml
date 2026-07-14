@@ -533,9 +533,85 @@ jobs:
           path: artifacts/models/stage4_baseline/
           key: model-stage4-latest-${{ github.run_id }}
 
+      - name: Generate model artifact manifest (Gap 1 — artifact provenance)
+        # Emit artifact_manifest_model.json into the model directory so that
+        # pregame_initial.yml can validate the artifact's provenance before use.
+        # MUST only run after training and validation succeed — no if: always().
+        # If any required field cannot be computed, exit nonzero; do NOT upload
+        # a manifest with blank or "unknown" fields.
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, subprocess, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          workflow_name = os.environ.get("GITHUB_WORKFLOW", "Daily WNBA PMF Pipeline")
+
+          # git commit — FATAL if unreachable
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              if not git_commit:
+                  raise ValueError("git rev-parse HEAD returned empty string")
+          except Exception as exc:
+              print(f"[FATAL] Cannot compute git HEAD commit: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          model_dir = Path("artifacts/models/stage4_baseline")
+          model_dir.mkdir(parents=True, exist_ok=True)
+
+          # Feature manifest hash — FATAL if file missing
+          feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+          if not feat_manifest_path.exists():
+              print(f"[FATAL] Feature schema manifest not found at {feat_manifest_path}. "
+                    "Cannot produce a valid model artifact manifest without it.", file=sys.stderr)
+              sys.exit(1)
+          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+          # Config hash — FATAL if file missing
+          config_path = Path("config/model/stage4_baseline.yaml")
+          if not config_path.exists():
+              print(f"[FATAL] Model config not found at {config_path}. "
+                    "Cannot produce a valid model artifact manifest without it.", file=sys.stderr)
+              sys.exit(1)
+          config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()[:16]
+
+          # Training cutoff: latest game date in feature table — FATAL if unavailable
+          import pandas as pd
+          feat_path = Path("data/processed/wnba_player_game_features_wide.parquet")
+          if not feat_path.exists():
+              print(f"[FATAL] Feature table not found at {feat_path}. "
+                    "Cannot compute model_training_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          df = pd.read_parquet(feat_path)
+          date_col = next((c for c in ["game_date", "date"] if c in df.columns), None)
+          if not date_col:
+              print(f"[FATAL] No date column in feature table. "
+                    "Cannot compute model_training_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          latest = pd.to_datetime(df[date_col]).max()
+          model_training_cutoff = latest.strftime("%Y-%m-%dT00:00:00Z")
+
+          manifest = {
+              "artifact_type": "model",
+              "artifact_schema_version": "1",
+              "source_workflow": workflow_name,
+              "source_run_id": run_id,
+              "source_commit": git_commit,
+              "created_at_utc": datetime.now(timezone.utc).isoformat(),
+              "model_training_cutoff": model_training_cutoff,
+              "feature_manifest_hash": feature_manifest_hash,
+              "config_hash": config_hash,
+          }
+          out_path = model_dir / "artifact_manifest_model.json"
+          out_path.write_text(json.dumps(manifest, indent=2))
+          print(f"Model artifact manifest written: {manifest}")
+          PYEOF
+
       - name: Upload stage4 model (stable artifact for pregame workflows)
+        # Must only run after training, validation, and manifest generation succeed.
+        # No conditional guard — GitHub Actions default: skip on any prior failure.
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: model-stage4-latest
           path: artifacts/models/stage4_baseline/
