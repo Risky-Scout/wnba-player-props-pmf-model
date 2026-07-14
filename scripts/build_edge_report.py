@@ -493,6 +493,19 @@ def main(
                       error="venn_abers_required_but_missing_columns")
         raise typer.Exit(1)
 
+    # When --require-venn-abers is set, zero applied rows is also a failure:
+    # it means no calibrators were found and every row fell back to raw model
+    # probability.  Silent no-op is not acceptable when VA is required.
+    if require_venn_abers and not va_applied:
+        typer.echo(
+            f"[FATAL] --require-venn-abers is set but no Venn-Abers calibrators were applied "
+            f"(0 rows calibrated — check cal_dir={cal_dir}). "
+            f"Status: {STATUS_FAILURE}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                      error="venn_abers_required_but_zero_rows_calibrated")
+        raise typer.Exit(1)
+
     # Filter to sensible market lines (avoid very thin edge markets)
     comp = comp[comp["market_prob_over_no_vig"].notna()]
     comp = comp[comp["market_prob_over_no_vig"] >= min_market_prob]
@@ -652,14 +665,14 @@ def main(
 
     # Publishable edges: |edge| >= threshold; exclude sanity_flag=2 (already gone),
     # keep sanity_flag=1 (caution) but sort them to the bottom.
-    # Primary sort: by model_edge (time-corrected signal, alias for clv_decay_adjusted_edge);
+    # Primary sort: by model_edge (time-corrected signal, alias for time_decay_adjusted_edge);
     # fall back to raw edge if decay column is absent.
     # Uniform threshold across individual and combo stats — no markup.
     edges = comp[comp["edge_over"].abs() >= edge_threshold].copy()
     typer.echo(f"[filter] Edge threshold: {edge_threshold:.2%} → {len(edges)} props")
     _sort_col = (
         "model_edge" if "model_edge" in edges.columns
-        else "clv_decay_adjusted_edge" if "clv_decay_adjusted_edge" in edges.columns
+        else "time_decay_adjusted_edge" if "time_decay_adjusted_edge" in edges.columns
         else "edge_over"
     )
 
@@ -804,7 +817,7 @@ def main(
         "max_kelly_fraction": float(edges["kelly_fraction"].max()) if "kelly_fraction" in edges.columns and len(edges) else None,
         "mean_model_edge": float(
             edges["model_edge"].mean() if "model_edge" in edges.columns
-            else edges["clv_decay_adjusted_edge"].mean() if "clv_decay_adjusted_edge" in edges.columns
+            else edges["time_decay_adjusted_edge"].mean() if "time_decay_adjusted_edge" in edges.columns
             else float("nan")
         ) if len(edges) else None,
         "quality_status_counts": _qs_counts,

@@ -471,9 +471,12 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
             decay_factor = max(0.0, 1.0 - _CLV_DECAY_RATE * hours)
             decay_edges.append(round(edge * decay_factor, 4))
         joined["kelly_fraction"] = kelly_vals
-        joined["clv_decay_adjusted_edge"] = decay_edges
-        # model_edge: clean external name for clv_decay_adjusted_edge (same values,
-        # kept for backward compat with any downstream code that reads the old name).
+        # time_decay_adjusted_edge: model edge multiplied by a time-decay factor
+        # that approaches zero as the market approaches game time (markets get more
+        # efficient closer to tip-off).  NOT labeled as CLV — CLV requires a
+        # closing quote.  Renamed from the previous misleading 'clv_decay_adjusted_edge'.
+        joined["time_decay_adjusted_edge"] = decay_edges
+        # model_edge: the canonical external name used by downstream consumers.
         joined["model_edge"] = decay_edges
         # kelly_units: Quarter-Kelly fraction expressed as % of bankroll (e.g. 2.5 = 2.5%)
         joined["kelly_units"] = (joined["kelly_fraction"] * 100).round(2)
