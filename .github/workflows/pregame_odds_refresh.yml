@@ -200,6 +200,7 @@ jobs:
             PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
           fi
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 
           if [ -f "$EDGE_FILE" ]; then
             python scripts/generate_web_pages.py \
@@ -208,45 +209,58 @@ jobs:
               --edges "$EDGE_FILE" \
               --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
               --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges \
-              --skip-live-html
-            echo "Pages generated at $(date -u) — $(python -c "import json; d=json.load(open('deliveries/tonight/publishable_edges.parquet' and 'tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/latest.json')); print(d.get('total_props','?'), 'props')" 2>/dev/null || echo "check logs")"
+              --skip-live-html \
+              --release-id "$GITHUB_RUN_ID" \
+              --git-commit "$GIT_COMMIT"
+            echo "Pages generated at $(date -u)"
           else
             echo "[WARN] No edge file found — skipping page generation"
           fi
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Generate Distributions + seed Live In-Play page
         run: |
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
           python scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
-            --base-dir tools/odds-scanner/predictions/WNBA
+            --base-dir tools/odds-scanner/predictions/WNBA \
+            --release-id "$GITHUB_RUN_ID" \
+            --git-commit "$GIT_COMMIT"
           echo "Distributions page generated for ${GAME_DATE}"
 
-          # Deploy live page HTML shell to canonical URL so it exists even without games.
-          python scripts/generate_web_pages.py \
-            --game-date "$GAME_DATE" \
-            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
-            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
-          mkdir -p tools/odds-scanner/predictions/WNBA/In-Play/Edges
-          cp tools/odds-scanner/predictions/WNBA/Inplay/Edges/index.html \
-             tools/odds-scanner/predictions/WNBA/In-Play/Edges/index.html
-          if [ ! -f "tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json" ]; then
-            python3 - <<'PYEOF'
-          import json, pathlib
-          from datetime import datetime, timezone
-          payload = {
-            'schema_version': '2.0',
-            'generated_at': datetime.now(timezone.utc).isoformat(),
-            'active_games': 0,
-            'games': [],
-          }
-          pathlib.Path('tools/odds-scanner/predictions/WNBA/In-Play/Edges/latest.json').write_text(
-            json.dumps(payload, separators=(',', ':'))
+      - name: Validate pre-game page release lineage (BLOCKING — pregame_odds_refresh)
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from pathlib import Path
+          from wnba_props_model.pipeline.market_integrity import (
+              validate_page_release_lineage, ArtifactLineageMismatchError,
+              check_no_stale_fallback, StaleFallbackForbiddenError,
           )
-          print('Seeded empty latest.json')
-          PYEOF
-          fi
-        continue-on-error: true
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          base_dir  = Path("tools/odds-scanner/predictions/WNBA/Pre-Game")
+          edge_path = base_dir / "Edge" / "latest.json"
+          dist_path = base_dir / "Distributions" / "latest.json"
+          try:
+              check_no_stale_fallback("edge_page", edge_path)
+              check_no_stale_fallback("dist_page", dist_path)
+          except StaleFallbackForbiddenError as exc:
+              print(f"[FATAL] Stale page: {exc}", file=sys.stderr); sys.exit(1)
+          edge_json = json.loads(edge_path.read_text())
+          dist_json = json.loads(dist_path.read_text())
+          if run_id:
+              try:
+                  validate_page_release_lineage(edge_json, dist_json, expected_release_id=run_id)
+                  print(f"Page release lineage: PASS (release_id={run_id!r})")
+              except ArtifactLineageMismatchError as exc:
+                  print(f"[FATAL] {exc}", file=sys.stderr); sys.exit(1)
+          else:
+              print("[WARN] GITHUB_RUN_ID not set — skipping release lineage check")
+          print("Page lineage validation (odds_refresh): PASS")
+          EOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
 
       - name: Stage all outputs for single gh-pages deploy
         run: |

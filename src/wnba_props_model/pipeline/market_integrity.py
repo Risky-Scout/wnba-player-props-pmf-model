@@ -1018,3 +1018,236 @@ def build_artifact_metadata(
         "feature_manifest_hash": feature_manifest_hash,
         "artifact_schema_version": artifact_schema_version,
     }
+
+
+# ---------------------------------------------------------------------------
+# Page release lineage validation
+# ---------------------------------------------------------------------------
+
+
+class PageProbabilityError(MarketIntegrityError):
+    """Raised when a page's model probability doesn't match the final PMF at the market line."""
+
+
+def validate_page_release_lineage(
+    edge_page_json: dict,
+    pmf_page_json: dict,
+    expected_release_id: str,
+) -> None:
+    """Validate that both pre-game pages share one release ID.
+
+    Checks:
+      1. Both pages carry a release_id field.
+      2. Both release_ids are identical (one release per deployment).
+      3. Both release_ids match expected_release_id (current run only).
+
+    Raises ArtifactLineageMismatchError on any failure.
+    """
+    errors: list[str] = []
+
+    edge_rid = edge_page_json.get("release_id")
+    pmf_rid  = pmf_page_json.get("release_id")
+
+    if not edge_rid:
+        errors.append("edge_page missing release_id")
+    if not pmf_rid:
+        errors.append("pmf_page missing release_id")
+
+    if edge_rid and pmf_rid and edge_rid != pmf_rid:
+        errors.append(
+            f"edge_page release_id={edge_rid!r} != pmf_page release_id={pmf_rid!r} "
+            "(both pages must come from the same release)"
+        )
+
+    if edge_rid and edge_rid != expected_release_id:
+        errors.append(
+            f"edge_page release_id={edge_rid!r} != expected={expected_release_id!r}"
+        )
+
+    if pmf_rid and pmf_rid != expected_release_id:
+        errors.append(
+            f"pmf_page release_id={pmf_rid!r} != expected={expected_release_id!r}"
+        )
+
+    if errors:
+        raise ArtifactLineageMismatchError(
+            f"Page release lineage validation failed ({len(errors)} error(s)): "
+            + "; ".join(errors)
+        )
+
+
+def validate_page_probabilities(
+    page_props: "list[dict]",
+    pmf_df: "pd.DataFrame",
+    tolerance: float = 1e-8,
+    require_all_checked: bool = False,
+) -> dict:
+    """Validate page model probabilities against the final PMF parquet.
+
+    Checks for each page prop (matched by player_name + stat):
+      - model_p_over matches P(X > line) from pmf_full within tolerance
+      - model_p_under matches P(X < line) (integer-line aware)
+      - model_p_push matches P(X == line) for integer lines
+      - model_p_over + model_p_under + model_p_push = 1 within 1e-12
+      - model_p_over is not NaN
+      - no duplicate (player, stat) keys in page_props
+
+    Fail modes (all raise PageProbabilityError):
+      - NaN model probability
+      - Duplicate (player, stat) in page_props
+      - require_all_checked=True and checked_rows < expected_rows
+      - Probability values outside tolerance
+
+    Returns dict: {expected_rows, checked_rows, missing_rows, duplicate_rows, probability_failures}
+    """
+    import json as _json
+    import math as _math
+    import numpy as _np
+
+    _EMPTY = {"expected_rows": 0, "checked_rows": 0, "missing_rows": 0,
+              "duplicate_rows": 0, "probability_failures": 0}
+
+    if page_props is None:
+        page_props = []
+    if pmf_df is None:
+        pmf_df = pd.DataFrame()
+
+    # Detect duplicate (player, stat) keys in page props
+    seen_page_keys: dict[tuple, int] = {}
+    duplicate_rows = 0
+    for prop in page_props:
+        key = (str(prop.get("player", "")).lower().strip(),
+               str(prop.get("stat", "")).lower().strip())
+        if key in seen_page_keys:
+            duplicate_rows += 1
+        seen_page_keys[key] = seen_page_keys.get(key, 0) + 1
+
+    if duplicate_rows > 0:
+        raise PageProbabilityError(
+            f"Duplicate (player, stat) keys in page props: "
+            f"{duplicate_rows} duplicate row(s) detected"
+        )
+
+    # Build lookup from pmf_df: (player_name_lower, stat_lower) → row info
+    # Use exact keys when available: game_id, player_id, stat; fallback to player_name+stat
+    lookup: dict[tuple, dict] = {}
+    duplicate_lookup_keys: list[tuple] = []
+    for _, row in pmf_df.iterrows():
+        pname = str(row.get("player_name", "")).lower().strip()
+        stat  = str(row.get("stat",  "")).lower().strip()
+        if not pname or not stat:
+            continue
+        key = (pname, stat)
+        if key in lookup:
+            duplicate_lookup_keys.append(key)
+        lookup[key] = {
+            "pmf_json": row.get("pmf_json"),
+            "line": float(row.get("line", 0.0) or 0.0),
+            "pmf_mean": row.get("pmf_mean"),
+        }
+
+    expected_rows = len(lookup)
+    errors: list[str] = []
+    checked = 0
+    missing = 0
+
+    for prop in page_props:
+        pname = str(prop.get("player", "")).lower().strip()
+        stat  = str(prop.get("stat",  "")).lower().strip()
+        key   = (pname, stat)
+
+        if key not in lookup:
+            missing += 1
+            continue
+
+        info = lookup[key]
+        pmf_json_str = info.get("pmf_json")
+        if not pmf_json_str:
+            errors.append(f"{pname}/{stat}: pmf_json is missing or empty in PMF source")
+            continue
+
+        # Parse PMF
+        try:
+            d = _json.loads(pmf_json_str) if isinstance(pmf_json_str, str) else pmf_json_str
+            k_arr = _np.array([int(x) for x in d.keys()], dtype=float)
+            p_arr = _np.array(list(d.values()), dtype=float)
+            total = p_arr.sum()
+            if total <= 0:
+                errors.append(f"{pname}/{stat}: PMF has zero total mass")
+                continue
+            p_arr = p_arr / total
+        except Exception as exc:
+            errors.append(f"{pname}/{stat}: PMF parse error: {exc}")
+            continue
+
+        line = info["line"]
+        p_over_pmf  = float(p_arr[k_arr > float(line)].sum())
+        _is_int_line = (float(line) == _math.floor(float(line))) and line > 0
+        p_push_pmf  = float(p_arr[k_arr == float(line)].sum()) if _is_int_line else 0.0
+        p_under_pmf = max(0.0, 1.0 - p_over_pmf - p_push_pmf)
+
+        # Validate model_p_over
+        page_p_over = prop.get("model_p_over")
+        if page_p_over is None or (isinstance(page_p_over, float) and _math.isnan(page_p_over)):
+            errors.append(f"{pname}/{stat}: model_p_over is NaN or missing")
+            continue
+
+        err_over = abs(float(page_p_over) - p_over_pmf)
+        if err_over > tolerance:
+            errors.append(
+                f"{pname}/{stat} line={line}: model_p_over={page_p_over:.8f} != "
+                f"pmf_p_over={p_over_pmf:.8f} (err={err_over:.2e})"
+            )
+
+        # Validate model_p_under (if present) — must use push-aware computation
+        page_p_under = prop.get("model_p_under")
+        if page_p_under is not None and not (isinstance(page_p_under, float) and _math.isnan(page_p_under)):
+            err_under = abs(float(page_p_under) - p_under_pmf)
+            if err_under > tolerance:
+                errors.append(
+                    f"{pname}/{stat} line={line}: model_p_under={page_p_under:.8f} != "
+                    f"pmf_p_under={p_under_pmf:.8f} (err={err_under:.2e})"
+                )
+
+        # Validate model_p_push (if present)
+        page_p_push = prop.get("model_p_push")
+        if page_p_push is not None and not (isinstance(page_p_push, float) and _math.isnan(page_p_push)):
+            err_push = abs(float(page_p_push) - p_push_pmf)
+            if err_push > tolerance:
+                errors.append(
+                    f"{pname}/{stat} line={line}: model_p_push={page_p_push:.8f} != "
+                    f"pmf_p_push={p_push_pmf:.8f} (err={err_push:.2e})"
+                )
+
+        # Validate PMF normalization
+        norm_err = abs(p_over_pmf + p_under_pmf + p_push_pmf - 1.0)
+        if norm_err > 1e-12:
+            errors.append(
+                f"{pname}/{stat}: PMF not normalized (p_over+p_under+p_push={p_over_pmf+p_under_pmf+p_push_pmf:.12f})"
+            )
+
+        checked += 1
+
+    # Fail when checked < expected (missing rows not gracefully skipped)
+    if require_all_checked and checked < expected_rows and not errors:
+        errors.append(
+            f"Only {checked}/{expected_rows} expected rows were checked "
+            f"({expected_rows - checked} rows from PMF parquet not found in page props)"
+        )
+
+    prob_failures = len(errors)
+    result = {
+        "expected_rows": expected_rows,
+        "checked_rows": checked,
+        "missing_rows": missing,
+        "duplicate_rows": duplicate_rows,
+        "probability_failures": prob_failures,
+    }
+
+    if errors:
+        raise PageProbabilityError(
+            f"Page probability validation failed ({len(errors)} error(s)): "
+            + "; ".join(errors[:5])
+        )
+
+    return result

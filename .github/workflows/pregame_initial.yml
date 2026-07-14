@@ -815,6 +815,7 @@ jobs:
             PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
           fi
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 
           python scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
@@ -822,8 +823,58 @@ jobs:
             ${EDGE_FILE:+--edges "$EDGE_FILE"} \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
             --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges \
-            --skip-live-html
+            --skip-live-html \
+            --release-id "$GITHUB_RUN_ID" \
+            --git-commit "$GIT_COMMIT"
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
+        continue-on-error: false
+
+      - name: Validate pre-game page release lineage (BLOCKING — both pages same run)
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from pathlib import Path
+          from wnba_props_model.pipeline.market_integrity import (
+              validate_page_release_lineage,
+              ArtifactLineageMismatchError,
+              check_no_stale_fallback,
+              StaleFallbackForbiddenError,
+          )
+
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          game_date = os.environ.get("GAME_DATE", "")
+          base_dir  = Path("tools/odds-scanner/predictions/WNBA/Pre-Game")
+          edge_path = base_dir / "Edge" / "latest.json"
+          pmf_path  = base_dir / "PMF-Distributions" / "latest.json"
+
+          # Stale-artifact check: both page files must exist from this run
+          try:
+              check_no_stale_fallback("edge_page", edge_path)
+              check_no_stale_fallback("pmf_page",  pmf_path)
+          except StaleFallbackForbiddenError as exc:
+              print(f"[FATAL] Stale page artifact: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          edge_json = json.loads(edge_path.read_text())
+          pmf_json  = json.loads(pmf_path.read_text())
+
+          # Release lineage: both pages must carry same release_id matching this run
+          if run_id:
+              try:
+                  validate_page_release_lineage(edge_json, pmf_json, expected_release_id=run_id)
+                  print(f"Page release lineage: PASS (release_id={run_id!r})")
+              except ArtifactLineageMismatchError as exc:
+                  print(f"[FATAL] Page release lineage mismatch: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          else:
+              print("[WARN] GITHUB_RUN_ID not set — skipping release lineage check (local run)")
+
+          print(f"edge_page: {edge_path} ({edge_json.get('total_props',0)} props)")
+          print(f"pmf_page:  {pmf_path} ({pmf_json.get('total_props',0)} props)")
+          print("Page lineage validation: PASS")
+          EOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: false
 
       - name: Generate Distributions page (BLOCKING — combined Edges + PMF)

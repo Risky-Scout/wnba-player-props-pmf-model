@@ -96,6 +96,8 @@ def _build_edge_json(
     proj_df: pd.DataFrame,
     game_date: str,
     v1_path: str | None = None,
+    release_id: str = "",
+    git_commit: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -261,6 +263,12 @@ def _build_edge_json(
             "median": round(float(r.get("median", 0) or 0), 1),
             "market_line": round(float(r.get("line", 0) or 0), 1),
             "model_p_over": round(float(r.get("model_prob_over", 0) or 0), 4),
+            # Compute push-aware under from PMF when available; fallback is 1 - p_over
+            "model_p_under": round(
+                (1.0 - float(r.get("model_prob_over", 0) or 0)
+                 - float(r.get("model_prob_push", 0) or 0)), 4
+            ),
+            "model_p_push": round(float(r.get("model_prob_push", 0) or 0), 4),
             "market_p_over": round(float(r.get("market_prob_over_no_vig", 0) or 0), 4),
             "no_vig_over_prob": round(float(r.get("no_vig_over_prob", r.get("market_prob_over_no_vig", 0)) or 0), 4),
             "no_vig_under_prob": round(float(r.get("no_vig_under_prob", 1.0 - float(r.get("market_prob_over_no_vig", 0) or 0)) or 0), 4),
@@ -287,7 +295,7 @@ def _build_edge_json(
         })
 
     rows.sort(key=lambda x: -x["abs_edge"])
-    return {
+    payload: dict = {
         "schema_version": "2.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "game_date": game_date,
@@ -296,23 +304,32 @@ def _build_edge_json(
         "under_signals": sum(1 for r in rows if r["direction"] == "UNDER"),
         "props": rows,
     }
+    if release_id:
+        payload["release_id"] = release_id
+    if git_commit:
+        payload["git_commit"] = git_commit
+    return payload
 
 
-def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: str) -> dict:
+def _build_pmf_json(
+    edges_df: pd.DataFrame,
+    proj_df: pd.DataFrame,
+    game_date: str,
+    release_id: str = "",
+    git_commit: str = "",
+) -> dict:
     """Build the payload for Pre-Game/PMF-Distributions/latest.json.
 
     Shows ALL players × ALL stats (except suppressed stats). Edge columns are
     left-joined from edges_df so players with no market line still appear with
     their full PMF distribution (edge/kelly/market columns default to 0/null).
     """
-    # Stats suppressed until new calibrators are promoted (bias factors too low).
-    # Remove from this set once weekly_calibration produces updated calibrators.
-    _SUPPRESSED_STATS = frozenset({"stl", "blk"})
+    # No stats are suppressed: all valid modeled PMFs appear on the public page.
+    # If a stat has weak calibration, it carries a calibration_status/warning field
+    # but is not deleted from the page.
 
     # Start from the full projection universe (all players × all stats).
     base_df = proj_df.copy()
-    if "stat" in base_df.columns:
-        base_df = base_df[~base_df["stat"].isin(_SUPPRESSED_STATS)]
 
     # Columns to pull from the edge report (market line + edge signal).
     _edge_payload_cols = [
@@ -394,21 +411,46 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
             print(f"  [WARN] Skipping {r.get('player_name','?')} {r.get('stat','?')} — no PMF data after merge (pmf_json={repr(raw_pmf)[:40]})")
             continue
         edge = float(r.get("edge_over", 0) or 0)
-        # Use calibrated pmf_mean (stored in parquet) as the authoritative mean —
-        # the raw pmf_json array is pre-calibration and _parse_pmf(pmf_json) would
-        # return the inflated pre-calibration expected value. Fall back to parsed mu
-        # only when pmf_mean is absent (e.g. very old artifacts).
         _cal_mean = r.get("pmf_mean") or r.get("pmf_mean_proj")
         _display_mean = round(float(_cal_mean), 2) if _cal_mean is not None and float(_cal_mean) > 0 else round(mu, 2)
         market_line = round(float(r.get("line", 0) or 0), 1)
-        model_p_over = round(float(r.get("model_prob_over", 0) or 0), 4)
+
+        # Compute push-aware model probabilities from the full PMF
+        # For integer lines: p_push > 0; p_under = P(X < line) not 1-p_over
+        _pmf_arr_raw = {}
+        try:
+            import json as _j
+            _pmf_arr_raw = _j.loads(pmf_str) if pmf_str and pmf_str != "{}" else {}
+        except Exception:
+            pass
+        if _pmf_arr_raw and market_line > 0:
+            _k = np.array([int(kk) for kk in _pmf_arr_raw.keys()], dtype=float)
+            _p = np.array(list(_pmf_arr_raw.values()), dtype=float)
+            _tot = _p.sum()
+            if _tot > 0:
+                _p = _p / _tot
+            model_p_over = round(float(_p[_k > float(market_line)].sum()), 6)
+            _is_int_line = (float(market_line) == math.floor(float(market_line)))
+            model_p_push = round(float(_p[_k == float(market_line)].sum()), 6) if _is_int_line else 0.0
+            model_p_under = round(max(0.0, 1.0 - model_p_over - model_p_push), 6)
+        else:
+            model_p_over = round(float(r.get("model_prob_over", 0) or 0), 4)
+            model_p_push = 0.0
+            model_p_under = round(1.0 - model_p_over, 4)
+
         market_p_over = round(float(r.get("market_prob_over_no_vig", 0) or 0), 4)
         no_vig_over = round(float(r.get("no_vig_over_prob", market_p_over) or market_p_over), 4)
         no_vig_under = round(float(r.get("no_vig_under_prob", 1.0 - market_p_over) or (1.0 - market_p_over)), 4)
-        # Last 5 avg actual for this player × stat
         _pid = r.get("player_id")
         _stat_raw = str(r.get("stat", ""))
         last_5_avg = _last5_lookup.get((_pid, _stat_raw)) if _pid is not None else None
+
+        # pmf_full: complete pairs summing to 1 (no filtering)
+        # pmf_chart: filtered for chart rendering (omit tiny masses for performance)
+        _CHART_THRESHOLD = 0.001
+        pmf_chart = [[k, v] for k, v in pairs if v >= _CHART_THRESHOLD]
+        omitted_mass = round(sum(v for _, v in pairs) - sum(v for _, v in pmf_chart), 8)
+
         props.append({
             "player": r["player_name"],
             "stat": str(r["stat"]).upper(),
@@ -423,14 +465,22 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
             "skewness": round(skew, 3),
             "excess_kurtosis": round(kurt, 3),
             "model_p_over": model_p_over,
+            "model_p_under": model_p_under,
+            "model_p_push": model_p_push,
             "model_p_over_pct": round(model_p_over * 100, 1),
-            "model_p_under_pct": round((1.0 - model_p_over) * 100, 1),
+            "model_p_under_pct": round(model_p_under * 100, 1),
             "market_p_over": market_p_over,
             "no_vig_over_prob": no_vig_over,
             "no_vig_under_prob": no_vig_under,
             "edge": round(edge, 4),
             "kelly_pct": round(float(r.get("kelly_fraction", 0) or 0) * 100, 2),
             "last_5_avg": last_5_avg,
+            # pmf_full: complete mass used for all probability calculations
+            "pmf_full": pairs,
+            # pmf_chart: filtered for rendering performance
+            "pmf_chart": pmf_chart,
+            "omitted_chart_mass": omitted_mass if omitted_mass > 0 else None,
+            # Legacy alias
             "pmf": pairs,
         })
     props.sort(key=lambda x: -abs(x["edge"]))
@@ -441,6 +491,10 @@ def _build_pmf_json(edges_df: pd.DataFrame, proj_df: pd.DataFrame, game_date: st
         "total_props": len(props),
         "props": props,
     }
+    if release_id:
+        result["release_id"] = release_id
+    if git_commit:
+        result["git_commit"] = git_commit
     if _cal_over_hit_rate is not None:
         result["calibration_30d"] = {
             "over_hit_rate": _cal_over_hit_rate,
@@ -1539,6 +1593,30 @@ def main(
     ),
     skip_live_html: bool = typer.Option(False, "--skip-live-html", help="Skip writing the live page HTML"),
     json_only: bool = typer.Option(False, "--json-only", help="Write only JSON data files, skip index.html regeneration."),
+    release_id: str = typer.Option(
+        "",
+        "--release-id",
+        help=(
+            "Current-run release identifier (GITHUB_RUN_ID or equivalent). "
+            "Written to both page JSON outputs so consumers can verify both pages "
+            "come from the same run. Required for release lineage validation."
+        ),
+    ),
+    git_commit: str = typer.Option(
+        "",
+        "--git-commit",
+        help="Current git commit SHA. Written to both page JSON outputs for traceability.",
+    ),
+    slate_manifest: str = typer.Option(
+        "",
+        "--slate-manifest",
+        help=(
+            "Path to slate manifest JSON containing scheduled_game_count. "
+            "When provided and scheduled_game_count > 0, missing or empty projections "
+            "cause a fatal nonzero exit (fail-closed). "
+            "When scheduled_game_count == 0, exits 0 with VERIFIED_NO_GAMES status."
+        ),
+    ),
 ) -> None:
     """Generate all three web page directories (Edge, PMF-Distributions, Inplay/Edges)."""
     out = Path(out_dir)
@@ -1550,6 +1628,25 @@ def main(
     pmf_dir.mkdir(parents=True, exist_ok=True)
     live_out.mkdir(parents=True, exist_ok=True)
 
+    # --- Load and validate slate manifest (fail-closed) ---
+    scheduled_game_count: int | None = None
+    if slate_manifest:
+        sm_path = Path(slate_manifest)
+        if sm_path.exists():
+            try:
+                sm_data = json.loads(sm_path.read_text())
+                scheduled_game_count = int(sm_data.get("scheduled_game_count", 0))
+            except Exception as exc:
+                typer.echo(f"[FATAL] Cannot read slate manifest {slate_manifest}: {exc}", err=True)
+                raise typer.Exit(1)
+        else:
+            typer.echo(f"[FATAL] Slate manifest not found: {slate_manifest}", err=True)
+            raise typer.Exit(1)
+
+        if scheduled_game_count == 0:
+            typer.echo(f"[generate_web_pages] VERIFIED_NO_GAMES: slate has 0 scheduled games for {game_date}")
+            raise typer.Exit(0)
+
     # --- Load source data ---
     proj_path = projections or f"deliveries/tonight/player_projections_{game_date}.parquet"
     edges_path = edges or "deliveries/tonight/publishable_edges.parquet"
@@ -1558,24 +1655,59 @@ def main(
     typer.echo(f"  projections : {proj_path}")
     typer.echo(f"  edges       : {edges_path}")
 
+    # Fail closed when scheduled games exist but projections are missing/empty
+    proj_df_loaded = True
     try:
         proj_df = pd.read_parquet(proj_path)
         typer.echo(f"  Loaded projections: {len(proj_df)} rows")
+        if proj_df.empty and scheduled_game_count is not None and scheduled_game_count > 0:
+            typer.echo(
+                f"[FATAL] Projections file at {proj_path} is empty but slate has "
+                f"{scheduled_game_count} scheduled game(s). Status: FAILURE", err=True
+            )
+            raise typer.Exit(1)
+    except typer.Exit:
+        raise
     except Exception as exc:
+        if scheduled_game_count is not None and scheduled_game_count > 0:
+            typer.echo(
+                f"[FATAL] Could not load projections from {proj_path}: {exc}. "
+                f"Slate has {scheduled_game_count} scheduled game(s) — cannot continue. "
+                f"Status: FAILURE", err=True
+            )
+            raise typer.Exit(1)
         typer.echo(f"  [WARN] Could not load projections: {exc} — using empty DataFrame")
-        proj_df = pd.DataFrame(columns=["player_id", "stat", "pmf_json", "pmf_mean", "pmf_variance", "median", "mode"])
+        proj_df = pd.DataFrame(columns=["player_id", "stat", "pmf_json", "pmf_mean",
+                                         "pmf_variance", "median", "mode"])
+        proj_df_loaded = False
 
+    edges_df_loaded = True
     try:
         edges_df = pd.read_parquet(edges_path)
         typer.echo(f"  Loaded edges: {len(edges_df)} rows")
+        if edges_df.empty:
+            if scheduled_game_count is not None and scheduled_game_count > 0:
+                typer.echo(
+                    f"[generate_web_pages] LIVE_MARKETS_NOT_YET_AVAILABLE: "
+                    f"slate has {scheduled_game_count} game(s) but market file is empty"
+                )
     except Exception as exc:
+        if scheduled_game_count is not None and scheduled_game_count > 0:
+            typer.echo(
+                f"[FATAL] Could not load market props from {edges_path}: {exc}. "
+                f"Status: FAILURE", err=True
+            )
+            raise typer.Exit(1)
         typer.echo(f"  [WARN] Could not load edges: {exc} — using empty DataFrame")
         edges_df = pd.DataFrame(columns=["player_name", "player_id", "stat", "line", "edge_over",
                                           "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
+        edges_df_loaded = False
 
     # --- Build JSON ---
-    edge_json = _build_edge_json(edges_df, proj_df, game_date)
-    pmf_json = _build_pmf_json(edges_df, proj_df, game_date)
+    edge_json = _build_edge_json(edges_df, proj_df, game_date,
+                                 release_id=release_id, git_commit=git_commit)
+    pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
+                                 release_id=release_id, git_commit=git_commit)
 
     # Write Edge page JSON
     (edge_dir / "latest.json").write_text(json.dumps(_sanitize(edge_json), separators=(",", ":")))
