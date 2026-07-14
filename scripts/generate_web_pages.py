@@ -271,7 +271,11 @@ def _build_edge_json(
             "kelly_pct": round(kelly_pct, 2),
             "kelly_units": round(kelly_pct, 2),
             "abs_edge": abs_edge,
-            "clv_adj_edge": round(float(r.get("time_decay_adjusted_edge", r.get("clv_decay_adjusted_edge", edge)) or edge), 4),
+            # time_decay_adjusted_edge: model edge multiplied by a time-decay factor.
+            # This is NOT CLV. Renamed from the legacy 'clv_adj_edge' output key.
+            # Dashboard consumers should read 'time_decay_adjusted_edge'.
+            # The legacy key 'clv_adj_edge' is no longer written for new files.
+            "time_decay_adjusted_edge": round(float(r.get("time_decay_adjusted_edge", r.get("clv_decay_adjusted_edge", edge)) or edge), 4),
             "line_moved_toward_over": bool(r.get("line_moved_toward_over", False)),
             "reverse_line_movement": bool(r.get("reverse_line_movement_flag", False)),
             "model_market_ratio": round(float(r.get("model_market_ratio", 1) or 1), 3),

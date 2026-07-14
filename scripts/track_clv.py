@@ -1,11 +1,12 @@
-"""Track Closing Line Value (CLV) for published edges.
+"""Track model-edge-at-entry for published edges.
 
-Reads the edge parquet for a given date, computes CLV metrics vs. the
-closing market line, and appends to a cumulative CLV tracking parquet.
+Reads the edge parquet for a given date, computes model_edge_at_entry
+(model_p_over - market_p_over_at_entry_time), and appends to a cumulative
+tracking parquet.
 
-CLV measures whether edges we identified were on the right side of where
-the market moved by close. Positive CLV = we were on the same side as
-sharp money; negative CLV = we faded by the market.
+This is NOT closing-line value (CLV).  True CLV requires a closing quote
+and is only available after the game.  The 'has_closing_line' field will
+be populated by post_game_scoring.py when an archived closing quote is available.
 
 Usage:
     python scripts/track_clv.py \
@@ -37,7 +38,7 @@ def main(
         help="Glob pattern for closing line parquets.",
     ),
 ) -> None:
-    """Track CLV for published edges and append to cumulative tracking parquet."""
+    """Track model-edge-at-entry for published edges and append to cumulative tracking parquet."""
     pred_path = Path(predictions)
     out_path = Path(output)
 
@@ -60,14 +61,14 @@ def main(
         typer.echo(f"[track_clv] Empty predictions file — nothing to track")
         raise typer.Exit(0)
 
-    # Build CLV tracking rows from edge data
-    clv_rows = _compute_clv_rows(edges_df, date)
+    # Build model-edge-at-entry tracking rows
+    edge_rows = _compute_clv_rows(edges_df, date)
 
-    if not clv_rows:
-        typer.echo(f"[track_clv] No CLV rows computed from {len(edges_df)} edges")
+    if not edge_rows:
+        typer.echo(f"[track_clv] No edge rows computed from {len(edges_df)} edges")
         raise typer.Exit(0)
 
-    clv_df = pd.DataFrame(clv_rows)
+    clv_df = pd.DataFrame(edge_rows)
 
     # Append to cumulative tracking parquet
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,16 +91,19 @@ def main(
 
     combined.to_parquet(out_path, index=False)
     typer.echo(
-        f"[track_clv] Tracked {len(clv_rows)} CLV rows for {date} → {out_path} "
+        f"[track_clv] Tracked {len(edge_rows)} model-edge-at-entry rows for {date} → {out_path} "
         f"(cumulative: {len(combined)} rows)"
     )
 
 
 def _compute_clv_rows(edges_df: pd.DataFrame, game_date: str) -> list[dict]:
-    """Build CLV tracking rows from the edge DataFrame.
+    """Build model-edge tracking rows from the edge DataFrame.
 
-    CLV is computed as: model_p_over - market_p_over_at_close.
-    When closing line data is unavailable, uses the opening line as proxy.
+    model_edge_at_entry = model_p_over - market_p_over_at_entry_time.
+
+    This is NOT CLV.  True CLV requires a closing quote (market_p_over_at_close).
+    The 'has_closing_line' field will be updated by post_game_scoring.py when
+    a closing quote is available.
     """
     rows = []
     now_utc = datetime.now(timezone.utc).isoformat()
@@ -116,9 +120,9 @@ def _compute_clv_rows(edges_df: pd.DataFrame, game_date: str) -> list[dict]:
             line = float(row.get("line", 0.0) or 0.0)
             kelly_fraction = float(row.get("kelly_fraction", 0.0) or 0.0)
 
-            # CLV = model edge at time of posting (proxy for closing line value)
-            # True CLV = model_p_over - closing_market_p_over; we use opening-line market as proxy
-            clv = model_p_over - market_p_over  # proxy for CLV
+            # model_edge_at_entry: difference between model P(over) and entry-time
+            # market no-vig P(over).  NOT a CLV measurement.
+            model_edge_at_entry = model_p_over - market_p_over
 
             clv_row = {
                 "game_date": game_date,
@@ -132,7 +136,7 @@ def _compute_clv_rows(edges_df: pd.DataFrame, game_date: str) -> list[dict]:
                 "market_p_over_open": market_p_over,
                 "edge_over": edge_over,
                 "kelly_fraction": kelly_fraction,
-                "clv_proxy": round(float(clv), 4),
+                "model_edge_at_entry": round(float(model_edge_at_entry), 4),
                 "has_closing_line": False,  # will be updated by post_game_scoring
             }
             rows.append(clv_row)
