@@ -351,10 +351,13 @@ def main(
         props_df, props_source = _load_props(raw_props, odds_api_props, today, source_policy)
     except Exception as exc:
         typer.echo(f"[FATAL] Market source load failed: {exc}. Status: {STATUS_FAILURE}", err=True)
-        _write_status(out, STATUS_FAILURE, today, edge_threshold, error=f"market_source_failure:{exc}")
+        _write_status(out, STATUS_FAILURE, today, edge_threshold, error=f"market_source_failure:{exc}",
+                      raw_quote_count=0, fresh_quote_count=0, reconciled_quote_count=0)
         raise typer.Exit(1)
 
-    typer.echo(f"Loaded {len(props_df):,} market prop rows [source={props_source}]")
+    # Track quote counts at each pipeline stage for audit transparency.
+    raw_quote_count: int = len(props_df)
+    typer.echo(f"Loaded {raw_quote_count:,} market prop rows [source={props_source}]")
 
     # ── Validate market quotes using market_integrity functions ───────────────
     if not props_df.empty:
@@ -365,8 +368,12 @@ def main(
             validate_odds_format(props_df)
         except (DuplicateQuoteError, UnmatchedIdentityError, MalformedOddsError) as exc:
             typer.echo(f"[FATAL] Market quote validation failed: {exc}. Status: {STATUS_FAILURE}", err=True)
-            _write_status(out, STATUS_FAILURE, today, edge_threshold, error=str(exc))
+            _write_status(out, STATUS_FAILURE, today, edge_threshold, error=str(exc),
+                          raw_quote_count=raw_quote_count, fresh_quote_count=0, reconciled_quote_count=0)
             raise typer.Exit(1)
+
+    # fresh = rows that passed odds/timestamp validation (all rows if validation didn't raise).
+    fresh_quote_count: int = len(props_df)
 
     # ── Markets empty: LIVE_MARKETS_NOT_YET_AVAILABLE vs fatal ───────────────
     # Write expected_market_comparison_manifest.parquet (empty) BEFORE exiting,
@@ -416,6 +423,19 @@ def main(
         _expected_manifest = pd.DataFrame(
             columns=["game_id", "player_id", "stat", "vendor", "line"]
         )
+    # ── Quote-snapshot deduplication (reconciliation step) ───────────────────
+    # Deduplicate true duplicate snapshots (same game_id, player_id, stat, vendor,
+    # line, over_odds, under_odds) that can appear when BDL returns repeated rows.
+    # This happens BEFORE the PMF join; it does NOT select across vendors —
+    # that selection happens later after EV can be computed with model probabilities.
+    _dedup_cols = [c for c in ("game_id", "player_id", "stat", "vendor", "line",
+                               "over_odds", "under_odds") if c in props_df.columns]
+    if _dedup_cols:
+        props_df = props_df.drop_duplicates(subset=_dedup_cols).reset_index(drop=True)
+
+    # reconciled = identity-resolved + snapshot-deduped, before PMF comparison.
+    reconciled_quote_count: int = len(props_df)
+
     _expected_manifest_path = out / "expected_market_comparison_manifest.parquet"
     _expected_manifest.to_parquet(_expected_manifest_path, index=False)
     typer.echo(
@@ -663,6 +683,73 @@ def main(
         comp["model_market_ratio"] = np.nan
         comp["projection_sanity_flag"] = 0
 
+    # ── Multi-book quote selection: one canonical executable opportunity per identity ──
+    # Identity: (game_id, player_id, stat, line).  When multiple vendors offer
+    # the same line, select the single executable opportunity using:
+    #   1. Maximum executable EV (model prob × decimal payout − 1 on preferred side)
+    #   2. Best American price on the preferred side (highest decimal odds)
+    #   3. Newest updated_at timestamp (freshest quote)
+    #   4. Vendor name alphabetically (deterministic final tie-breaker)
+    # Annotate with number_of_books_offering before selection.
+    if "game_id" in comp.columns and "player_id" in comp.columns and \
+       "stat" in comp.columns and "line" in comp.columns:
+        _id_cols = ["game_id", "player_id", "stat", "line"]
+
+        def _american_to_dec(a):
+            """American odds → decimal payout multiplier (returns 0 if invalid)."""
+            try:
+                a = float(a)
+                return (a / 100 + 1) if a >= 0 else (100 / abs(a) + 1)
+            except (TypeError, ZeroDivisionError, ValueError):
+                return 0.0
+
+        # Count books per identity BEFORE selection
+        _book_counts = (
+            comp.groupby(_id_cols)
+            .size()
+            .rename("number_of_books_offering")
+            .reset_index()
+        )
+        comp = comp.merge(_book_counts, on=_id_cols, how="left")
+
+        # Compute EV on preferred side using actual sportsbook odds
+        _p_over = comp["model_prob_over"].fillna(0.5)
+        _preferred_over = _p_over >= 0.5
+        _dec_over  = comp.get("over_odds",  pd.Series([np.nan]*len(comp), index=comp.index)).apply(_american_to_dec)
+        _dec_under = comp.get("under_odds", pd.Series([np.nan]*len(comp), index=comp.index)).apply(_american_to_dec)
+        _ev_over   = _p_over * (_dec_over - 1) - (1 - _p_over)
+        _ev_under  = (1 - _p_over) * (_dec_under - 1) - _p_over
+        comp["_ev_preferred"] = np.where(_preferred_over, _ev_over, _ev_under)
+
+        # Best price on preferred side (higher decimal = better for bettor)
+        comp["_best_price_dec"] = np.where(_preferred_over, _dec_over, _dec_under)
+
+        # Timestamp sort key (newest first → negate for ascending sort trick)
+        if "updated_at" in comp.columns:
+            comp["_ts_sort"] = pd.to_datetime(comp["updated_at"], errors="coerce")
+        else:
+            comp["_ts_sort"] = pd.NaT
+
+        _vendor_col = "vendor" if "vendor" in comp.columns else None
+
+        # Sort and deduplicate: highest EV first, then best price, then newest, then vendor
+        _sort_keys = ["_ev_preferred", "_best_price_dec", "_ts_sort"]
+        _ascending = [False, False, False]
+        if _vendor_col:
+            _sort_keys.append(_vendor_col)
+            _ascending.append(True)  # alphabetical vendor as final tie-breaker
+
+        comp = (
+            comp.sort_values(_sort_keys, ascending=_ascending, na_position="last")
+            .drop_duplicates(subset=_id_cols, keep="first")
+            .drop(columns=["_ev_preferred", "_best_price_dec", "_ts_sort"], errors="ignore")
+            .reset_index(drop=True)
+        )
+        typer.echo(
+            f"[multi-book-select] {len(comp)} canonical opportunities "
+            f"(max-EV selection across vendors per game_id/player_id/stat/line)"
+        )
+
     # Publishable edges: |edge| >= threshold; exclude sanity_flag=2 (already gone),
     # keep sanity_flag=1 (caution) but sort them to the bottom.
     # Primary sort: by model_edge (time-corrected signal, alias for time_decay_adjusted_edge);
@@ -823,9 +910,9 @@ def main(
         "quality_status_counts": _qs_counts,
         # Evidence-based sportsbook quote counts — read by generate_web_pages.py
         # via --market-audit-json and embedded in the Edge page payload.
-        "raw_quote_count": int(len(props_df)),
-        "fresh_quote_count": int(len(comp)),
-        "reconciled_quote_count": int(len(edges)),
+        "raw_quote_count": raw_quote_count,
+        "fresh_quote_count": fresh_quote_count,
+        "reconciled_quote_count": reconciled_quote_count,
         "rejection_counts": {},
         "market_request_status": "ok",
         "market_request_timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -927,6 +1014,9 @@ def _write_status(
     edge_threshold: float,
     error: str | None = None,
     props_source: str | None = None,
+    raw_quote_count: int | None = None,
+    fresh_quote_count: int | None = None,
+    reconciled_quote_count: int | None = None,
 ) -> None:
     """Write minimal status files (empty parquets + audit JSON) for non-SUCCESS exits."""
     empty = pd.DataFrame()
@@ -944,6 +1034,13 @@ def _write_status(
         "edge_threshold": edge_threshold,
         "total_market_rows": 0,
         "publishable_edge_rows": 0,
+        # Quote counts at the stage where failure occurred.
+        "raw_quote_count": raw_quote_count,
+        "fresh_quote_count": fresh_quote_count,
+        "reconciled_quote_count": reconciled_quote_count,
+        "rejection_counts": {},
+        "market_request_status": "ok",
+        "market_request_timestamp_utc": datetime.now(timezone.utc).isoformat(),
     }
     if error:
         audit["error"] = error

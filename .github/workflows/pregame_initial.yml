@@ -594,6 +594,8 @@ jobs:
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
+          # Req 4+5: Fail closed when slate has games, Odds API has zero rows, BDL has zero rows.
+          # Log provider evidence (HTTP status, row count) before any status conclusion.
           python3 - <<'PYEOF'
           import json, os, sys, time, pathlib
           import requests
@@ -765,7 +767,23 @@ jobs:
 
       - name: Build edge report (BLOCKING)
         run: |
-          python scripts/build_edge_report.py \
+          # Req 6: Follow the production calibration manifest to determine which
+          # calibration method is required. Never silently run uncalibrated.
+          CAL_MANIFEST="artifacts/models/calibration/artifact_manifest_calibrator.json"
+          REQUIRE_VA_FLAG=""
+          if [ -f "$CAL_MANIFEST" ]; then
+            VA_REQUIRED=$(python3 -c "import json,sys; m=json.load(open(sys.argv[1])); method=str(m.get('calibration_method','') or '').lower(); print('true' if 'venn' in method or m.get('require_venn_abers',False) else 'false')" "$CAL_MANIFEST" 2>/dev/null || echo "false")
+            if [ "$VA_REQUIRED" = "true" ]; then
+              REQUIRE_VA_FLAG="--require-venn-abers"
+              echo "[calibration] Manifest declares Venn-Abers required"
+            else
+              echo "[calibration] Manifest uses role-aware isotonic calibration"
+            fi
+          else
+            echo "[calibration] No manifest — using role-aware isotonic"
+          fi
+
+          python3 scripts/build_edge_report.py \
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
@@ -773,7 +791,7 @@ jobs:
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --edge-threshold 0.0 \
-            --require-venn-abers \
+            $REQUIRE_VA_FLAG \
             --source-policy odds_api_then_bdl
         continue-on-error: false
 
@@ -966,13 +984,14 @@ jobs:
           # Read market audit JSON to derive evidence-based market_status
           EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
 
-          python scripts/generate_web_pages.py \
+          python3 scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
             ${PROJ_FILE:+--projections "$PROJ_FILE"} \
             ${EDGE_FILE:+--edges "$EDGE_FILE"} \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
             --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges \
             --skip-live-html \
+            --json-only \
             --release-id "$GITHUB_RUN_ID" \
             --git-commit "$GIT_COMMIT" \
             --model-version "$MODEL_VER" \
@@ -1034,13 +1053,14 @@ jobs:
           GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
           MODEL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/stage4_baseline/model_manifest.json')); print(m.get('model_version','hgb_v2.3.1_idr_beta_conformal'))" 2>/dev/null || echo "hgb_v2.3.1_idr_beta_conformal")
           CAL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/calibration/calibration_metadata.json')); print(m.get('calibration_version','idr_v12_beta_v12_conformal_v12'))" 2>/dev/null || echo "idr_v12_beta_v12_conformal_v12")
-          python scripts/generate_distributions_page.py \
+          python3 scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
             --base-dir tools/odds-scanner/predictions/WNBA \
             --release-id "$GITHUB_RUN_ID" \
             --git-commit "$GIT_COMMIT" \
             --model-version "$MODEL_VER" \
-            --calibration-version "$CAL_VER"
+            --calibration-version "$CAL_VER" \
+            --json-only
           echo "Distributions page generated for ${GAME_DATE}"
         continue-on-error: false
 
@@ -1373,14 +1393,136 @@ jobs:
           destination_dir: .
           force_orphan: true
 
-      - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
+      - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP (BLOCKING)
         if: env.NO_DEPLOY != 'true'
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
-        run: python scripts/ftp_deploy.py --wipe
-        continue-on-error: true
+        run: python3 scripts/ftp_deploy.py --wipe
+        continue-on-error: false
+
+      - name: Post-deployment verification — custom domain (BLOCKING)
+        # Req 9: Verify the custom domain reflects the new release before declaring success.
+        # Fails the run when Edge rows = 0 and reconciled_quote_count > 0.
+        if: env.NO_DEPLOY != 'true'
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, time, urllib.request
+          from datetime import datetime, timezone
+
+          CDN = "https://sportsodds.wizardofodds.com"
+          BASE = f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game"
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          game_date = os.environ.get("GAME_DATE", "")
+
+          def fetch(path, retries=3):
+              url = f"{path}?t={int(time.time()*1000)}"
+              for attempt in range(retries):
+                  try:
+                      req = urllib.request.Request(
+                          url, headers={"Cache-Control":"no-store","User-Agent":"pregame-verify"}
+                      )
+                      with urllib.request.urlopen(req, timeout=20) as r:
+                          return json.loads(r.read()), None
+                  except Exception as exc:
+                      if attempt < retries - 1:
+                          time.sleep(5)
+                      else:
+                          return None, str(exc)
+              return None, "max_retries"
+
+          errors = []
+          def check(label, cond, actual=None):
+              if not cond:
+                  errors.append(f"{label}: got {actual!r}")
+
+          print(f"[post-deploy] Verifying {CDN} for game_date={game_date} run_id={run_id}")
+
+          # ── Edge page ─────────────────────────────────────────────────────
+          edge_ptr, err = fetch(f"{BASE}/Edge/latest.json")
+          if not edge_ptr:
+              errors.append(f"Edge/latest.json fetch failed: {err}")
+          else:
+              check("Edge/game_date", edge_ptr.get("game_date") == game_date, edge_ptr.get("game_date"))
+              check("Edge/release_id_not_stale", run_id in str(edge_ptr.get("release_id","")), edge_ptr.get("release_id","")[:30])
+              check("Edge/model_version_enhanced", "hgb" in str(edge_ptr.get("model_version","")), edge_ptr.get("model_version"))
+
+              edge_payload = None
+              if edge_ptr.get("payload_path"):
+                  edge_payload, err = fetch(f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/{edge_ptr['payload_path']}")
+              if edge_payload:
+                  rqc = int(edge_payload.get("reconciled_quote_count", 0) or 0)
+                  edge_rows = int(edge_payload.get("total_props", 0) or 0)
+                  ms = edge_payload.get("market_status","")
+                  check("Edge/market_status", ms in ("SUCCESS_WITH_MARKETS","LIVE_MARKETS_NOT_YET_AVAILABLE"), ms)
+                  if ms == "SUCCESS_WITH_MARKETS":
+                      check("Edge/raw_quote_count>0",          int(edge_payload.get("raw_quote_count", 0) or 0) > 0)
+                      check("Edge/fresh_quote_count>0",        int(edge_payload.get("fresh_quote_count", 0) or 0) > 0)
+                      check("Edge/reconciled_quote_count>0",   rqc > 0)
+                      # Edge rows > 0 required when reconciled_quote_count > 0
+                      if rqc > 0:
+                          check("Edge/row_count>0_when_markets_exist", edge_rows > 0, edge_rows)
+
+                  props = edge_payload.get("props", [])
+                  identity_keys = [(r.get("player"), r.get("stat"), r.get("market_line"), r.get("game_id")) for r in props]
+                  dupes = len(identity_keys) - len(set(identity_keys))
+                  check("Edge/duplicate_identities=0", dupes == 0, dupes)
+                  if props and ms == "SUCCESS_WITH_MARKETS":
+                      p0 = props[0]
+                      check("Edge/vendor_present", bool(p0.get("best_bookmaker") or p0.get("vendor")))
+                      check("Edge/line_present",   p0.get("market_line") is not None)
+              else:
+                  errors.append(f"Edge payload fetch failed: {err}")
+
+          # ── Distributions page ────────────────────────────────────────────
+          dist_ptr, err = fetch(f"{BASE}/Distributions/latest.json")
+          if not dist_ptr:
+              errors.append(f"Distributions/latest.json fetch failed: {err}")
+          else:
+              check("Dist/game_date", dist_ptr.get("game_date") == game_date, dist_ptr.get("game_date"))
+              check("Dist/release_id_not_stale", run_id in str(dist_ptr.get("release_id","")), dist_ptr.get("release_id","")[:30])
+              check("Dist/row_count>0", (dist_ptr.get("row_count") or dist_ptr.get("total_props") or 0) > 0)
+              check("Dist/model_version_enhanced", "hgb" in str(dist_ptr.get("model_version","")), dist_ptr.get("model_version"))
+
+              dist_payload = None
+              if dist_ptr.get("payload_path"):
+                  dist_payload, err = fetch(f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/{dist_ptr['payload_path']}")
+              if dist_payload:
+                  dist_props = dist_payload.get("props", [])
+                  check("Dist/total_props>0", len(dist_props) > 0, len(dist_props))
+                  invalid_pmfs = 0
+                  for rr in dist_props[:50]:  # sample check
+                      pmf = rr.get("pmf_full") or rr.get("pmf", [])
+                      if isinstance(pmf, list) and pmf:
+                          s = sum(v[1] if isinstance(v,(list,tuple)) else float(v) for v in pmf)
+                          if abs(s-1.0) > 1e-3:
+                              invalid_pmfs += 1
+                  check("Dist/valid_pmfs_sampled", invalid_pmfs == 0, invalid_pmfs)
+
+          # ── Cross-page release_id match ───────────────────────────────────
+          if edge_ptr and dist_ptr:
+              check("Cross/release_ids_match",
+                    edge_ptr.get("release_id") == dist_ptr.get("release_id"),
+                    f"{edge_ptr.get('release_id','?')[:20]}=={dist_ptr.get('release_id','?')[:20]}")
+              check("Cross/calibration_versions_match",
+                    edge_ptr.get("calibration_version") == dist_ptr.get("calibration_version"))
+
+          if errors:
+              print(f"[post-deploy] VERIFICATION FAILED ({len(errors)} error(s)):", file=sys.stderr)
+              for e in errors:
+                  print(f"  ✗ {e}", file=sys.stderr)
+              sys.exit(1)
+          else:
+              print(f"[post-deploy] VERIFICATION PASSED — custom domain reflects new release")
+              if edge_payload:
+                  print(f"  Edge: {edge_payload.get('total_props')} props  status={edge_payload.get('market_status')}")
+              if dist_ptr:
+                  print(f"  Distributions: {dist_ptr.get('row_count')} props")
+          PYEOF
+        continue-on-error: false
 
       - name: Upload deliveries artifact
         uses: actions/upload-artifact@v4

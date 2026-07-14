@@ -1893,22 +1893,17 @@ def main(
     except Exception as _id_exc:
         typer.echo(f"  [WARN] Identity resolution failed (non-fatal): {_id_exc}", err=True)
 
-    # Deduplicate edges on (player_id, stat, line): multiple bookmakers offering the
-    # same line produce one row per vendor. Keep the row with the largest |edge| so
-    # the best bookmaker signal is preserved. This must run AFTER identity resolution.
-    if not edges_df.empty and all(c in edges_df.columns for c in ("player_id", "stat", "line")):
-        sort_col = "edge_over" if "edge_over" in edges_df.columns else None
-        if sort_col:
-            edges_df = (
-                edges_df
-                .assign(_abs_edge=edges_df[sort_col].abs())
-                .sort_values("_abs_edge", ascending=False)
-                .drop_duplicates(subset=["player_id", "stat", "line"])
-                .drop(columns=["_abs_edge"])
-                .reset_index(drop=True)
-            )
-        else:
-            edges_df = edges_df.drop_duplicates(subset=["player_id", "stat", "line"]).reset_index(drop=True)
+    # Edges arrive pre-deduplicated from build_edge_report.py (one canonical
+    # executable opportunity per game_id/player_id/stat/line, selected by max EV).
+    # Safety guard: if any cross-vendor duplicates slipped through, drop them here
+    # using the full identity key to preserve game context.
+    if not edges_df.empty:
+        _id_keys = [c for c in ("game_id", "player_id", "stat", "line") if c in edges_df.columns]
+        if len(_id_keys) >= 3:
+            pre_n = len(edges_df)
+            edges_df = edges_df.drop_duplicates(subset=_id_keys).reset_index(drop=True)
+            if len(edges_df) < pre_n:
+                typer.echo(f"  [dedup-guard] Dropped {pre_n - len(edges_df)} residual edge duplicates")
 
     # --- Read market audit JSON for evidence-based market status ---
     _raw_quote_count: int | None = None
