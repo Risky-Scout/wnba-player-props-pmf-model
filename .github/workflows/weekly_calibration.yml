@@ -802,7 +802,7 @@ jobs:
           sys.path.insert(0, "src")
           from wnba_props_model.pipeline.market_integrity import canonical_feature_contract_hash  # noqa
           feature_manifest_hash = canonical_feature_contract_hash(feat_manifest_json)
-          feature_hash_kind     = "canonical_feature_contract_v1"
+          feature_hash_kind     = "canonical_feature_contract_v2"
 
           # Config hash — FATAL if no calibration config found
           config_path = Path("config/model/stage6_calibration.yaml")

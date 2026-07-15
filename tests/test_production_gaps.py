@@ -165,7 +165,7 @@ class TestArtifactManifestValidation:
     def test_feature_manifest_hash_mismatch_is_fatal(self):
         """A canonical feature_manifest_hash mismatch must raise ArtifactManifestError.
 
-        New-style manifests (feature_hash_kind=canonical_feature_contract_v1) compare
+        New-style manifests (feature_hash_kind=canonical_feature_contract_v2) compare
         canonical_feature_hash; a mismatch is fatal.
         Legacy manifests (no feature_hash_kind) skip raw-hash comparison — the legacy
         path accepts nonblank raw hashes to allow builds from different timestamps/paths
@@ -177,7 +177,7 @@ class TestArtifactManifestValidation:
         )
         # Use a new-style manifest so canonical hash comparison is active
         manifest = self._good_model_manifest()
-        manifest["feature_hash_kind"] = "canonical_feature_contract_v1"
+        manifest["feature_hash_kind"] = "canonical_feature_contract_v2"
         manifest["feature_manifest_hash"] = "correcthash123456"
         with pytest.raises(ArtifactManifestError, match="feature_manifest_hash"):
             validate_artifact_manifest(
