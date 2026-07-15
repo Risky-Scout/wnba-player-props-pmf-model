@@ -1416,54 +1416,71 @@ jobs:
           SUPPORTED_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
                              "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"]
 
-          # ── Expected PMF manifest — from final Ticket 1 availability output (Fix 3) ─
-          # Use availability_table_{date}.parquet produced by apply_injury_updates.py.
-          # Include ALL non-confirmed-inactive players — PMFs are generated for every
-          # available player (for the Distributions page), not just market-actionable ones.
-          # is_market_actionable filters the EDGE manifest only, not the PMF manifest.
-          # Do NOT use original slate["status"] as the final injury truth.
+          # ── Expected PMF manifest — from authoritative current-run slate ────────────
+          # Source: deliveries/tonight/slate_{date}.parquet (all players the predictor
+          # was asked to score). Apply_injury_updates writes this file after rebuilding
+          # PMFs; it contains ALL slate players, not just injury-processed ones.
+          #
+          # Inactivity exclusion: use availability_table only as an EXPLICIT status
+          # lookup. Absence from the availability_table does NOT mean inactive.
+          # is_market_actionable=False does NOT mean inactive.
+          # Inactivity is only inferred when is_confirmed_inactive==True is explicitly set.
+          #
+          # Edge eligibility uses is_market_actionable — a separate, narrower filter.
           slate_path = out_dir / f"slate_{game_date}.parquet"
           avail_path = out_dir / f"availability_table_{game_date}.parquet"
           scheduled_games_exist = slate_path.exists()
 
-          if avail_path.exists():
-              avail = pd.read_parquet(avail_path)
-              # Exclude only confirmed-inactive players (pmf_json set to {0:1.0}).
-              # All other players (available, questionable, market-not-actionable) receive
-              # full PMF distributions and must appear in the PMF manifest.
-              if "is_confirmed_inactive" in avail.columns:
-                  eligible = avail[avail["is_confirmed_inactive"] != True].copy()
-              elif "availability_status" in avail.columns:
-                  eligible = avail[~avail["availability_status"].str.lower().isin(
-                      ["inactive", "out", "dnp"]
-                  )].copy()
-              else:
-                  eligible = avail.copy()
-              n_market_actionable = (
-                  int(avail["is_market_actionable"].sum())
-                  if "is_market_actionable" in avail.columns else len(eligible)
-              )
-              key_cols = [c for c in ["game_id", "player_id"] if c in eligible.columns]
-              if key_cols and len(eligible) > 0:
+          if slate_path.exists():
+              slate_df = pd.read_parquet(slate_path)
+              slate_key_cols = [c for c in ["game_id", "player_id"] if c in slate_df.columns]
+              if not slate_key_cols:
+                  print(f"[FATAL] slate_{game_date}.parquet missing game_id/player_id columns",
+                        file=sys.stderr)
+                  sys.exit(1)
+
+              full_slate = slate_df[slate_key_cols].drop_duplicates().reset_index(drop=True)
+              full_slate_count = len(full_slate)
+              print(f"Full slate: {full_slate_count} players (game_id/player_id pairs)")
+
+              # Build confirmed-inactive lookup from availability_table (optional source).
+              # A player not in the availability_table is NOT considered inactive.
+              confirmed_inactive_pids: set = set()
+              if avail_path.exists():
+                  avail = pd.read_parquet(avail_path)
+                  if "is_confirmed_inactive" in avail.columns and "player_id" in avail.columns:
+                      confirmed_inactive_pids = set(
+                          avail.loc[avail["is_confirmed_inactive"] == True, "player_id"]
+                          .dropna().astype(int).tolist()
+                      )
+              n_inactive = len(confirmed_inactive_pids)
+              print(f"Confirmed inactive players: {n_inactive} (excluded from PMF manifest)")
+              if confirmed_inactive_pids:
+                  print(f"  inactive player_ids: {sorted(confirmed_inactive_pids)[:10]}")
+
+              # Build expected PMF identities: all slate players minus confirmed inactive
+              eligible_slate = full_slate[
+                  ~full_slate["player_id"].astype(int).isin(confirmed_inactive_pids)
+              ]
+              n_market_actionable = 0
+              if avail_path.exists() and "is_market_actionable" in avail.columns and "player_id" in avail.columns:
+                  n_market_actionable = int(avail["is_market_actionable"].sum())
+
+              if len(eligible_slate) > 0:
                   rows = []
-                  for _, row in eligible[key_cols].drop_duplicates().iterrows():
+                  for _, row in eligible_slate[slate_key_cols].iterrows():
                       for stat in SUPPORTED_STATS:
                           rows.append({**row.to_dict(), "stat": stat})
                   expected_pmf = pd.DataFrame(rows)
-                  print(f"Expected PMF manifest (from availability_table): {len(expected_pmf)} rows "
-                        f"({len(eligible)} non-inactive players × {len(SUPPORTED_STATS)} stats, "
+                  print(f"Expected PMF manifest: {len(expected_pmf)} rows "
+                        f"({len(eligible_slate)} eligible players × {len(SUPPORTED_STATS)} stats, "
                         f"{n_market_actionable} market-actionable)")
               else:
                   expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-                  print("[WARN] Availability table has no eligible players or missing key columns")
-          elif scheduled_games_exist:
-              print(f"[FATAL] availability_table_{game_date}.parquet not found but slate exists. "
-                    "apply_injury_updates must produce availability_table before PMF validation.",
-                    file=sys.stderr)
-              sys.exit(1)
+                  print("[WARN] No eligible slate players after inactivity exclusion")
           else:
               expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-              print(f"[INFO] No availability table or slate — no games scheduled for {game_date}")
+              print(f"[INFO] No slate found at {slate_path} — no games scheduled for {game_date}")
 
           # ── Actual PMF manifest — from full_pmfs_wide.parquet ─────────────────────
           pmf_path = out_dir / "full_pmfs_wide.parquet"
