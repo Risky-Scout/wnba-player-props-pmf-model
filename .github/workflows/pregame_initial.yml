@@ -63,17 +63,12 @@ jobs:
         #   Daily trigger ("Daily WNBA PMF Pipeline"):
         #     calibrators = artifact-level resolver (see scheduled/manual path below)
         #   Scheduled/manual:
-        #     Query ALL unexpired calibrators-latest artifacts newest-first.
-        #     For each candidate:
-        #       1. Fetch its producer run ID and head SHA from artifact metadata.
-        #       2. Download to a temp dir.
-        #       3. Require artifact_manifest_calibrator.json with:
-        #            artifact_type = calibrator, gate_status = PASS,
-        #            source_run_id == producer run ID, source_commit == producer head SHA,
-        #            calibration_cutoff nonblank, feature_manifest_hash nonblank, config_hash nonblank.
-        #       4. If all checks pass, select this artifact; break.
-        #       5. Otherwise record the exact rejection reason and continue.
-        #     If no candidate passes, fail listing every rejected artifact and its reason.
+        #     Artifact-level resolver (scripts/resolve_calibrator_artifact.py):
+        #     Queries unexpired "calibrators" artifacts uploaded by weekly_calibration.yml
+        #     (see resolve_calibrator_artifact.py for the full manifest-validation logic).
+        #     Selection is by manifest validity, NOT by overall workflow conclusion —
+        #     a weekly_calibration.yml run that passes its cal-gate but fails in an
+        #     unrelated downstream step still produced a valid calibrator artifact.
         # Gap 2: The downloaded calibration artifact is the sole authoritative source.
         #        Do NOT overwrite any downloaded calibration files with git-committed versions.
         run: |
@@ -98,9 +93,9 @@ jobs:
           else
             # Daily trigger, scheduled/manual, and all other triggers:
             # Artifact-level resolver — select by manifest validity, NOT by overall workflow conclusion.
-            # A weekly_calibration run that succeeds through the cal-gate but fails in an unrelated
-            # downstream step (e.g. auto-trigger) will have uploaded calibrators-latest before failing.
-            # ?status=success would wrongly skip it.  Query by artifact name instead.
+            # A weekly_calibration.yml run that succeeds through the cal-gate but fails in an
+            # unrelated downstream step will have uploaded its artifact before failing.
+            # ?status=success would wrongly skip it — use the artifact-level resolver instead.
             echo "Artifact-level calibrator resolver (trigger=${{ github.event_name }})"
             python3 scripts/resolve_calibrator_artifact.py \
               --repo "${{ github.repository }}" \
