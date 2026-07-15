@@ -179,86 +179,83 @@ def main(
     pmfs_before = pd.read_parquet(slate_path)
     typer.echo(f"[apply_injury] Loaded {len(pmfs_before):,} PMF rows")
 
-    # ── Derive allowed player-game identities from the input PMF slate ────────
-    # The current-run slate is the authoritative universe. The broad processed
-    # feature table may contain players from other dates or games — constrain
-    # feature_df to exactly the players present in pmfs_before.
+    # ── Derive current-run PMF player-game identities ─────────────────────────
     _pmf_id_cols = [c for c in ("game_id", "player_id") if c in pmfs_before.columns]
     if not _pmf_id_cols:
         typer.echo("[FATAL] pmfs_before missing game_id/player_id columns", err=True)
         raise typer.Exit(1)
-    allowed_pairs = (
+    pmf_pairs = (
         pmfs_before[_pmf_id_cols]
         .drop_duplicates()
         .dropna()
         .reset_index(drop=True)
     )
-    if allowed_pairs.empty:
+    if pmf_pairs.empty:
         typer.echo("[FATAL] pmfs_before has no valid (game_id, player_id) identities", err=True)
         raise typer.Exit(1)
-    typer.echo(
-        f"[apply_injury] Allowed slate: {len(allowed_pairs)} unique player-game identities"
-    )
+    typer.echo(f"[apply_injury] PMF slate: {len(pmf_pairs)} unique player-game identities")
 
-    typer.echo(f"[apply_injury] Loading feature matrix: {features_path}")
+    typer.echo(f"[apply_injury] Loading current-run feature slate: {features_path}")
     feature_df = pd.read_parquet(features_path)
     typer.echo(f"[apply_injury] Loaded {len(feature_df):,} feature rows")
 
-    # Filter feature_df to upcoming game date only
-    if "game_date" in feature_df.columns:
-        feature_df = feature_df[
-            pd.to_datetime(feature_df["game_date"]).dt.strftime("%Y-%m-%d") == game_date
-        ].copy()
+    # The features file is the same current-run slate used to generate pmfs_before.
+    # Its (game_id, player_id) identities must exactly match pmfs_before — no more,
+    # no fewer. The historical wide feature matrix must NOT be passed here.
+    _feat_id_cols = [c for c in _pmf_id_cols if c in feature_df.columns]
+    if not _feat_id_cols:
         typer.echo(
-            f"[apply_injury] Feature rows for {game_date}: {len(feature_df):,}"
+            f"[FATAL] Current-run feature slate missing {_pmf_id_cols} columns. "
+            "Pass deliveries/tonight/slate_DATE.parquet, not the historical feature matrix.",
+            err=True,
         )
+        raise typer.Exit(1)
+
+    feat_pairs = (
+        feature_df[_feat_id_cols]
+        .drop_duplicates()
+        .dropna()
+        .reset_index(drop=True)
+    )
+
+    # ── Strict equality: PMF and feature (game_id, player_id) must match exactly ─
+    _merge = pmf_pairs.merge(feat_pairs, on=_feat_id_cols, how="outer", indicator=True)
+    _missing_feat = _merge[_merge["_merge"] == "left_only"].drop(columns=["_merge"])
+    _extra_feat   = _merge[_merge["_merge"] == "right_only"].drop(columns=["_merge"])
+    _dup_feat     = feat_pairs[feat_pairs.duplicated(subset=_feat_id_cols, keep=False)]
+
+    errors: list[str] = []
+    if not _missing_feat.empty:
+        errors.append(
+            f"{len(_missing_feat)} PMF player-game identities have no matching feature row. "
+            f"First missing: {_missing_feat.head(5).to_dict('records')}"
+        )
+    if not _extra_feat.empty:
+        errors.append(
+            f"{len(_extra_feat)} feature rows are not in the PMF slate (off-slate). "
+            f"First unexpected: {_extra_feat.head(5).to_dict('records')}"
+        )
+    if not _dup_feat.empty:
+        errors.append(
+            f"{len(_dup_feat)} duplicate (game_id, player_id) rows in feature slate. "
+            f"Sample: {_dup_feat.drop_duplicates().head(3).to_dict('records')}"
+        )
+    if errors:
+        for e in errors:
+            typer.echo(f"[FATAL] Identity mismatch: {e}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(
+        f"[apply_injury] Identity check PASS: {len(pmf_pairs)} PMF identities == "
+        f"{len(feat_pairs)} feature identities"
+    )
 
     if feature_df.empty:
         typer.echo(
-            f"[WARN] No feature rows found for game_date={game_date}. "
-            "No games scheduled — slate unchanged.",
+            f"[WARN] No feature rows found. No games scheduled — slate unchanged.",
             err=True,
         )
         raise typer.Exit(0)
-
-    # ── Restrict feature_df to allowed (game_id, player_id) identities ────────
-    # Inner-join to the PMF slate universe. Players present in the broad
-    # feature table but absent from the current-run slate are excluded.
-    _feat_id_cols = [c for c in _pmf_id_cols if c in feature_df.columns]
-    if _feat_id_cols:
-        n_before_restrict = len(feature_df)
-        feature_df = feature_df.merge(
-            allowed_pairs, on=_feat_id_cols, how="inner"
-        )
-        n_excluded = n_before_restrict - len(feature_df)
-        if n_excluded > 0:
-            typer.echo(
-                f"[apply_injury] Excluded {n_excluded} off-slate feature rows "
-                f"(players not in current-run PMF slate)"
-            )
-        typer.echo(
-            f"[apply_injury] Feature rows after slate restriction: {len(feature_df):,}"
-        )
-
-        # Verify every allowed player-game has at least one feature row
-        _feat_pairs = (
-            feature_df[_feat_id_cols].drop_duplicates().dropna()
-            if _feat_id_cols else pd.DataFrame()
-        )
-        _missing_feat = allowed_pairs.merge(
-            _feat_pairs, on=_feat_id_cols, how="left", indicator=True
-        )
-        _missing_feat = _missing_feat[_missing_feat["_merge"] == "left_only"].drop(
-            columns=["_merge"]
-        )
-        if not _missing_feat.empty:
-            typer.echo(
-                f"[FATAL] {len(_missing_feat)} slate player-game identities have no "
-                f"feature rows for {game_date}. First missing: "
-                f"{_missing_feat.head(5).to_dict('records')}",
-                err=True,
-            )
-            raise typer.Exit(1)
 
     # ── Load or fetch injuries ─────────────────────────────────────────────
     # Track the pulled_at_utc for prediction timestamp default
@@ -405,18 +402,17 @@ def main(
     )
     affected_player_ids |= inactive_pids
 
-    # ── Constrain affected_player_ids to the original PMF slate ──────────────
-    # Do not rebuild any player who was not in pmfs_before — the broad feature
-    # table must not expand the current-run slate.
-    allowed_player_ids: set[int] = set(
-        allowed_pairs["player_id"].dropna().astype(int).unique()
-        if "player_id" in allowed_pairs.columns else []
+    # ── Constrain affected_player_ids to the current-run slate ──────────────
+    # pmf_pairs is already the exact set of players in the current-run PMF slate.
+    slate_player_ids: set[int] = set(
+        pmf_pairs["player_id"].dropna().astype(int).unique()
+        if "player_id" in pmf_pairs.columns else []
     )
-    off_slate_ids = affected_player_ids - allowed_player_ids
+    off_slate_ids = affected_player_ids - slate_player_ids
     if off_slate_ids:
         typer.echo(
             f"[apply_injury] Skipping {len(off_slate_ids)} off-slate player IDs "
-            f"(not in original PMF slate): {sorted(off_slate_ids)[:10]}"
+            f"(not in current-run PMF slate): {sorted(off_slate_ids)[:10]}"
         )
         affected_player_ids -= off_slate_ids
 
