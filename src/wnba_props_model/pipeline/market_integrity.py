@@ -244,7 +244,13 @@ def compute_model_edge(
 # Market quote validation
 # ---------------------------------------------------------------------------
 
+# Preferred dedup key in priority order. Validation uses the longest prefix
+# of available columns. Requires at least one player-identity column (player_id
+# or player_name) to be meaningful — without player identity, (vendor,stat,line)
+# is too coarse and will falsely flag legitimate multi-player market data.
 _QUOTE_DEDUP_KEYS = ["vendor", "game_id", "player_id", "stat", "line"]
+_QUOTE_DEDUP_KEYS_ODDSAPI = ["vendor", "event_id", "player_name", "stat", "line"]
+_QUOTE_PLAYER_IDENTITY_COLS = frozenset({"player_id", "player_name"})
 
 
 def validate_no_duplicate_quotes(
@@ -253,14 +259,38 @@ def validate_no_duplicate_quotes(
 ) -> None:
     """Raise DuplicateQuoteError if any key combination appears more than once.
 
-    Default key: (vendor, game_id, player_id, stat, line).
+    For BDL props: key = (vendor, game_id, player_id, stat, line).
+    For Odds API props: key = (vendor, event_id, player_name, stat, line).
+    Validation is skipped when no player-identity column (player_id or player_name)
+    is present — a key of (vendor, stat, line) alone is too coarse for multi-player
+    slates and produces false positives.
     """
     if quotes_df.empty:
         return
-    keys = key_cols or _QUOTE_DEDUP_KEYS
-    present_keys = [k for k in keys if k in quotes_df.columns]
+    # Select the best available dedup key.
+    # Try primary BDL key first, then Odds API key.
+    if key_cols:
+        present_keys = [k for k in key_cols if k in quotes_df.columns]
+    else:
+        # Select the first candidate key that includes a player-identity column.
+        # The Odds API parquet has (vendor, stat, line) but NOT player_id/game_id —
+        # that 3-column key is too coarse and falsely flags multi-player props.
+        # We must try the Odds API secondary key (event_id, player_name) when
+        # the primary BDL key lacks player identity.
+        present_keys = []
+        for candidate_keys in (_QUOTE_DEDUP_KEYS, _QUOTE_DEDUP_KEYS_ODDSAPI):
+            candidate_present = [k for k in candidate_keys if k in quotes_df.columns]
+            if candidate_present and _QUOTE_PLAYER_IDENTITY_COLS.intersection(candidate_present):
+                present_keys = candidate_present
+                break
+
     if not present_keys:
         return
+
+    # Final guard: skip when no player-identity column is present.
+    if not _QUOTE_PLAYER_IDENTITY_COLS.intersection(present_keys):
+        return
+
     dupes = quotes_df[quotes_df.duplicated(subset=present_keys, keep=False)]
     if not dupes.empty:
         sample = dupes[present_keys].drop_duplicates().head(5).to_dict("records")
