@@ -318,7 +318,7 @@ jobs:
                              if cal_config_path.exists() else None)
 
           # Determine which hash argument to pass
-          if cal_hash_kind == "canonical_feature_contract_v1":
+          if cal_hash_kind == "canonical_feature_contract_v2":
               _cal_fmh_arg  = None
               _cal_can_arg  = current_canonical_hash
           else:
@@ -348,7 +348,7 @@ jobs:
               sys.exit(1)
 
           # Legacy calibrator compatibility: verify required .pkl files and stat coverage
-          if cal_hash_kind != "canonical_feature_contract_v1":
+          if cal_hash_kind != "canonical_feature_contract_v2":
               cal_dir = Path("artifacts/models/calibration")
               required_pkls = [f for f in cal_dir.glob("pmf_cal_role_*.pkl")]
               if not required_pkls:
@@ -383,7 +383,7 @@ jobs:
           model_config_hash = (hashlib.sha256(model_config_path.read_bytes()).hexdigest()[:16]
                                if model_config_path.exists() else None)
 
-          if model_hash_kind == "canonical_feature_contract_v1":
+          if model_hash_kind == "canonical_feature_contract_v2":
               _mod_fmh_arg  = None
               _mod_can_arg  = current_canonical_hash
           else:
@@ -410,7 +410,7 @@ jobs:
               sys.exit(1)
 
           # Legacy model compatibility: verify feature list exactly matches
-          if model_hash_kind != "canonical_feature_contract_v1":
+          if model_hash_kind != "canonical_feature_contract_v2":
               import pickle as _pickle  # noqa: PLC0415
               model_dir = Path("artifacts/models/stage4_baseline")
               # Try to recover persisted feature list from model pkl or metadata

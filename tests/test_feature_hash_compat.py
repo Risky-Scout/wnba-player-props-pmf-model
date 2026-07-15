@@ -59,7 +59,7 @@ def _valid_artifact_manifest(artifact_type: str = "calibrator", **overrides) -> 
         "source_commit": "deadbeef1234567890",
         "created_at_utc": "2026-07-13T10:00:00Z",
         "feature_manifest_hash": "abcd1234abcd1234",
-        "feature_hash_kind": "canonical_feature_contract_v1",
+        "feature_hash_kind": "canonical_feature_contract_v2",
         "config_hash": "efgh5678efgh5678",
         "gate_status": "PASS",
     }
@@ -110,29 +110,48 @@ def test_canonical_hash_is_16_hex_chars():
 
 # ─── 2. Model feature changes alter the canonical hash ───────────────────────
 
-def test_adding_feature_changes_hash():
-    m1 = _base_manifest()
-    m2 = _base_manifest(model_feature_columns=[
-        "player_pts_mean_l5", "player_pts_mean_season", "opp_pts_allowed", "new_feature"
-    ])
+def test_adding_stat_modeled_changes_hash():
+    """Changing stats_modeled (a stable code constant) changes the canonical hash."""
+    m1 = _base_manifest(stats_modeled=["pts", "reb", "ast"])
+    m2 = _base_manifest(stats_modeled=["pts", "reb", "ast", "fg3m"])
     assert canonical_feature_contract_hash(m1) != canonical_feature_contract_hash(m2)
 
 
-def test_removing_feature_changes_hash():
-    m1 = _base_manifest()
-    m2 = _base_manifest(model_feature_columns=["player_pts_mean_l5", "player_pts_mean_season"])
+def test_changing_roll_windows_changes_hash():
+    """Changing roll_windows changes the canonical hash."""
+    m1 = _base_manifest(roll_windows=[5, 10, 20])
+    m2 = _base_manifest(roll_windows=[5, 10])
     assert canonical_feature_contract_hash(m1) != canonical_feature_contract_hash(m2)
 
 
-def test_reordering_model_features_changes_hash():
-    """model_feature_columns order is preserved (estimator requires it), so reordering changes hash."""
+def test_model_feature_columns_do_not_affect_canonical_hash():
+    """model_feature_columns is data-dependent (variance gate) — excluded from canonical hash.
+
+    Two manifests with identical stable code constants but different model_feature_columns
+    (e.g. daily_pipeline 5yr data vs pregame 1yr data) must produce the same canonical hash.
+    """
     m1 = _base_manifest(model_feature_columns=["A", "B", "C"])
-    m2 = _base_manifest(model_feature_columns=["C", "B", "A"])
-    assert canonical_feature_contract_hash(m1) != canonical_feature_contract_hash(m2)
+    m2 = _base_manifest(model_feature_columns=["A", "B", "C", "D_only_in_5yr_data"])
+    assert canonical_feature_contract_hash(m1) == canonical_feature_contract_hash(m2)
 
 
-def test_other_list_fields_are_order_independent():
-    """Non-feature list fields are sorted, so reordering them must NOT change hash."""
+def test_numeric_categorical_role_bucket_do_not_affect_canonical_hash():
+    """Data-derived sub-lists are excluded from canonical hash."""
+    m1 = _base_manifest(
+        numeric_feature_columns=["A", "B"],
+        categorical_feature_columns=[],
+        role_bucket_columns=["role_bucket"],
+    )
+    m2 = _base_manifest(
+        numeric_feature_columns=["A"],
+        categorical_feature_columns=["B"],
+        role_bucket_columns=[],
+    )
+    assert canonical_feature_contract_hash(m1) == canonical_feature_contract_hash(m2)
+
+
+def test_all_canonical_list_fields_are_order_independent():
+    """All canonical fields are sorted — reordering them must NOT change hash."""
     m1 = _base_manifest(identity_columns=["player_id", "game_id", "game_date"])
     m2 = _base_manifest(identity_columns=["game_date", "game_id", "player_id"])
     assert canonical_feature_contract_hash(m1) == canonical_feature_contract_hash(m2)
@@ -272,6 +291,27 @@ def test_wrong_artifact_type_is_fatal():
 
 
 # ─── 6. The exact run 29390378813 scenario is now unblocked ──────────────────
+
+def test_v1_canonical_manifest_treated_as_legacy():
+    """A manifest with feature_hash_kind=canonical_feature_contract_v1 (old data-dependent
+    algorithm) must be treated as legacy — hash comparison skipped — so the already-produced
+    model artifact from run 29412314523 does not require retraining."""
+    m = _valid_artifact_manifest("model")
+    m["feature_hash_kind"] = "canonical_feature_contract_v1"   # old kind
+    m["feature_manifest_hash"] = "29c303bc3259fffe"             # hash stored in artifact
+    m["model_training_cutoff"] = "2026-07-14T00:00:00Z"
+
+    # Completely different canonical hash — must NOT fail because v1 → legacy path
+    validate_artifact_manifest(
+        m,
+        expected_artifact_type="model",
+        prediction_timestamp_utc="2026-07-15T12:00:00Z",
+        source_run_id="12345",
+        source_commit="deadbeef1234567890",
+        canonical_feature_hash="4153be6f44e7ed7b",   # pregame-computed, different
+        config_hash="efgh5678efgh5678",
+    )
+
 
 def test_run_29390378813_calibrator_manifest_now_validates():
     """The calibrator manifest from run 29383727727 has feature_hash_kind absent (legacy).

@@ -860,23 +860,31 @@ _SUPPORTED_SCHEMA_VERSIONS = frozenset({"1"})
 # ── Canonical feature-contract hash ──────────────────────────────────────────
 # Fields that define the feature *contract* (stable across feature builds with
 # the same schema, even when created_at_utc, git_commit, or paths differ).
-_CANONICAL_FEATURE_HASH_KIND = "canonical_feature_contract_v1"
+_CANONICAL_FEATURE_HASH_KIND = "canonical_feature_contract_v2"  # stable code-constants only
+# v1 (data-dependent, included model_feature_columns) is treated as legacy — skip comparison.
 _CANONICAL_FEATURE_CONTRACT_FIELDS: tuple[str, ...] = (
+    # Stateless code constants — identical across any build with the same codebase.
     "row_grain_wide",
     "row_grain_long",
     "identity_columns",
     "target_columns",
-    "model_feature_columns",
-    "numeric_feature_columns",
-    "categorical_feature_columns",
-    "role_bucket_columns",
     "forbidden_columns",
     "temporal_policy",
     "stats_modeled",
     "roll_windows",
 )
-# Explicitly excluded (volatile): created_at_utc, git_commit_if_available,
-# wide_table_path, long_table_path, source_tables, row counts, timestamps.
+# Explicitly excluded from canonical hash:
+#   Volatile (change across builds even with identical code):
+#     created_at_utc, git_commit_if_available, wide_table_path, long_table_path,
+#     source_tables, row counts, timestamps.
+#   Data-dependent (change when input data size or composition changes):
+#     model_feature_columns   — filtered by variance gate on the current data pull
+#     numeric_feature_columns — derived from model_feature_columns + current dtypes
+#     categorical_feature_columns — same
+#     role_bucket_columns     — filtered by column existence in current data
+#
+# Model feature compatibility is validated separately via the fitted model's
+# feature_names_in_ attribute (which is always authoritative).
 
 
 def canonical_feature_contract_hash(manifest: dict) -> str:
@@ -902,9 +910,7 @@ def canonical_feature_contract_hash(manifest: dict) -> str:
     """
     def _normalise(key: str, value: object) -> object:
         if isinstance(value, list):
-            # Preserve model_feature_columns order (estimator requires it).
-            # Sort all other list fields for deterministic stability.
-            return value if key == "model_feature_columns" else sorted(value)
+            return sorted(value)  # all canonical fields are order-independent constants
         return value
 
     payload: dict = {
