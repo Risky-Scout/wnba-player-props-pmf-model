@@ -179,6 +179,27 @@ def main(
     pmfs_before = pd.read_parquet(slate_path)
     typer.echo(f"[apply_injury] Loaded {len(pmfs_before):,} PMF rows")
 
+    # ── Derive allowed player-game identities from the input PMF slate ────────
+    # The current-run slate is the authoritative universe. The broad processed
+    # feature table may contain players from other dates or games — constrain
+    # feature_df to exactly the players present in pmfs_before.
+    _pmf_id_cols = [c for c in ("game_id", "player_id") if c in pmfs_before.columns]
+    if not _pmf_id_cols:
+        typer.echo("[FATAL] pmfs_before missing game_id/player_id columns", err=True)
+        raise typer.Exit(1)
+    allowed_pairs = (
+        pmfs_before[_pmf_id_cols]
+        .drop_duplicates()
+        .dropna()
+        .reset_index(drop=True)
+    )
+    if allowed_pairs.empty:
+        typer.echo("[FATAL] pmfs_before has no valid (game_id, player_id) identities", err=True)
+        raise typer.Exit(1)
+    typer.echo(
+        f"[apply_injury] Allowed slate: {len(allowed_pairs)} unique player-game identities"
+    )
+
     typer.echo(f"[apply_injury] Loading feature matrix: {features_path}")
     feature_df = pd.read_parquet(features_path)
     typer.echo(f"[apply_injury] Loaded {len(feature_df):,} feature rows")
@@ -199,6 +220,45 @@ def main(
             err=True,
         )
         raise typer.Exit(0)
+
+    # ── Restrict feature_df to allowed (game_id, player_id) identities ────────
+    # Inner-join to the PMF slate universe. Players present in the broad
+    # feature table but absent from the current-run slate are excluded.
+    _feat_id_cols = [c for c in _pmf_id_cols if c in feature_df.columns]
+    if _feat_id_cols:
+        n_before_restrict = len(feature_df)
+        feature_df = feature_df.merge(
+            allowed_pairs, on=_feat_id_cols, how="inner"
+        )
+        n_excluded = n_before_restrict - len(feature_df)
+        if n_excluded > 0:
+            typer.echo(
+                f"[apply_injury] Excluded {n_excluded} off-slate feature rows "
+                f"(players not in current-run PMF slate)"
+            )
+        typer.echo(
+            f"[apply_injury] Feature rows after slate restriction: {len(feature_df):,}"
+        )
+
+        # Verify every allowed player-game has at least one feature row
+        _feat_pairs = (
+            feature_df[_feat_id_cols].drop_duplicates().dropna()
+            if _feat_id_cols else pd.DataFrame()
+        )
+        _missing_feat = allowed_pairs.merge(
+            _feat_pairs, on=_feat_id_cols, how="left", indicator=True
+        )
+        _missing_feat = _missing_feat[_missing_feat["_merge"] == "left_only"].drop(
+            columns=["_merge"]
+        )
+        if not _missing_feat.empty:
+            typer.echo(
+                f"[FATAL] {len(_missing_feat)} slate player-game identities have no "
+                f"feature rows for {game_date}. First missing: "
+                f"{_missing_feat.head(5).to_dict('records')}",
+                err=True,
+            )
+            raise typer.Exit(1)
 
     # ── Load or fetch injuries ─────────────────────────────────────────────
     # Track the pulled_at_utc for prediction timestamp default
@@ -345,8 +405,24 @@ def main(
     )
     affected_player_ids |= inactive_pids
 
+    # ── Constrain affected_player_ids to the original PMF slate ──────────────
+    # Do not rebuild any player who was not in pmfs_before — the broad feature
+    # table must not expand the current-run slate.
+    allowed_player_ids: set[int] = set(
+        allowed_pairs["player_id"].dropna().astype(int).unique()
+        if "player_id" in allowed_pairs.columns else []
+    )
+    off_slate_ids = affected_player_ids - allowed_player_ids
+    if off_slate_ids:
+        typer.echo(
+            f"[apply_injury] Skipping {len(off_slate_ids)} off-slate player IDs "
+            f"(not in original PMF slate): {sorted(off_slate_ids)[:10]}"
+        )
+        affected_player_ids -= off_slate_ids
+
     typer.echo(
-        f"[apply_injury] Affected players (injury + UTM): {len(affected_player_ids)}"
+        f"[apply_injury] Affected players (injury + UTM, slate-restricted): "
+        f"{len(affected_player_ids)}"
     )
 
     # ── Rebuild PMFs for affected players ────────────────────────────────
@@ -422,6 +498,42 @@ def main(
 
     # ── Attach availability columns ───────────────────────────────────────
     pmfs_after = _attach_availability_columns(pmfs_after, availability)
+
+    # ── Identity preservation: before == after (game_id, player_id, stat) ───
+    # The injury rebuild must not add, drop, or duplicate any identity.
+    _id_cols = [c for c in ("game_id", "player_id", "stat") if c in pmfs_before.columns and c in pmfs_after.columns]
+    if _id_cols:
+        _before_ids = pmfs_before[_id_cols].drop_duplicates()
+        _after_ids  = pmfs_after[_id_cols].drop_duplicates()
+        # Duplicates
+        _dup_after = pmfs_after[pmfs_after.duplicated(subset=_id_cols, keep=False)]
+        if not _dup_after.empty:
+            sample = _dup_after[_id_cols].drop_duplicates().head(5).to_dict("records")
+            typer.echo(
+                f"[FATAL] Injury rebuild introduced {len(_dup_after)} duplicate "
+                f"identities. Sample: {sample}", err=True
+            )
+            raise typer.Exit(1)
+        # Missing (in before, absent in after)
+        _merge = _before_ids.merge(_after_ids, on=_id_cols, how="outer", indicator=True)
+        _missing = _merge[_merge["_merge"] == "left_only"].drop(columns=["_merge"])
+        _unexpected = _merge[_merge["_merge"] == "right_only"].drop(columns=["_merge"])
+        if not _missing.empty or not _unexpected.empty:
+            if not _missing.empty:
+                typer.echo(
+                    f"[FATAL] Injury rebuild dropped {len(_missing)} PMF identities. "
+                    f"First missing: {_missing.head(5).to_dict('records')}", err=True
+                )
+            if not _unexpected.empty:
+                typer.echo(
+                    f"[FATAL] Injury rebuild added {len(_unexpected)} off-slate PMF identities. "
+                    f"First unexpected: {_unexpected.head(5).to_dict('records')}", err=True
+                )
+            raise typer.Exit(1)
+        typer.echo(
+            f"[apply_injury] Identity preservation PASS: {len(_before_ids)} identities "
+            "unchanged (no drops, additions, or duplicates)"
+        )
 
     # ── Integrity validation ──────────────────────────────────────────────
     try:

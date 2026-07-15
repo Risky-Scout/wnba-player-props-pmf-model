@@ -189,18 +189,16 @@ def test_edge_manifest_still_uses_market_actionable():
 
 # ── Test 8: Expected PMFs not derived from actual output ─────────────────────
 
-def test_pmf_manifest_validates_duplicates_not_coverage():
-    """PMF manifest validation checks duplicates; coverage validated elsewhere."""
+def test_pmf_manifest_validates_full_coverage_from_slate():
+    """PMF manifest must use slate as expected set and run full validate_pmf_manifest."""
     run = _pmf_step_run()
     assert run, "Build expected PMF and edge manifests step not found"
-    # Duplicate check must be present
-    assert "duplicated" in run or "DuplicatePMFError" in run or "duplicate" in run.lower(), (
-        "PMF manifest step must check for duplicate identities"
+    assert "validate_pmf_manifest" in run, (
+        "PMF manifest must call validate_pmf_manifest for full coverage check"
     )
-    # expected_pmf set to actual to avoid false unexpected failures
-    assert "expected_pmf = actual_pmf" in run, (
-        "expected_pmf must equal actual_pmf so validate_pmf_manifest "
-        "only catches duplicate identities"
+    # expected must be derived independently from slate, not from actual output
+    assert "expected_pmf = actual_pmf" not in run, (
+        "expected_pmf must NOT equal actual_pmf — slate is the authoritative source"
     )
 
 
