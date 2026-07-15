@@ -177,6 +177,69 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Restore feature provenance for reused OOF
+        # When skip_oof_build=true, the reused audit artifact restores data/oof/ but
+        # NOT data/processed/feature_schema_manifest.json, which is required by
+        # "Generate calibrator artifact manifest" to compute feature_manifest_hash.
+        #
+        # Strategy (in priority order):
+        #   1. If the source audit artifact already contains feature_schema_manifest.json,
+        #      use it directly (no BDL rebuild needed).
+        #   2. Otherwise, rebuild canonical tables and features from BDL to regenerate
+        #      the manifest.  The OOF PMFs are NOT rebuilt.
+        #
+        # Hard-validates both data/oof/oof_player_stat_pmfs.parquet and
+        # data/processed/feature_schema_manifest.json after restoration.
+        if: github.event.inputs.skip_oof_build == 'true' && env.ARCHITECTURE_CHANGED != 'true'
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          set -e
+
+          # Verify OOF parquet was restored by the download step
+          test -s data/oof/oof_player_stat_pmfs.parquet || {
+            echo "[FATAL] data/oof/oof_player_stat_pmfs.parquet missing or empty after OOF download" >&2
+            exit 1
+          }
+          echo "OOF parquet present: $(python3 -c "import pandas as pd; df=pd.read_parquet('data/oof/oof_player_stat_pmfs.parquet'); print(len(df),'rows')")"
+
+          mkdir -p data/processed
+
+          # 1. Check whether the downloaded artifact already contains the manifest
+          if [ -s "data/processed/feature_schema_manifest.json" ]; then
+            python3 -c "import json,sys; p='data/processed/feature_schema_manifest.json'; obj=json.loads(open(p).read()); sys.exit(1) if not isinstance(obj,dict) or not obj else print('Manifest valid from artifact:',p)"
+            echo "Step 1 complete: manifest found in downloaded artifact"
+          else
+            # 2. Artifact does not include the manifest — rebuild from BDL
+            echo "feature_schema_manifest.json not in artifact — rebuilding from BDL"
+            if [ -z "$BDL_API_KEY" ]; then
+              echo "[FATAL] BDL_API_KEY not set — cannot rebuild feature schema manifest" >&2
+              exit 1
+            fi
+            YEAR=$(date -u +%Y)
+            python3 scripts/pull_bdl_history.py \
+              --start-season 2022 \
+              --end-season "$YEAR" \
+              --out-dir data/raw/bdl
+            python3 scripts/build_canonical_tables.py \
+              --raw-dir data/raw/bdl \
+              --out-dir data/processed
+            python3 scripts/build_features.py \
+              --data-dir data/processed
+            echo "BDL rebuild complete"
+          fi
+
+          # Hard-validate both required files
+          test -s data/oof/oof_player_stat_pmfs.parquet || {
+            echo "[FATAL] data/oof/oof_player_stat_pmfs.parquet missing after restoration" >&2; exit 1
+          }
+          test -s data/processed/feature_schema_manifest.json || {
+            echo "[FATAL] data/processed/feature_schema_manifest.json missing after restoration" >&2; exit 1
+          }
+          python3 -c "import json,sys; p='data/processed/feature_schema_manifest.json'; obj=json.loads(open(p).read()); (sys.exit('feature_schema_manifest.json is empty or invalid') if not isinstance(obj,dict) or not obj else print('Feature schema manifest restored:',p))"
+          echo "Restore feature provenance: PASS"
+        continue-on-error: false
+
       - name: Pull BDL history (all seasons for OOF training)
         if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
         env:
@@ -887,6 +950,7 @@ jobs:
           name: weekly-cal-audit-${{ github.run_id }}
           path: |
             data/oof/
+            data/processed/feature_schema_manifest.json
             artifacts/audits/stage5_*
           retention-days: 30
 
