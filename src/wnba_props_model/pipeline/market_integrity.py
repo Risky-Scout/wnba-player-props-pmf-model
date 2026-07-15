@@ -244,7 +244,13 @@ def compute_model_edge(
 # Market quote validation
 # ---------------------------------------------------------------------------
 
+# Preferred dedup key in priority order. Validation uses the longest prefix
+# of available columns. Requires at least one player-identity column (player_id
+# or player_name) to be meaningful — without player identity, (vendor,stat,line)
+# is too coarse and will falsely flag legitimate multi-player market data.
 _QUOTE_DEDUP_KEYS = ["vendor", "game_id", "player_id", "stat", "line"]
+_QUOTE_DEDUP_KEYS_ODDSAPI = ["bookmaker", "event_id", "player_name", "stat", "line"]
+_QUOTE_PLAYER_IDENTITY_COLS = frozenset({"player_id", "player_name"})
 
 
 def validate_no_duplicate_quotes(
@@ -257,10 +263,25 @@ def validate_no_duplicate_quotes(
     """
     if quotes_df.empty:
         return
-    keys = key_cols or _QUOTE_DEDUP_KEYS
-    present_keys = [k for k in keys if k in quotes_df.columns]
+    # Select the best available dedup key.
+    # Try primary BDL key first, then Odds API key.
+    if key_cols:
+        present_keys = [k for k in key_cols if k in quotes_df.columns]
+    else:
+        for candidate_keys in (_QUOTE_DEDUP_KEYS, _QUOTE_DEDUP_KEYS_ODDSAPI):
+            present_keys = [k for k in candidate_keys if k in quotes_df.columns]
+            if present_keys:
+                break
+
     if not present_keys:
         return
+
+    # Validation is only meaningful when a player-identity column is present.
+    # Without player identity the key (vendor/bookmaker, stat, line) is too coarse
+    # and falsely flags multiple different players offering the same line.
+    if not _QUOTE_PLAYER_IDENTITY_COLS.intersection(present_keys):
+        return
+
     dupes = quotes_df[quotes_df.duplicated(subset=present_keys, keep=False)]
     if not dupes.empty:
         sample = dupes[present_keys].drop_duplicates().head(5).to_dict("records")
