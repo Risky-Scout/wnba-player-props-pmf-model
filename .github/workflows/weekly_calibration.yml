@@ -796,7 +796,13 @@ jobs:
               print(f"[FATAL] Feature schema manifest not found at {feat_manifest_path}. "
                     "Cannot produce a valid calibrator manifest without it.", file=sys.stderr)
               sys.exit(1)
-          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+          # Use canonical feature-contract hash so pregame builds with the same schema
+          # but different created_at_utc / git_commit / paths validate correctly.
+          feat_manifest_json = json.loads(feat_manifest_path.read_text())
+          sys.path.insert(0, "src")
+          from wnba_props_model.pipeline.market_integrity import canonical_feature_contract_hash  # noqa
+          feature_manifest_hash = canonical_feature_contract_hash(feat_manifest_json)
+          feature_hash_kind     = "canonical_feature_contract_v1"
 
           # Config hash — FATAL if no calibration config found
           config_path = Path("config/model/stage6_calibration.yaml")
@@ -833,6 +839,7 @@ jobs:
               "created_at_utc": datetime.now(timezone.utc).isoformat(),
               "calibration_cutoff": calibration_cutoff,
               "feature_manifest_hash": feature_manifest_hash,
+              "feature_hash_kind": feature_hash_kind,
               "config_hash": config_hash,
               "gate_status": "PASS",
           }

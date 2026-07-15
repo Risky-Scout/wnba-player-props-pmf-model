@@ -857,6 +857,63 @@ _REQUIRED_LINEAGE_FIELDS = [
 ARTIFACT_MANIFEST_SCHEMA_VERSION = "1"
 _SUPPORTED_SCHEMA_VERSIONS = frozenset({"1"})
 
+# ── Canonical feature-contract hash ──────────────────────────────────────────
+# Fields that define the feature *contract* (stable across feature builds with
+# the same schema, even when created_at_utc, git_commit, or paths differ).
+_CANONICAL_FEATURE_HASH_KIND = "canonical_feature_contract_v1"
+_CANONICAL_FEATURE_CONTRACT_FIELDS: tuple[str, ...] = (
+    "row_grain_wide",
+    "row_grain_long",
+    "identity_columns",
+    "target_columns",
+    "model_feature_columns",
+    "numeric_feature_columns",
+    "categorical_feature_columns",
+    "role_bucket_columns",
+    "forbidden_columns",
+    "temporal_policy",
+    "stats_modeled",
+    "roll_windows",
+)
+# Explicitly excluded (volatile): created_at_utc, git_commit_if_available,
+# wide_table_path, long_table_path, source_tables, row counts, timestamps.
+
+
+def canonical_feature_contract_hash(manifest: dict) -> str:
+    """Return a 16-char SHA-256 hex of the stable schema-contract fields only.
+
+    Two feature manifests with identical schema but different timestamps,
+    git commits, or file paths produce the same hash.  Adding, removing, or
+    reordering ``model_feature_columns`` changes the hash.
+
+    List-typed fields are sorted deterministically (preserving model feature
+    order for ``model_feature_columns`` where order matters to the estimator;
+    sorting all other list fields for stability).
+
+    Parameters
+    ----------
+    manifest : dict
+        Parsed ``feature_schema_manifest.json``.
+
+    Returns
+    -------
+    str
+        First 16 hex characters of the SHA-256 of the canonical JSON payload.
+    """
+    def _normalise(key: str, value: object) -> object:
+        if isinstance(value, list):
+            # Preserve model_feature_columns order (estimator requires it).
+            # Sort all other list fields for deterministic stability.
+            return value if key == "model_feature_columns" else sorted(value)
+        return value
+
+    payload: dict = {
+        k: _normalise(k, manifest.get(k))
+        for k in _CANONICAL_FEATURE_CONTRACT_FIELDS
+    }
+    canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical_json.encode()).hexdigest()[:16]
+
 
 def validate_artifact_manifest(
     manifest: dict,
@@ -866,6 +923,7 @@ def validate_artifact_manifest(
     config_hash: "str | None" = None,
     source_run_id: "str | None" = None,
     source_commit: "str | None" = None,
+    canonical_feature_hash: "str | None" = None,
 ) -> None:
     """Validate an artifact manifest for production use.
 
@@ -929,14 +987,28 @@ def validate_artifact_manifest(
                 f"expected={source_commit!r}"
             )
 
-    # feature_manifest_hash match
-    if feature_manifest_hash is not None:
+    # feature_manifest_hash / canonical_feature_hash
+    manifest_hash_kind = str(manifest.get("feature_hash_kind", ""))
+    if manifest_hash_kind == _CANONICAL_FEATURE_HASH_KIND:
+        # New canonical path: compare canonical contract hashes.
+        if canonical_feature_hash is not None:
+            manifest_fmh = str(manifest.get("feature_manifest_hash", ""))
+            if manifest_fmh != str(canonical_feature_hash):
+                errors.append(
+                    f"feature_manifest_hash mismatch (canonical): "
+                    f"manifest={manifest_fmh!r}, expected={canonical_feature_hash!r}"
+                )
+    else:
+        # Legacy path (no feature_hash_kind): the raw bytes hash in the artifact
+        # is volatile (created_at_utc, paths, etc. differ across builds).
+        # Comparing the raw hash against a freshly-built manifest is incorrect.
+        # Accept the legacy artifact when the nonblank-hash requirement is met;
+        # the caller must perform alternative compatibility checks separately.
         manifest_fmh = str(manifest.get("feature_manifest_hash", ""))
-        if manifest_fmh != str(feature_manifest_hash):
-            errors.append(
-                f"feature_manifest_hash mismatch: manifest={manifest_fmh!r}, "
-                f"expected={feature_manifest_hash!r}"
-            )
+        if not manifest_fmh:
+            errors.append("feature_manifest_hash is blank (legacy manifest)")
+        # Do NOT compare manifest_fmh to feature_manifest_hash: they will differ
+        # across builds even when the feature schema is compatible.
 
     # config_hash match
     if config_hash is not None:
