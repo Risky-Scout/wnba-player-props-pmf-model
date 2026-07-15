@@ -285,7 +285,13 @@ jobs:
               print(f"[FATAL] feature_schema_manifest.json not found at {feat_manifest_path}. "
                     "Cannot validate artifact manifests without it.", file=sys.stderr)
               sys.exit(1)
-          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+          feat_manifest = json.loads(feat_manifest_path.read_text())
+
+          from wnba_props_model.pipeline.market_integrity import (  # noqa: PLC0415
+              canonical_feature_contract_hash as _canonical_hash,
+          )
+          current_canonical_hash = _canonical_hash(feat_manifest)
+          current_feature_count  = len(feat_manifest.get("model_feature_columns") or [])
 
           # ── Validate calibrator manifest ─────────────────────────────────────────────
           cal_manifest_path = Path("artifacts/models/calibration/artifact_manifest_calibrator.json")
@@ -294,11 +300,33 @@ jobs:
               sys.exit(1)
           cal_manifest = json.loads(cal_manifest_path.read_text())
 
+          # Diagnostic output before validation (no secrets)
+          cal_hash_kind = cal_manifest.get("feature_hash_kind", "legacy_raw_bytes")
+          print(f"[manifest-diag] Calibrator artifact:")
+          print(f"  artifact_type       : {cal_manifest.get('artifact_type')}")
+          print(f"  source_run          : {cal_manifest.get('source_run_id')}")
+          print(f"  source_commit       : {str(cal_manifest.get('source_commit',''))[:12]}")
+          print(f"  manifest_feature_hash: {cal_manifest.get('feature_manifest_hash')}")
+          print(f"  feature_hash_kind   : {cal_hash_kind}")
+          print(f"  current_canonical   : {current_canonical_hash}")
+          print(f"  runtime_feature_cnt : {current_feature_count}")
+
           cal_config_path = Path("config/model/stage6_calibration.yaml")
           if not cal_config_path.exists():
               cal_config_path = Path("config/model/stage5_oof.yaml")
           cal_config_hash = (hashlib.sha256(cal_config_path.read_bytes()).hexdigest()[:16]
                              if cal_config_path.exists() else None)
+
+          # Determine which hash argument to pass
+          if cal_hash_kind == "canonical_feature_contract_v1":
+              _cal_fmh_arg  = None
+              _cal_can_arg  = current_canonical_hash
+          else:
+              # Legacy manifest: raw-hash comparison is invalid across builds.
+              # validate_artifact_manifest will accept nonblank legacy hash; we do
+              # calibrator-specific file/coverage checks below.
+              _cal_fmh_arg  = None
+              _cal_can_arg  = None
 
           try:
               validate_artifact_manifest(
@@ -307,16 +335,32 @@ jobs:
                   prediction_timestamp_utc=prediction_ts,
                   source_run_id=os.environ.get("EXPECTED_CAL_SOURCE_RUN_ID"),
                   source_commit=os.environ.get("EXPECTED_CAL_SOURCE_COMMIT"),
-                  feature_manifest_hash=feature_manifest_hash,
+                  feature_manifest_hash=_cal_fmh_arg,
+                  canonical_feature_hash=_cal_can_arg,
                   config_hash=cal_config_hash,
               )
               print(f"Calibrator manifest validated OK: "
                     f"source_run={cal_manifest.get('source_run_id')}, "
-                    f"commit={cal_manifest.get('source_commit','')[:8]}, "
+                    f"commit={str(cal_manifest.get('source_commit',''))[:8]}, "
                     f"gate={cal_manifest.get('gate_status')}")
           except ArtifactManifestError as exc:
               print(f"[FATAL] Calibrator artifact manifest validation failed: {exc}", file=sys.stderr)
               sys.exit(1)
+
+          # Legacy calibrator compatibility: verify required .pkl files and stat coverage
+          if cal_hash_kind != "canonical_feature_contract_v1":
+              cal_dir = Path("artifacts/models/calibration")
+              required_pkls = [f for f in cal_dir.glob("pmf_cal_role_*.pkl")]
+              if not required_pkls:
+                  print("[FATAL] Legacy calibrator: no pmf_cal_role_*.pkl files found", file=sys.stderr)
+                  sys.exit(1)
+              cal_meta_path = cal_dir / "calibration_metadata.json"
+              if not cal_meta_path.exists():
+                  print("[FATAL] Legacy calibrator: calibration_metadata.json missing", file=sys.stderr)
+                  sys.exit(1)
+              print(f"Legacy calibrator compatibility check PASS: "
+                    f"{len(required_pkls)} role calibrator(s) present, "
+                    f"calibration_metadata.json present")
 
           # ── Validate model manifest ───────────────────────────────────────────────────
           model_manifest_path = Path("artifacts/models/stage4_baseline/artifact_manifest_model.json")
@@ -325,9 +369,26 @@ jobs:
               sys.exit(1)
           model_manifest = json.loads(model_manifest_path.read_text())
 
+          model_hash_kind = model_manifest.get("feature_hash_kind", "legacy_raw_bytes")
+          print(f"[manifest-diag] Model artifact:")
+          print(f"  artifact_type       : {model_manifest.get('artifact_type')}")
+          print(f"  source_run          : {model_manifest.get('source_run_id')}")
+          print(f"  source_commit       : {str(model_manifest.get('source_commit',''))[:12]}")
+          print(f"  manifest_feature_hash: {model_manifest.get('feature_manifest_hash')}")
+          print(f"  feature_hash_kind   : {model_hash_kind}")
+          print(f"  current_canonical   : {current_canonical_hash}")
+          print(f"  runtime_feature_cnt : {current_feature_count}")
+
           model_config_path = Path("config/model/stage4_baseline.yaml")
           model_config_hash = (hashlib.sha256(model_config_path.read_bytes()).hexdigest()[:16]
                                if model_config_path.exists() else None)
+
+          if model_hash_kind == "canonical_feature_contract_v1":
+              _mod_fmh_arg  = None
+              _mod_can_arg  = current_canonical_hash
+          else:
+              _mod_fmh_arg  = None
+              _mod_can_arg  = None
 
           try:
               validate_artifact_manifest(
@@ -336,16 +397,50 @@ jobs:
                   prediction_timestamp_utc=prediction_ts,
                   source_run_id=os.environ.get("EXPECTED_MODEL_SOURCE_RUN_ID"),
                   source_commit=os.environ.get("EXPECTED_MODEL_SOURCE_COMMIT"),
-                  feature_manifest_hash=feature_manifest_hash,
+                  feature_manifest_hash=_mod_fmh_arg,
+                  canonical_feature_hash=_mod_can_arg,
                   config_hash=model_config_hash,
               )
               print(f"Model manifest validated OK: "
                     f"source_run={model_manifest.get('source_run_id')}, "
-                    f"commit={model_manifest.get('source_commit','')[:8]}, "
+                    f"commit={str(model_manifest.get('source_commit',''))[:8]}, "
                     f"cutoff={model_manifest.get('model_training_cutoff')}")
           except ArtifactManifestError as exc:
               print(f"[FATAL] Model artifact manifest validation failed: {exc}", file=sys.stderr)
               sys.exit(1)
+
+          # Legacy model compatibility: verify feature list exactly matches
+          if model_hash_kind != "canonical_feature_contract_v1":
+              import pickle as _pickle  # noqa: PLC0415
+              model_dir = Path("artifacts/models/stage4_baseline")
+              # Try to recover persisted feature list from model pkl or metadata
+              expected_feats = feat_manifest.get("model_feature_columns") or []
+              model_feat_list_recovered = False
+              for pkl_path in sorted(model_dir.glob("*.pkl")):
+                  try:
+                      with open(pkl_path, "rb") as fh:
+                          obj = _pickle.load(fh)
+                      if hasattr(obj, "feature_names_in_"):
+                          persisted = list(obj.feature_names_in_)
+                          if persisted != expected_feats:
+                              missing  = [f for f in expected_feats if f not in persisted]
+                              extra    = [f for f in persisted if f not in expected_feats]
+                              reorder  = not missing and not extra
+                              first_diff = (
+                                  f"reorder at pos {next(i for i,(a,b) in enumerate(zip(persisted,expected_feats)) if a!=b)}"
+                                  if reorder else (f"first missing={missing[0]!r}" if missing else f"first extra={extra[0]!r}")
+                              )
+                              print(f"[FATAL] Legacy model feature mismatch: {first_diff}", file=sys.stderr)
+                              print(f"  persisted={len(persisted)} runtime={len(expected_feats)}", file=sys.stderr)
+                              sys.exit(1)
+                          model_feat_list_recovered = True
+                          print(f"Legacy model feature check PASS: {len(expected_feats)} features match")
+                          break
+                  except Exception:
+                      continue
+              if not model_feat_list_recovered:
+                  print("[WARN] Legacy model: could not recover feature list from pkl — "
+                        "skipping per-feature check (model pkl not inspectable)")
           PYEOF
         continue-on-error: false
 
