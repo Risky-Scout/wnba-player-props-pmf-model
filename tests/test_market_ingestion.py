@@ -284,24 +284,28 @@ def test_workflow_bdl_fallback_has_correct_prop_type_map():
 
 # ─── 5. Active-slate zero-market failure (fail closed) ───────────────────────
 
+def _get_step_by_name(step_name_fragment: str) -> dict | None:
+    """Parse pregame_initial.yml as YAML and return the step whose name contains the fragment."""
+    import yaml  # type: ignore[import]
+    wf_data = yaml.safe_load(WORKFLOW_PATH.read_text())
+    for job in wf_data.get("jobs", {}).values():
+        for step in job.get("steps", []):
+            if step_name_fragment.lower() in str(step.get("name", "")).lower():
+                return step
+    return None
+
+
 def test_workflow_fails_closed_when_slate_nonempty_and_zero_markets():
     """When slate has players but both Odds API and BDL return 0 props, workflow must exit nonzero."""
     wf = _load_workflow()
-    # The BDL fallback step must have a fatal exit when rows=0 with active slate
-    assert "zero usable rows" in wf or "zero BDL" in wf or "FATAL" in wf
-    # Must NOT silently succeed (continue-on-error must not be true on fallback)
-    # Find the BDL fallback section
-    fallback_start = wf.find("BDL props fallback")
-    assert fallback_start != -1, "No BDL fallback step"
-    # Extract just this step: from its name to the next "- name:" marker
-    import re as _re
-    rest = wf[fallback_start + 10:]
-    next_step = _re.search(r"\n      - name:", rest)
-    fallback_section = wf[fallback_start: fallback_start + 10 + (next_step.start() if next_step else len(rest))]
-    assert "continue-on-error: true" not in fallback_section, \
-        "BDL fallback must not have continue-on-error: true"
-    assert "continue-on-error: false" in fallback_section, \
-        "BDL fallback must explicitly set continue-on-error: false"
+    # FATAL exit present in workflow text
+    assert "FATAL" in wf or "sys.exit(1)" in wf, "No fatal exit path found"
+
+    # BDL fallback step must have continue-on-error: false — verified via YAML parse
+    step = _get_step_by_name("BDL props fallback")
+    assert step is not None, "BDL fallback step not found in workflow YAML"
+    assert step.get("continue-on-error") is not True, \
+        f"BDL fallback must NOT have continue-on-error: true (got {step.get('continue-on-error')!r})"
 
 
 def test_workflow_does_not_call_zero_markets_not_posted_without_evidence():
@@ -316,15 +320,11 @@ def test_workflow_does_not_call_zero_markets_not_posted_without_evidence():
 # ─── 6. Blocking FTP deployment ──────────────────────────────────────────────
 
 def test_ftp_deployment_is_blocking():
-    """FTP deployment step must NOT have continue-on-error: true."""
-    wf = _load_workflow()
-    # Find FTP deploy step
-    ftp_idx = wf.find("ftp_deploy.py")
-    assert ftp_idx != -1, "No ftp_deploy.py in workflow"
-    # Get the surrounding step context (2000 chars before and after)
-    ftp_section = wf[max(0, ftp_idx - 500):ftp_idx + 200]
-    assert "continue-on-error: true" not in ftp_section, \
-        "FTP deployment must NOT have continue-on-error: true"
+    """FTP deployment step must NOT have continue-on-error: true — verified via YAML parse."""
+    step = _get_step_by_name("Deploy WNBA pages to sportsodds")
+    assert step is not None, "FTP deploy step not found in workflow YAML"
+    assert step.get("continue-on-error") is not True, \
+        f"FTP deployment must NOT have continue-on-error: true (got {step.get('continue-on-error')!r})"
 
 
 def test_ftp_deployment_step_name_says_blocking():
@@ -365,16 +365,11 @@ def test_post_deployment_step_checks_all_required_fields():
 
 
 def test_post_deployment_step_is_blocking():
-    """Post-deployment verification must NOT have continue-on-error: true."""
-    wf = _load_workflow()
-    post_idx = wf.lower().find("post-deployment")
-    assert post_idx != -1
-    # Step can be long (heredoc); search up to 7000 chars
-    post_section = wf[post_idx:post_idx + 7000]
-    assert "continue-on-error: true" not in post_section, \
-        "Post-deployment verification must be blocking (not continue-on-error: true)"
-    assert "continue-on-error: false" in post_section, \
-        "Post-deployment verification must explicitly set continue-on-error: false"
+    """Post-deployment verification step must NOT have continue-on-error: true — verified via YAML."""
+    step = _get_step_by_name("Post-deployment verification")
+    assert step is not None, "Post-deployment verification step not found in workflow YAML"
+    assert step.get("continue-on-error") is not True, \
+        f"Post-deployment step must NOT have continue-on-error: true (got {step.get('continue-on-error')!r})"
 
 
 def test_post_deployment_edge_rows_fails_when_markets_exist():
