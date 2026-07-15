@@ -342,36 +342,28 @@ def validate_player_identity_resolved(
     player_id_col: str = "player_id",
     ambiguous_ids: set[str] | None = None,
 ) -> None:
-    """Raise UnmatchedIdentityError if player identity is missing or unresolved.
+    """Strict canonical validation — requires nonblank player_id.
 
-    Accepts either ``player_id`` (canonical BDL/internal integer) or ``player_name``
-    (plain-text string used by providers that lack canonical IDs, e.g. The Odds API).
-    Whichever identity column is present must be non-null for every row.
+    Call AFTER build_market_comparison, where every row must carry a canonical
+    player_id from the PMF join.  Do NOT call this on raw provider quotes that
+    have not yet been reconciled to canonical IDs.
     """
     if quotes_df.empty:
         return
-
-    # Determine which identity column is available.
-    # The Odds API parquet carries player_name but not player_id.
-    if player_id_col in quotes_df.columns:
-        identity_col = player_id_col
-    elif "player_name" in quotes_df.columns:
-        identity_col = "player_name"
-    else:
+    if player_id_col not in quotes_df.columns:
         raise UnmatchedIdentityError(
-            f"Neither '{player_id_col}' nor 'player_name' found in quotes DataFrame. "
-            "At least one player-identity column is required."
+            f"Column '{player_id_col}' not found in quotes DataFrame. "
+            "Canonical validation requires player_id. "
+            "For pre-join provider-native validation use validate_provider_quotes()."
         )
-
-    null_mask = quotes_df[identity_col].isna() | (quotes_df[identity_col].astype(str).str.strip() == "")
+    null_mask = quotes_df[player_id_col].isna()
     if null_mask.any():
         n = int(null_mask.sum())
         raise UnmatchedIdentityError(
-            f"{n} quote(s) have unresolved {identity_col!r} (None/NaN/blank). "
+            f"{n} quote(s) have unresolved player_id (None/NaN). "
             "Identity reconciliation must complete before edge computation."
         )
-
-    if ambiguous_ids and identity_col == player_id_col:
+    if ambiguous_ids:
         ambiguous_mask = quotes_df[player_id_col].isin(ambiguous_ids)
         if ambiguous_mask.any():
             bad = quotes_df.loc[ambiguous_mask, player_id_col].unique().tolist()
@@ -385,31 +377,95 @@ def validate_game_identity_resolved(
     quotes_df: pd.DataFrame,
     game_id_col: str = "game_id",
 ) -> None:
-    """Raise UnmatchedIdentityError if game identity is missing or unresolved.
+    """Strict canonical validation — requires nonblank game_id.
 
-    Accepts ``game_id`` (canonical integer) or ``event_id`` (provider UUID, used
-    by The Odds API which has no canonical league game IDs).
-    Skips validation silently when neither column is present — some providers
-    carry no game-level identifier at all.
+    Call AFTER build_market_comparison, where every row must carry a canonical
+    game_id from the PMF join.  Do NOT call this on raw provider quotes.
+    """
+    if quotes_df.empty:
+        return
+    if game_id_col not in quotes_df.columns:
+        raise UnmatchedIdentityError(
+            f"Column '{game_id_col}' not found in quotes DataFrame. "
+            "Canonical validation requires game_id. "
+            "For pre-join provider-native validation use validate_provider_quotes()."
+        )
+    null_mask = quotes_df[game_id_col].isna()
+    if null_mask.any():
+        n = int(null_mask.sum())
+        raise UnmatchedIdentityError(
+            f"{n} quote(s) have unresolved game_id (None/NaN). "
+            "Game identity reconciliation must complete before edge computation."
+        )
+
+
+# ── Provider-native pre-join validation ──────────────────────────────────────
+
+def validate_provider_quotes(
+    quotes_df: pd.DataFrame,
+    source: str = "oddsapi",
+) -> None:
+    """Validate raw provider quotes before PMF reconciliation.
+
+    Stage 1 of the two-stage identity contract.  Uses provider-native column
+    names — NOT canonical player_id/game_id.
+
+    ``source='oddsapi'`` (The Odds API):
+        Requires per row: nonblank event_id, normalized player_name,
+        nonblank vendor/bookmaker, nonblank stat, valid line.
+
+    ``source='bdl'`` (BDL/canonical):
+        Requires per row: nonblank game_id, nonblank player_id.
+
+    Blank or null values in any required column are fatal.
     """
     if quotes_df.empty:
         return
 
-    if game_id_col in quotes_df.columns:
-        identity_col = game_id_col
-    elif "event_id" in quotes_df.columns:
-        identity_col = "event_id"
-    else:
-        # No game identity column available — skip validation.
-        # This is acceptable for providers that omit game context entirely.
-        return
+    errors: list[str] = []
 
-    null_mask = quotes_df[identity_col].isna() | (quotes_df[identity_col].astype(str).str.strip() == "")
-    if null_mask.any():
-        n = int(null_mask.sum())
+    if source == "oddsapi":
+        # Odds API uses internal UUIDs for games and plain-text player names.
+        # Require the provider-native identity columns, not canonical IDs.
+        required: list[tuple[str, list[str]]] = [
+            ("event_id",            ["event_id"]),
+            ("player_name",         ["player_name"]),
+            ("vendor/bookmaker",    ["vendor", "bookmaker"]),
+            ("stat",                ["stat"]),
+        ]
+        for field_name, candidates in required:
+            col = next((c for c in candidates if c in quotes_df.columns), None)
+            if col is None:
+                errors.append(f"Odds API quotes missing required column {field_name!r} "
+                               f"(tried: {candidates})")
+                continue
+            blank = quotes_df[col].isna() | (quotes_df[col].astype(str).str.strip() == "")
+            if blank.any():
+                n = int(blank.sum())
+                errors.append(f"{n} Odds API quote(s) have blank {col!r}")
+
+        # line must be numeric and finite
+        if "line" in quotes_df.columns:
+            import math as _math  # noqa: PLC0415
+            bad_line = quotes_df["line"].apply(
+                lambda v: v is None or (isinstance(v, float) and not _math.isfinite(v))
+            )
+            if bad_line.any():
+                errors.append(f"{int(bad_line.sum())} Odds API quote(s) have invalid line value")
+
+    elif source in ("bdl", "bdl_required", "odds_api_then_bdl"):
+        for col in ("game_id", "player_id"):
+            if col not in quotes_df.columns:
+                errors.append(f"BDL quotes missing required column {col!r}")
+                continue
+            blank = quotes_df[col].isna()
+            if blank.any():
+                n = int(blank.sum())
+                errors.append(f"{n} BDL quote(s) have blank {col!r}")
+
+    if errors:
         raise UnmatchedIdentityError(
-            f"{n} quote(s) have unresolved {identity_col!r} (None/NaN/blank). "
-            "Game identity reconciliation must complete before edge computation."
+            f"Provider-native validation failed ({source!r}): " + "; ".join(errors)
         )
 
 

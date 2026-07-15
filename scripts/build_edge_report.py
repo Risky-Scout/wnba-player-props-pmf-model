@@ -66,6 +66,7 @@ from wnba_props_model.pipeline.market_integrity import (
     validate_quote_freshness,
     validate_player_identity_resolved,
     validate_game_identity_resolved,
+    validate_provider_quotes,
     validate_odds_format,
     check_no_stale_fallback,
     StaleFallbackForbiddenError,
@@ -359,12 +360,14 @@ def main(
     raw_quote_count: int = len(props_df)
     typer.echo(f"Loaded {raw_quote_count:,} market prop rows [source={props_source}]")
 
-    # ── Validate market quotes using market_integrity functions ───────────────
+    # ── Stage 1: Provider-native pre-join validation ─────────────────────────
+    # Validate using the provider's own column schema (event_id + player_name
+    # for Odds API; game_id + player_id for BDL). Do NOT call canonical
+    # validators here — the reconciliation join has not run yet.
     if not props_df.empty:
         try:
             validate_no_duplicate_quotes(props_df)
-            validate_player_identity_resolved(props_df)
-            validate_game_identity_resolved(props_df)
+            validate_provider_quotes(props_df, source=props_source)
             validate_odds_format(props_df)
         except (DuplicateQuoteError, UnmatchedIdentityError, MalformedOddsError) as exc:
             typer.echo(f"[FATAL] Market quote validation failed: {exc}. Status: {STATUS_FAILURE}", err=True)
@@ -372,7 +375,7 @@ def main(
                           raw_quote_count=raw_quote_count, fresh_quote_count=0, reconciled_quote_count=0)
             raise typer.Exit(1)
 
-    # fresh = rows that passed odds/timestamp validation (all rows if validation didn't raise).
+    # fresh = rows that passed provider-native validation.
     fresh_quote_count: int = len(props_df)
 
     # ── Markets empty: LIVE_MARKETS_NOT_YET_AVAILABLE vs fatal ───────────────
@@ -403,45 +406,14 @@ def main(
                       props_source=props_source)
         raise typer.Exit(0)
 
-    # ── Persist expected_market_comparison_manifest.parquet ───────────────────
-    # Written here: AFTER market validation + identity reconciliation,
-    # BEFORE probability/edge construction.
-    # Keyed by (game_id, player_id, stat, vendor, line).
-    # This represents every validated, actionable, reconciled current-run quote.
-    _expected_manifest_key_cols = [
-        c for c in ["game_id", "player_id", "stat", "vendor", "line"]
-        if c in props_df.columns
-    ]
-    if _expected_manifest_key_cols:
-        _expected_manifest = (
-            props_df[_expected_manifest_key_cols]
-            .dropna(subset=[c for c in ["vendor", "line"] if c in _expected_manifest_key_cols])
-            .drop_duplicates()
-            .reset_index(drop=True)
-        )
-    else:
-        _expected_manifest = pd.DataFrame(
-            columns=["game_id", "player_id", "stat", "vendor", "line"]
-        )
-    # ── Quote-snapshot deduplication (reconciliation step) ───────────────────
-    # Deduplicate true duplicate snapshots (same game_id, player_id, stat, vendor,
-    # line, over_odds, under_odds) that can appear when BDL returns repeated rows.
-    # This happens BEFORE the PMF join; it does NOT select across vendors —
-    # that selection happens later after EV can be computed with model probabilities.
-    _dedup_cols = [c for c in ("game_id", "player_id", "stat", "vendor", "line",
-                               "over_odds", "under_odds") if c in props_df.columns]
+    # ── Quote-snapshot deduplication ─────────────────────────────────────────
+    # Deduplicate true snapshot duplicates before the PMF join.
+    _dedup_cols = [c for c in ("game_id", "player_id", "event_id", "player_name",
+                               "stat", "vendor", "line", "over_odds", "under_odds")
+                   if c in props_df.columns]
     if _dedup_cols:
         props_df = props_df.drop_duplicates(subset=_dedup_cols).reset_index(drop=True)
-
-    # reconciled = identity-resolved + snapshot-deduped, before PMF comparison.
-    reconciled_quote_count: int = len(props_df)
-
-    _expected_manifest_path = out / "expected_market_comparison_manifest.parquet"
-    _expected_manifest.to_parquet(_expected_manifest_path, index=False)
-    typer.echo(
-        f"Wrote expected_market_comparison_manifest → {_expected_manifest_path} "
-        f"({len(_expected_manifest):,} rows)"
-    )
+    # (expected_market_comparison_manifest is written after PMF join — see below)
 
     # ── Game_ID cross-join guard: fatal if markets nonempty but no shared games ─
     if "game_id" in pmfs_df.columns and "game_id" in props_df.columns:
@@ -470,10 +442,57 @@ def main(
                       error="zero_market_join_rows", props_source=props_source)
         raise typer.Exit(1)
 
+    # ── Stage 2: Canonical post-join validation ───────────────────────────────
+    # After build_market_comparison every row must have canonical game_id and
+    # player_id — the PMF join resolves Odds API event_id+player_name to BDL IDs.
+    # This is the strict identity gate; failures here mean the reconciliation join
+    # produced ambiguous or unresolved mappings.
+    try:
+        validate_player_identity_resolved(comp)
+        validate_game_identity_resolved(comp)
+    except UnmatchedIdentityError as exc:
+        _unresolved = comp[comp.get("player_id", pd.Series(dtype=object)).isna()] if "player_id" in comp.columns else comp
+        _sample = _unresolved[["player_name", "stat", "line"]].head(5).to_dict("records") if "player_name" in _unresolved.columns else []
+        typer.echo(
+            f"[FATAL] Canonical identity validation failed after PMF join: {exc}. "
+            f"Unresolved sample: {_sample}. Status: {STATUS_FAILURE}", err=True
+        )
+        _write_status(out, STATUS_FAILURE, today, edge_threshold,
+                      error=f"canonical_identity_failed:{exc}", props_source=props_source)
+        raise typer.Exit(1)
+
+    # reconciled = canonical join succeeded, canonical IDs verified.
+    reconciled_quote_count: int = len(comp)
+
     # ── Write full market_comparison.parquet (before business filters) ─────────
     mc_path = out / "market_comparison.parquet"
     comp.to_parquet(mc_path, index=False)
     typer.echo(f"Wrote market_comparison → {mc_path} ({len(comp):,} rows)")
+
+    # ── Build expected_market_comparison_manifest from reconciled comparison ──
+    # Written from the post-join comp (which has canonical game_id/player_id),
+    # not from raw provider quotes before reconciliation.
+    _expected_manifest_key_cols = [
+        c for c in ["game_id", "player_id", "stat", "vendor", "line"]
+        if c in comp.columns
+    ]
+    if _expected_manifest_key_cols:
+        _expected_manifest = (
+            comp[_expected_manifest_key_cols]
+            .dropna(subset=[c for c in ["vendor", "line"] if c in _expected_manifest_key_cols])
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
+    else:
+        _expected_manifest = pd.DataFrame(
+            columns=["game_id", "player_id", "stat", "vendor", "line"]
+        )
+    _expected_manifest_path = out / "expected_market_comparison_manifest.parquet"
+    _expected_manifest.to_parquet(_expected_manifest_path, index=False)
+    typer.echo(
+        f"Wrote expected_market_comparison_manifest → {_expected_manifest_path} "
+        f"(reconciled: {len(_expected_manifest):,} rows)"
+    )
 
     # Apply Venn-Abers calibration
     va_applied = False
