@@ -214,6 +214,14 @@ def test_filtered_push_trigger_exists():
         "Push trigger must include .github/workflows/pregame_initial.yml"
 
 
+def test_push_trigger_includes_market_integrity():
+    """push.paths must include market_integrity.py so dedup/hash fixes auto-trigger pregame."""
+    paths = _load_wf(WF_PREGAME).get("on", {}).get("push", {}).get("paths", [])
+    assert "src/wnba_props_model/pipeline/market_integrity.py" in paths, (
+        "Push trigger must include src/wnba_props_model/pipeline/market_integrity.py"
+    )
+
+
 def test_push_trigger_does_not_include_data_paths():
     wf = _load_wf(WF_PREGAME)
     paths = wf.get("on", {}).get("push", {}).get("paths", [])
