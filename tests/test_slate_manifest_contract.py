@@ -222,6 +222,14 @@ def test_push_trigger_includes_market_integrity():
     )
 
 
+def test_push_trigger_includes_apply_injury_updates():
+    """push.paths must include apply_injury_updates.py so injury-pipeline fixes auto-trigger pregame."""
+    paths = _load_wf(WF_PREGAME).get("on", {}).get("push", {}).get("paths", [])
+    assert "scripts/apply_injury_updates.py" in paths, (
+        "Push trigger must include scripts/apply_injury_updates.py"
+    )
+
+
 def test_push_trigger_does_not_include_data_paths():
     wf = _load_wf(WF_PREGAME)
     paths = wf.get("on", {}).get("push", {}).get("paths", [])
