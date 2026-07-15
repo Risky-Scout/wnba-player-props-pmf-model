@@ -1418,7 +1418,9 @@ jobs:
 
           # ── Expected PMF manifest — from final Ticket 1 availability output (Fix 3) ─
           # Use availability_table_{date}.parquet produced by apply_injury_updates.py.
-          # Filter by is_market_actionable == True.
+          # Include ALL non-confirmed-inactive players — PMFs are generated for every
+          # available player (for the Distributions page), not just market-actionable ones.
+          # is_market_actionable filters the EDGE manifest only, not the PMF manifest.
           # Do NOT use original slate["status"] as the final injury truth.
           slate_path = out_dir / f"slate_{game_date}.parquet"
           avail_path = out_dir / f"availability_table_{game_date}.parquet"
@@ -1426,14 +1428,21 @@ jobs:
 
           if avail_path.exists():
               avail = pd.read_parquet(avail_path)
-              if "is_market_actionable" in avail.columns:
-                  eligible = avail[avail["is_market_actionable"] == True].copy()
+              # Exclude only confirmed-inactive players (pmf_json set to {0:1.0}).
+              # All other players (available, questionable, market-not-actionable) receive
+              # full PMF distributions and must appear in the PMF manifest.
+              if "is_confirmed_inactive" in avail.columns:
+                  eligible = avail[avail["is_confirmed_inactive"] != True].copy()
               elif "availability_status" in avail.columns:
                   eligible = avail[~avail["availability_status"].str.lower().isin(
                       ["inactive", "out", "dnp"]
                   )].copy()
               else:
                   eligible = avail.copy()
+              n_market_actionable = (
+                  int(avail["is_market_actionable"].sum())
+                  if "is_market_actionable" in avail.columns else len(eligible)
+              )
               key_cols = [c for c in ["game_id", "player_id"] if c in eligible.columns]
               if key_cols and len(eligible) > 0:
                   rows = []
@@ -1442,10 +1451,11 @@ jobs:
                           rows.append({**row.to_dict(), "stat": stat})
                   expected_pmf = pd.DataFrame(rows)
                   print(f"Expected PMF manifest (from availability_table): {len(expected_pmf)} rows "
-                        f"({len(eligible)} actionable players × {len(SUPPORTED_STATS)} stats)")
+                        f"({len(eligible)} non-inactive players × {len(SUPPORTED_STATS)} stats, "
+                        f"{n_market_actionable} market-actionable)")
               else:
                   expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
-                  print("[WARN] Availability table has no actionable players or missing key columns")
+                  print("[WARN] Availability table has no eligible players or missing key columns")
           elif scheduled_games_exist:
               print(f"[FATAL] availability_table_{game_date}.parquet not found but slate exists. "
                     "apply_injury_updates must produce availability_table before PMF validation.",
