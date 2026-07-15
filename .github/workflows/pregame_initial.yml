@@ -24,6 +24,17 @@ on:
         description: 'Target game date (YYYY-MM-DD, defaults to today)'
         required: false
         default: ''
+  # Narrowly filtered push trigger — fires only when the production-contract files change.
+  # Purpose: the merge containing the slate-manifest fix automatically starts this workflow
+  # from main without requiring human dispatch.
+  # Path filter prevents deployment-generated commits (data, artifacts) from recursively
+  # triggering the workflow.
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/build_next_game_slate.py
+      - .github/workflows/pregame_initial.yml
 
 jobs:
   pregame_initial:
@@ -193,6 +204,15 @@ jobs:
             RESOLVED_DATE="$INFERRED_DATE"
             RESOLUTION_METHOD="workflow_run_artifact"
             echo "Derived game_date from triggering artifact '${DELIVERY_NAME}': ${RESOLVED_DATE}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # Push trigger (filtered to production-contract paths on main):
+            # Resolve to current UTC date. Print full context for auditability.
+            RESOLVED_DATE="$(date -u +%Y-%m-%d)"
+            RESOLUTION_METHOD="push_trigger_today"
+            echo "event_name=push"
+            echo "head_sha=${{ github.sha }}"
+            echo "resolved_game_date=${RESOLVED_DATE}"
+            echo "resolution_method=${RESOLUTION_METHOD}"
           else
             # cron/schedule or workflow_dispatch without explicit date — resolve today and record method
             RESOLVED_DATE="$(date -u +%Y-%m-%d)"
@@ -447,9 +467,114 @@ jobs:
       - name: Build next-game slate (BDL games + roster)
         run: |
           mkdir -p data/schedule data/processed deliveries/tonight
-          python scripts/build_next_game_slate.py \
+          python3 scripts/build_next_game_slate.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight
+        continue-on-error: false
+
+      - name: Validate canonical current-run slate manifest
+        # Blocking: verify both manifest files exist, are identical, and satisfy
+        # every production-contract field before any downstream step reads them.
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys
+          from pathlib import Path
+
+          game_date    = os.environ["GAME_DATE"]
+          run_id       = os.environ.get("GITHUB_RUN_ID", "")
+          head_sha     = os.environ.get("GITHUB_SHA", "")
+          tonight      = Path("deliveries/tonight")
+          canon        = tonight / "slate_manifest.json"
+          dated        = tonight / f"slate_manifest_{game_date}.json"
+          slate_path   = tonight / f"slate_{game_date}.parquet"
+
+          errors = []
+
+          # File existence
+          if not canon.exists():
+              errors.append(f"slate_manifest.json missing at {canon}")
+          if not dated.exists():
+              errors.append(f"slate_manifest_{game_date}.json missing at {dated}")
+
+          if errors:
+              for e in errors: print(f"[FATAL] {e}", file=sys.stderr)
+              sys.exit(1)
+
+          # JSON parse
+          try:
+              m_canon = json.loads(canon.read_text())
+          except Exception as exc:
+              print(f"[FATAL] slate_manifest.json invalid JSON: {exc}", file=sys.stderr)
+              sys.exit(1)
+          try:
+              m_dated = json.loads(dated.read_text())
+          except Exception as exc:
+              print(f"[FATAL] slate_manifest_{game_date}.json invalid JSON: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          # Byte-for-byte identical
+          if canon.read_bytes() != dated.read_bytes():
+              errors.append("canonical and dated manifests are not byte-for-byte identical")
+
+          # Required fields
+          for field in ("game_date","scheduled_game_count","game_ids","github_run_id","git_commit"):
+              if field not in m_canon:
+                  errors.append(f"manifest missing required field: {field!r}")
+
+          m = m_canon
+          # game_date
+          if m.get("game_date") != game_date:
+              errors.append(f"game_date mismatch: manifest={m.get('game_date')!r} expected={game_date!r}")
+
+          # scheduled_game_count == len(game_ids)
+          gids = m.get("game_ids", [])
+          sc   = m.get("scheduled_game_count", -1)
+          if sc != len(gids):
+              errors.append(f"scheduled_game_count={sc} != len(game_ids)={len(gids)}")
+
+          # game IDs nonblank and unique
+          for gid in gids:
+              if not str(gid).strip():
+                  errors.append(f"blank game ID found in game_ids: {gids!r}")
+                  break
+          if len(set(str(g) for g in gids)) != len(gids):
+              errors.append(f"duplicate game IDs in game_ids: {gids!r}")
+
+          # github_run_id matches
+          if run_id and str(m.get("github_run_id","")) != str(run_id):
+              errors.append(f"github_run_id mismatch: manifest={m.get('github_run_id')!r} env={run_id!r}")
+
+          # git_commit matches
+          if head_sha and str(m.get("git_commit","")) != str(head_sha):
+              errors.append(f"git_commit mismatch: manifest={m.get('git_commit','')[:12]!r} env={head_sha[:12]!r}")
+
+          # When slate parquet exists and has rows, scheduled_game_count must be > 0
+          if slate_path.exists():
+              try:
+                  import pandas as pd
+                  slate_df = pd.read_parquet(slate_path)
+                  if len(slate_df) > 0 and sc == 0:
+                      errors.append(f"slate has {len(slate_df)} players but scheduled_game_count=0")
+                  # Manifest game IDs must equal unique slate game IDs
+                  if "game_id" in slate_df.columns:
+                      slate_gids = sorted(str(int(g)) for g in slate_df["game_id"].dropna().unique())
+                      manifest_gids = sorted(str(g) for g in gids)
+                      if slate_gids != manifest_gids:
+                          errors.append(
+                              f"manifest game_ids {manifest_gids} != slate game_ids {slate_gids}"
+                          )
+              except Exception as exc:
+                  errors.append(f"slate parquet read failed: {exc}")
+
+          if errors:
+              for e in errors: print(f"[FATAL] {e}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Slate manifest validated OK: game_date={game_date} "
+                f"scheduled_game_count={sc} game_ids={gids}")
+          PYEOF
         continue-on-error: false
 
       - name: Fetch and cache injury report (blueprint §5.1)

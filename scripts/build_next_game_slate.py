@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 from datetime import date, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -116,6 +117,107 @@ def get_active_players_for_slate(
     return active
 
 
+def build_and_write_manifest(
+    target: str,
+    games: "pd.DataFrame",
+    slate: "pd.DataFrame",
+    out: "Path",
+    injury_flagged: list,
+    high_dnp: list,
+) -> None:
+    """Write canonical slate_manifest.json + dated slate_manifest_DATE.json atomically.
+
+    Both files are byte-for-byte identical.  Raises SystemExit(1) on any
+    integrity failure.  Never creates a partial file.
+    """
+    # Derive game IDs from the actual slate rows (current-run data only).
+    game_id_col = next((c for c in ["game_id"] if c in slate.columns), None)
+    if game_id_col:
+        slate_game_ids = sorted(int(gid) for gid in slate[game_id_col].dropna().unique())
+    else:
+        slate_game_ids = []
+
+    # Derive game IDs from the games table (authoritative for this run).
+    games_game_ids = sorted(int(g["game_id"]) for _, g in games.iterrows())
+
+    # Consistency check: both sources must agree.
+    if slate_game_ids and games_game_ids and set(slate_game_ids) != set(games_game_ids):
+        typer.echo(
+            f"[FATAL] Game ID mismatch between slate and games table:\n"
+            f"  slate:  {slate_game_ids}\n"
+            f"  games:  {games_game_ids}",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    canonical_game_ids = games_game_ids
+    if not canonical_game_ids and len(slate) > 0:
+        typer.echo(
+            "[FATAL] Slate has rows but game_ids is empty — cannot build manifest.",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    github_run_id = os.environ.get("GITHUB_RUN_ID", "local")
+    git_commit = os.environ.get("GITHUB_SHA", "")
+    if not git_commit:
+        try:
+            import subprocess as _sub  # noqa: PLC0415
+            git_commit = _sub.check_output(
+                ["git", "rev-parse", "HEAD"], text=True, stderr=_sub.DEVNULL
+            ).strip()
+        except Exception:
+            git_commit = "unknown"
+
+    manifest = {
+        "game_date": target,
+        "scheduled_game_count": len(canonical_game_ids),
+        "game_ids": [str(gid) for gid in canonical_game_ids],
+        "games": [
+            {
+                "game_id": int(g["game_id"]),
+                "home_team": g["home_team_abbreviation"],
+                "away_team": g["visitor_team_abbreviation"],
+            }
+            for _, g in games.iterrows()
+        ],
+        "total_players": int(len(slate)),
+        "injury_flagged": injury_flagged[:20],
+        "high_dnp_risk": high_dnp[:10],
+        "github_run_id": github_run_id,
+        "git_commit": git_commit,
+    }
+
+    if manifest["scheduled_game_count"] != len(manifest["game_ids"]):
+        typer.echo(
+            f"[FATAL] scheduled_game_count ({manifest['scheduled_game_count']}) "
+            f"!= len(game_ids) ({len(manifest['game_ids'])})",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    manifest_bytes = json.dumps(manifest, indent=2)
+
+    import shutil as _shutil, tempfile as _tempfile  # noqa: PLC0415
+    dated_dest = out / f"slate_manifest_{target}.json"
+    canon_dest = out / "slate_manifest.json"
+
+    with _tempfile.NamedTemporaryFile(mode="w", dir=out, suffix=".tmp", delete=False) as tmp:
+        tmp.write(manifest_bytes)
+        tmp_path = Path(tmp.name)
+
+    try:
+        tmp_path.replace(dated_dest)
+        _shutil.copy2(dated_dest, canon_dest)
+    except Exception as exc:
+        tmp_path.unlink(missing_ok=True)
+        typer.echo(f"[FATAL] Manifest write failed: {exc}", err=True)
+        raise SystemExit(1)
+
+    typer.echo(f"Manifest written → {dated_dest}")
+    typer.echo(f"Manifest written → {canon_dest} (canonical)")
+
+
 @app.command()
 def main(
     game_date: str | None = typer.Option(None, help="Target game date YYYY-MM-DD (default: tomorrow ET)."),
@@ -160,23 +262,14 @@ def main(
     slate.to_parquet(slate_path, index=False)
     typer.echo(f"\nSlate written → {slate_path}")
 
-    # Write slate manifest JSON
-    manifest = {
-        "game_date": target,
-        "games": [
-            {
-                "game_id": int(g["game_id"]),
-                "home_team": g["home_team_abbreviation"],
-                "away_team": g["visitor_team_abbreviation"],
-            }
-            for _, g in games.iterrows()
-        ],
-        "total_players": int(len(slate)),
-        "injury_flagged": injury_flagged[:20],
-        "high_dnp_risk": high_dnp[:10],
-    }
-    (out / f"slate_manifest_{target}.json").write_text(json.dumps(manifest, indent=2))
-    typer.echo(f"Manifest written → {out}/slate_manifest_{target}.json")
+    build_and_write_manifest(
+        target=target,
+        games=games,
+        slate=slate,
+        out=out,
+        injury_flagged=injury_flagged,
+        high_dnp=high_dnp,
+    )
 
 
 if __name__ == "__main__":
