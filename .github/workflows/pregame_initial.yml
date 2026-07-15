@@ -37,6 +37,7 @@ on:
       - scripts/apply_injury_updates.py
       - .github/workflows/pregame_initial.yml
       - src/wnba_props_model/pipeline/market_integrity.py
+      - src/wnba_props_model/pipeline/output_schema.py
 
 jobs:
   pregame_initial:
