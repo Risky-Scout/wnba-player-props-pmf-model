@@ -35,6 +35,7 @@ on:
     paths:
       - scripts/build_next_game_slate.py
       - .github/workflows/pregame_initial.yml
+      - src/wnba_props_model/pipeline/market_integrity.py
 
 jobs:
   pregame_initial:
