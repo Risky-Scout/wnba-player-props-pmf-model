@@ -927,11 +927,12 @@ jobs:
         # Replaces the former mean-only scaling approach that did not update
         # pmf_json, P(over), P(under), or P(push).
         run: |
-          python scripts/apply_injury_updates.py \
+          python3 scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --injuries-json "data/injuries/${GAME_DATE}.json" \
-            --features "data/processed/wnba_player_game_features_wide.parquet" \
+            --slate "deliveries/tonight/full_pmfs_wide.parquet" \
+            --features "deliveries/tonight/slate_${GAME_DATE}.parquet" \
             --model-dir artifacts/models/stage4_baseline \
             --config-path config/model/stage4_baseline.yaml \
             --cal-dir artifacts/models/calibration
