@@ -466,6 +466,16 @@ def main(
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
+    # Coerce game_date to str before writing parquet.
+    # pd.concat([base_pmfs, new_combos]) can produce a mixed-type object
+    # column when base_pmfs.game_date is str and new_combos.game_date is
+    # pd.Timestamp — pyarrow rejects the Timestamp in an object column.
+    if "game_date" in pmfs_after.columns:
+        pmfs_after = pmfs_after.copy()
+        pmfs_after["game_date"] = pmfs_after["game_date"].apply(
+            lambda v: v.strftime("%Y-%m-%d") if hasattr(v, "strftime") else str(v) if v is not None else v
+        )
+
     pmfs_after.to_parquet(slate_path, index=False)
     typer.echo(f"[apply_injury] Updated slate written → {slate_path}")
 
