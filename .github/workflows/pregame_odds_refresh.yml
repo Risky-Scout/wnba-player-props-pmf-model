@@ -200,6 +200,7 @@ jobs:
             PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
           fi
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 
           if [ -f "$EDGE_FILE" ]; then
             python scripts/generate_web_pages.py \
@@ -208,27 +209,91 @@ jobs:
               --edges "$EDGE_FILE" \
               --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
               --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges \
-              --skip-live-html
-            echo "Pages generated at $(date -u) — $(python -c "import json; d=json.load(open('deliveries/tonight/publishable_edges.parquet' and 'tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/latest.json')); print(d.get('total_props','?'), 'props')" 2>/dev/null || echo "check logs")"
+              --skip-live-html \
+              --release-id "$GITHUB_RUN_ID" \
+              --git-commit "$GIT_COMMIT"
+            echo "Pages generated at $(date -u)"
           else
             echo "[WARN] No edge file found — skipping page generation"
           fi
+        continue-on-error: false
+
+      - name: Generate Distributions + seed Live In-Play page
+        run: |
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          python scripts/generate_distributions_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir tools/odds-scanner/predictions/WNBA \
+            --release-id "$GITHUB_RUN_ID" \
+            --git-commit "$GIT_COMMIT"
+          echo "Distributions page generated for ${GAME_DATE}"
+
+      - name: Validate pre-game page release lineage (BLOCKING — pregame_odds_refresh)
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from pathlib import Path
+          from wnba_props_model.pipeline.market_integrity import (
+              validate_page_release_lineage, ArtifactLineageMismatchError,
+              check_no_stale_fallback, StaleFallbackForbiddenError,
+          )
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          base_dir  = Path("tools/odds-scanner/predictions/WNBA/Pre-Game")
+          edge_path = base_dir / "Edge" / "latest.json"
+          dist_path = base_dir / "Distributions" / "latest.json"
+          try:
+              check_no_stale_fallback("edge_page", edge_path)
+              check_no_stale_fallback("dist_page", dist_path)
+          except StaleFallbackForbiddenError as exc:
+              print(f"[FATAL] Stale page: {exc}", file=sys.stderr); sys.exit(1)
+          edge_json = json.loads(edge_path.read_text())
+          dist_json = json.loads(dist_path.read_text())
+          if run_id:
+              try:
+                  validate_page_release_lineage(edge_json, dist_json, expected_release_id=run_id)
+                  print(f"Page release lineage: PASS (release_id={run_id!r})")
+              except ArtifactLineageMismatchError as exc:
+                  print(f"[FATAL] {exc}", file=sys.stderr); sys.exit(1)
+          else:
+              print("[WARN] GITHUB_RUN_ID not set — skipping release lineage check")
+          print("Page lineage validation (odds_refresh): PASS")
+          EOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
+
+      - name: Stage all outputs for single gh-pages deploy
+        run: |
+          # Consolidate every output directory into _site so we make exactly
+          # one push to gh-pages — eliminates all push race conditions.
+          DIRS=(
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions"
+            "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions"
+            "tools/odds-scanner/predictions/WNBA/In-Play/Edges"
+          )
+          for DIR in "${DIRS[@]}"; do
+            if [ -d "$DIR" ]; then
+              mkdir -p "_site/${DIR}"
+              cp -r "${DIR}/." "_site/${DIR}/"
+            fi
+          done
+          [ -d "tools/odds-scanner" ] && cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
+          echo "Staged files: $(find _site -type f | wc -l)"
+
+      - name: Deploy all pages to gh-pages (single push — no race condition)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          publish_branch: gh-pages
+          destination_dir: .
+          keep_files: true
+
+      - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: python scripts/ftp_deploy.py
         continue-on-error: true
-
-      - name: Publish Edge Board to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          keep_files: true
-
-      - name: Publish PMF Dashboard to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          keep_files: true

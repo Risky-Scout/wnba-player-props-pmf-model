@@ -1,34 +1,23 @@
-random_seed: 20260610
-
-# Use LogLinearStatModel (Dixon-Coles opponent adjustment) — same as Stage 4
+random_seed: 42
 use_log_linear: true
-
-# OOF fold configuration
-validation_window_days: 14
-
-# Minimum training data before a fold qualifies for model_oof
+validation_window_days: 7
+oof_first_val_date: '2026-05-01'
 min_train_long_rows: 2000
 min_train_stat_rows: 250
 min_sparse_positive_rows: 50
-
-# DNP / low-minutes zero-inflation
 dnp_minutes_threshold: 1.0
 low_minutes_zero_inflation_enabled: true
-
 stats:
-  - pts
-  - reb
-  - ast
-  - fg3m
-  - stl
-  - blk
-  - turnover
-
-# stl removed: near-Poisson (var/mean=1.21), direct NegBinom is correct.
-# blk retained: structurally zero-inflated (positional/foul-out dependent).
+- pts
+- reb
+- ast
+- fg3m
+- stl
+- blk
+- turnover
 sparse_stats:
-  - blk
-
+- stl
+- blk
 pmf_support_caps:
   pts: 60
   reb: 30
@@ -37,99 +26,116 @@ pmf_support_caps:
   stl: 10
   blk: 10
   turnover: 12
-
-# Calibration eligible only for model_oof rows
 calibration_eligible_prediction_types:
-  - model_oof
-
-# Stage identifier
+- model_oof
 pmf_source: stage5_walk_forward_oof_uncalibrated_model_only
-
-# Exponential decay sample weighting — must match stage4_baseline.yaml so
-# the OOF training distribution aligns with production predictions.
-sample_weight_halflife_days: 42
-
-# HistGradientBoosting — must match stage4_baseline.yaml capacity so the OOF
-# and production models produce the same prediction range. Mismatched capacity
-# causes the calibrators to learn a correction curve that over-compresses
-# production predictions (root cause of the ~30% under-prediction bug).
-#
-# Tuning history:
-#   100 iter / 31 leaves  → ~2h OOF build; calibrator bias mismatch ~1.5 pt
-#   150 iter / 50 leaves  → ~3.5h OOF build; mismatch ~0.6 pt
-#   300 iter / 63 leaves  → ~5h OOF build (requires timeout-minutes: 360)
-#
-# timeout-minutes in weekly_calibration.yml is 360 to accommodate.
+sample_weight_halflife_days: 45
 hgb_regressor:
-  max_iter: 300
+  loss: squared_error
+  max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08
-  min_samples_leaf: 15
-
+  min_samples_leaf: 10
+  early_stopping: true
+  n_iter_no_change: 10
+  tol: 0.001
 hgb_classifier:
-  max_iter: 300
+  max_iter: 150
   max_leaf_nodes: 63
   learning_rate: 0.08
-  min_samples_leaf: 15
-
-# --------------------------------------------------------------------------
-# F1: Minutes distribution marginalization (must match stage4_baseline.yaml)
-# --------------------------------------------------------------------------
-use_minutes_marginalization: false
+  min_samples_leaf: 10
+  early_stopping: true
+  n_iter_no_change: 10
+  tol: 0.001
+use_minutes_marginalization: true
 minutes_marginalization_quadrature_points:
-  - 0.10
-  - 0.25
-  - 0.50
-  - 0.75
-  - 0.90
+- 0.1
+- 0.25
+- 0.5
+- 0.75
+- 0.9
 minutes_marginalization_weights:
-  - 0.10
-  - 0.15
-  - 0.50
-  - 0.15
-  - 0.10
-
-# --------------------------------------------------------------------------
-# F3: ZINB for sparse stats (must match stage4_baseline.yaml)
-# --------------------------------------------------------------------------
-use_zinb_for_sparse_stats: false
-
-# --------------------------------------------------------------------------
-# F5: Vig-removal method for market benchmark
-# --------------------------------------------------------------------------
+- 0.1
+- 0.15
+- 0.5
+- 0.15
+- 0.1
+use_zinb_for_sparse_stats: true
 no_vig_method: shin
 secondary_no_vig_method: power
-
-# Per-stat configuration overrides (must match stage4_baseline.yaml)
+dispersion_r_by_role:
+  pts:
+    bench: 0.6807
+    rotation: 1.1027
+    core: 1.4813
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 1.8468
+  reb:
+    bench: 0.7229
+    rotation: 1.1581
+    core: 1.4803
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 1.614
+  ast:
+    bench: 0.5876
+    rotation: 0.884
+    core: 1.1484
+    fringe: 0.4072
+    inactive_risk: 0.3
+    starter: 1.3615
+  fg3m:
+    bench: 0.4174
+    rotation: 0.6432
+    core: 0.7794
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 0.9506
+  stl:
+    bench: 1.2298
+    rotation: 3.8546
+    core: 8.7136
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 17.0304
+  blk:
+    bench: 0.6781
+    rotation: 1.3755
+    core: 2.4685
+    fringe: 0.3
+    inactive_risk: 0.3
+    starter: 2.3388
+  turnover:
+    bench: 0.965
+    rotation: 1.671
+    core: 2.2541
+    fringe: 0.5529
+    inactive_risk: 0.3
+    starter: 2.697
 stat_overrides:
   fg3m:
-    use_beta_binomial: false
+    use_beta_binomial: true
   turnover:
     use_minutes_offset: true
-  ast:
-    use_minutes_offset: true
-
-# Phase 2–3 feature and model flags (must match stage4_baseline.yaml)
 use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true
 use_mean_dependent_dispersion: true
-use_tuned_hyperparams: false
+use_tuned_hyperparams: true
 hgb_hyperparams_path: artifacts/hyperparams/best_params_all.json
-use_model_ensemble: false
+use_model_ensemble: true
+use_role_stratified_training: true
+use_per_player_dispersion: true
 pi_rating_use_model_baseline: false
-
 minutes_clip_min: 0.0
-minutes_clip_max: 45.0
+minutes_clip_max: 48.0
 min_minutes_sigma: 3.0
 uncertain_sigma_multiplier: 1.5
 min_stat_mean: 0.01
-
-# League-average priors used for prior_only PMFs when training data is insufficient.
-# Estimated from Stage 4 full-data training (did_play=True rows).
 league_priors:
   pts:
-    mean: 8.70
+    mean: 8.7
     var: 55.56
   reb:
     mean: 3.61
@@ -149,38 +155,24 @@ league_priors:
   turnover:
     mean: 1.38
     var: 1.99
-
-# --------------------------------------------------------------------------
-# Advanced features — Item 2 of Production Blueprint
-# 24 new columns from BDL extended endpoints
-# --------------------------------------------------------------------------
 use_advanced_features: true
-
 new_features:
-  # Usage features (player_season_advanced_stats, measure_type=usage)
-  - player_usage_pct
-  - player_usage_pct_ewma10
-  - player_usage_pct_vs_avg
-  # Shot quality (player_shot_locations)
-  - player_pct_fg_restricted
-  - player_pct_fg_corner3
-  - player_pct_fg_midrange
-  - player_fg_pct_restricted
-  - shot_quality_score
-  # Injury context (player_injuries + usage)
-  - teammate_out_count
-  - teammate_questionable_count
-  - team_total_usage_of_out_players
-  # Opponent context (team_game_advanced_stats)
-  - opp_def_rating_ewma10
-  - opp_pace_ewma10
-  - game_pace_predicted
-  # Standings / motivation
-  - team_playoff_seed
-  - team_games_behind
-  # season_phase removed: categorical string (early/mid/late) — lives in
-  # ROLE_BUCKET_COLS, one-hot encoded separately, excluded from FEATURE_FAMILIES
-  # Four factors (player_season_advanced_stats, measure_type=four_factors)
-  - player_efg_pct
-  - player_ft_rate
-  - player_tov_pct
+- player_usage_pct
+- player_usage_pct_ewma10
+- player_usage_pct_vs_avg
+- player_pct_fg_restricted
+- player_pct_fg_corner3
+- player_pct_fg_midrange
+- player_fg_pct_restricted
+- shot_quality_score
+- teammate_out_count
+- teammate_questionable_count
+- team_total_usage_of_out_players
+- opp_def_rating_ewma10
+- opp_pace_ewma10
+- game_pace_predicted
+- team_playoff_seed
+- team_games_behind
+- player_efg_pct
+- player_ft_rate
+- player_tov_pct

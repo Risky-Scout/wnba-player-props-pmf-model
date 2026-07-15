@@ -139,7 +139,7 @@ def fit_causal_dnp_model(df: pd.DataFrame) -> dict[str, Any]:
     # IPW-corrected model (weighted logistic regression)
     ipw_pipe = Pipeline([
         ("scaler", StandardScaler()),
-        ("lr", LogisticRegression(max_iter=2000, random_state=42, C=1.0)),
+        ("lr", LogisticRegression(solver="saga", max_iter=5000, random_state=42, C=1.0)),
     ])
     try:
         ipw_pipe.fit(X, y, lr__sample_weight=sw)
@@ -147,14 +147,14 @@ def fit_causal_dnp_model(df: pd.DataFrame) -> dict[str, Any]:
         # Some sklearn versions don't support step__param; try direct
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
-        lr = LogisticRegression(max_iter=2000, random_state=42, C=1.0)
+        lr = LogisticRegression(solver="saga", max_iter=5000, random_state=42, C=1.0)
         lr.fit(X_scaled, y, sample_weight=sw)
         ipw_pipe = (scaler, lr)
 
     # Naive model (no IPW, reference)
     naive_pipe = Pipeline([
         ("scaler", StandardScaler()),
-        ("lr", LogisticRegression(max_iter=2000, random_state=42, C=1.0)),
+        ("lr", LogisticRegression(solver="saga", max_iter=5000, random_state=42, C=1.0)),
     ])
     naive_pipe.fit(X, y)
 

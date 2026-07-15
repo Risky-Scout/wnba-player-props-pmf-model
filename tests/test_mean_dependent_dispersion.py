@@ -22,11 +22,17 @@ def _make_train_data(n: int = 500, seed: int = 0) -> tuple:
 
 
 def test_dispersion_slope_fitted_when_enabled():
-    """When use_mean_dependent_dispersion=True, slope and intercept should be fitted."""
+    """When use_mean_dependent_dispersion=True, slope and intercept should be fitted.
+
+    Uses stat "stl" (not in _COUNT_STATS_MEDIAN) so HGB uses squared_error loss,
+    which is required for the mean-dependent dispersion fit.  "pts"/"reb"/"ast"
+    force quantile=0.5 loss (median estimator), which is intentionally skipped.
+    """
     cfg = {"use_mean_dependent_dispersion": True, "random_seed": 42,
            "hgb_regressor": {"max_iter": 50}}
     X, y, ctx = _make_train_data()
-    model = StatRateModel("pts", cfg)
+    # Use "stl" — squared_error loss — so dispersion slope path is reached
+    model = StatRateModel("stl", cfg)
     model.fit(X, y, context_df=ctx)
     assert model._dispersion_slope is not None
     assert model._dispersion_intercept is not None

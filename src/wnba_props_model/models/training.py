@@ -136,6 +136,14 @@ def train_fold(
     Returns:
         FoldModel containing all fitted models and metadata.
     """
+    # ---- Derive role_bucket from minutes if not already present ----------
+    # role_bucket is NOT stored in the features parquet; it must be derived
+    # on-the-fly from player_minutes_mean_l5 so that role-stratified HGB
+    # training and per-player dispersion scaling can fire.
+    if "role_bucket" not in train_wide.columns and "player_minutes_mean_l5" in train_wide.columns:
+        train_wide = train_wide.copy()
+        train_wide = add_ex_ante_role_bucket(train_wide, minutes_col="player_minutes_mean_l5")
+
     # ---- Feature encoding ------------------------------------------------
     X_train, pos_encoder = encode_features(train_wide, model_feature_cols, fit_encoder=True)
 
@@ -202,6 +210,10 @@ def train_fold(
         and "actual_fg3a" in train_wide.columns  # fg3a must be available
     )
 
+    # played_ctx needed by StatRateModel (per-role dispersion) and HurdleModel
+    # (role-stratified Stage B). Defined once here so it's available in all branches.
+    played_ctx = train_wide[played_mask].reset_index(drop=True)
+
     for stat in stats:
         target_col = f"actual_{stat}"
         if target_col not in train_wide.columns:
@@ -223,16 +235,35 @@ def train_fold(
             if use_zinb:
                 from wnba_props_model.models.hurdle import ZINBStatModel  # noqa: PLC0415
                 m = ZINBStatModel(stat, cfg)
+                # Pass actual_minutes from train_wide (played rows only) so the mu-model
+                # can up-weight prop-eligible appearances. actual_minutes is a target label,
+                # not a model feature — it cannot be extracted from X_played.
+                _zinb_actual_min = (
+                    train_wide.loc[played_mask, "actual_minutes"]
+                    .fillna(0)
+                    .reset_index(drop=True)
+                    .values
+                    if "actual_minutes" in train_wide.columns
+                    else None
+                )
+                m.fit(X_played, y_stat, sample_weight=sample_weight_played,
+                      actual_minutes=_zinb_actual_min)
+            elif stat in {"stl", "blk"}:
+                # Use ZINBHurdleModel for stl/blk: minutes-conditional zero-inflation
+                # with per-role NB dispersion — superior to generic HurdleModel for
+                # sparse stats with strong zero-inflation structure.
+                from wnba_props_model.models.zinb_hurdle import ZINBHurdleModel  # noqa: PLC0415
+                m = ZINBHurdleModel(stat=stat)
                 m.fit(X_played, y_stat, sample_weight=sample_weight_played)
             else:
                 m = HurdleModel(stat, cfg)
-                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
+                # Pass context_df so role-stratified Stage B regressors can fire.
+                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             hurdle_models[stat] = m
             summaries[stat] = m.get_training_summary()
         elif stat == "fg3m" and use_beta_binomial_fg3m:
             # Beta-Binomial model for fg3m (uses fg3a as attempt count)
             from wnba_props_model.models.beta_binomial import BetaBinomialStatModel  # noqa: PLC0415
-            played_ctx = train_wide[played_mask].reset_index(drop=True)
             fg3a_col = "actual_fg3a" if "actual_fg3a" in played_ctx.columns else None
             y_attempts = played_ctx[fg3a_col] if fg3a_col else None
             stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
@@ -249,8 +280,6 @@ def train_fold(
             m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             stat_models[stat] = m
         else:
-            # Pass context_df so StatRateModel can compute per-role dispersion.
-            played_ctx = train_wide[played_mask].reset_index(drop=True)
             # Merge global config with per-stat overrides (stat_overrides.{stat})
             stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
             if cfg.get("use_log_linear", False):
@@ -301,6 +330,13 @@ def generate_fold_pmfs(
     Returns:
         Long PMF DataFrame with all OOF output columns.
     """
+    # Derive role_bucket for validation wide table if not present.
+    # role_bucket is not stored in the features parquet — it must be derived
+    # from player_minutes_mean_l5 so the role-stratified HGB models actually
+    # get used during OOF prediction (not silently bypassed with global model).
+    if "role_bucket" not in val_wide.columns and "player_minutes_mean_l5" in val_wide.columns:
+        val_wide = add_ex_ante_role_bucket(val_wide, minutes_col="player_minutes_mean_l5")
+
     X_val, _ = encode_features(
         val_wide, fold_model.feature_cols,
         pos_encoder=fold_model.pos_encoder, fit_encoder=False
@@ -357,9 +393,20 @@ def generate_fold_pmfs(
         p_nz_out = None
         pos_mus_out = None
 
+        # Role series for routing predictions to role-specific HGB models
+        _role_series_fold = (
+            stat_rows["role_bucket"].reset_index(drop=True)
+            if "role_bucket" in stat_rows.columns
+            else (
+                aligned_wide["role_bucket"].reset_index(drop=True)
+                if "role_bucket" in aligned_wide.columns
+                else None
+            )
+        )
+
         if stat in fold_model.hurdle_models:
             model = fold_model.hurdle_models[stat]
-            p_nz, pos_mus = model.predict(X_stat)
+            p_nz, pos_mus = model.predict(X_stat, role_series=_role_series_fold)
             stat_means_out = p_nz * pos_mus
             stat_var_out = np.full(len(stat_rows), float(model._pos_var))
             stat_model_type = "hurdle"
@@ -367,12 +414,23 @@ def generate_fold_pmfs(
             pos_mus_out = pos_mus
         elif stat in fold_model.stat_models:
             model = fold_model.stat_models[stat]
-            stat_means_out = model.predict_mean(X_stat)
+            # Mirror live build_all_pmfs ensemble path so calibrators are fit on the same distribution
+            _use_ensemble_fold = cfg.get("use_model_ensemble", False)
+            if _use_ensemble_fold and hasattr(model, "predict_with_shrinkage"):
+                stat_means_out = model.predict_with_shrinkage(X_stat, aligned_wide, role_series=_role_series_fold)
+            else:
+                stat_means_out = model.predict_mean(X_stat, role_series=_role_series_fold)
             stat_var_out = np.full(len(stat_rows), float(model._global_var))
             stat_model_type = "rate"
 
         # ---- Build PMF matrix --------------------------------------------
-        roles = stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns else None
+        # role_bucket comes from aligned_wide (derived from val_wide) since val_long
+        # (stat_rows) does not carry this column.
+        roles = (
+            stat_rows["role_bucket"].values if "role_bucket" in stat_rows.columns
+            else aligned_wide["role_bucket"].values if "role_bucket" in aligned_wide.columns
+            else None
+        )
         use_marginalization = cfg.get("use_minutes_marginalization", False)
         bb_models_fold = getattr(fold_model, "bb_models", {})
 
@@ -398,14 +456,22 @@ def generate_fold_pmfs(
                 _build_marginalized_pmf_matrix, _blend_with_dnp,
             )
             pmf_mat = _build_marginalized_pmf_matrix(
-                stat, quant_mat, quad_weights, p_nz_out, pos_mus_out,
-                fold_model.stat_models, fold_model.hurdle_models, cap, roles=roles
-            )
+                    stat, quant_mat, quad_weights, p_nz_out, pos_mus_out,
+                    fold_model.stat_models, fold_model.hurdle_models, cap, roles=roles,
+                    stat_means=stat_means_out,
+                )
         elif stat == "fg3m" and bb_models_fold.get("fg3m") is not None:
             pmf_mat = bb_models_fold["fg3m"].predict_pmf_matrix(X_stat, cap=cap)
         elif stat in fold_model.hurdle_models:
             model = fold_model.hurdle_models[stat]
-            pmf_mat = hurdle_pmf_batch(p_nz_out, pos_mus_out, model.pos_dispersion_r, cap)
+            # ZINBStatModel has ZINB semantics (unconditional mean) — use zinb_pmf_batch
+            from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBFold  # noqa: PLC0415
+            if isinstance(model, _ZINBFold):
+                from wnba_props_model.models.pmf_utils import zinb_pmf_batch as _zinb_fold  # noqa: PLC0415
+                _pi_fold = np.clip(1.0 - p_nz_out, 0.0, 1.0)
+                pmf_mat = _zinb_fold(_pi_fold, pos_mus_out, model._r, cap)
+            else:
+                pmf_mat = hurdle_pmf_batch(p_nz_out, pos_mus_out, model.pos_dispersion_r, cap)
         elif stat in fold_model.stat_models:
             model = fold_model.stat_models[stat]
             # Role-aware NegBinom: batch by role so stars get fatter tails
@@ -508,6 +574,8 @@ def generate_fold_pmfs(
             "minutes_prediction_type":      "model" if oof_type == "model_oof" else "prior",
             "stat_mean":                    stat_means_out,
             "stat_variance":                stat_var_out,
+            "p_nz":                         p_nz_out if p_nz_out is not None else np.ones(len(stat_rows)),
+            "pos_mu":                       pos_mus_out if pos_mus_out is not None else stat_means_out,
             "stat_model_type":              stat_model_type,
             "pmf_json":                     pmf_jsons,
             "pmf_support_min":              0,

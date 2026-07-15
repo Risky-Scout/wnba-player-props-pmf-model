@@ -195,7 +195,10 @@ ROLE_MIN_ROWS = {
     "starter": 500,
 }
 
-ROLE_GLOBAL_ONLY_BUCKETS = {"inactive_risk"}
+# fringe and inactive_risk now get dedicated calibrators with relaxed minimums
+# (fringe: 100 rows, inactive_risk: 50 rows) — see calibration.py fit_role_aware_calibrator.
+# Neither is forced to global-only anymore; both get role-specific isotonic curves.
+ROLE_GLOBAL_ONLY_BUCKETS: set = set()
 
 CALIBRATION_GATES = {
     "pit_ks_max": 0.15,          # year-1; tighten to 0.10 in year 2

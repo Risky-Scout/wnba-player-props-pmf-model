@@ -1,0 +1,159 @@
+name: Bi-Daily Calibrator Refit
+
+on:
+  schedule:
+    - cron: '0 8 * * 1,3,5'  # Mon/Wed/Fri 8AM UTC (4AM ET)
+  workflow_dispatch: {}
+
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Download calibrators-latest artifact
+        run: |
+          mkdir -p artifacts/models/calibration
+          # Save repo-committed JSON overrides before artifact download may clobber them
+          for f in bias_corrections.json bias_corrections_by_role.json; do
+            if [ -f "artifacts/models/calibration/$f" ]; then
+              cp "artifacts/models/calibration/$f" "/tmp/repo_${f}"
+              echo "Saved repo version of $f"
+            fi
+          done
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            echo "Downloading calibrators-latest artifact id=$AID"
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
+            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+            echo "Calibrators downloaded OK"
+          else
+            echo "[WARN] No calibrators-latest artifact found — will create fresh calibrators"
+          fi
+          # Restore repo-committed JSON files — they take precedence over artifact versions.
+          for f in bias_corrections.json bias_corrections_by_role.json; do
+            if [ -f "/tmp/repo_${f}" ]; then
+              cp "/tmp/repo_${f}" "artifacts/models/calibration/$f"
+              echo "Restored repo override for $f"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Download oof-latest artifact (OOF PMFs for calibration)
+        run: |
+          mkdir -p data/oof
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=oof-latest" \
+            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/oof.zip
+            unzip -o /tmp/oof.zip -d data/oof
+            echo "OOF artifact downloaded OK (id=$AID)"
+          else
+            echo "[ERROR] oof-latest artifact not found — cannot refit calibrators without OOF PMFs"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore git bias_corrections.json (repo version takes precedence)
+        run: |
+          # After artifact download, restore repo-committed JSON overrides.
+          # .pkl isotonic calibrators come from the artifact (require OOF data to retrain).
+          # JSON files can be updated via git commit without a full calibration cycle.
+          for f in bias_corrections.json bias_corrections_by_role.json; do
+            REPO_PATH="artifacts/models/calibration/$f"
+            if git show HEAD:"$REPO_PATH" > /tmp/repo_committed_${f} 2>/dev/null; then
+              cp /tmp/repo_committed_${f} "$REPO_PATH"
+              echo "Restored git-committed $f"
+            fi
+          done
+
+      - name: Refit calibrators on accumulated OOF + recent actuals
+        run: |
+          python scripts/fit_calibrators.py \
+            --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
+            --out-dir artifacts/models/calibration
+
+      - name: Validate refitted calibrators (bias floor gate)
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys
+          from pathlib import Path
+
+          bc_path = Path("artifacts/models/calibration/bias_corrections.json")
+          if not bc_path.exists():
+              print("::error title=No Bias Corrections::bias_corrections.json not found after biday refit")
+              sys.exit(1)
+
+          bc = json.loads(bc_path.read_text())
+          FLOOR = 0.6000
+          TOLERANCE = 0.0005
+          STATS = ["pts", "reb", "ast", "fg3m", "stl", "turnover", "blk", "stocks"]
+          floored = [s for s in STATS if s in bc and abs(bc[s] - FLOOR) < TOLERANCE]
+          print("=== Bi-Daily Calibrator Bias Floor Check ===")
+          for s in STATS:
+              v = bc.get(s)
+              if v is None:
+                  continue
+              at_floor = abs(v - FLOOR) < TOLERANCE
+              flag = "FLOOR" if at_floor else "OK   "
+              print(f"  {flag}  {s}: {v:.4f}")
+          print(f"\n{len(floored)} of {len([s for s in STATS if s in bc])} stats at floor ({floored})")
+          if len(floored) > 4:
+              print(f"::error title=Calibration Floor::{len(floored)} stats at bias floor — refit may not have converged.")
+              sys.exit(1)
+          print("Bias floor gate: PASSED")
+          PYEOF
+
+      - name: Upload calibrators-latest artifact (overwrite)
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibrators-latest
+          path: artifacts/models/calibration/
+          retention-days: 90
+          overwrite: true
+
+      - name: Commit updated bias_corrections.json back to repo if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f artifacts/models/calibration/bias_corrections.json \
+                      artifacts/models/calibration/bias_corrections_by_role.json \
+                      artifacts/models/calibration/ 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: biday calibrator refit run ${{ github.run_id }} [skip ci]"
+            git push
+            echo "Calibrator changes committed to main."
+          else
+            echo "No calibration changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

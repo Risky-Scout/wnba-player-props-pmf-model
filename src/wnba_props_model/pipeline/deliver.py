@@ -12,6 +12,29 @@ from wnba_props_model.models.pmf_grid import WNBAPMFGrid, pmfs_df_to_grids
 from wnba_props_model.models.simulation import json_to_pmf
 
 
+def no_vig_prob(over_odds_decimal: float, under_odds_decimal: float) -> tuple[float, float]:
+    """Remove vig from a two-sided market to get true implied probabilities.
+
+    Uses additive normalization (power method approximation). For a proper
+    Shin-model de-vig, use shin_no_vig_two_way_with_z from models.market.
+
+    Args:
+        over_odds_decimal: Decimal odds for the over side (e.g. 1.91).
+        under_odds_decimal: Decimal odds for the under side (e.g. 1.91).
+
+    Returns:
+        Tuple (no_vig_over_prob, no_vig_under_prob) summing to 1.0.
+    """
+    if over_odds_decimal <= 1.0 or under_odds_decimal <= 1.0:
+        return 0.5, 0.5
+    p_over_raw = 1.0 / over_odds_decimal
+    p_under_raw = 1.0 / under_odds_decimal
+    total = p_over_raw + p_under_raw
+    if total <= 0:
+        return 0.5, 0.5
+    return p_over_raw / total, p_under_raw / total
+
+
 def add_pge_ladder(pmfs: pd.DataFrame, kmax: int = 20) -> pd.DataFrame:
     out = pmfs.copy()
     for k in range(1, kmax + 1):
@@ -20,6 +43,38 @@ def add_pge_ladder(pmfs: pd.DataFrame, kmax: int = 20) -> pd.DataFrame:
             for p in out["pmf_json"]
         ]
     return out
+
+
+def _pick_best_line_for_direction(joined: pd.DataFrame) -> pd.DataFrame:
+    """For each player×stat, keep the most favorable line for the model's predicted direction.
+
+    OVER edge: lowest available line (bettor gets the easiest hurdle).
+    UNDER edge: highest available line (bettor gets the most forgiving hurdle).
+    At tied lines: best odds (highest payout for the direction).
+    """
+    if joined.empty:
+        return joined
+
+    results = []
+    for (player_id, stat), group in joined.groupby(["player_id", "stat"]):
+        if len(group) == 1:
+            results.append(group)
+            continue
+        # Determine direction by majority vote on edge_over sign
+        is_over = group["edge_over"].mean() >= 0
+        if is_over:
+            # Lowest line first (easiest OVER hurdle), then best over_odds as tiebreaker
+            best = group.sort_values(
+                ["line", "over_odds"], ascending=[True, False]
+            ).iloc[[0]]
+        else:
+            # Highest line first (most forgiving UNDER hurdle), then best under_odds
+            best = group.sort_values(
+                ["line", "under_odds"], ascending=[False, False]
+            ).iloc[[0]]
+        results.append(best)
+
+    return pd.concat(results, ignore_index=True)
 
 
 def build_fair_odds_board(pmfs: pd.DataFrame) -> pd.DataFrame:
@@ -155,7 +210,7 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
             "game_id": r.get("game_id"),
             "player_id": r.get("player_id"),
             "player_name": r.get("player_name"),
-            "vendor": r.get("vendor"),
+            "vendor": r.get("vendor") or r.get("bookmaker"),
             "prop_type": r.get("prop_type"),
             "stat": stat,
             "line": line_val,
@@ -179,6 +234,35 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.DataFrame:
+    # Game_ID integrity guard: projections and market props must share game_ids.
+    # Mismatch means market data is from a different slate — producing 100% artificial edges.
+    # Guard is skipped when all props are Odds API sourced: their game_id is an Odds API
+    # event_id string (not a BDL integer) and will never intersect. Matching falls through
+    # to the player_name fallback join below.
+    _odds_api_only = (
+        "source" in raw_props.columns
+        and len(raw_props["source"].dropna().unique()) > 0
+        and all(str(s) == "odds_api_v4" for s in raw_props["source"].dropna().unique())
+    )
+    if "game_id" in pmfs.columns and "game_id" in raw_props.columns and not _odds_api_only:
+        _proj_ids = set(pmfs["game_id"].dropna().unique())
+        _market_ids = set(raw_props["game_id"].dropna().unique())
+        _shared_ids = _proj_ids & _market_ids
+        if not _shared_ids:
+            import logging as _logging_gid  # noqa: PLC0415
+            _logger_gid = _logging_gid.getLogger(__name__)
+            _logger_gid.error(
+                "GAME_ID MISMATCH: projections have game_ids=%s but market props have game_ids=%s. "
+                "Different slates — returning empty DataFrame to prevent artificial edges.",
+                _proj_ids, _market_ids,
+            )
+            return pd.DataFrame()
+        pmfs = pmfs[pmfs["game_id"].isin(_shared_ids)].copy()
+        raw_props = raw_props[raw_props["game_id"].isin(_shared_ids)].copy()
+        import logging as _logging_gid2  # noqa: PLC0415
+        _logging_gid2.getLogger(__name__).info(
+            "[deliver] Game_ID guard: %d shared game_ids %s", len(_shared_ids), _shared_ids
+        )
     props = normalize_player_props_snapshot(raw_props)
 
     # Guard: nothing to compare if props normalisation produced no rows
@@ -256,6 +340,10 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     joined["edge_under"] = joined["market_prob_over_no_vig"] - joined["model_prob_over"]
     joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
     joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
+
+    # Explicit no-vig probability columns for downstream reporting
+    joined["no_vig_over_prob"] = joined["market_prob_over_no_vig"]
+    joined["no_vig_under_prob"] = 1.0 - joined["market_prob_over_no_vig"]
 
     # Market-implied Poisson mean (Phase 4b)
     from wnba_props_model.models.market import market_implied_mean as _mim  # noqa: PLC0415
@@ -346,10 +434,18 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         kelly_vals = []
         decay_edges = []
         for _, r in joined.iterrows():
-            p = float(r["model_prob_over"])
+            edge_ov = float(r.get("edge_over", 0.0))
+            if edge_ov >= 0:
+                # OVER bet: use model P(over) and over_odds
+                p = float(r["model_prob_over"])
+                raw_odds = r.get("over_odds")
+                edge = edge_ov
+            else:
+                # UNDER bet: use model P(under) = 1 - P(over) and under_odds
+                p = 1.0 - float(r["model_prob_over"])
+                raw_odds = r.get("under_odds")
+                edge = float(r.get("edge_under", 0.0))
             p = max(1e-6, min(1.0 - 1e-6, p))
-            raw_odds = r.get("over_odds")
-            edge = float(r.get("edge_over", 0.0))
             # Convert American odds to decimal odds - 1
             try:
                 raw_odds = float(raw_odds)
@@ -375,7 +471,15 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
             decay_factor = max(0.0, 1.0 - _CLV_DECAY_RATE * hours)
             decay_edges.append(round(edge * decay_factor, 4))
         joined["kelly_fraction"] = kelly_vals
-        joined["clv_decay_adjusted_edge"] = decay_edges
+        # time_decay_adjusted_edge: model edge multiplied by a time-decay factor
+        # that approaches zero as the market approaches game time (markets get more
+        # efficient closer to tip-off).  NOT labeled as CLV — CLV requires a
+        # closing quote.  Renamed from the previous misleading 'clv_decay_adjusted_edge'.
+        joined["time_decay_adjusted_edge"] = decay_edges
+        # model_edge: the canonical external name used by downstream consumers.
+        joined["model_edge"] = decay_edges
+        # kelly_units: Quarter-Kelly fraction expressed as % of bankroll (e.g. 2.5 = 2.5%)
+        joined["kelly_units"] = (joined["kelly_fraction"] * 100).round(2)
 
     # reverse_line_movement_flag: line moved opposite to model's suggested direction
     if "line_delta" in joined.columns and "edge_over" in joined.columns:
@@ -437,6 +541,52 @@ def build_projection_output(pmfs: pd.DataFrame, game_date: str | None = None) ->
     return out
 
 
+def _recompute_pmf_mean(pmfs: pd.DataFrame) -> pd.DataFrame:
+    """Recompute pmf_mean from pmf_json as the single source of truth.
+
+    This is the final guardrail before writing full_pmfs_wide.parquet.
+    Any upstream code that sets pmf_mean incorrectly (e.g. from a stale 0
+    value for DNP-projected players) is corrected here.
+
+    Strategy: compute from pmf_json when available. For rows where pmf_json gives
+    mean 0 but pmf_mean_full_precision is non-zero (e.g. combo rows with degenerate
+    base component pmf_json), fall back to pmf_mean_full_precision as source of truth.
+    """
+    if "pmf_json" not in pmfs.columns:
+        return pmfs
+    out = pmfs.copy()
+
+    def _mean_from_json(s: str) -> float:
+        try:
+            d = json.loads(s)
+            if not d:
+                return float("nan")
+            ks = np.array([float(k) for k in d.keys()], dtype=float)
+            vs = np.array(list(d.values()), dtype=float)
+            total = vs.sum()
+            if total <= 0:
+                return float("nan")
+            return float((ks @ vs) / total)
+        except Exception:
+            return float("nan")
+
+    fp_means = out["pmf_json"].map(_mean_from_json)
+
+    # If pmf_mean_full_precision already exists and is a more reliable value
+    # (e.g. set by _build_combo_pmf_rows from the correctly-computed PMF array),
+    # use it for rows where the json-computed mean gives 0.
+    if "pmf_mean_full_precision" in out.columns:
+        stored_fp = out["pmf_mean_full_precision"]
+        # Prefer stored_fp where json gives 0 but stored_fp is non-zero
+        _use_stored = (fp_means.fillna(0) <= 0) & (stored_fp.fillna(0) > 0)
+        fp_means = fp_means.copy()
+        fp_means[_use_stored] = stored_fp[_use_stored]
+
+    out["pmf_mean_full_precision"] = fp_means
+    out["pmf_mean"] = fp_means.round(4)
+    return out
+
+
 def write_delivery(
     pmfs: pd.DataFrame,
     out_dir: str | Path,
@@ -446,7 +596,20 @@ def write_delivery(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    # Canonical pmf_mean recompute — prevents stale zeros from reaching the artifact.
+    print(f"[write_delivery] Running pmf_mean recompute on {len(pmfs)} rows", flush=True)
+    pmfs = _recompute_pmf_mean(pmfs)
+    _zero_after = int((pmfs["pmf_mean"] == 0).sum()) if "pmf_mean" in pmfs.columns else -1
+    print(f"[write_delivery] pmf_mean=0 count after recompute: {_zero_after}", flush=True)
+
     full = add_pge_ladder(pmfs)
+    # Final safety net: fix any remaining pmf_mean=0 where pmf_mean_full_precision > 0.
+    # This catches any code path that resets pmf_mean to 0 after _recompute_pmf_mean.
+    if "pmf_mean_full_precision" in full.columns:
+        _final_bad = (full["pmf_mean"].fillna(0) == 0) & (full["pmf_mean_full_precision"].fillna(0) > 0)
+        if _final_bad.any():
+            full = full.copy()
+            full.loc[_final_bad, "pmf_mean"] = full.loc[_final_bad, "pmf_mean_full_precision"].round(4)
     full_path = out / "full_pmfs_wide.parquet"
     full.to_parquet(full_path, index=False)
 
@@ -487,9 +650,53 @@ def write_delivery(
         comp_path = out / "market_comparison.parquet"
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path
-        edges = comp[
-            (comp["edge_over"].abs() >= 0.04) | (comp["edge_under"].abs() >= 0.04)
-        ].copy()
+
+        # Best-line-for-direction: for each player×stat keep the single most
+        # favorable line for the model's predicted direction before edge filtering.
+        if not comp.empty and "edge_over" in comp.columns:
+            try:
+                comp = _pick_best_line_for_direction(comp)
+            except Exception as _bld_exc:
+                import logging as _bld_log  # noqa: PLC0415
+                _bld_log.getLogger(__name__).warning(
+                    "Best-line-for-direction failed (non-fatal): %s", _bld_exc
+                )
+
+        # Ensure vendor column is preserved from props side of join.
+        # normalize_player_props_snapshot stores it as 'vendor'; the join
+        # keeps it, but guard in case it was lost during merges.
+        if "vendor" not in comp.columns and "bookmaker" in comp.columns:
+            comp["vendor"] = comp["bookmaker"]
+
+        # Production floor: suppress combo UNDER edges only for bench players
+        # whose model mean is near-zero (phantom UNDER = market line exists but
+        # PMF has no meaningful signal). OVER edges are always kept — if the
+        # model projects more than the line, that is real signal regardless of
+        # the absolute level. Floors are intentionally low to only catch
+        # truly degenerate predictions (e.g. pts_reb=0.016), not rotation
+        # players with legitimate small projections (e.g. pts_reb=6.5).
+        _COMBO_PHANTOM_FLOOR: dict[str, float] = {
+            "pts_reb":     1.0,
+            "pts_ast":     1.0,
+            "pts_reb_ast": 2.0,
+            "reb_ast":     0.8,
+            "stocks":      0.3,
+            "blk_stl":     0.3,
+        }
+        _edge_mask = (comp["edge_over"].abs() >= 0.04) | (comp["edge_under"].abs() >= 0.04)
+        # Suppress only UNDER edges below the phantom floor — keep all OVER edges
+        if "stat" in comp.columns and "pmf_mean" in comp.columns and "edge_under" in comp.columns:
+            for _combo_stat, _floor in _COMBO_PHANTOM_FLOOR.items():
+                _is_combo = comp["stat"] == _combo_stat
+                _below_floor = comp["pmf_mean"].fillna(0) < _floor
+                # An UNDER edge = model_mean < market line → edge_under is positive
+                _is_under_dominant = comp["edge_under"].fillna(0) > comp["edge_over"].fillna(0)
+                _edge_mask = _edge_mask & ~(_is_combo & _below_floor & _is_under_dominant)
+        # Also respect combo_suppressed flag set by _build_combo_pmf_rows
+        if "combo_suppressed" in comp.columns:
+            _edge_mask = _edge_mask & ~comp["combo_suppressed"].fillna(False)
+
+        edges = comp[_edge_mask].copy()
         edges_path = out / "publishable_edges.parquet"
         edges.to_parquet(edges_path, index=False)
         paths["publishable_edges"] = edges_path

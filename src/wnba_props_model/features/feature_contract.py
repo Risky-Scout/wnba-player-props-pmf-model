@@ -58,6 +58,10 @@ PLAYER_RATE_FEATURES = [
     "usage_proxy_roll5",
     "fga_per_min_roll5",
     "fta_per_min_roll5",
+    # Part 2b: home/away split delta features
+    "player_home_away_pts_delta",  # (home_pts_l10 - away_pts_l10) / overall_mean
+    "player_home_away_reb_delta",
+    "player_home_away_ast_delta",
 ]
 
 TEAM_CONTEXT_FEATURES = [
@@ -70,6 +74,8 @@ TEAM_CONTEXT_FEATURES = [
     "opp_ast_allowed_roll5",
     "opp_tov_rate_roll5",
     "opp_rim_pressure_proxy_roll5",
+    # Part 2c: opponent positional defense (player's position vs opponent last 5)
+    "opp_pos_pts_allowed_mean_l5",
 ]
 
 INJURY_AVAILABILITY_FEATURES = [
@@ -119,6 +125,8 @@ ADVANCED_INJURY_FEATURES: list[str] = [
     "teammate_out_count",                    # # rotation teammates ruled out
     "teammate_questionable_count",           # # teammates questionable
     "team_total_usage_of_out_players",       # Redistributable USG%
+    "team_top3_scorers_available",           # Binary: top 3 scorers all active (Part 2e)
+    "player_role_elevation",                 # Min-share increase when stars are out (Part 2e)
 ]
 
 ADVANCED_OPPONENT_FEATURES: list[str] = [
@@ -134,6 +142,11 @@ ADVANCED_STANDINGS_FEATURES: list[str] = [
     # stored in ROLE_BUCKET_COLS in build_features.py and one-hot encoded
     # separately.  It must NOT appear here or it will pass the FEATURE_FAMILIES
     # allowlist and crash HGBR with 'could not convert string to float: early'.
+    # Numeric season phase features (safe for model training)
+    "season_phase_ratio",   # Continuous: (game_date - season_start) / season_length [0, 1]
+    "season_phase_early",   # Binary: season_phase_ratio < 0.25
+    "season_phase_mid",     # Binary: 0.25 <= season_phase_ratio < 0.75
+    "season_phase_late",    # Binary: season_phase_ratio >= 0.75
 ]
 
 ADVANCED_FOUR_FACTORS_FEATURES: list[str] = [
@@ -161,6 +174,9 @@ USAGE_TRANSFER_FEATURES: list[str] = [
     "usage_shift_abs",                 # |usage_shift| (magnitude of role change)
     "projected_usage_given_absences",  # UTM-projected usage with absences
     "usage_transfer_delta",            # Projected - base usage (pure lineup effect)
+    # Part 2d: usage trend features
+    "player_usage_trend_l5_vs_l15",   # Ratio of usage rate L5 vs L15 (hot/cold detection)
+    "player_fga_l5_mean",             # FGA last 5 games (proxy for role/touches)
 ]
 
 # Extended schedule fatigue features (Enhancement 3)
@@ -171,6 +187,14 @@ FATIGUE_FEATURES: list[str] = [
     "altitude_flag",            # Playing at altitude (Denver/Salt Lake)
     "schedule_fatigue_index",   # Composite fatigue score
     "rest_interaction_high_usage",  # Fatigue × high usage interaction
+    # Part 2a: enhanced fatigue / load features
+    "player_minutes_l3_sum",    # Total minutes in last 3 games (cumulative load)
+    "player_games_in_last_7d",  # Games played in last 7 calendar days
+    "player_load_index",        # player_minutes_l3_sum / 120.0 (normalized 0-1)
+    # Rest / B2B / confirmed-starter features
+    "player_is_b2b",            # 1 if back-to-back game (rest_days <= 1)
+    "rest_advantage",           # player_rest_days minus game-mean rest (freshness delta)
+    "player_is_confirmed_starter",  # 1 if confirmed in starting 5 from lineup data
 ]
 
 # Shot quality / efficiency regression features (Enhancement 4)
@@ -201,6 +225,14 @@ GAME_SCRIPT_FEATURES: list[str] = [
     "team_timezone_diff",            # |home_tz - away_tz| proxy for travel fatigue
     "team_3in4_flag",                # Player's team on 3-in-4 schedule
     "opp_3in4_flag",                 # Opponent on 3-in-4 schedule
+    # Vegas game totals and implied team scoring (Enhancement: game context)
+    # These features do NOT start with safe prefixes so must be registered here.
+    "implied_team_total",            # Vegas-implied team score = (game_total ± spread) / 2
+    "game_total",                    # Vegas over/under game total (raw)
+    "game_spread_home",              # Home team point spread
+    "blowout_risk",                  # Binary: |spread| > 12 (starters likely sit late)
+    "predicted_spread_abs",          # |spread| as continuous feature (blowout magnitude)
+    "close_game_indicator",          # Binary: |spread| < 6 (likely competitive to the wire)
 ]
 
 # Parts B+F: Prior-game market features — lagged by 1 game to avoid leakage.
@@ -230,8 +262,11 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
     "advanced_opponent": ADVANCED_OPPONENT_FEATURES,
     "advanced_standings": ADVANCED_STANDINGS_FEATURES,
     "advanced_four_factors": ADVANCED_FOUR_FACTORS_FEATURES,
-    # SVD player quality embeddings (Enhancement 12a — latent skill-mix profile)
-    "player_embeddings": PLAYER_EMBEDDING_FEATURES,
+    # SVD player quality embeddings (Enhancement 12a) are EXCLUDED from FEATURE_FAMILIES
+    # and added to FORBIDDEN_MODEL_FEATURES below.  The SVD infrastructure is not
+    # rebuilt on every pipeline run, so including these features creates a
+    # live-training / OOF mismatch.  Dropping them is the correct fix until a
+    # full SVD rebuild pipeline is wired into the daily run.
     # Usage Transfer Matrix (Enhancement 1 — previously excluded by prefix gate)
     "usage_transfer": USAGE_TRANSFER_FEATURES,
     # Schedule fatigue (Enhancement 3 — previously excluded by prefix gate)
@@ -292,6 +327,18 @@ _CONSTANT_DEGENERATE_FEATURES = frozenset({
     "rotation_minutes_q75",
     "rotation_minutes_q90",
     "rotation_minutes_std",
+    # Dead features: always-null (no WNBA data source populates these columns).
+    # Keeping them inflates the feature matrix without contributing signal and
+    # causes spurious NaN handling in tree splits.
+    "player_defensive_rating_l5",
+    "player_offensive_rating_l5",
+    "player_true_shooting_percentage_l5",
+    "player_rebound_percentage_l5",
+    "player_usage_percentage_l5",
+    "player_assist_percentage_l5",
+    "player_rim_freq_l5",
+    "player_corner3_freq_l5",
+    "player_above_break3_freq_l5",
 })
 
 # Position-level opponent defensive stats (e.g. how many pts does this team
@@ -330,6 +377,10 @@ FORBIDDEN_MODEL_FEATURES: frozenset[str] = (
     | _OUTCOME_LEAKAGE
     | _CONSTANT_DEGENERATE_FEATURES
     | _WRONG_GRANULARITY_FEATURES
+    # SVD features excluded: live pipeline does not rebuild SVD on each run,
+    # so including them creates an OOF/live mismatch.  Forbidden so the leakage
+    # gate catches accidental re-inclusion via the manifest or config.
+    | frozenset(PLAYER_EMBEDDING_FEATURES)
 )
 
 

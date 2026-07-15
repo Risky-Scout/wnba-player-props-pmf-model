@@ -129,13 +129,21 @@ def main(
     all_shap_rows: list[dict] = []
     top5_out: dict = {}
 
-    for stat, model in models.items():
+    for stat, model_entry in models.items():
         if stat not in STATS_TO_EXPLAIN:
             continue
         typer.echo(f"  SHAP for stat={stat} ...")
 
-        # Prepare feature matrix
-        X = _prepare_X(today_df, feat_cols)
+        # Unpack: new loader returns (hgb, per_stat_cols); legacy returns bare model
+        if isinstance(model_entry, tuple):
+            model, stat_cols = model_entry
+            effective_cols = stat_cols if stat_cols else feat_cols
+        else:
+            model = model_entry
+            effective_cols = feat_cols
+
+        # Prepare feature matrix using per-stat columns
+        X = _prepare_X(today_df, effective_cols)
         if X is None or X.shape[1] == 0:
             typer.echo(f"  [WARN] Empty feature matrix for {stat} — skipping.", err=True)
             continue
@@ -151,7 +159,7 @@ def main(
             typer.echo(f"  [WARN] SHAP failed for {stat}: {exc}", err=True)
             continue
 
-        actual_cols = feat_cols[:X.shape[1]] if len(feat_cols) >= X.shape[1] else list(range(X.shape[1]))
+        actual_cols = effective_cols[:X.shape[1]] if len(effective_cols) >= X.shape[1] else list(range(X.shape[1]))
 
         for row_idx, row in enumerate(today_df.itertuples()):
             pid = int(getattr(row, "player_id", row_idx))
@@ -199,32 +207,77 @@ def main(
 
 
 def _load_models(model_dir: str) -> dict:
-    """Load HGB models from joblib files in model_dir."""
+    """Load HGB models from joblib files in model_dir.
+
+    Prefers stat_rate_models.joblib (dict of StatRateModel wrappers) and
+    hurdle_models.joblib (dict of HurdleModel wrappers) — the canonical
+    production artifacts. Falls back to legacy per-stat .pkl files.
+
+    Returns dict[stat_name -> (hgb_model, usable_cols_list)].
+    """
     import joblib  # noqa: PLC0415
 
     md = Path(model_dir)
+
     models: dict = {}
+
+    # --- Priority 1a: stat_rate_models.joblib (StatRateModel wrappers) ---
+    srm_path = md / "stat_rate_models.joblib"
+    if srm_path.exists():
+        try:
+            stat_rate_models = joblib.load(srm_path)
+            for stat, srm in stat_rate_models.items():
+                if stat not in STATS_TO_EXPLAIN:
+                    continue
+                hgb = getattr(srm, "_model", None)
+                cols = getattr(srm, "_usable_cols", [])
+                if hgb is not None:
+                    models[stat] = (hgb, list(cols))
+                    typer.echo(f"  Loaded StatRateModel._model for {stat} ({len(cols)} features)")
+        except Exception as exc:
+            typer.echo(f"[WARN] Failed to load stat_rate_models.joblib: {exc}", err=True)
+
+    # --- Priority 1b: hurdle_models.joblib (HurdleModel wrappers, e.g. blk) ---
+    hm_path = md / "hurdle_models.joblib"
+    if hm_path.exists():
+        try:
+            hurdle_models = joblib.load(hm_path)
+            for stat, hm in hurdle_models.items():
+                if stat not in STATS_TO_EXPLAIN or stat in models:
+                    continue
+                reg = getattr(hm, "_reg", None)
+                cols = getattr(hm, "_usable_cols", [])
+                if reg is not None:
+                    models[stat] = (reg, list(cols))
+                    typer.echo(f"  Loaded HurdleModel._reg for {stat} ({len(cols)} features)")
+        except Exception as exc:
+            typer.echo(f"[WARN] Failed to load hurdle_models.joblib: {exc}", err=True)
+
+    if models:
+        return models
+
+    # --- Priority 2: legacy per-stat .pkl files ---
     for stat in STATS_TO_EXPLAIN:
-        for fname in [f"hgb_{stat}.pkl", f"model_{stat}.pkl", f"{stat}_model.pkl", "model.pkl"]:
+        for fname in [f"hgb_{stat}.pkl", f"model_{stat}.pkl", f"{stat}_model.pkl"]:
             p = md / fname
             if p.exists():
                 try:
-                    models[stat] = joblib.load(p)
-                    typer.echo(f"  Loaded model for {stat} from {p.name}")
+                    m = joblib.load(p)
+                    models[stat] = (m, [])
+                    typer.echo(f"  Loaded legacy model for {stat} from {p.name}")
                     break
                 except Exception:
                     pass
 
+    # --- Priority 3: single shared model fallback ---
     if not models:
-        # Try to load a single multi-output model
         for fname in ["model.pkl", "stage4_model.pkl", "hgb_model.pkl"]:
             p = md / fname
             if p.exists():
                 try:
                     m = joblib.load(p)
-                    # Assign the same model for all stats as fallback
                     for s in STATS_TO_EXPLAIN:
-                        models[s] = m
+                        models[s] = (m, [])
                     typer.echo(f"  Loaded shared model from {p.name}")
                     break
                 except Exception:

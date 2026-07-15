@@ -136,9 +136,12 @@ class RoleAwarePMFCalibrator:
     # player_id (str) → PMFCDFCalibrator fitted on that player's OOF PIT values.
     # Players with < 30 OOF rows fall back to the role-tier calibrator.
     player_calibrators: dict[str, PMFCDFCalibrator] = field(default_factory=dict)
-    # Shrinkage constant: w_player = n_player / (n_player + k).
-    # At k=150, a player with 30 games gets 17% player-level weight; 150 games → 50%.
-    player_bias_shrinkage_k: float = 150.0
+    # Shrinkage constant: w_player = n_player / (n_player + k), capped at 0.50.
+    # Reduced from 150 → 50: runtime evidence showed players with 20 OOF rows were
+    # getting only 11.8% player-specific weight (20/(20+150)), insufficient to correct
+    # systematic per-player overestimation (e.g. low-volume FG3M shooters).
+    # At k=50: 20 games → 28.6%, 30 games → 37.5%, 50 games → 50% (cap).
+    player_bias_shrinkage_k: float = 50.0
     shrink_k: float = 500.0
     cap: float = 0.80
 
@@ -151,8 +154,8 @@ class RoleAwarePMFCalibrator:
             self.quality_tier_thresholds = {}
         if "player_calibrators" not in self.__dict__:
             self.player_calibrators = {}
-        if "player_bias_shrinkage_k" not in self.__dict__:
-            self.player_bias_shrinkage_k = 150.0
+        if "player_bias_shrinkage_k" not in self.__dict__ or self.__dict__.get("player_bias_shrinkage_k", 150.0) == 150.0:
+            self.player_bias_shrinkage_k = 50.0
 
     def _get_quality_tier(self, role: str, pmf_mean: float) -> str:
         """Map pmf_mean → quality tier label (low / mid / high) for a role."""
@@ -243,7 +246,14 @@ def fit_role_aware_calibrator(oof: pd.DataFrame, stat: str, seed: int = 0) -> Ro
         bucket_str = str(bucket)
         n = len(gdf)
         bucket_counts[bucket_str] = n
-        if bucket in ROLE_GLOBAL_ONLY_BUCKETS or n < ROLE_MIN_ROWS.get(bucket_str, 500):
+        # Fringe and inactive_risk get dedicated calibrators with relaxed minimums
+        _bucket_min_rows = ROLE_MIN_ROWS.get(bucket_str, 500)
+        if bucket_str == "fringe":
+            _bucket_min_rows = 100
+        elif bucket_str == "inactive_risk":
+            _bucket_min_rows = 50
+        # Only skip if still below the (possibly relaxed) minimum or in global-only buckets
+        if bucket in ROLE_GLOBAL_ONLY_BUCKETS or n < _bucket_min_rows:
             continue
         bp = np.array([randomized_pit(p, y, rng) for p, y in zip(gdf["pmf"], gdf["outcome"])])
         bucket_calibrators[bucket_str] = PMFCDFCalibrator().fit_from_pit(bp)

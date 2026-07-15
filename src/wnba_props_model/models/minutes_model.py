@@ -73,6 +73,9 @@ class MinutesModel:
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
             learning_rate=hgb_kw.get("learning_rate", 0.1),
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+            early_stopping=hgb_kw.get("early_stopping", False),
+            n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
+            tol=hgb_kw.get("tol", 1e-7),
             random_state=seed,
         )
         self._model.fit(X, y, sample_weight=sample_weight)
@@ -87,6 +90,9 @@ class MinutesModel:
                 max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
                 learning_rate=hgb_kw.get("learning_rate", 0.1),
                 min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+                early_stopping=hgb_kw.get("early_stopping", False),
+                n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
+                tol=hgb_kw.get("tol", 1e-7),
                 random_state=seed,
             )
             qm.fit(X, y, sample_weight=sample_weight)
@@ -102,8 +108,14 @@ class MinutesModel:
                 self._dnp_model = Pipeline([
                     ("imp", SimpleImputer(strategy="median")),
                     ("scaler", StandardScaler()),
-                    ("clf", LogisticRegression(max_iter=2000, class_weight="balanced",
-                                               random_state=seed)),
+                    ("clf", LogisticRegression(
+                        max_iter=10000,
+                        class_weight="balanced",
+                        solver="saga",
+                        C=0.5,
+                        tol=1e-3,
+                        random_state=seed,
+                    )),
                 ])
                 self._dnp_model.fit(X, dnp_y)
             else:
@@ -143,11 +155,12 @@ class MinutesModel:
         X: pd.DataFrame,
         metadata_df: pd.DataFrame,  # noqa: ARG002 — kept for API symmetry
     ) -> np.ndarray:
-        """Return (n, 5) array of quantile minute predictions [q10..q90], clipped [0, 42]."""
+        """Return (n, 5) array of quantile minute predictions [q10..q90], clipped to minutes_clip_max."""
         if not self._fitted:
             raise RuntimeError("MinutesModel not fitted")
         X_aligned = X.reindex(columns=self._usable_cols)
-        clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
+        # Use full clip_max from config (no 42.0 hard cap — stars in OT can play 43-48 min).
+        clip_max = self.cfg.get("minutes_clip_max", 48.0)
         _qm = getattr(self, "_quantile_models", {}) or {}
         cols = []
         for q in _QUANTILES:

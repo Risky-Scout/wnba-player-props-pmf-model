@@ -42,7 +42,7 @@ class SparseHurdleModel:
         self.features = features
         self.zero_model = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
-            ("clf", LogisticRegression(max_iter=2000, class_weight="balanced")),
+            ("clf", LogisticRegression(solver="saga", max_iter=10000, tol=1e-3, class_weight=None)),
         ])
         self.pos_model = Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
@@ -138,6 +138,7 @@ class ZINBStatModel:
         X: pd.DataFrame,
         y: pd.Series,
         sample_weight: np.ndarray | None = None,
+        actual_minutes: np.ndarray | None = None,
     ) -> "ZINBStatModel":
         seed  = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
@@ -152,13 +153,18 @@ class ZINBStatModel:
 
         # Stage 1: π — structural zero probability
         if len(np.unique(is_zero)) >= 2:
+            from sklearn.calibration import CalibratedClassifierCV  # noqa: PLC0415
+            _base_lr = LogisticRegression(solver="saga", max_iter=10000, tol=1e-3, random_state=seed)
+            # CalibratedClassifierCV with isotonic regression produces well-calibrated
+            # P(structural_zero) probabilities. class_weight="balanced" optimizes recall,
+            # not calibration — it systematically under-predicts pi for prop-eligible players
+            # where non-zero outcomes dominate, inflating p_nz and biasing the mean high by ~20%.
+            _cal_lr = CalibratedClassifierCV(_base_lr, method="isotonic", cv=5)
             self._pi_model = Pipeline([
                 ("imp", SimpleImputer(strategy="median")),
-                ("clf", LogisticRegression(max_iter=2000, class_weight="balanced",
-                                           random_state=seed)),
+                ("clf", _cal_lr),
             ])
-            self._pi_model.fit(X, is_zero, **{"clf__sample_weight": sample_weight}
-                                if sample_weight is not None else {})
+            self._pi_model.fit(X, is_zero)
         self._global_pi = float(is_zero.mean())
 
         # Stage 2: μ — NegBinom mean (fit on all rows; model predicts unconditional mean)
@@ -167,9 +173,22 @@ class ZINBStatModel:
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
             learning_rate=hgb_kw.get("learning_rate", 0.1),
             min_samples_leaf=hgb_kw.get("min_samples_leaf", 20),
+            early_stopping=hgb_kw.get("early_stopping", False),
+            n_iter_no_change=hgb_kw.get("n_iter_no_change", 10),
+            tol=hgb_kw.get("tol", 1e-7),
             random_state=seed,
         )
-        self._mu_model.fit(X, y_arr, sample_weight=sample_weight)
+        # Up-weight games where the player played meaningful minutes (prop-eligible context).
+        # Garbage-time appearances (low minutes, y≈0 despite non-trivial feature vectors)
+        # pull mu down and create a spurious correction in the mu-model.
+        if actual_minutes is not None:
+            # Up-weight prop-eligible games (minutes >= 10) in mu-model training.
+            # Aligns the conditional mean estimate with the production population.
+            _min_w = np.clip(actual_minutes / 25.0, 0.05, 1.0)
+            _combined_w = _min_w * (sample_weight if sample_weight is not None else np.ones(len(_min_w)))
+        else:
+            _combined_w = sample_weight
+        self._mu_model.fit(X, y_arr, sample_weight=_combined_w)
         self._global_mu = float(y_arr.mean()) or 0.3
 
         # Stage 3: MLE for dispersion r using global means
@@ -190,8 +209,10 @@ class ZINBStatModel:
         self._fitted = True
         return self
 
-    def predict(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    def predict(self, X: pd.DataFrame, role_series=None) -> tuple[np.ndarray, np.ndarray]:
         """Return (p_nz, pos_mus) compatible with hurdle_pmf_batch interface.
+
+        role_series is accepted for API symmetry with HurdleModel but unused.
 
         p_nz = 1 - π  (probability of a non-structural zero, i.e. plays)
         pos_mus = μ   (NegBinom mean; dispersion r stored in self._r)
@@ -216,6 +237,8 @@ class ZINBStatModel:
             "model_type": "ZINBStatModel",
             "global_pi": self._global_pi,
             "global_mu": self._global_mu,
+            "pos_mean": self._global_mu,           # alias for HurdleModel compat
             "dispersion_r": self._r,
+            "pos_dispersion_r": self._r,           # alias for HurdleModel compat
             "version": self.VERSION,
         }

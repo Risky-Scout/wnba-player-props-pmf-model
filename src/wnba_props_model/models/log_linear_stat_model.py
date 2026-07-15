@@ -65,6 +65,11 @@ class LogLinearStatModel:
         self._base_model = StatRateModel(stat, cfg)
         self._league_avg_rate: float | None = None
         self._league_avg_pace: float | None = None
+        # Team-level league average for opponent-defense normalization.
+        # Stored from training context so predict() uses the SAME unit scale
+        # (team pts/game allowed) instead of individual-player pts/game, which
+        # would always produce opp_adj > 2.0 → clamped to max → no real signal.
+        self._league_avg_opp_allowed: float | None = None
 
     # ------------------------------------------------------------------
     # Training: identical to StatRateModel but stores league averages
@@ -83,6 +88,13 @@ class LogLinearStatModel:
         per-minute rate and scales at prediction time by projected minutes.
         The league_avg_rate is set accordingly.
         """
+        # Remove opp_*_allowed columns from HGB feature matrix — these are already
+        # captured by the post-hoc multiplicative opponent adjustment in predict().
+        # Including them in the HGB AND applying the multiplier double-counts opponent quality.
+        _opp_cols_to_drop = [c for c in X.columns if "opp_" in c and "_allowed" in c]
+        if _opp_cols_to_drop:
+            X = X.drop(columns=_opp_cols_to_drop)
+
         self._base_model.fit(X, y, context_df=context_df, sample_weight=sample_weight)
 
         # League average stat rate (stat per minute) from training context
@@ -92,6 +104,25 @@ class LogLinearStatModel:
             self._league_avg_rate = total_stat / max(total_min, _FLOOR)
         elif len(y) > 0:
             self._league_avg_rate = float(y.mean())
+
+        # Team-level league average for opponent-defense normalization.
+        # Must use the SAME column that predict() reads so the ratio is unit-consistent:
+        # opp_pts_allowed_mean_l5 ≈ 85 pts/game (team total) → normalizer ≈ 85.
+        # The old code used league_avg_rate * 40 ≈ 17 pts/game (individual level),
+        # giving opp/normalizer ≈ 5 → always clamped to 2.0 with zero variation.
+        _opp_col_fit = (
+            f"opp_{self.stat}_allowed_mean_l5"
+            if self.stat != "turnover"
+            else "opp_turnover_forced_mean_l5"
+        )
+        if context_df is not None and _opp_col_fit in context_df.columns:
+            _opp_vals_fit = context_df[_opp_col_fit].dropna()
+            if len(_opp_vals_fit) > 0:
+                self._league_avg_opp_allowed = float(_opp_vals_fit.mean())
+                logger.debug(
+                    "[%s] LogLinearStatModel: league_avg_opp_allowed=%.2f (n=%d)",
+                    self.stat, self._league_avg_opp_allowed, len(_opp_vals_fit),
+                )
 
         # League average pace (total score) for pace normalization
         if context_df is not None:
@@ -119,6 +150,7 @@ class LogLinearStatModel:
         self,
         X: pd.DataFrame,
         context_df: pd.DataFrame | None = None,
+        role_series=None,
     ) -> np.ndarray:
         """Return adjusted Poisson λ per row.
 
@@ -129,7 +161,7 @@ class LogLinearStatModel:
         context_df columns.  If context_df is None, falls back to the
         base model unmodified.
         """
-        base_lambda = self._base_model.predict_mean(X)
+        base_lambda = self._base_model.predict_mean(X, role_series=role_series)
 
         if context_df is None or context_df.empty:
             return base_lambda
@@ -144,15 +176,17 @@ class LogLinearStatModel:
             if self.stat != "turnover"
             else "opp_turnover_forced_mean_l5"
         )
-        if opp_col in context_df.columns and self._league_avg_rate is not None:
-            # opp_allowed is in stat-count units; we compare to league_avg_rate
-            # expressed as stat-per-game (multiply by 40 min per game)
-            league_avg_pg = self._league_avg_rate * 40.0
+        if opp_col in context_df.columns and self._league_avg_opp_allowed is not None:
+            # Normalize by the league-average of the SAME team-level column (≈85 pts/game
+            # allowed), not by individual-player rate × 40 (≈17 pts/game).  Using the
+            # wrong denominator made the ratio always ≈5 → clamped to 2.0 for 100% of
+            # rows, destroying all meaningful opponent-quality variation.
             opp_vals = context_df[opp_col].values.astype(float)
             valid = np.isfinite(opp_vals) & (opp_vals > 0)
-            opp_adj[valid] = np.exp(
-                np.log(opp_vals[valid] / max(league_avg_pg, _FLOOR))
-            ).clip(0.5, 2.0)  # hard clamp: never more than 2× adjustment
+            opp_adj[valid] = np.clip(
+                opp_vals[valid] / max(self._league_avg_opp_allowed, _FLOOR),
+                0.5, 2.0,
+            )
 
         # --- Pace adjustment ---------------------------------------------
         if self._league_avg_pace is not None:
@@ -171,14 +205,22 @@ class LogLinearStatModel:
     # Inference alias: callers use predict_mean() not predict()
     # ------------------------------------------------------------------
 
-    def predict_mean(self, X: pd.DataFrame) -> np.ndarray:
+    def predict_mean(self, X: pd.DataFrame, role_series=None) -> np.ndarray:
         """Return adjusted Poisson λ per row.
+
+        Forwards role_series to StatRateModel so role-stratified HGB models fire.
 
         Passes *X* itself as context_df so the Dixon-Coles opponent-defense
         and pace adjustments fire automatically — opp/pace columns are already
         part of the feature matrix, so no separate context_df is needed.
         """
-        return self.predict(X, context_df=X)
+        return self.predict(X, context_df=X, role_series=role_series)
+
+    def __setstate__(self, state: dict) -> None:
+        """Backward-compatible unpickling for models trained before _league_avg_opp_allowed."""
+        self.__dict__.update(state)
+        if not hasattr(self, "_league_avg_opp_allowed"):
+            self._league_avg_opp_allowed = None
 
     # ------------------------------------------------------------------
     # Delegate dispersion + variance attributes to wrapped model
@@ -198,9 +240,9 @@ class LogLinearStatModel:
     def _dispersion_r(self) -> float | None:
         return self._base_model._dispersion_r
 
-    def get_dispersion(self, role: str = "all") -> float | None:
-        """Return per-role (or global) NegBinom dispersion r."""
-        return self._base_model.get_dispersion(role)
+    def get_dispersion(self, role: str = "all", **kwargs) -> float | None:
+        """Return per-role (or global) NegBinom dispersion r, forwarding mu/player_id."""
+        return self._base_model.get_dispersion(role, **kwargs)
 
     @property
     def _role_dispersion(self) -> dict[str, float | None]:
@@ -209,3 +251,9 @@ class LogLinearStatModel:
     @property
     def _usable_cols(self) -> list[str]:
         return getattr(self._base_model, "_usable_cols", [])
+
+    def get_training_summary(self) -> dict:
+        """Delegate to the underlying StatRateModel's training summary."""
+        s = self._base_model.get_training_summary()
+        s["model_type"] = "LogLinearStatModel"
+        return s

@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from wnba_props_model.features.feature_contract import assert_no_forbidden_features
 from wnba_props_model.models.oof_engine import generate_oof_folds, make_prior_only_pmfs
 from wnba_props_model.models.training import encode_features, train_fold, generate_fold_pmfs
+from wnba_props_model.models.svd_bridge import SVDBridgeEstimator
 
 app = typer.Typer(add_completion=False)
 
@@ -67,6 +68,15 @@ def build(
     audit_out: Path = typer.Option(
         Path("artifacts/audits/stage5_oof_audit.json"), "--audit-out"
     ),
+    max_folds: int = typer.Option(
+        0, "--max-folds",
+        help="Limit the number of folds (0 = use all folds). Set to 2 for fast fallback run.",
+    ),
+    svd_bridge: str = typer.Option(
+        "", "--svd-bridge",
+        help="Path to trained SVDBridgeEstimator pkl. When provided, predicts SVD dims "
+             "from leak-free features instead of dropping them from OOF folds.",
+    ),
 ) -> None:
     t0 = time.time()
     print("=" * 70)
@@ -76,6 +86,16 @@ def build(
     cfg: dict = yaml.safe_load(config_path.read_text())
     out_dir.mkdir(parents=True, exist_ok=True)
     audit_out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load SVD bridge estimator if provided
+    svd_bridge_model: SVDBridgeEstimator | None = None
+    if svd_bridge and Path(svd_bridge).exists():
+        svd_bridge_model = SVDBridgeEstimator.load(svd_bridge)
+        print(f"  SVD bridge loaded from {svd_bridge} "
+              f"(dims: {list(svd_bridge_model.bridge_models.keys())})")
+    else:
+        if svd_bridge:
+            print(f"  SVD bridge path '{svd_bridge}' not found — falling back to SVD drop")
 
     # ------------------------------------------------------------------
     # 1. Load data
@@ -96,16 +116,23 @@ def build(
 
     # OOF temporal leakage guard: SVD embeddings are computed on the full wide
     # table (all games in one pass) so they encode future-game information for
-    # any given OOF fold.  Exclude them from Stage 5 training to prevent
-    # calibrator bias from leakage.  They remain in Stage 4 (live) predictions.
+    # any given OOF fold.  When a bridge model is provided, SVD dims are predicted
+    # from leak-free features instead; otherwise drop them entirely.
     _OOF_EXCLUDED_PREFIXES = ("player_svd_dim_",)
-    _n_before = len(model_cols)
-    model_cols = [c for c in model_cols
-                  if not any(c.startswith(p) for p in _OOF_EXCLUDED_PREFIXES)]
-    _n_excluded = _n_before - len(model_cols)
-    if _n_excluded:
-        print(f"  OOF leakage guard: excluded {_n_excluded} SVD embedding columns "
-              f"(fold-unsafe; used only in live Stage 4 predictions)")
+    _svd_cols_in_manifest = [c for c in model_cols
+                              if any(c.startswith(p) for p in _OOF_EXCLUDED_PREFIXES)]
+    if svd_bridge_model is not None and _svd_cols_in_manifest:
+        # Keep SVD cols in model_cols — bridge will inject predicted values per fold
+        print(f"  SVD bridge mode: {len(_svd_cols_in_manifest)} SVD cols kept "
+              f"(bridge will predict them per fold)")
+    else:
+        _n_before = len(model_cols)
+        model_cols = [c for c in model_cols
+                      if not any(c.startswith(p) for p in _OOF_EXCLUDED_PREFIXES)]
+        _n_excluded = _n_before - len(model_cols)
+        if _n_excluded:
+            print(f"  OOF leakage guard: excluded {_n_excluded} SVD embedding columns "
+                  f"(fold-unsafe; used only in live Stage 4 predictions)")
     print(f"  {len(model_cols)} model feature columns (OOF-safe)")
 
     # Leakage guard
@@ -130,8 +157,27 @@ def build(
     game_dates_all: list[date] = sorted(
         wide["game_date"].dt.date.unique().tolist()
     )
-    folds = generate_oof_folds(game_dates_all, cfg.get("validation_window_days", 14))
+
+    # oof_first_val_date restricts VALIDATION windows to the current season.
+    # Each fold still trains on all historical data (train_mask uses full wide).
+    # Without this filter, 2022-2025 game dates generate ~30 extra folds that
+    # push the OOF build past the 360-min GitHub Actions budget.
+    first_val_str = cfg.get("oof_first_val_date")
+    if first_val_str:
+        first_val = date.fromisoformat(str(first_val_str))
+        fold_game_dates = [d for d in game_dates_all if d >= first_val]
+        print(f"\noof_first_val_date={first_val}: restricting fold windows to "
+              f"{len(fold_game_dates)} dates (of {len(game_dates_all)} total)")
+    else:
+        fold_game_dates = game_dates_all
+
+    folds = generate_oof_folds(fold_game_dates, cfg.get("validation_window_days", 14))
     print(f"\nFolds generated: {len(folds)}")
+    if max_folds and max_folds > 0 and len(folds) > max_folds:
+        # Keep the MOST RECENT folds — they use the largest training sets
+        # and best represent current-season calibration targets.
+        folds = folds[-max_folds:]
+        print(f"  --max-folds {max_folds}: using last {len(folds)} folds (most recent data)")
     print(f"  First val window: {folds[0]['val_start_date']} – {folds[0]['val_end_date']}")
     print(f"  Last  val window: {folds[-1]['val_start_date']} – {folds[-1]['val_end_date']}")
 
@@ -158,6 +204,22 @@ def build(
         val_wide_df   = wide[val_mask_wide].reset_index(drop=True)
         train_long_df = long[train_mask_long].reset_index(drop=True)
         val_long_df   = long[val_mask_long].reset_index(drop=True)
+
+        # Derive role_bucket for both splits — not stored in the features parquet.
+        # Without it, role-stratified HGB predictions and per-role dispersion are
+        # silently bypassed (role_series=None falls back to global model for all rows).
+        from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket as _add_rb  # noqa: PLC0415
+        if "role_bucket" not in val_wide_df.columns and "player_minutes_mean_l5" in val_wide_df.columns:
+            val_wide_df = _add_rb(val_wide_df, minutes_col="player_minutes_mean_l5")
+
+        # SVD bridge: predict SVD dims from leak-free features, or drop them
+        _svd_cols = [c for c in train_wide_df.columns if c.startswith("player_svd_dim_")]
+        if _svd_cols and svd_bridge_model is not None:
+            val_wide_df   = svd_bridge_model.predict(val_wide_df,   use_real_svd=False)
+            train_wide_df = svd_bridge_model.predict(train_wide_df, use_real_svd=False)
+        elif _svd_cols and svd_bridge_model is None:
+            val_wide_df   = val_wide_df.drop(columns=_svd_cols, errors='ignore')
+            train_wide_df = train_wide_df.drop(columns=_svd_cols, errors='ignore')
 
         n_train_long  = len(train_long_df)
         n_val_wide    = len(val_wide_df)
@@ -210,6 +272,32 @@ def build(
                 pmf_frame = generate_fold_pmfs(
                     fold_model, val_wide_df, val_long_df, fold_meta, cfg
                 )
+
+                # Fix minutes-offset stats in OOF: use forward-looking minutes instead of lagging feature
+                _MINUTES_OFFSET_STATS = ["turnover", "ast"]
+                for _stat in _MINUTES_OFFSET_STATS:
+                    _mask = pmf_frame["stat"] == _stat
+                    if _mask.any() and "minutes_mean" in pmf_frame.columns:
+                        if "player_minutes_mean_l5" in val_wide_df.columns:
+                            try:
+                                _feat_mins = val_wide_df.set_index(["player_id", "game_id"])["player_minutes_mean_l5"]
+                                _pg = pmf_frame[_mask].set_index(["player_id", "game_id"])
+                                _feat_min_vals = _feat_mins.reindex(_pg.index).values
+                                _safe_feat = np.where(_feat_min_vals > 1.0, _feat_min_vals, 1.0)
+                                _model_mins = pmf_frame.loc[_mask, "minutes_mean"].values
+                                _old_means = pmf_frame.loc[_mask, "stat_mean"].values.copy()
+                                _rate_per_min = _old_means / _safe_feat
+                                pmf_frame.loc[_mask, "stat_mean"] = _rate_per_min * np.clip(_model_mins, 0, 45)
+                                import logging as _log
+                                _log.getLogger(__name__).info(
+                                    "[OOF] Minutes-offset fix %s: %d rows, mean %.2f -> %.2f",
+                                    _stat, int(_mask.sum()), float(np.nanmean(_old_means)),
+                                    float(np.nanmean(pmf_frame.loc[_mask, "stat_mean"].values)),
+                                )
+                            except Exception as _mof_exc:
+                                import logging as _log
+                                _log.getLogger(__name__).warning("[OOF] Minutes-offset fix failed for %s: %s", _stat, _mof_exc)
+
                 status = "model_oof"
                 errmsg = ""
                 print(f"    → model_oof  PMF rows={len(pmf_frame):,}")

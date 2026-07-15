@@ -46,6 +46,7 @@ import json
 import logging
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -54,24 +55,52 @@ from scipy import optimize, special, stats
 
 logger = logging.getLogger(__name__)
 
-# Fallback league-average stat means (updated from data when features_wide available)
+# Fallback league-average stat means — OOF-measured empirical means (blk 0.50→0.38).
+# Updated from data when features_wide is available; these serve as the static fallback.
 _LEAGUE_PRIORS: dict[str, float] = {
-    "pts": 9.5,
-    "reb": 4.2,
-    "ast": 2.1,
-    "fg3m": 1.1,
-    "stl": 0.9,
-    "blk": 0.5,
-    "turnover": 1.7,
+    "pts": 7.156,      # OOF actual mean (was 7.95 — 11% too high)
+    "reb": 2.966,      # OOF actual mean (was 3.80 — 28% too high)
+    "ast": 1.773,      # OOF actual mean (was 2.03 — 14% too high)
+    "fg3m": 0.699,     # OOF actual mean (was 0.78 — 11% too high)
+    "stl": 0.639,      # OOF actual mean (was 0.67 — 5% too high)
+    "blk": 0.348,      # OOF actual mean (was 0.38 — 9% too high)
+    "turnover": 1.131, # OOF actual mean (was 1.36 — 20% too high)
+    # Combo stats: sum of component league means (all-player population incl. bench)
+    "pts_reb":     10.122,   # pts (7.156) + reb (2.966)
+    "pts_ast":      8.929,   # pts (7.156) + ast (1.773)
+    "reb_ast":      4.739,   # reb (2.966) + ast (1.773)
+    "pts_reb_ast": 11.895,   # pts + reb + ast
+    "stocks":       0.987,   # stl (0.639) + blk (0.348)
 }
 
-# Minimum games before shrinkage is bypassed entirely
-_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 25  # was 40; WNBA season = 40 games, starters play 32-36
+# Load updated league priors from artifacts/models/league_priors.json if available.
+# These are computed by scripts/update_league_priors.py from current-season data,
+# keeping shrinkage targets calibrated to the actual league distribution each year.
+_LEAGUE_PRIORS_PATH = Path(__file__).parents[3] / "artifacts" / "models" / "league_priors.json"
+if _LEAGUE_PRIORS_PATH.exists():
+    try:
+        import json as _json
+        _LEAGUE_PRIORS.update(_json.loads(_LEAGUE_PRIORS_PATH.read_text()))
+        logger.info("Loaded league priors from %s", _LEAGUE_PRIORS_PATH)
+    except Exception as _lp_exc:
+        logger.warning("Failed to load league priors: %s", _lp_exc)
+
+# Kept for backward-compatibility on the function signature; no longer used as a hard cutoff.
+# Continuous effective-n shrinkage (compute_shrinkage_alpha) replaces this threshold.
+_MIN_GAMES_FOR_FULL_CONFIDENCE: int = 80
 
 # Minimum effective k to avoid explosive shrinkage in low-variance stats
 _MIN_K: float = 3.0
 # Maximum k: if variance is very high, cap shrinkage strength
 _MAX_K: float = 50.0
+
+# Adaptive K_BASE shrinkage: decay factor λ for form divergence.
+# K_BASE_adaptive = K_BASE * exp(-λ * |L5_mean - season_mean| / max(L10_std, 0.5))
+# At λ=2.0: 1-std divergence → ~86% of K, 2-std → ~75% of K, 3-std → ~55% of K.
+# Meaningful role changes reduce shrinkage; noise stays near K_BASE.
+_ADAPTIVE_SHRINKAGE_LAMBDA: float = 2.0
+# Log a message when K_BASE is reduced by more than this fraction
+_ADAPTIVE_SHRINKAGE_LOG_THRESHOLD: float = 0.30
 
 
 @dataclass
@@ -385,6 +414,103 @@ def compute_shrinkage_weight(n_games: int, k: float = _MIN_K) -> float:
     return float(k / (n_games + k))
 
 
+# ---------------------------------------------------------------------------
+# Continuous role-weighted effective-n shrinkage (replaces hard bypass cutoff)
+# ---------------------------------------------------------------------------
+
+def compute_effective_n(n_games: int, mean_minutes: float, starter_minutes: float = 32.0) -> float:
+    """Compute effective sample size weighting games by minutes played.
+
+    Low-minute players (bench, fringe) have less reliable rate estimates, so
+    their games are down-weighted toward the fraction of a starter's minutes.
+    Caps at 1.5× to prevent extreme over-weighting of workhorse outliers.
+    """
+    minutes_ratio = mean_minutes / starter_minutes
+    n_eff = n_games * min(minutes_ratio, 1.5)
+    return max(n_eff, 1.0)
+
+
+# Base k values per stat: how many effective games before shrinkage drops to 50%.
+# Halved from original (8/10/12/15/12/18/10) — the prior was over-weighting
+# low-season-data players toward the all-player league mean, which is far below
+# actual starter-level production (starters avg 2-3x bench players).
+# At k=4, a starter with 10 games gets alpha=4/(4+10)=0.286 (was 0.50).
+K_BASE: dict[str, float] = {
+    # Base k values per stat: how many effective games before shrinkage drops to 50%.
+    # Halved from original (8/10/12/15/12/18/10) — the prior was over-weighting
+    # low-season-data players toward the all-player league mean, which is far below
+    # actual starter-level production (starters avg 2-3x bench players).
+    # At k=4, a starter with 10 games gets alpha=4/(4+10)=0.286 (was 0.50).
+    "pts": 4.0,
+    "reb": 5.0,
+    "ast": 6.0,
+    "fg3m": 7.0,
+    "stl": 6.0,
+    "blk": 8.0,
+    "turnover": 5.0,
+    # Combo stats get a K_BASE floor of 5.0 — they are sums of 2-3 base stats and
+    # their inter-player variance is higher, so over-shrinking is the bigger risk.
+    # Values below 5.0 were raised to enforce this floor.
+    "pts_reb":     5.0,
+    "pts_ast":     5.0,
+    "reb_ast":     5.0,
+    "pts_reb_ast": 5.0,
+    "stocks":      5.0,
+}
+
+
+# Load empirically fitted K_BASE if available (overrides hardcoded defaults).
+# Generated by scripts/fit_shrinkage_params.py via ECE minimisation on OOF data.
+_shrinkage_params_path = Path(__file__).parents[3] / "artifacts" / "models" / "shrinkage_params.json"
+if _shrinkage_params_path.exists():
+    try:
+        import json as _sp_json  # noqa: PLC0415
+        _sp = _sp_json.loads(_shrinkage_params_path.read_text())
+        _k_fitted = _sp.get("k_base_fitted", {})
+        for _s, _v in _k_fitted.items():
+            _k = _v.get("k_base_fitted") if isinstance(_v, dict) else None
+            if _k is not None and isinstance(_k, (int, float)) and _k > 0:
+                K_BASE[str(_s)] = float(_k)
+        logger.info(
+            "Loaded empirically fitted K_BASE from %s (%d stats updated)",
+            _shrinkage_params_path,
+            sum(1 for v in _k_fitted.values()
+                if isinstance(v, dict) and v.get("k_base_fitted") is not None),
+        )
+    except Exception as _kbase_exc:
+        logger.warning("Failed to load fitted K_BASE: %s", _kbase_exc)
+
+
+def compute_shrinkage_alpha(
+    n_eff: float,
+    stat: str,
+    position: str | None = None,
+    k_override: float | None = None,
+) -> float:
+    """Compute continuous shrinkage alpha via role-weighted effective-n.
+
+    Replaces the hard `if n_games >= _MIN_GAMES_FOR_FULL_CONFIDENCE: alpha = 0.0`
+    bypass with a smooth k / (k + n_eff) decay.  Position adjustments ensure guards
+    are shrunk harder for blk (rarely block) and centers less so.
+
+    Parameters
+    ----------
+    k_override : float, optional
+        When provided (e.g. from adaptive K_BASE shrinkage), this value is used
+        as the base k instead of K_BASE[stat].  Position adjustments still apply.
+
+    Returns alpha in [0, 1]: 0 = no shrinkage (trust model), 1 = full prior.
+    """
+    k = k_override if k_override is not None else K_BASE.get(stat, 10.0)
+    if position == "G" and stat == "blk":
+        k *= 2.0
+    elif position == "C" and stat == "blk":
+        k *= 0.5
+    elif position == "C" and stat == "ast":
+        k *= 1.5
+    return k / (k + n_eff)
+
+
 def compute_league_priors_from_data(features: pd.DataFrame) -> dict[str, float]:
     """Compute league-average stat means from the historical feature table."""
     priors = dict(_LEAGUE_PRIORS)
@@ -411,6 +537,7 @@ def apply_bayesian_shrinkage(
     k: float | None = None,
     min_games_full_confidence: int = _MIN_GAMES_FOR_FULL_CONFIDENCE,
     league_priors: dict[str, float] | None = None,
+    player_role_overrides: dict[int, str] | None = None,
 ) -> pd.DataFrame:
     """Apply hierarchical Bayesian shrinkage to PMFs for small-sample players.
 
@@ -453,9 +580,36 @@ def apply_bayesian_shrinkage(
     # Enhancement 10: season-phase shrinkage multiplier
     _PHASE_MULTIPLIER: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
 
-    # Build player n_games AND season_phase lookup
-    player_ngames: dict[int, int] = {}
-    player_phase:  dict[int, str] = {}
+    # Role-stratified prior means: pull starters toward starter-level production,
+    # not all-player averages (which include many bench/fringe players).
+    # Combo stats priors = sum of component role priors.
+    _ROLE_PRIORS: dict[str, dict[str, float]] = {
+        "starter": {
+            "pts": 13.5, "reb": 6.0, "ast": 3.5, "fg3m": 1.2,
+            "stl": 1.0, "blk": 0.6, "turnover": 2.0,
+            "pts_reb": 19.5, "pts_ast": 17.0, "reb_ast": 9.5,
+            "pts_reb_ast": 23.0, "stocks": 1.6,
+        },
+        "core":    {
+            "pts": 10.5, "reb": 4.8, "ast": 2.8, "fg3m": 1.0,
+            "stl": 0.85, "blk": 0.45, "turnover": 1.7,
+            "pts_reb": 15.3, "pts_ast": 13.3, "reb_ast": 7.6,
+            "pts_reb_ast": 18.1, "stocks": 1.3,
+        },
+        "rotation": {
+            "pts": 7.5, "reb": 3.2, "ast": 1.8, "fg3m": 0.65,
+            "stl": 0.60, "blk": 0.30, "turnover": 1.2,
+            "pts_reb": 10.7, "pts_ast": 9.3, "reb_ast": 5.0,
+            "pts_reb_ast": 12.5, "stocks": 0.9,
+        },
+    }
+
+    # Build player n_games, season_phase, position, role, and mean-minutes lookups
+    player_ngames:       dict[int, int]   = {}
+    player_phase:        dict[int, str]   = {}
+    player_position:     dict[int, str]   = {}
+    player_role:         dict[int, str]   = {}
+    player_mean_minutes: dict[int, float] = {}
     if features is not None and "player_id" in features.columns:
         for pid, grp in features.groupby("player_id"):
             n = int(grp.get("player_games_prior", pd.Series([0])).max() or 0)
@@ -467,27 +621,130 @@ def apply_bayesian_shrinkage(
                 player_phase[int(pid)] = str(phase_val)
             else:
                 player_phase[int(pid)] = "mid"
+            # Position for role-aware shrinkage alpha
+            if "position" in grp.columns:
+                pos_val = grp["position"].dropna()
+                player_position[int(pid)] = str(pos_val.iloc[-1])[0].upper() if not pos_val.empty else "F"
+            else:
+                player_position[int(pid)] = "F"
+            # Role status for stratified priors
+            # Unify role taxonomy: role_bucket has 6 tiers; shrinkage uses role_status (3-4 tiers).
+            # Fall back to role_bucket when role_status is absent, mapping to compatible values.
+            _ROLE_BUCKET_TO_STATUS = {
+                "starter": "starter", "core": "core", "rotation": "rotation",
+                "bench": "bench", "fringe": "bench", "inactive_risk": "bench",
+            }
+            if "role_status" in grp.columns:
+                role_val = grp["role_status"].dropna()
+                player_role[int(pid)] = str(role_val.iloc[-1]).lower() if not role_val.empty else "rotation"
+            elif "role_bucket" in grp.columns:
+                role_val = grp["role_bucket"].dropna().map(_ROLE_BUCKET_TO_STATUS)
+                player_role[int(pid)] = str(role_val.iloc[-1]).lower() if not role_val.empty else "rotation"
+            else:
+                player_role[int(pid)] = "rotation"
+            # Mean minutes for effective-n down-weighting of bench players
+            min_col = next((c for c in ["player_minutes_mean_season", "actual_minutes", "minutes_mean"] if c in grp.columns), None)
+            if min_col: 
+                mn = grp[min_col].dropna()
+                player_mean_minutes[int(pid)] = float(mn.mean()) if not mn.empty else 20.0
+            else:
+                player_mean_minutes[int(pid)] = 20.0
+
+    # -------------------------------------------------------------------
+    # Adaptive K_BASE: build per-(player, stat) divergence from features.
+    # Divergence = |L5_mean - season_mean| / max(L10_std, 0.5).
+    # When a player's recent 5-game form diverges strongly from their
+    # season baseline, K_BASE is decayed: K_adaptive = K_BASE * exp(-λ * div).
+    # Falls back to divergence=0.0 (no K change) when columns are absent.
+    # -------------------------------------------------------------------
+    _BASE_STATS_DIVERGENCE = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+    player_stat_divergence: dict[tuple[int, str], float] = {}
+    if features is not None and "player_id" in features.columns:
+        for _div_pid, _div_grp in features.groupby("player_id"):
+            _last = _div_grp.iloc[-1]
+            for _div_stat in _BASE_STATS_DIVERGENCE:
+                _l5_col   = f"player_{_div_stat}_mean_l5"
+                _sea_col  = f"player_{_div_stat}_mean_season"
+                _std_col  = f"player_{_div_stat}_std_l10"
+                try:
+                    _l5  = _last[_l5_col]  if _l5_col  in features.columns else None
+                    _sea = _last[_sea_col] if _sea_col in features.columns else None
+                    _std = _last[_std_col] if _std_col in features.columns else None
+                    if _l5 is None or _sea is None:
+                        continue
+                    _l5_f   = float(_l5)
+                    _sea_f  = float(_sea)
+                    _std_f  = float(_std) if (_std is not None and not (isinstance(_std, float) and math.isnan(_std))) else 0.5
+                    if not math.isfinite(_l5_f) or not math.isfinite(_sea_f) or _sea_f < 0:
+                        continue
+                    _std_eff = max(_std_f, 0.5)
+                    _div_val = abs(_l5_f - _sea_f) / _std_eff
+                    player_stat_divergence[(int(_div_pid), _div_stat)] = _div_val
+                except Exception:
+                    pass
+
+    # Apply player_role_overrides (e.g. from role_bucket_override in player_form_corrections)
+    # so that the shrinkage prior uses the correct role-stratified mean, not the raw features value.
+    if player_role_overrides:
+        for pid_override, role_override in player_role_overrides.items():
+            player_role[int(pid_override)] = str(role_override).lower()
 
     # Stat support caps (matching pmf_engine)
-    _STAT_CAPS = {"pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12}
+    _STAT_CAPS = {
+        "pts": 60, "reb": 30, "ast": 25, "fg3m": 15, "stl": 10, "blk": 10, "turnover": 12,
+        # Combo stat caps = sum of component caps
+        "pts_reb": 90, "pts_ast": 85, "reb_ast": 55, "pts_reb_ast": 105, "stocks": 20,
+    }
+
+    # Enhancement 10: season-phase shrinkage multiplier (defined once, not per-row)
+    _PHASE_MULT: dict[str, float] = {"early": 2.0, "mid": 1.0, "late": 0.8, "playoff": 0.6}
 
     rows_modified = 0
     out_rows = []
     for _, row in pmfs_long.iterrows():
-        pid   = int(row["player_id"])
-        stat  = str(row["stat"])
+        pid     = int(row["player_id"])
+        stat    = str(row["stat"])
         n_games = player_ngames.get(pid, 50)
 
-        # Lookup per-stat prior (Gamma parameters)
+        # Lookup per-stat prior (needed for prior PMF construction and CI width)
         prior = stat_priors.get(stat)
-        k_stat = float(k) if k is not None else (prior.beta if prior else _MIN_K)
-        # Enhancement 10: adjust k by season-phase multiplier
-        phase = player_phase.get(pid, "mid")
-        k_stat = k_stat * _PHASE_MULTIPLIER.get(phase, 1.0)
-        k_stat = max(k_stat, _MIN_K)
-        alpha  = compute_shrinkage_weight(n_games, k_stat)
 
-        if alpha < 0.05 or n_games >= min_games_full_confidence:
+        # Continuous role-weighted effective-n shrinkage (replaces hard bypass cutoff).
+        # compute_effective_n down-weights bench players whose games carry less signal.
+        # compute_shrinkage_alpha gives position-adjusted k for the stat.
+        mean_min  = player_mean_minutes.get(pid, 20.0)
+        position  = player_position.get(pid, "F")
+        n_eff     = compute_effective_n(n_games, mean_min)
+
+        # Adaptive K_BASE: reduce shrinkage when player's recent L5 form diverges
+        # from their season baseline, indicating a genuine role/usage change.
+        _k_base = K_BASE.get(stat, 10.0)
+        _divergence = player_stat_divergence.get((pid, stat), 0.0)
+        _k_adaptive = _k_base * math.exp(-_ADAPTIVE_SHRINKAGE_LAMBDA * _divergence)
+        _k_adaptive = max(_k_adaptive, _MIN_K)
+        if _k_adaptive < _k_base * (1.0 - _ADAPTIVE_SHRINKAGE_LOG_THRESHOLD):
+            _player_name = str(row.get("player_name", pid))
+            logger.info(
+                "Shrinkage reduced for %s %s: K=%.1f → %.1f (divergence=%.2f)",
+                _player_name, stat, _k_base, _k_adaptive, _divergence,
+            )
+
+        alpha     = compute_shrinkage_alpha(n_eff, stat, position, k_override=_k_adaptive)
+
+        # Enhancement 10: adjust k by season-phase multiplier.
+        # Force "mid" phase if the season has enough games played (>25 total team
+        # games) even if the player's own game_number_in_season looks small due
+        # to absences — prevents double-penalizing returning/injured players.
+        phase = player_phase.get(pid, "mid")
+        if phase == "early" and n_games >= 25:
+            phase = "mid"
+        phase_mult = _PHASE_MULT.get(phase, 1.0)
+        # Apply phase multiplier to effective n (more shrinkage early, less late)
+        n_eff_phased = n_eff / phase_mult  # dividing n_eff → higher alpha early
+        alpha = compute_shrinkage_alpha(n_eff_phased, stat, position, k_override=_k_adaptive)
+
+        # No hard bypass — continuous alpha naturally approaches 0 for large n_eff
+        if alpha < 0.005:
             out_rows.append(row.to_dict())
             continue
 
@@ -504,8 +761,15 @@ def apply_bayesian_shrinkage(
             out_rows.append(row.to_dict())
             continue
 
-        # Build prior PMF
-        league_mean = (prior.mu if prior else static_league_means.get(stat, 5.0))
+        # Build prior PMF using role-stratified mean when available.
+        # Starters and core players should shrink toward starter-level production,
+        # not the all-player league average (which includes bench/fringe players).
+        role = player_role.get(pid, "rotation")
+        role_priors = _ROLE_PRIORS.get(role)
+        if role_priors is not None and stat in role_priors:
+            league_mean = role_priors[stat]
+        else:
+            league_mean = (prior.mu if prior else static_league_means.get(stat, 5.0))
         cap         = _STAT_CAPS.get(stat, 30)
         prior_pmf   = _poisson_pmf(league_mean, cap)
 
@@ -542,8 +806,10 @@ def apply_bayesian_shrinkage(
         r["median"]            = new_median
         r["mode"]              = new_mode
         r["p0"]                = round(new_p0, 6)
-        r["shrinkage_alpha"]   = round(alpha, 4)
-        r["shrinkage_k"]       = round(k_stat, 4)
+        r["shrinkage_alpha"]       = round(alpha, 4)
+        r["shrinkage_k"]           = round(_k_adaptive, 4)
+        r["shrinkage_k_base"]      = round(_k_base, 4)
+        r["shrinkage_divergence"]  = round(_divergence, 4)
         r["n_games_sample"]    = n_games
         r["posterior_lambda_mean"] = round(new_mean, 4)
         r["credible_interval_width"] = round(ci_width, 4) if math.isfinite(ci_width) else None

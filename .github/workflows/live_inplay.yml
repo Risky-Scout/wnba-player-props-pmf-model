@@ -14,7 +14,7 @@ on:
     # Only run during WNBA season months (May–October, months 5-10).
     # October covers playoff extension. Saves ~9,500 Actions minutes/year
     # vs the original */2 * * * *.
-    - cron: '*/2 * * 5,6,7,8,9,10 *'
+    - cron: '*/10 * * 5,6,7,8,9,10 *'
   workflow_dispatch:
     inputs:
       game_ids:
@@ -29,7 +29,7 @@ jobs:
     if: ${{ vars.WNBA_SEASON_ACTIVE == 'true' }}
     permissions:
       contents: write
-      actions: read
+      actions: write
       pages: write
     env:
       BDL_API_KEY:   ${{ secrets.BDL_API_KEY }}
@@ -38,17 +38,32 @@ jobs:
     steps:
       # Fast BDL schedule pre-check before any expensive setup.
       # Exits the entire workflow in ~3 s on non-game days instead of ~45 s.
+      # Checks BOTH the ET date and the next UTC date because BDL stores late-night
+      # ET games (after 8 PM ET / midnight UTC) under the following UTC day.
       - name: Check if WNBA games exist today (fast pre-check)
         id: schedule_check
         run: |
-          GAMES_TODAY=$(curl -sf \
-            "https://api.balldontlie.io/wnba/v1/games?dates[]=$(date -u +%Y-%m-%d)&per_page=1" \
-            -H "Authorization: ${{ secrets.BDL_API_KEY }}" \
-            | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('data') and len(d['data'])>0 else 'false')" \
-            2>/dev/null || echo "false")
+          ET_DATE=$(TZ=America/New_York date +%Y-%m-%d)
+          UTC_DATE=$(date -u +%Y-%m-%d)
+          echo "Pre-check: ET=$ET_DATE UTC=$UTC_DATE"
+          _check_date() {
+            curl -sf \
+              "https://api.balldontlie.io/wnba/v1/games?dates[]=$1&per_page=1" \
+              -H "Authorization: ${{ secrets.BDL_API_KEY }}" \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print('true' if d.get('data') and len(d['data'])>0 else 'false')" \
+              2>/dev/null || echo "false"
+          }
+          GAMES_ET=$(_check_date "$ET_DATE")
+          GAMES_UTC=$(_check_date "$UTC_DATE")
+          if [ "$GAMES_ET" = "true" ] || [ "$GAMES_UTC" = "true" ]; then
+            GAMES_TODAY="true"
+          else
+            GAMES_TODAY="false"
+          fi
           echo "has_games=$GAMES_TODAY" >> $GITHUB_OUTPUT
+          echo "ET games: $GAMES_ET | UTC games: $GAMES_UTC | combined: $GAMES_TODAY"
           if [ "$GAMES_TODAY" = "false" ]; then
-            echo "No WNBA games today — exiting early (saved ~42s of setup)"
+            echo "No WNBA games on ET=$ET_DATE or UTC=$UTC_DATE — exiting early"
           fi
 
       - uses: actions/checkout@v4
@@ -65,17 +80,21 @@ jobs:
         if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
         run: pip install -e ".[dev]"
 
-      - name: Detect today's date
+      - name: Detect today's date (ET)
         if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          echo "GAME_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+          ET_DATE=$(TZ=America/New_York date +%Y-%m-%d)
+          echo "GAME_DATE=$ET_DATE" >> $GITHUB_ENV
+          echo "ARTIFACT_DATE=$ET_DATE" >> $GITHUB_ENV
 
       - name: Find active WNBA games
         id: find_games
         if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           python scripts/find_live_games.py \
-            --out-dir artifacts/live
+            --out-dir artifacts/live \
+            --date "$GAME_DATE" \
+            --live-only
           # Read game IDs from live_games.json (primary) or active_game_ids.txt (fallback)
           if [ -f "artifacts/live/live_games.json" ]; then
             ACTIVE_IDS=$(python -c "import json; d=json.load(open('artifacts/live/live_games.json')); print(','.join(str(g) for g in d.get('game_ids',[])) if d.get('has_games') else '')")
@@ -91,11 +110,36 @@ jobs:
           fi
         continue-on-error: true
 
-      # Only continue if there are active games
+      - name: Resolve artifact date from BDL game date
+        if: steps.schedule_check.outputs.has_games == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # BDL stores late-night ET games (after 8 PM ET / midnight UTC) under
+          # the next UTC date. Use the BDL-authoritative game date for artifact
+          # lookups so pre-game projections are found correctly.
+          if [ -f "artifacts/live/live_games.json" ]; then
+            BDL_DATE=$(python3 -c "import json; d=json.load(open('artifacts/live/live_games.json')); games=d.get('games',[]); print(games[0]['date'] if games else d.get('date',''))" 2>/dev/null)
+            if [ -n "$BDL_DATE" ] && [ "$BDL_DATE" != "$GAME_DATE" ]; then
+              echo "BDL game date ($BDL_DATE) differs from ET date ($GAME_DATE) — using BDL date for artifact lookup"
+              echo "ARTIFACT_DATE=$BDL_DATE" >> $GITHUB_ENV
+            fi
+          fi
+
+      # Only continue if there are active games AND we are in the game window.
+      # Even if game_ids is provided via workflow_dispatch, verify the game is
+      # actually live right now so we don't run during pre-game hours.
       - name: Check active games
         run: |
-          if [ -z "$ACTIVE_GAME_IDS" ] && [ -z "${{ github.event.inputs.game_ids }}" ]; then
-            echo "No active games -- exiting early"
+          HOUR=$(date -u +%H)
+          IN_WINDOW=false
+          if [ "$HOUR" -ge 22 ] || [ "$HOUR" -lt 4 ]; then
+            IN_WINDOW=true
+          fi
+          INPUT_IDS="${{ github.event.inputs.game_ids }}"
+          if [ -z "$ACTIVE_GAME_IDS" ] && [ -z "$INPUT_IDS" ]; then
+            echo "No active game IDs found — exiting early"
+            echo "NO_GAMES=true" >> $GITHUB_ENV
+          elif [ -z "$ACTIVE_GAME_IDS" ] && [ -n "$INPUT_IDS" ] && [ "$IN_WINDOW" = "false" ]; then
+            echo "Explicit game_ids=$INPUT_IDS provided but UTC hour $HOUR is outside game window (22-04) — exiting early"
             echo "NO_GAMES=true" >> $GITHUB_ENV
           fi
 
@@ -104,7 +148,7 @@ jobs:
         run: |
           mkdir -p deliveries/tonight
           # Try today's final predictions first, then fall back to initial predictions
-          for ARTIFACT_NAME in "pregame-final-${{ env.GAME_DATE }}" "pregame-initial-${{ env.GAME_DATE }}"; do
+          for ARTIFACT_NAME in "pregame-final-${{ env.ARTIFACT_DATE }}" "pregame-initial-${{ env.ARTIFACT_DATE }}"; do
             AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=${ARTIFACT_NAME}" \
               --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
             if [ -n "$AID" ] && [ "$AID" != "null" ]; then
@@ -129,8 +173,10 @@ jobs:
         run: |
           IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
           if [ -n "$IDS" ]; then
+            # Typer List[int] options require one --game-ids flag per value.
+            GAME_ID_FLAGS=$(echo "$IDS" | tr ',' '\n' | awk '{print "--game-ids " $1}' | tr '\n' ' ')
             python scripts/run_live_tracker.py \
-              --game-ids $(echo $IDS | tr ',' ' ') \
+              $GAME_ID_FLAGS \
               --duration 3 \
               --poll-interval 30 \
               --out-dir artifacts/live \
@@ -229,14 +275,14 @@ jobs:
         run: |
           # Aggregate all active game live outputs into a single flat edges JSON
           # that the Inplay/Edges/index.html page fetches.
-          mkdir -p tools/odds-scanner/predictions/WNBA/Inplay/Edges
+          mkdir -p tools/odds-scanner/predictions/WNBA/In-Play/Edges
           python - <<'PYEOF'
           import json, os, glob
           from datetime import datetime, timezone
           from pathlib import Path
 
           inplay_src = Path("tools/odds-scanner/predictions/WNBA/Inplay-Edge")
-          out = Path("tools/odds-scanner/predictions/WNBA/Inplay/Edges")
+          out = Path("tools/odds-scanner/predictions/WNBA/In-Play/Edges")
           out.mkdir(parents=True, exist_ok=True)
 
           game_files = sorted(inplay_src.glob("game_*_latest.json"))
@@ -254,35 +300,50 @@ jobs:
               "games": games,
           }
           (out / "latest.json").write_text(json.dumps(payload, separators=(",", ":")))
-          print(f"Inplay/Edges latest.json: {len(games)} active games")
+          print(f"In-Play/Edges latest.json: {len(games)} active games")
           PYEOF
 
           # Write live index.html via generate_web_pages (--skip-live-html=false for this run)
           python scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
-            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges
+            --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges
         continue-on-error: true
 
-      - name: Publish live outputs to gh-pages (legacy Inplay-Edge path)
+      - name: Stage live outputs for single gh-pages deploy
+        if: env.NO_GAMES != 'true'
+        run: |
+          DIRS=(
+            "tools/odds-scanner/predictions/WNBA/Inplay-Edge"
+            "tools/odds-scanner/predictions/WNBA/In-Play/Edges"
+          )
+          for DIR in "${DIRS[@]}"; do
+            if [ -d "$DIR" ]; then
+              mkdir -p "_site/${DIR}"
+              cp -r "${DIR}/." "_site/${DIR}/"
+            fi
+          done
+          echo "Staged live files: $(find _site -type f | wc -l)"
+
+      - name: Deploy live pages to gh-pages (single push — no race condition)
         if: env.NO_GAMES != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          publish_dir: _site
           publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay-Edge
+          destination_dir: .
           keep_files: true
 
-      - name: Publish Inplay/Edges to gh-pages (new URL path)
+      - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP
         if: env.NO_GAMES != 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Inplay/Edges
-          keep_files: true
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        # Only deploy In-Play directories — never overwrite Pre-Game pages mid-game
+        run: python scripts/ftp_deploy.py --dirs In-Play/Edges In-Play/Pricer
+        continue-on-error: true
 
       - name: Post-game archive (runs when all games final)
         if: env.NO_GAMES != 'true'
@@ -316,3 +377,62 @@ jobs:
             artifacts/live/
             tools/odds-scanner/predictions/WNBA/Inplay-Edge/
           retention-days: 7
+
+      - name: Self-chain if games still active (replaces unreliable cron)
+        if: env.NO_GAMES != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IDS="${{ github.event.inputs.game_ids || env.ACTIVE_GAME_IDS }}"
+          if [ -z "$IDS" ]; then
+            echo "No game IDs tracked this run — skipping self-chain."
+            exit 0
+          fi
+
+          # Hard stop: never self-chain outside WNBA game hours (22:00–04:00 UTC).
+          # This prevents runaway loops when a game ends and the file is cleaned up.
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" -ge 4 ] && [ "$HOUR" -lt 22 ]; then
+            echo "Outside WNBA game window (UTC hour $HOUR) — refusing self-chain."
+            exit 0
+          fi
+
+          # Check each tracked game's latest JSON to see if it is still live.
+          # IMPORTANT: if no output file exists we treat the game as DONE, not live.
+          # Missing files are expected on a fresh ephemeral runner after archival.
+          STILL_LIVE=""
+          for GID in $(echo "$IDS" | tr ',' ' '); do
+            GAME_FILE="tools/odds-scanner/predictions/WNBA/Inplay-Edge/game_${GID}_latest.json"
+            if [ -f "$GAME_FILE" ]; then
+              GAME_STATUS=$(python3 - <<PYEOF
+          import json
+          try:
+              s = json.load(open("${GAME_FILE}")).get("game_status", "").lower()
+              t = {"final", "final/ot", "final_ot", "canceled", "postponed", "post"}
+              print("done" if s in t else "live")
+          except Exception:
+              print("done")
+          PYEOF
+              )
+              if [ "$GAME_STATUS" = "live" ]; then
+                STILL_LIVE="$STILL_LIVE,$GID"
+              else
+                echo "Game $GID finished (game_status=$GAME_STATUS) — not re-queuing"
+              fi
+            else
+              echo "Game $GID — no output file on this runner; assuming game is done — not re-queuing"
+            fi
+          done
+          STILL_LIVE="${STILL_LIVE#,}"  # strip leading comma
+
+          if [ -n "$STILL_LIVE" ]; then
+            echo "Games still live: $STILL_LIVE"
+            echo "Sleeping 5 minutes then triggering next poll cycle..."
+            sleep 300
+            gh workflow run live_inplay.yml \
+              --repo Risky-Scout/wnba-player-props-pmf-model \
+              -f game_ids="$STILL_LIVE"
+            echo "Self-chain triggered for: $STILL_LIVE"
+          else
+            echo "All games finished — self-chain terminates. No further runs queued."
+          fi

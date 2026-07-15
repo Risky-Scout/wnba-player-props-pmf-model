@@ -75,6 +75,13 @@ def _load_and_validate(
     wide = pd.read_parquet(wide_path)
     print(f"  {len(wide):,} rows, {wide.shape[1]} columns")
 
+    # Derive role_bucket from player_minutes_mean_l5 — not stored in features parquet.
+    # Required so role-stratified HGB training fires in StatRateModel.fit().
+    if "role_bucket" not in wide.columns and "player_minutes_mean_l5" in wide.columns:
+        from wnba_props_model.features.role_buckets import add_ex_ante_role_bucket
+        wide = add_ex_ante_role_bucket(wide, minutes_col="player_minutes_mean_l5")
+        print(f"  role_bucket derived: {wide['role_bucket'].value_counts().to_dict()}")
+
     print(f"Loading long features: {long_path}")
     long = pd.read_parquet(long_path)
     print(f"  {len(long):,} rows")
@@ -266,6 +273,7 @@ def train(
 
     stat_models: dict[str, StatRateModel] = {}
     hurdle_models: dict[str, HurdleModel] = {}
+    bb_models: dict = {}
     stat_summaries: dict[str, dict] = {}
 
     # P3.2: Load tuned hyperparameters when use_tuned_hyperparams is set
@@ -300,8 +308,11 @@ def train(
         if sw_played is not None:
             sw_played = sw_played[: len(X_played)]  # guard against index mismatch
 
-        # P3.2: merge tuned hyperparams for this stat into config copy
-        stat_cfg = dict(cfg)
+        # P3.2: merge per-stat overrides then tuned hyperparams into config copy.
+        # This mirrors training.py:269 so Stage-4 live models use the same
+        # architecture as OOF folds (e.g. fg3m→Beta-Binomial, ast/turnover→minutes_offset).
+        stat_overrides_cfg = cfg.get("stat_overrides", {})
+        stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
         if stat in tuned_params:
             tp = tuned_params[stat]
             hgb_r = dict(stat_cfg.get("hgb_regressor", {}))
@@ -314,20 +325,88 @@ def train(
                                                "min_samples_leaf") if k in tp})
             stat_cfg["hgb_classifier"] = hgb_c
 
+        # Inject minutes features into X_played if not already present
+        if "minutes_mean" not in X_played.columns:
+            _min_col = next((c for c in ["minutes_mean", "player_minutes_mean_l5", "player_minutes_mean_season"] if c in wide.columns), None)
+            if _min_col is not None:
+                X_played["minutes_mean"] = wide.loc[played_mask, _min_col].values
+        if "minutes_sigma" not in X_played.columns:
+            _sig_col = next((c for c in ["minutes_sigma", "player_minutes_sigma_season"] if c in wide.columns), None)
+            if _sig_col is not None:
+                X_played["minutes_sigma"] = wide.loc[played_mask, _sig_col].values
+            else:
+                X_played["minutes_sigma"] = 5.0
+
+        # played_ctx needed for role-stratified HurdleModel / StatRateModel fits.
+        played_ctx = wide[played_mask].reset_index(drop=True)
+
         if stat in sparse_stats:
-            model_h = HurdleModel(stat, stat_cfg)
-            model_h.fit(X_played, y_stat, sample_weight=sw_played)
-            hurdle_models[stat] = model_h
-            s = model_h.get_training_summary()
-            print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
-                  f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+            use_zinb = cfg.get("use_zinb_for_sparse_stats", False)
+            if use_zinb:
+                from wnba_props_model.models.hurdle import ZINBStatModel  # noqa: PLC0415
+                _zinb_actual_min = (
+                    wide.loc[played_mask, "actual_minutes"]
+                    .fillna(0)
+                    .reset_index(drop=True)
+                    .values
+                    if "actual_minutes" in wide.columns
+                    else None
+                )
+                model_h = ZINBStatModel(stat, stat_cfg)
+                model_h.fit(X_played, y_stat, sample_weight=sw_played,
+                            actual_minutes=_zinb_actual_min)
+                hurdle_models[stat] = model_h
+                s = model_h.get_training_summary()
+                print(f"  ZINBStatModel  P(Y>0)≈{1-zero_rate:.3f}  "
+                      f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+            elif stat in {"stl", "blk"}:
+                from wnba_props_model.models.zinb_hurdle import ZINBHurdleModel  # noqa: PLC0415
+                model_h = ZINBHurdleModel(stat=stat)
+                model_h.fit(X_played, y_stat, sample_weight=sw_played)
+                hurdle_models[stat] = model_h
+                s = model_h.get_training_summary()
+                print(f"  ZINBHurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
+                      f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+            else:
+                model_h = HurdleModel(stat, stat_cfg)
+                # Pass context_df so role-stratified Stage B regressors can fire.
+                model_h.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
+                hurdle_models[stat] = model_h
+                s = model_h.get_training_summary()
+                print(f"  HurdleModel  P(Y>0)≈{1-zero_rate:.3f}  "
+                      f"pos_mean={s['pos_mean']:.3f}  pos_r={s['pos_dispersion_r']}")
+        elif stat == "fg3m" and stat_cfg.get("use_beta_binomial"):
+            # Beta-Binomial model for fg3m — mirrors training.py OOF path
+            from wnba_props_model.models.beta_binomial import BetaBinomialStatModel  # noqa: PLC0415
+            fg3a_col = "actual_fg3a" if "actual_fg3a" in played_ctx.columns else None
+            y_attempts = played_ctx[fg3a_col] if fg3a_col else None
+            bb_m = BetaBinomialStatModel(stat_cfg)
+            bb_m.fit(X_played, y_stat, y_attempts, sample_weight=sw_played)
+            bb_models["fg3m"] = bb_m
+            s = {
+                "stat": "fg3m", "model_type": "BetaBinomial",
+                "alpha": bb_m.alpha_, "beta": bb_m.beta_,
+                "global_mean": float(y_stat.mean()), "global_var": float(y_stat.var()),
+            }
+            print(f"  BetaBinomialStatModel  alpha={bb_m.alpha_:.4f}  beta={bb_m.beta_:.4f}")
+            # Also fit a standard fallback model stored in stat_models
+            if cfg.get("use_log_linear", False):
+                from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel  # noqa: PLC0415
+                model_r = LogLinearStatModel(stat, stat_cfg)
+            else:
+                model_r = StatRateModel(stat, stat_cfg)
+            model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
+            stat_models[stat] = model_r
         else:
-            played_ctx = wide[played_mask].reset_index(drop=True)
-            model_r = StatRateModel(stat, stat_cfg)
+            if cfg.get("use_log_linear", False):
+                from wnba_props_model.models.log_linear_stat_model import LogLinearStatModel  # noqa: PLC0415
+                model_r = LogLinearStatModel(stat, stat_cfg)
+            else:
+                model_r = StatRateModel(stat, stat_cfg)
             model_r.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sw_played)
             stat_models[stat] = model_r
             s = model_r.get_training_summary()
-            print(f"  StatRateModel  mean={s['global_mean']:.3f}  "
+            print(f"  {type(model_r).__name__}  mean={s['global_mean']:.3f}  "
                   f"var={s['global_var']:.3f}  "
                   f"type={s['pmf_type']}  r={s['dispersion_r']}  "
                   f"role_buckets={len(s.get('role_dispersion', {}))}")
@@ -402,6 +481,10 @@ def train(
     joblib.dump(hurdle_models, str(hurdle_path))
     print(f"\nSaved stat models: {stat_path}")
     print(f"Saved hurdle models: {hurdle_path}")
+    if bb_models:
+        bb_path = model_dir / "bb_models.joblib"
+        joblib.dump(bb_models, str(bb_path))
+        print(f"Saved Beta-Binomial models: {bb_path}")
 
     # Model manifest
     model_manifest = {
@@ -433,7 +516,8 @@ def train(
     print("\nGenerating PMFs...")
     pmf_df = build_all_pmfs(
         wide, long, model_cols,
-        minutes_mdl, stat_models, hurdle_models, cfg
+        minutes_mdl, stat_models, hurdle_models, cfg,
+        bb_models=bb_models if bb_models else None,
     )
     print(f"  PMF rows: {len(pmf_df):,}")
     print(f"  Rows by stat:")

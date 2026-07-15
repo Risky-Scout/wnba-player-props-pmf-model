@@ -119,12 +119,11 @@ def _bayesian_blend_p_over(
     p_market: float,
     lambda_market: float = 0.30,
 ) -> float:
-    """Blend model P(over) with market prior via log-odds pooling.
+    """Blend model P(over) with market prior via log-odds pooling (DISPLAY ONLY).
 
     lambda_market=0.30 means market gets 30% weight in log-odds space.
-    This is the Bayesian posterior update:
-      log_odds_posterior = (1-λ)*log_odds_model + λ*log_odds_market
-    Equivalent to treating market as 0.43 independent observations.
+    IMPORTANT: This function must NEVER be called on the Kelly path.
+    Use p_over_raw (raw PMF probability) directly for Kelly fraction computation.
     """
     eps = 1e-6
     p_model = float(max(eps, min(1 - eps, p_model)))
@@ -133,6 +132,78 @@ def _bayesian_blend_p_over(
     lo_market = math.log(p_market / (1.0 - p_market))
     lo_post = (1.0 - lambda_market) * lo_model + lambda_market * lo_market
     return 1.0 / (1.0 + math.exp(-lo_post))
+
+
+def compute_kelly_fraction(
+    p_model: float,
+    p_market: float,
+    stat: str = 'pts',
+    role: str = 'starter',
+    base_fraction: float = 0.25,
+    max_kelly: float = 0.10,
+    min_edge_pp: float = 2.0,
+) -> dict:
+    """
+    Edge-dependent fractional Kelly criterion.
+    CRITICAL: p_model is the RAW model P(over), NEVER blended with market.
+    """
+    edge = p_model - p_market
+    bet_on = 'over' if edge > 0 else 'under' if edge < 0 else 'pass'
+    abs_edge = abs(edge)
+    edge_pp = abs_edge * 100
+
+    if edge_pp < min_edge_pp:
+        return {
+            'kelly_fraction': 0.0, 'bet_on': 'pass',
+            'edge_pp': round(edge_pp, 2), 'confidence_tier': 'PASS',
+            'market_flag': 'CLEAR', 'full_kelly': 0.0,
+        }
+
+    edge_mod = min(1.0, (edge_pp / 5.0) ** 0.5)
+
+    stat_mod = {
+        'pts': 1.0, 'reb': 0.9, 'ast': 0.85, 'fg3m': 0.75,
+        'stl': 0.5, 'blk': 0.4, 'turnover': 0.7, 'stocks': 0.5,
+        'pts_ast': 0.85, 'pts_reb': 0.9, 'reb_ast': 0.85, 'pts_reb_ast': 0.8,
+    }.get(stat, 0.7)
+
+    role_mod = {
+        'starter': 1.0, 'core': 0.95, 'rotation': 0.85,
+        'bench': 0.65, 'fringe': 0.35, 'inactive_risk': 0.2,
+    }.get(role, 0.7)
+
+    p_bet = p_model if bet_on == 'over' else (1.0 - p_model)
+    p_mkt = p_market if bet_on == 'over' else (1.0 - p_market)
+    b = (1.0 / p_mkt - 1.0) if p_mkt > 0.01 else 19.0
+    q = 1.0 - p_bet
+    full_kelly = max(0.0, (b * p_bet - q) / b) if b > 0 else 0.0
+
+    fraction = base_fraction * edge_mod * stat_mod * role_mod
+    kelly = min(full_kelly * (fraction / base_fraction), max_kelly)
+
+    tier = (
+        'PASS' if edge_pp < 2 else
+        'LOW' if edge_pp < 4 else
+        'MEDIUM' if edge_pp < 6 else
+        'HIGH' if edge_pp < 10 else
+        'VERY HIGH'
+    )
+
+    divergence_pp = abs(p_model - p_market) * 100
+    market_flag = (
+        'REVIEW' if divergence_pp > 8 else
+        'CAUTION' if divergence_pp > 5 else
+        'CLEAR'
+    )
+
+    return {
+        'kelly_fraction': round(kelly, 4),
+        'bet_on': bet_on,
+        'edge_pp': round(edge_pp, 2),
+        'confidence_tier': tier,
+        'market_flag': market_flag,
+        'full_kelly': round(full_kelly, 4),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -498,50 +569,37 @@ def build_player_record(
                 mkt_p = float(m.get("market_prob_over_no_vig") or 0.5)
                 edge = round(p_over - mkt_p, 4)
 
-                # Fractional Kelly bet sizing (half-Kelly, capped at 25% bankroll).
-                # Over bet Kelly  = edge_over  / (1 - mkt_p)  [edge > 0]
-                # Under bet Kelly = edge_under / mkt_p        [edge < 0]
-                if edge > 0:
-                    kelly_raw = edge / max(1.0 - mkt_p, 1e-6)
-                    kelly_frac: float | None = round(min(kelly_raw * 0.5, 0.25), 4)
-                elif edge < 0:
-                    kelly_raw = (-edge) / max(mkt_p, 1e-6)
-                    kelly_frac = round(min(kelly_raw * 0.5, 0.25), 4)
-                else:
-                    kelly_frac = None
+                # Signal A (Kelly path): p_over_raw — raw model P(over) from PMF, NEVER blended.
+                p_over_raw = p_over  # raw model PMF-derived probability, leakage-free
 
-                # Part C: Bayesian posterior update — blend model P(over) with market prior.
-                # lambda_market=0.30 → market gets 30% weight in log-odds space.
-                # p_posterior is used for BOTH edge and Kelly; raw p_model is preserved for audit.
-                _lambda_mkt = 0.30
-                p_posterior = _bayesian_blend_p_over(p_over, mkt_p, lambda_market=_lambda_mkt)
-                edge_posterior = round(p_posterior - mkt_p, 4)
+                # Edge-dependent fractional Kelly (Phase 6).
+                # Uses raw model P(over) only — market probability enters ONLY as p_market
+                # in the Kelly denominator, NOT blended into p_model.
+                _player_role = str(tmpl.get("role_bucket", "starter") or "starter")
+                _kelly_result = compute_kelly_fraction(
+                    p_model=p_over_raw,
+                    p_market=mkt_p,
+                    stat=stat,
+                    role=_player_role,
+                )
+                kelly_frac: float | None = _kelly_result['kelly_fraction'] or None
+                edge_raw = round(p_over_raw - mkt_p, 4)
 
-                # Part D: Conformal CI Kelly cap — reduce Kelly when CI is wide (high uncertainty).
-                _conformal_lo = sr.get("conformal_lower")
-                _conformal_hi = sr.get("conformal_upper")
-                _ci_penalty = 1.0
-                if (_conformal_lo is not None and _conformal_hi is not None
-                        and not (math.isnan(float(_conformal_lo)) or math.isnan(float(_conformal_hi)))):
-                    _ci_width = max(float(_conformal_hi) - float(_conformal_lo), 1.0)
-                    _ci_penalty = min(1.0, 10.0 / _ci_width)
-
-                if edge_posterior > 0:
-                    kelly_raw = edge_posterior / max(1.0 - mkt_p, 1e-6)
-                    kelly_frac = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
-                elif edge_posterior < 0:
-                    kelly_raw = (-edge_posterior) / max(mkt_p, 1e-6)
-                    kelly_frac = round(min(kelly_raw * 0.5 * _ci_penalty, 0.25), 4)
-                else:
-                    kelly_frac = None
+                # Signal B: Display-only consensus blend (lambda=0.15, not used for Kelly)
+                _DISPLAY_LAMBDA = 0.15
+                p_consensus = _bayesian_blend_p_over(p_over_raw, mkt_p, lambda_market=_DISPLAY_LAMBDA)
+                edge_posterior = round(p_consensus - mkt_p, 4)  # display only
 
                 stat_proj["calibrated_p_over"] = {
                     "market_line": round(line, 1),
-                    "p_over": round(p_posterior, 4),       # posterior (blended)
-                    "p_over_model": round(p_over, 4),      # raw model for audit
-                    "p_under": round(1.0 - p_posterior, 4),
-                    "edge_vs_market": edge_posterior,
-                    "kelly_fraction": kelly_frac,
+                    "p_over": round(p_consensus, 4),           # display consensus
+                    "p_over_model": round(p_over_raw, 4),      # pure model signal
+                    "p_over_market": round(mkt_p, 4),          # pure market signal
+                    "p_under": round(1.0 - p_consensus, 4),
+                    "edge_vs_market": edge_raw,                # PURE model edge (primary signal)
+                    "edge_consensus": edge_posterior,          # display only
+                    "kelly_fraction": kelly_frac,              # edge-dependent Kelly from PURE model
+                    "kelly_details": _kelly_result,            # full Kelly breakdown for audit
                     "market_source": str(m.get("source") or "odds_api"),
                     "market_vendor": str(m.get("vendor") or m.get("bookmaker") or ""),
                     "market_over_odds": int(m.get("over_odds") or 0) if m.get("over_odds") else None,
@@ -919,16 +977,15 @@ def build_live_envelope(
                 arr_for_p = np.array(pdata.get("pmf_arr", []), dtype=float)
                 p_over = float(np.sum(arr_for_p[math.ceil(line):])) if len(arr_for_p) > 0 else 0.5
                 mkt_p = float(mkt_row.get("market_prob_over_no_vig") or 0.5)
-                stat_entry["p_over"] = {
-                    "market_line": round(line, 1),
-                    "p_over": round(p_over, 4),
-                    "p_under": round(1.0 - p_over, 4),
-                    "edge_vs_current_market": round(p_over - mkt_p, 4),
-                    "market_source": str(mkt_row.get("source") or "bdl_live_props"),
-                    "market_vendor": str(mkt_row.get("vendor") or ""),
-                    "live_over_odds": int(mkt_row.get("over_odds") or 0) if mkt_row.get("over_odds") else None,
-                    "live_under_odds": int(mkt_row.get("under_odds") or 0) if mkt_row.get("under_odds") else None,
-                }
+                # Flat fields so the dashboard JS can read pd.market_line, pd.p_over, pd.market_p_over
+                stat_entry["market_line"] = round(line, 1)
+                stat_entry["p_over"] = round(p_over, 4)
+                stat_entry["market_p_over"] = round(mkt_p, 4)
+                stat_entry["edge_vs_current_market"] = round(p_over - mkt_p, 4)
+                stat_entry["market_source"] = str(mkt_row.get("source") or "bdl_live_props")
+                stat_entry["market_vendor"] = str(mkt_row.get("vendor") or "")
+                stat_entry["live_over_odds"] = int(mkt_row.get("over_odds") or 0) if mkt_row.get("over_odds") else None
+                stat_entry["live_under_odds"] = int(mkt_row.get("under_odds") or 0) if mkt_row.get("under_odds") else None
 
             posterior_predictive[stat_display] = stat_entry
 

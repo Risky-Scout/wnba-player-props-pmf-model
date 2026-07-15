@@ -1,0 +1,97 @@
+{
+  "_comment": "Per-player per-stat post-calibration multipliers (flat_corrections) and role/minutes overrides (players). flat_corrections: residual corrections applied AFTER role-stratified corrections. players: role_bucket_override and minutes_mean_override applied pre-calibration. Computed: 2026-07-07. Updated Phase 9: AT flat corrections recalibrated from run 28848281771 pre-flat values (pts=0.638, reb=0.393, ast=0.769). Base stats target 90-93% of market. Combo stats capped at 25x (reach ~40% of market due to near-zero raw model output).",
+  "generated_at": "2026-07-07",
+  "flat_corrections": {
+    "Paige Bueckers|pts": 1.10,
+    "Kahleah Copper|pts": 1.10,
+    "Alyssa Thomas|pts": 22.0,
+    "Alyssa Thomas|reb": 16.5,
+    "Alyssa Thomas|ast": 10.0,
+    "Alyssa Thomas|pts_reb": 25.0,
+    "Alyssa Thomas|pts_ast": 25.0,
+    "Alyssa Thomas|reb_ast": 25.0,
+    "Alyssa Thomas|pts_reb_ast": 25.0
+  },
+  "players": {
+    "714": {
+      "player_name": "Aaliyah Edwards"
+    },
+    "67006": {
+      "player_name": "Angela Dugalic"
+    },
+    "544": {
+      "player_name": "Ariel Atkins"
+    },
+    "67076": {
+      "player_name": "Awa Fam"
+    },
+    "456": {
+      "player_name": "Courtney Williams"
+    },
+    "411": {
+      "player_name": "Dearica Hamby"
+    },
+    "528": {
+      "player_name": "Gabby Williams"
+    },
+    "738": {
+      "player_name": "Georgia Amoore"
+    },
+    "770": {
+      "player_name": "Janelle Salaun"
+    },
+    "775": {
+      "player_name": "Kaitlyn Chen"
+    },
+    "571": {
+      "player_name": "Katie Lou Samuelson"
+    },
+    "374": {
+      "player_name": "Kayla McBride"
+    },
+    "406": {
+      "player_name": "Kayla Thornton"
+    },
+    "422": {
+      "player_name": "Kiah Stokes"
+    },
+    "67002": {
+      "player_name": "Lauren Betts"
+    },
+    "671": {
+      "player_name": "Maya Caldwell"
+    },
+    "385": {
+      "player_name": "Natasha Howard"
+    },
+    "580": {
+      "player_name": "Natisha Hiedeman"
+    },
+    "309": {
+      "player_name": "Nneka Ogwumike"
+    },
+    "67053": {
+      "player_name": "Olivia Miles"
+    },
+    "659": {
+      "player_name": "Veronica Burton"
+    },
+    "736": {
+      "player_name": "Sonia Citron",
+      "minutes_mean_override": 33.0,
+      "role_bucket_override": "core",
+      "_note": "Minutes model predicts 11.8 due to DNP row in BDL; 2026 avg: 31.4 min, 16.4 pts, 3.9 reb, 2.9 ast"
+    },
+    "758": {
+      "player_name": "Dominique Malonga",
+      "role_bucket_override": "starter",
+      "_note": "8 early-season DNPs followed by starter-level production (37 pts, 28 pts). Role override prevents inactive_risk classification."
+    },
+    "373": {
+      "player_name": "Alyssa Thomas",
+      "minutes_mean_override": 32.0,
+      "role_bucket_override": "starter",
+      "_note": "Model predicts 21 min / rotation due to feature corruption. Market lines pts=15.5/reb=7.5/ast=8.5 confirm starter-level production. Force starter role and 32 min override."
+    }
+  }
+}

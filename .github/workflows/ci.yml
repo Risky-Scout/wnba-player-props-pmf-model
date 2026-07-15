@@ -8,6 +8,25 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Permanent actionlint gate — catches workflow YAML/expression syntax errors
+  # on every push and PR. Regression proof: pregame_initial.yml was fixed in
+  # hotfix/pregame-workflow-yaml (missing 10-space indentation on heredoc
+  # content caused GitHub "Invalid workflow file" on line 269).
+  # ---------------------------------------------------------------------------
+  lint-workflows:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.7
+          sudo mv actionlint /usr/local/bin/actionlint
+          actionlint -version
+      - name: Run actionlint
+        run: actionlint -shellcheck= -pyflakes= .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
+
+  # ---------------------------------------------------------------------------
   # Unit + integration tests (existing 691 tests)
   # ---------------------------------------------------------------------------
   unit-tests:

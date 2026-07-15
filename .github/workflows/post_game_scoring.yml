@@ -46,13 +46,52 @@ jobs:
             echo "game_date=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download yesterday's predictions
-        uses: actions/download-artifact@v4
-        with:
-          # download-artifact@v4 requires `pattern:` (not `name:`) for wildcard matching
-          pattern: daily-delivery-${{ steps.date.outputs.game_date }}-*
-          merge-multiple: true
-          path: deliveries/scored_day
+      - name: Download yesterday's predictions (cross-run via GitHub CLI)
+        # actions/download-artifact@v4 only searches the CURRENT run's artifacts.
+        # daily-delivery-* artifacts are produced by daily_pipeline.yml — a different run.
+        # Use the same gh api zip-download pattern as daily_pipeline.yml lines 66-79.
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          mkdir -p deliveries/scored_day
+          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq "[.artifacts[] | select(.expired == false) | select(.name | startswith(\"daily-delivery-${GAME_DATE}-\"))] | sort_by(.created_at) | reverse | .[0].id" 2>/dev/null)
+          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
+            echo "Downloading daily-delivery artifact id=$AID for $GAME_DATE"
+            gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/delivery.zip
+            unzip -o /tmp/delivery.zip -d deliveries/scored_day
+            echo "Delivery artifact downloaded and extracted."
+          else
+            echo "[WARN] No daily-delivery artifact found for $GAME_DATE (no game that day or pipeline not yet run)"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Normalize predictions path
+        # Artifacts are uploaded with workspace-relative paths (deliveries/next_game/...).
+        # After unzip to deliveries/scored_day/, files land double-nested at
+        # deliveries/scored_day/deliveries/next_game/full_pmfs_wide.parquet.
+        # Flatten to the path the guard and scoring command expect.
+        # Identical fix already applied in live_tracker.yml lines 129-146.
+        run: |
+          if [ ! -f "deliveries/scored_day/full_pmfs_wide.parquet" ]; then
+            NESTED=$(find deliveries/scored_day -name "full_pmfs_wide.parquet" 2>/dev/null | head -1)
+            if [ -n "$NESTED" ]; then
+              cp "$NESTED" deliveries/scored_day/full_pmfs_wide.parquet
+              echo "Normalized: $NESTED → deliveries/scored_day/full_pmfs_wide.parquet"
+            else
+              echo "[WARN] full_pmfs_wide.parquet not found anywhere under deliveries/scored_day/"
+            fi
+          else
+            echo "full_pmfs_wide.parquet already at expected path."
+          fi
+          if [ ! -f "deliveries/scored_day/market_comparison.parquet" ]; then
+            MC=$(find deliveries/scored_day -name "market_comparison.parquet" 2>/dev/null | head -1)
+            if [ -n "$MC" ]; then
+              cp "$MC" deliveries/scored_day/market_comparison.parquet
+              echo "Normalized market_comparison: $MC → flat path"
+            fi
+          fi
         continue-on-error: true
 
       - name: Download closing lines for scored game date
@@ -109,10 +148,24 @@ jobs:
           python scripts/build_canonical_tables.py \
             --raw-dir data/raw/bdl --out-dir data/processed
 
+      - name: Guard — skip scoring on no-game dates
+        id: game_guard
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          # If predictions artifact was not downloaded (no game that day), skip scoring
+          if [ ! -f "deliveries/scored_day/full_pmfs_wide.parquet" ]; then
+            echo "No predictions artifact for $GAME_DATE — no game day, skipping CLV scoring."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Score predictions vs. actuals (with market lines + closing lines)
         # This is the single authoritative CLV scoring path.
         # Computes open-line CLV (vs. morning market price) and true CLV
         # (vs. closing lines) for every scored bet.
+        # continue-on-error REMOVED: failures must be visible, not silently skipped.
+        if: steps.game_guard.outputs.skip != 'true'
         run: |
           python scripts/score_daily_predictions.py \
             --predictions deliveries/scored_day/full_pmfs_wide.parquet \
@@ -122,7 +175,6 @@ jobs:
             --closing-lines "${{ steps.closing.outputs.path }}" \
             --out-dir data/clv_tracking \
             --results-file data/clv_tracking/results.parquet
-        continue-on-error: true
 
       - name: Generate CLV report
         run: |
@@ -156,3 +208,16 @@ jobs:
             artifacts/audits/clv_*.json
             artifacts/audits/clv_*.md
           retention-days: 90
+
+      - name: Commit and push CLV results
+        if: steps.game_guard.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/clv_tracking/results.parquet artifacts/audits/clv_*.json artifacts/audits/clv_*.md 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: CLV scoring results for ${{ steps.date.outputs.game_date }} [skip ci]"
+            git push
+          else
+            echo "No CLV data changes to commit."
+          fi

@@ -31,7 +31,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 .stat-tag{background:#1e2130;border:1px solid #2a2d3e;border-radius:4px;padding:1px 7px;font-size:.72rem;font-weight:700;color:#aaa;margin-left:6px}
 .edge-badge{font-size:.78rem;font-weight:700;padding:2px 10px;border-radius:100px}
 .edge-over{background:#3fa26622;color:#3fa266;border:1px solid #3fa26644}
-.edge-under{background:#e05a6a22;color:#e05a6a;border:1px solid #e05a6a44}
+.edge-under{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44}
 .card-body{display:flex;gap:0;padding:12px 14px 14px}
 .chart-area{flex:0 0 auto;position:relative}
 .stats-panel{flex:1 1 0;min-width:0;padding-left:14px;border-left:1px solid #1e2130}
@@ -40,6 +40,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 .stat-value{font-weight:500;color:#e4e4e4;font-variant-numeric:tabular-nums}
 .stat-value.green{color:#3fa266}
 .stat-value.red{color:#e05a6a}
+.stat-value.amber-edge{color:#f59e0b}
 .stat-value.blue{color:#599ce7}
 .stat-value.amber{color:#f1b467}
 .divider{height:1px;background:#1e2130;margin:5px 0}
@@ -61,7 +62,8 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       <button class="pill" data-stat="PTS">PTS</button>
       <button class="pill" data-stat="REB">REB</button>
       <button class="pill" data-stat="AST">AST</button>
-      <button class="pill" data-stat="3PM">3PM</button>
+      <button class="pill" data-stat="FG3M">3PM</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
     </div>
     <input class="search" type="text" placeholder="Filter player..." id="searchInput">
   </div>
@@ -71,6 +73,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
     <div class="legend-item"><svg width="22" height="3"><line x1="0" y1="1.5" x2="22" y2="1.5" stroke="#599ce7" stroke-width="2" stroke-dasharray="4 2"/></svg>Mean</div>
     <div class="legend-item"><svg width="22" height="3"><line x1="0" y1="1.5" x2="22" y2="1.5" stroke="#f1b467" stroke-width="2" stroke-dasharray="4 2"/></svg>Median</div>
     <div class="legend-item"><svg width="22" height="3"><line x1="0" y1="1.5" x2="22" y2="1.5" stroke="#81a1c1" stroke-width="2" stroke-dasharray="4 2"/></svg>Mode</div>
+    <div class="legend-item"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#a3e635" fill-opacity="0.85"/></svg>Last 5 Avg</div>
     <div class="legend-item"><svg width="14" height="10"><rect x="0" y="1" width="14" height="8" fill="#3fa266" fill-opacity="0.5"/></svg>Over region</div>
     <div class="legend-item"><svg width="14" height="10"><rect x="0" y="1" width="14" height="8" fill="#d08770" fill-opacity="0.45"/></svg>Under region</div>
   </div>
@@ -91,24 +94,62 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 
   const params = new URLSearchParams(location.search);
   const dateParam = params.get('date');
-  const dataUrl = dateParam ? `${dateParam}.json` : 'latest.json';
+  // A3: Cache-bust fetch — pointer → immutable release payload
+  function _todayETpmf() {
+    const d = new Date();
+    const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+    return et.toISOString().slice(0, 10);
+  }
+  const targetDate = dateParam || _todayETpmf();
 
-  fetch(dataUrl)
-    .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
-    .then(data => {
-      allProps = data.props || [];
-      document.getElementById('hdrDate').textContent = data.game_date || '';
-      document.getElementById('genTime').textContent = data.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
-      render();
+  function _loadPMFPayload(url) {
+    return fetch(url, {cache:'no-store'}).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
+  }
+
+  // Fetch latest.json (pointer) with cache-bust, then follow to immutable payload
+  _loadPMFPayload('latest.json?t=' + Date.now())
+    .then(ptr => {
+      if (!ptr.pointer) {
+        // Legacy full payload — validate date
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Stale data (' + ptr.game_date + ') — waiting for current update.</div>';
+          return;
+        }
+        allProps = ptr.props || [];
+        document.getElementById('hdrDate').textContent = ptr.game_date || '';
+        document.getElementById('genTime').textContent = ptr.generated_at ? new Date(ptr.generated_at).toLocaleString() : '—';
+        render(); return;
+      }
+      if (ptr.game_date !== targetDate) {
+        document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Stale data (' + ptr.game_date + ') — waiting for current update.</div>';
+        return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      _loadPMFPayload(payloadUrl)
+        .then(data => {
+          if (data.game_date !== ptr.game_date) {
+            document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Payload date mismatch — refreshing.</div>';
+            return;
+          }
+          allProps = data.props || [];
+          document.getElementById('hdrDate').textContent = data.game_date || '';
+          document.getElementById('genTime').textContent = data.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
+          render();
+        })
+        .catch(err => { document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ' + err.message + '</div>'; });
     })
     .catch(err => {
       document.getElementById('pmfGrid').innerHTML = `<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ${err.message}</div>`;
     });
 
+  const _PMF_STAT_DISPLAY = {
+    'FG3M':'3PM','PTS_REB':'Pts+Reb','PTS_AST':'Pts+Ast',
+    'REB_AST':'Reb+Ast','PTS_REB_AST':'Pts+Reb+Ast','STOCKS':'Stl+Blk','TURNOVER':'TO'
+  };
+
   function filtered() {
     return allProps.filter(p => {
-      const st = p.stat === 'FG3M' ? '3PM' : p.stat;
-      if (statFilter !== 'ALL' && st !== statFilter) return false;
+      if (statFilter !== 'ALL' && p.stat !== statFilter) return false;
       if (searchFilter && !p.player.toLowerCase().includes(searchFilter)) return false;
       return true;
     });
@@ -135,13 +176,22 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       return `<rect x="${(x+0.5).toFixed(1)}" y="${(PT+ph-h).toFixed(1)}" width="${Math.max(bw-1,1).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" fill-opacity="${opacity}"/>`;
     }).join('');
 
-    const line = `<line x1="${vx(prop.line).toFixed(1)}" y1="${PT}" x2="${vx(prop.line).toFixed(1)}" y2="${PT+ph}" stroke="#e05a6a" stroke-width="2" stroke-dasharray="5 3"/>`;
+    // Market line (bold red dashed)
+    const line = prop.line > 0 ? `<line x1="${vx(prop.line).toFixed(1)}" y1="${PT}" x2="${vx(prop.line).toFixed(1)}" y2="${PT+ph}" stroke="#e05a6a" stroke-width="2" stroke-dasharray="5 3"/>` : '';
     const meanX = (vx(prop.mean)+bw/2).toFixed(1);
     const meanL = `<line x1="${meanX}" y1="${PT}" x2="${meanX}" y2="${PT+ph}" stroke="#599ce7" stroke-width="1.5" stroke-dasharray="4 2"/>`;
     const medX = (vx(prop.median)+bw/2).toFixed(1);
     const medL = `<line x1="${medX}" y1="${PT}" x2="${medX}" y2="${PT+ph}" stroke="#f1b467" stroke-width="1.5" stroke-dasharray="4 2"/>`;
     const modeX = (vx(prop.mode)+bw/2).toFixed(1);
     const modeL = `<line x1="${modeX}" y1="${PT}" x2="${modeX}" y2="${PT+ph}" stroke="#81a1c1" stroke-width="1.5" stroke-dasharray="4 2"/>`;
+
+    // Last 5 avg dot (green diamond)
+    let l5dot = '';
+    if (prop.last_5_avg != null && prop.last_5_avg >= kMin && prop.last_5_avg <= kMax + 1) {
+      const lx = (vx(prop.last_5_avg)+bw/2).toFixed(1);
+      const ly = (PT + 10).toFixed(1);
+      l5dot = `<circle cx="${lx}" cy="${ly}" r="4" fill="#a3e635" fill-opacity="0.85"/><text x="${lx}" y="${(PT+7).toFixed(1)}" text-anchor="middle" font-size="7" fill="#a3e635" font-family="system-ui">L5</text>`;
+    }
 
     const axis = `<line x1="${PL}" y1="${PT+ph}" x2="${W-PR}" y2="${PT+ph}" stroke="#2a2d3e" stroke-width="0.5"/>`;
 
@@ -154,10 +204,10 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
       if (!seen.has(key)) { seen.add(key); labels.push(`<text x="${x}" y="${H-5}" text-anchor="middle" font-size="8" fill="#666" font-family="system-ui">${txt}</text>`); }
     };
     addLabel(kMin, kMin);
-    addLabel(prop.line, prop.line);
+    if (prop.line > 0) addLabel(prop.line, prop.line);
     addLabel(kMax, kMax);
 
-    return `<svg width="${W}" height="${H}" style="display:block">${bars}${line}${meanL}${medL}${modeL}${axis}${labels.join('')}</svg>`;
+    return `<svg width="${W}" height="${H}" style="display:block">${bars}${line}${meanL}${medL}${modeL}${l5dot}${axis}${labels.join('')}</svg>`;
   }
 
   function pct(v) { return (v*100).toFixed(1)+'%'; }
@@ -166,14 +216,16 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
   function buildCard(p) {
     const isOver = p.edge >= 0;
     const edgePct = (Math.abs(p.edge)*100).toFixed(1);
-    const st = p.stat === 'FG3M' ? '3PM' : p.stat;
+    const st = _PMF_STAT_DISPLAY[p.stat] || p.stat;
     const skewFlagged = Math.abs(p.skewness) > 1;
     const kurtFlagged = Math.abs(p.excess_kurtosis) > 3;
     const svg = buildSVG(p);
+    const medVsLine = p.median_vs_line != null ? `${p.median_vs_line >= 0 ? '+' : ''}${p.median_vs_line.toFixed(2)}` : '—';
+    const l5str = p.last_5_avg != null ? p.last_5_avg.toFixed(1) : '—';
 
     return `<div class="card">
       <div class="card-header">
-        <div><span class="card-title">${p.player}</span><span class="stat-tag">${st} ${p.line}</span></div>
+        <div><span class="card-title">${p.player}</span><span class="stat-tag">${st} ${p.line > 0 ? p.line : '—'}</span></div>
         <span class="edge-badge ${isOver?'edge-over':'edge-under'}">${isOver?'OVER':'UNDER'} ${sign(p.edge)}${edgePct}%</span>
       </div>
       <div class="card-body">
@@ -181,16 +233,14 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
         <div class="stats-panel">
           <div class="stat-row"><span class="stat-label">EV (mean)</span><span class="stat-value">${p.mean.toFixed(2)}</span></div>
           <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${p.median.toFixed(1)}</span></div>
-          <div class="stat-row"><span class="stat-label">Mode</span><span class="stat-value">${p.mode}</span></div>
+          <div class="stat-row"><span class="stat-label">Median vs Line</span><span class="stat-value ${p.median_vs_line > 0 ? 'green' : p.median_vs_line < 0 ? 'red' : ''}">${medVsLine}</span></div>
+          <div class="stat-row"><span class="stat-label">Last 5 avg</span><span class="stat-value blue">${l5str}</span></div>
           <div class="divider"></div>
-          <div class="stat-row"><span class="stat-label">Variance</span><span class="stat-value">${p.variance.toFixed(2)}</span></div>
-          <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${p.std_dev.toFixed(2)}</span></div>
-          <div class="stat-row"><span class="stat-label">Skewness</span><span class="stat-value ${skewFlagged?'amber':''}">${p.skewness.toFixed(3)}</span></div>
-          <div class="stat-row"><span class="stat-label">Ex. Kurtosis</span><span class="stat-value ${kurtFlagged?'amber':''}">${p.excess_kurtosis.toFixed(3)}</span></div>
-          <div class="divider"></div>
-          <div class="stat-row"><span class="stat-label">Mdl P(over)</span><span class="stat-value ${isOver?'green':'red'}">${pct(p.model_p_over)}</span></div>
-          <div class="stat-row"><span class="stat-label">Mkt P(over)</span><span class="stat-value">${pct(p.market_p_over)}</span></div>
-          <div class="stat-row"><span class="stat-label">Edge</span><span class="stat-value ${isOver?'green':'red'}">${sign(p.edge)}${(p.edge*100).toFixed(1)}%</span></div>
+          <div class="stat-row"><span class="stat-label">P(over) mdl</span><span class="stat-value ${isOver?'green':'amber-edge'}">${p.model_p_over_pct != null ? p.model_p_over_pct.toFixed(1)+'%' : pct(p.model_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">P(under) mdl</span><span class="stat-value ${!isOver?'green':'amber-edge'}">${p.model_p_under_pct != null ? p.model_p_under_pct.toFixed(1)+'%' : pct(1-p.model_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">Mkt no-vig P(O)</span><span class="stat-value">${p.no_vig_over_prob != null ? (p.no_vig_over_prob*100).toFixed(1)+'%' : pct(p.market_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">Mkt no-vig P(U)</span><span class="stat-value">${p.no_vig_under_prob != null ? (p.no_vig_under_prob*100).toFixed(1)+'%' : pct(1-p.market_p_over)}</span></div>
+          <div class="stat-row"><span class="stat-label">Edge</span><span class="stat-value ${isOver?'green':'amber-edge'}">${sign(p.edge)}${(p.edge*100).toFixed(1)}%</span></div>
           ${p.kelly_pct>0?`<div class="stat-row"><span class="stat-label">Kelly %</span><span class="stat-value blue">${p.kelly_pct.toFixed(1)}%</span></div>`:''}
         </div>
       </div>

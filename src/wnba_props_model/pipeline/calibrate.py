@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -77,8 +78,22 @@ def _build_oof_combo_pmfs(oof_base: pd.DataFrame) -> pd.DataFrame:
     if "outcome" not in combo_rows.columns and "actual_outcome" in combo_rows.columns:
         combo_rows["outcome"] = combo_rows["actual_outcome"]
 
-    # Combo stats calibrate globally (role_bucket="all") — not enough per-role volume
-    combo_rows["role_bucket"] = "all"
+    # Preserve role_bucket from the parent player's base rows.
+    _rb_map = (
+        oof_base[["player_id", "game_id", "role_bucket"]]
+        .drop_duplicates(subset=["player_id", "game_id"])
+        .set_index(["player_id", "game_id"])["role_bucket"]
+    )
+    combo_rows["role_bucket"] = (
+        combo_rows.set_index(["player_id", "game_id"])
+        .index.map(_rb_map)
+        .fillna("all")
+        .values
+    )
+    logger.info(
+        "[calibrate] Combo stats role distribution: %s",
+        combo_rows["role_bucket"].value_counts().to_dict(),
+    )
 
     logger.info(
         "[calibrate] Built %d OOF combo PMF rows for calibration (%s stats)",
@@ -102,7 +117,7 @@ def fit_beta_calibrators(
     import joblib  # noqa: PLC0415
     from wnba_props_model.evaluation.beta_calibration import fit_best_calibrator  # noqa: PLC0415
 
-    _BETA_MIN_CAL_MINUTES = 5
+    _BETA_MIN_CAL_MINUTES = 10  # Match fit_calibrators threshold: only prop-eligible games
     oof = pd.read_parquet(oof_pmfs_path).copy()
     if "outcome" not in oof.columns and "actual_outcome" in oof.columns:
         oof["outcome"] = oof["actual_outcome"]
@@ -186,9 +201,169 @@ def apply_beta_calibrators(
         return p_over_series
 
 
+def _apply_protected_mean_bias_correction(
+    model_means: np.ndarray,
+    bias: float,
+) -> np.ndarray:
+    """Apply additive mean bias correction proportionally by deviation from median.
+
+    High performers (large deviation from median) get smaller corrections so that
+    workhorse underprediction is not caused by the global correction pushing their
+    means down. Bench players (small predictions, near median) get the full correction.
+
+    Parameters
+    ----------
+    model_means : Per-player predicted stat means (batch).
+    bias        : OOF-measured additive bias: actual_mean - model_mean.
+                  Positive bias → model underpredicts → shift means up.
+    """
+    if abs(bias) < 1e-6:
+        return model_means
+    deviation = np.abs(model_means - np.median(model_means))
+    max_dev = max(float(deviation.max()), 1.0)
+    weights = 1.0 - 0.7 * np.minimum(deviation / max_dev, 1.0)
+    return model_means + bias * weights
+
+
+def _apply_mean_bias_correction(
+    pmf_arr: np.ndarray,
+    alpha: float,
+    cap: int | None = None,
+    variance_compress_factor: float = 1.0,
+) -> np.ndarray:
+    """Scale a discrete PMF so its mean shifts by factor alpha, optionally compressing variance.
+
+    Uses NegBinom moment-matching: estimates r from current mean and variance,
+    rebuilds the PMF at the target mean. When variance_compress_factor > 1.0,
+    the dispersion parameter r is multiplied by that factor (higher r = less
+    overdispersion = narrower PMF), correcting over-wide distributions confirmed
+    by runtime OOF evidence (fg3m ratio=1.54, ast ratio=1.43).
+    Falls back to the original PMF if estimation fails.
+    """
+    from wnba_props_model.models.pmf_utils import negbinom_pmf_batch  # noqa: PLC0415
+
+    arr = normalize_pmf(pmf_arr)
+    needs_alpha = abs(alpha - 1.0) >= 0.005
+    needs_compress = variance_compress_factor > 1.05
+    if not needs_alpha and not needs_compress:
+        return arr
+    n = len(arr)
+    k = np.arange(n, dtype=float)
+    mu = float(np.dot(k, arr))
+    if mu < 0.05:
+        return arr
+    var = float(np.dot(k ** 2, arr)) - mu ** 2
+    # NegBinom: var = mu + mu²/r  →  r = mu²/(var - mu)
+    excess_var = max(var - mu, 1e-4)
+    r_est = float(np.clip(mu ** 2 / excess_var, 0.3, 20.0))
+    # Variance compression: multiply r by the compress factor.
+    # Runtime evidence: fg3m model_var/actual_var=1.54, ast=1.43.
+    # Higher r tightens the NegBinom distribution toward its mean.
+    if needs_compress:
+        r_est = float(np.clip(r_est * variance_compress_factor, 0.5, 60.0))
+    target_mu = float(np.clip(mu * alpha, 0.05, None))
+    support = (cap or n) - 1
+    try:
+        new_pmf = negbinom_pmf_batch(np.array([target_mu]), r_est, support)[0]
+        return normalize_pmf(new_pmf)
+    except Exception:
+        return arr
+
+
+def fit_pnz_calibrators(
+    oof: pd.DataFrame,
+    out: Path,
+) -> dict[str, Path]:
+    """Fit isotonic calibrators for P(nonzero) on hurdle-model stats (stl, blk).
+
+    Uses OOF p_nz predictions vs actual nonzero indicators.
+    A well-calibrated pi model produces uniform PIT, but the structural zero
+    probability p_nz = 1-pi can still be biased in the mean even with uniform PIT.
+    Isotonic regression corrects this monotonically without overfitting.
+    """
+    from sklearn.isotonic import IsotonicRegression  # noqa: PLC0415
+    import joblib  # noqa: PLC0415
+
+    pnz_paths: dict[str, Path] = {}
+    for stat in ("stl", "blk"):
+        sub = oof[(oof["stat"] == stat) & (oof["p_nz"].notna())].copy()
+        if len(sub) < 100:
+            logger.warning(
+                "[calibrate] Insufficient OOF rows for p_nz calibration of %s (%d rows)",
+                stat, len(sub),
+            )
+            continue
+        y_actual = (sub["actual_outcome"] > 0).astype(float).values
+        y_pred   = sub["p_nz"].clip(1e-6, 1 - 1e-6).values
+
+        ir = IsotonicRegression(out_of_bounds="clip")
+        ir.fit(y_pred, y_actual)
+
+        y_cal = ir.predict(y_pred)
+        cal_mean = float(y_cal.mean())
+        emp_rate = float(y_actual.mean())
+        logger.info(
+            "[calibrate] p_nz calibrator %s: empirical_nonzero=%.3f cal_mean=%.3f (delta=%.4f) n=%d",
+            stat, emp_rate, cal_mean, cal_mean - emp_rate, len(sub),
+        )
+
+        path = out / f"pnz_cal_{stat}.pkl"
+        joblib.dump(ir, path)
+        pnz_paths[stat] = path
+        print(f"[calibrate] Saved p_nz calibrator: {path}")
+
+    return pnz_paths
+
+
+def fit_pdnp_calibrator(
+    oof: pd.DataFrame,
+    out: Path,
+) -> Path | None:
+    """Fit isotonic calibrator for P(DNP) — probability a player does not play.
+
+    Calibrates the model's p_dnp predictions against actual did_play outcomes
+    from OOF data. A well-calibrated P(DNP) prevents overconfident projections
+    for players with uncertain availability.
+    """
+    from sklearn.isotonic import IsotonicRegression  # noqa: PLC0415
+    import joblib  # noqa: PLC0415
+
+    if "p_dnp" not in oof.columns or "did_play" not in oof.columns:
+        logger.warning("[calibrate] p_dnp or did_play column missing — skipping P(DNP) calibrator")
+        return None
+
+    sub = oof[oof["p_dnp"].notna() & oof["did_play"].notna()].copy()
+    if len(sub) < 50:
+        logger.warning(
+            "[calibrate] Insufficient OOF rows for P(DNP) calibration (%d rows, need 50)",
+            len(sub),
+        )
+        return None
+
+    # Target: 1 = DNP (did NOT play), 0 = played
+    y_actual = (sub["did_play"] == False).astype(float).values  # noqa: E712
+    y_pred = sub["p_dnp"].clip(1e-6, 1 - 1e-6).values
+
+    ir = IsotonicRegression(out_of_bounds="clip")
+    ir.fit(y_pred, y_actual)
+
+    y_cal = ir.predict(y_pred)
+    logger.info(
+        "[calibrate] P(DNP) calibrator: empirical_dnp=%.3f cal_mean=%.3f (delta=%.4f) n=%d",
+        float(y_actual.mean()), float(y_cal.mean()),
+        float(y_cal.mean()) - float(y_actual.mean()), len(sub),
+    )
+
+    path = out / "pdnp_cal.pkl"
+    joblib.dump(ir, path)
+    print(f"[calibrate] Saved P(DNP) calibrator: {path}")
+    return path
+
+
 def fit_calibrators(
     oof_pmfs_path: str | Path,
     out_dir: str | Path = "artifacts/models/calibration",
+    props_parquet_path: str | Path | None = None,
 ) -> dict[str, Path]:
     """Fit per-stat role-aware isotonic calibrators from OOF PMFs.
 
@@ -226,7 +401,8 @@ def fit_calibrators(
     # PIT ≈ 0.05.  The isotonic calibrator interprets this as systematic
     # over-prediction and learns to compress every distribution by ~2×,
     # causing severe under-prediction vs the market in live delivery.
-    _MIN_CAL_MINUTES = 5   # exclude pure garbage-time (< 5 min) while keeping fringe/bench games
+    _MIN_CAL_MINUTES = 10  # prop-eligibility floor: only games where player played >=10 min
+                           # (filters bench/fringe games that contaminate calibration training)
     if "calibration_eligible" in oof.columns:
         oof_eligible = oof[oof["calibration_eligible"] == True].copy()  # noqa: E712
     else:
@@ -251,6 +427,40 @@ def fit_calibrators(
     print(f"[calibrate] Total eligible rows before DNP filter: {_pre_dnp_n:,}")
     print(f"[calibrate] has_did_play={_has_did_play} has_actual_minutes={_has_actual_minutes}")
     print(f"[calibrate] After DNP/low-min filter: {_post_dnp_n:,} rows (removed {_pre_dnp_n - _post_dnp_n:,})")
+    # Prop-eligible calibration filter: exclude bench/fringe players the model
+    # projects near-zero output for. Calibrators must match the distribution they
+    # are applied to in production (prop-eligible starters + core only).
+    # Including bench fringe rows creates a "false balance": aggregate mean_pit ≈ 0.49
+    # masks severe miscalibration for starters (mean_pit 0.58–0.74), causing isotonic
+    # calibrators to compress starter means by ~46% (PTS: 8.96 → 4.86, actual 9.32).
+    _PROP_ELIGIBLE_PMF_MIN: dict[str, float] = {
+        "pts":         5.0,   # raised from 4.0 — matches sportsbook offering floor
+        "reb":         2.0,   # raised from 1.5
+        "ast":         1.0,   # raised from 0.8
+        "fg3m":        0.30,  # raised from 0.25
+        "stl":         0.30,  # raised from 0.25
+        "blk":         0.18,  # raised from 0.15
+        "turnover":    0.6,   # raised from 0.5
+        "stocks":      0.5,   # raised from 0.4
+        "pts_ast":     6.0,   # raised from 5.0
+        "pts_reb":     6.5,   # raised from 5.5
+        "reb_ast":     2.8,   # raised from 2.3
+        "pts_reb_ast": 7.0,   # raised from 6.0
+    }
+    if "pmf_mean" in oof_eligible.columns and "stat" in oof_eligible.columns:
+        _pre_prop_n = len(oof_eligible)
+        _prop_masks = []
+        for _sname, _pfloor in _PROP_ELIGIBLE_PMF_MIN.items():
+            _prop_masks.append(
+                (oof_eligible["stat"] == _sname) & (oof_eligible["pmf_mean"] >= _pfloor)
+            )
+        _unknown_stats = ~oof_eligible["stat"].isin(_PROP_ELIGIBLE_PMF_MIN.keys())
+        _combined = _unknown_stats.copy()
+        for _m in _prop_masks:
+            _combined = _combined | _m
+        oof_eligible = oof_eligible[_combined].copy()
+        _post_prop_n = len(oof_eligible)
+        print(f"[calibrate] Prop-eligible filter: {_pre_prop_n:,} → {_post_prop_n:,} rows (removed {_pre_prop_n - _post_prop_n:,} bench/fringe rows)")
     if _has_actual_minutes and _post_dnp_n > 0:
         for _stat in ["pts", "reb", "ast"]:
             _sub = oof_eligible[oof_eligible["stat"] == _stat] if "stat" in oof_eligible.columns else oof_eligible
@@ -281,6 +491,242 @@ def fit_calibrators(
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    # Per-stat multiplicative mean bias correction.
+    # Isotonic regression corrects PMF *shape* (PIT uniformity) but is unreliable
+    # for correcting global *level* bias. We separate these: first shift the mean
+    # by a multiplicative factor (ratio of actual to model mean on prop-eligible OOF),
+    # then let isotonic correct residual shape. This prevents the calibrator from
+    # over-correcting the tails to compensate for a mean shift.
+    #
+    # CRITICAL: bias corrections must be computed on MARKET-LEVEL rows only
+    # (players the sportsbook actually offers lines for). Using the wider
+    # prop-eligible floor (pmf_mean >= 5.0 for pts) includes many rotation/bench
+    # players who are predicted 5-9 pts but score 4-7 pts on average — their over-
+    # prediction ratio (1.30-1.50) is much larger than for featured players (1.15-1.25).
+    # The blended correction (0.76 for pts) over-corrects for featured starters,
+    # pulling all market predictions 10-15% below market lines → systematic UNDER bias.
+    # Market-level floors match the minimum line offered by sportsbooks mid-season.
+    _MARKET_LEVEL_PMF_MIN: dict[str, float] = {
+        "pts":         10.0,  # sportsbooks offer pts lines for 10+ projected scorers
+        "reb":          3.5,  # reb lines for 3.5+ projected
+        "ast":          2.5,  # ast lines for 2.5+ projected
+        "fg3m":         0.5,  # fg3m lines for moderate shooters (0.5+ projected)
+        "stl":          0.5,  # stl lines for active defenders
+        "blk":          0.25, # blk lines for shot-blockers
+        "turnover":     1.5,  # turnover lines for primary ballhandlers
+        "stocks":       0.8,  # stocks = stl + blk combined
+        "pts_ast":      8.0,
+        "pts_reb":      8.0,
+        "reb_ast":      4.0,
+        "pts_reb_ast": 10.0,
+    }
+    # Canonical combo stat names used in the OOF delivery files (predict.py uses
+    # these names; SUPPORTED_STATS still uses legacy keys pa/pr/ra/pra).
+    _CANONICAL_COMBO_STATS: set[str] = {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast"}
+    _bias_corrections: dict[str, float] = {}
+    _bc_stat_universe = sorted(set(oof_eligible["stat"].dropna()) & (set(SUPPORTED_STATS) | _CANONICAL_COMBO_STATS))
+    for _bc_stat in _bc_stat_universe:
+        _bc_sub = oof_eligible[oof_eligible["stat"] == _bc_stat].dropna(
+            subset=["pmf_mean", "actual_outcome"]
+        )
+        # Apply market-level floor for bias correction computation only
+        _ml_floor = _MARKET_LEVEL_PMF_MIN.get(_bc_stat)
+        if _ml_floor is not None and "pmf_mean" in _bc_sub.columns:
+            _bc_sub_market = _bc_sub[_bc_sub["pmf_mean"] >= _ml_floor]
+            if len(_bc_sub_market) >= 100:
+                _bc_sub = _bc_sub_market
+                print(f"[calibrate] Bias correction stat={_bc_stat}: using market-level floor {_ml_floor} ({len(_bc_sub)} rows)")
+            else:
+                print(f"[calibrate] Bias correction stat={_bc_stat}: market-level floor {_ml_floor} too few rows ({len(_bc_sub_market)}) — using prop-eligible floor")
+        if len(_bc_sub) < 200:
+            logger.warning("[calibrate] Too few rows (%d) for bias correction stat=%s; using 1.0", len(_bc_sub), _bc_stat)
+            _bias_corrections[_bc_stat] = 1.0
+            continue
+        _model_mean_bc = float(_bc_sub["pmf_mean"].mean())
+        _actual_mean_bc = float(_bc_sub["actual_outcome"].mean())
+        if _model_mean_bc > 0.01:
+            _raw_ratio = _actual_mean_bc / _model_mean_bc
+            # Combo stats built from convolved uncorrected PMFs often need corrections
+            # well outside the ±40% cap used for base stats (e.g., pts_reb needs ~1.50).
+            # Use a wider cap [0.40, 2.50] for combo stats.
+            if _bc_stat in _CANONICAL_COMBO_STATS:
+                _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.40, 2.50))
+            else:
+                # Cap correction to [0.40, 2.50] — same range as combo stats.
+                # The original ±40% cap ([0.60, 1.40]) blocked corrections >1.40 that
+                # are now structurally valid after the LogLinear opp-adj fix
+                # (e.g. fg3m ≈ 1.658, pts ≈ 1.278).  Clamping to 1.40 would silently
+                # under-correct fg3m by ~18% on every weekly refit.
+                _bias_corrections[_bc_stat] = float(np.clip(_raw_ratio, 0.40, 2.50))
+        else:
+            _bias_corrections[_bc_stat] = 1.0
+    (out / "bias_corrections.json").write_text(json.dumps(_bias_corrections, indent=2))
+    print(f"[calibrate] Bias corrections saved: { {k: round(v,3) for k,v in _bias_corrections.items()} }")
+
+    # Apply bias corrections to OOF PMFs BEFORE fitting isotonic calibrators.
+    # This aligns the calibrator training distribution with inference distribution
+    # (in apply_calibrators, bias correction is applied before isotonic calibration).
+    # Without this, there is a training/inference mismatch: calibrators trained on
+    # original PMFs would see bias-corrected PMFs at inference, producing wrong mappings.
+    if any(abs(v - 1.0) > 0.005 for v in _bias_corrections.values()):
+        _bc_pmf_jsons = []
+        for _bcr_idx, _bcr_row in oof_eligible.iterrows():
+            _bc_alpha = _bias_corrections.get(str(_bcr_row.get("stat", "")), 1.0)
+            if abs(_bc_alpha - 1.0) > 0.005 and pd.notna(_bcr_row.get("pmf_json")):
+                _bc_pmf = _apply_mean_bias_correction(json_to_pmf(_bcr_row["pmf_json"]), _bc_alpha)
+                _bc_pmf_jsons.append(pmf_to_json(_bc_pmf))
+            else:
+                _bc_pmf_jsons.append(_bcr_row.get("pmf_json"))
+        oof_eligible = oof_eligible.copy()
+        oof_eligible["pmf_json"] = _bc_pmf_jsons
+        oof_eligible["pmf"] = oof_eligible["pmf_json"].map(json_to_pmf)
+        print(f"[calibrate] Applied bias corrections to {len(oof_eligible):,} OOF PMFs for calibrator training alignment")
+
+    # Compute per-stat variance compression factors and save for inference.
+    # These factors are passed to _apply_mean_bias_correction at inference to tighten
+    # over-wide PMF distributions that inflate P(over) for outlier players.
+    _var_compress: dict[str, float] = {}
+    for _vc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
+        _vc_sub = oof_eligible[oof_eligible["stat"] == _vc_stat].dropna(subset=["pmf_mean", "actual_outcome", "pmf_json"])
+        if len(_vc_sub) < 200:
+            _var_compress[_vc_stat] = 1.0
+            continue
+        _vc_pmf_vars: list[float] = []
+        for _, _vc_row in _vc_sub.iterrows():
+            try:
+                _vc_p = normalize_pmf(json_to_pmf(_vc_row["pmf_json"]))
+                _vc_k = np.arange(len(_vc_p), dtype=float)
+                _vc_m = float(np.dot(_vc_k, _vc_p))
+                _vc_pmf_vars.append(float(np.dot(_vc_k ** 2, _vc_p)) - _vc_m ** 2)
+            except Exception:
+                pass
+        _vc_model_var = float(np.mean(_vc_pmf_vars)) if _vc_pmf_vars else 0.0
+        _vc_actual_var = float(_vc_sub["actual_outcome"].var())
+        if _vc_actual_var > 0.01 and _vc_model_var > 0.01:
+            # Clamp: compress at most 3× to avoid over-squeezing thin-tailed distributions
+            _var_compress[_vc_stat] = float(np.clip(_vc_model_var / _vc_actual_var, 1.0, 3.0))
+        else:
+            _var_compress[_vc_stat] = 1.0
+    (out / "variance_compress.json").write_text(json.dumps(_var_compress, indent=2))
+    print(f"[calibrate] Variance compression factors saved: { {k: round(v,3) for k,v in _var_compress.items()} }")
+
+    # Apply variance compression to OOF PMFs BEFORE fitting isotonic calibrators,
+    # matching what will be done at inference (same alignment logic as bias corrections).
+    # NOTE: At this point oof_eligible["pmf_json"] may already have bias corrections applied
+    # (from the block above). Pass alpha=1.0 here so we only compress variance, not
+    # double-apply the mean shift.
+    _any_compress = any(v > 1.05 for v in _var_compress.values())
+    if _any_compress:
+        _vc_pmf_jsons = []
+        for _, _vc_bcr_row in oof_eligible.iterrows():
+            _vc_factor = _var_compress.get(str(_vc_bcr_row.get("stat", "")), 1.0)
+            if _vc_factor > 1.05 and pd.notna(_vc_bcr_row.get("pmf_json")):
+                _vc_pmf = _apply_mean_bias_correction(
+                    json_to_pmf(_vc_bcr_row["pmf_json"]),
+                    alpha=1.0,  # mean already shifted by bias correction loop above
+                    variance_compress_factor=_vc_factor,
+                )
+                _vc_pmf_jsons.append(pmf_to_json(_vc_pmf))
+            else:
+                _vc_pmf_jsons.append(_vc_bcr_row.get("pmf_json"))
+        oof_eligible = oof_eligible.copy()
+        oof_eligible["pmf_json"] = _vc_pmf_jsons
+        oof_eligible["pmf"] = oof_eligible["pmf_json"].map(json_to_pmf)
+        print(f"[calibrate] Applied variance compression to {len(oof_eligible):,} OOF PMFs")
+
+    # Per-player variance compression: compute player-specific VC factors from OOF.
+    # Applied after global stat-level VC to capture residual player-level overdispersion.
+    _MIN_PLAYER_VC_ROWS = 30
+    if "player_id" in oof_eligible.columns and "pmf_variance" in oof_eligible.columns:
+        _player_vc: dict[str, float] = {}
+        for _pvc_pid, _pvc_grp in oof_eligible.groupby("player_id"):
+            if len(_pvc_grp) < _MIN_PLAYER_VC_ROWS:
+                continue
+            _pvc_model_var = float(_pvc_grp["pmf_variance"].mean())
+            _pvc_actual_var = float(_pvc_grp["actual_outcome"].var())
+            if _pvc_actual_var > 1e-4:
+                _pvc_ratio = float(np.clip(_pvc_model_var / _pvc_actual_var, 0.5, 3.0))
+                _player_vc[str(_pvc_pid)] = round(_pvc_ratio, 4)
+        if _player_vc:
+            (out / "player_variance_compress.json").write_text(json.dumps(_player_vc, indent=2))
+            print(
+                f"[calibrate] Per-player variance compression: {len(_player_vc)} players, "
+                f"mean_ratio={float(np.mean(list(_player_vc.values()))):.3f}"
+            )
+
+    # Fit PerRoleVarianceCompressor (Phase 5) — per-role + per-player factors.
+    # Saved to artifacts/models/calibration/variance_compressor.pkl for inference.
+    try:
+        from wnba_props_model.calibration.venn_abers import PerRoleVarianceCompressor  # noqa: PLC0415
+        _prvc_compressor = PerRoleVarianceCompressor(min_samples=50)
+        for _prvc_stat in sorted(set(oof_eligible["stat"].dropna()) & set(SUPPORTED_STATS)):
+            _prvc_sub = oof_eligible[oof_eligible["stat"] == _prvc_stat].dropna(
+                subset=["pmf_mean", "actual_outcome"]
+            )
+            if len(_prvc_sub) < 50:
+                continue
+            _prvc_preds = _prvc_sub["pmf_mean"].values
+            _prvc_actuals = _prvc_sub["actual_outcome"].values
+            _prvc_roles = _prvc_sub["role_bucket"].fillna("unknown").values if "role_bucket" in _prvc_sub.columns else np.array(["unknown"] * len(_prvc_sub))
+            _prvc_players = _prvc_sub["player_id"].astype(str).values if "player_id" in _prvc_sub.columns else np.array(["0"] * len(_prvc_sub))
+            _prvc_compressor.fit(_prvc_preds, _prvc_actuals, _prvc_roles, _prvc_players, stat=_prvc_stat)
+        _prvc_path = out / "variance_compressor.pkl"
+        _prvc_compressor.save(str(_prvc_path))
+        print(f"[calibrate] PerRoleVarianceCompressor saved: {_prvc_path} "
+              f"({len(_prvc_compressor.role_factors)} role factors, "
+              f"{len(_prvc_compressor.player_factors)} player factors)")
+    except Exception as _prvc_exc:
+        logger.warning("[calibrate] PerRoleVarianceCompressor fitting failed (non-fatal): %s", _prvc_exc)
+
+    # Fit Venn-Abers calibrators per (stat, role_bucket) when OOF+lines parquet is available.
+    # Saved to artifacts/models/calibration/venn_abers_{stat}_{role}.pkl
+    _va_oof_path = Path(oof_pmfs_path).parent / "oof_pmfs_with_lines.parquet"
+    if _va_oof_path.exists():
+        try:
+            import math as _math  # noqa: PLC0415
+            from wnba_props_model.calibration.venn_abers import VennAbersCalibrator  # noqa: PLC0415
+            _va_oof = pd.read_parquet(_va_oof_path)
+            if "outcome" not in _va_oof.columns and "actual_outcome" in _va_oof.columns:
+                _va_oof["outcome"] = _va_oof["actual_outcome"]
+            if "pmf" not in _va_oof.columns and "pmf_json" in _va_oof.columns:
+                _va_oof["pmf"] = _va_oof["pmf_json"].map(json_to_pmf)
+            _va_stats = sorted(set(_va_oof["stat"].dropna()) & set(SUPPORTED_STATS)) if "stat" in _va_oof.columns else []
+            _va_roles = sorted(_va_oof["role_bucket"].dropna().unique().tolist()) if "role_bucket" in _va_oof.columns else ["all"]
+            for _va_stat in _va_stats:
+                for _va_role in _va_roles:
+                    _va_sub = _va_oof[
+                        (_va_oof["stat"] == _va_stat) &
+                        (_va_oof.get("role_bucket", pd.Series(["all"] * len(_va_oof))) == _va_role)
+                    ].dropna(subset=["outcome", "line"]) if "line" in _va_oof.columns else pd.DataFrame()
+                    if len(_va_sub) < 30:
+                        continue
+                    # Compute P(over) scores from PMF at line
+                    _va_scores = []
+                    _va_labels = []
+                    for _, _va_row in _va_sub.iterrows():
+                        try:
+                            _va_pmf = normalize_pmf(json_to_pmf(_va_row["pmf_json"]))
+                            _va_line = float(_va_row["line"])
+                            _va_p = float(_va_pmf[_math.ceil(_va_line):].sum())
+                            _va_label = float(_va_row["outcome"] > _va_line)
+                            if _va_row["outcome"] != _va_line:  # skip pushes
+                                _va_scores.append(_va_p)
+                                _va_labels.append(_va_label)
+                        except Exception:
+                            continue
+                    if len(_va_scores) < 20:
+                        continue
+                    _va_cal = VennAbersCalibrator()
+                    _va_cal.fit(np.array(_va_scores), np.array(_va_labels))
+                    _va_role_safe = str(_va_role).replace("/", "_").replace(" ", "_")
+                    _va_out = out / f"venn_abers_{_va_stat}_{_va_role_safe}.pkl"
+                    _va_cal.save(str(_va_out))
+            print(f"[calibrate] Venn-Abers calibrators saved for {_va_stats} × {_va_roles}")
+        except Exception as _va_exc:
+            logger.warning("[calibrate] Venn-Abers fitting failed (non-fatal): %s", _va_exc)
+    else:
+        logger.info("[calibrate] Skipping Venn-Abers fit — OOF+lines parquet not found at %s", _va_oof_path)
+
     paths = {}
     for stat in sorted(set(oof_eligible["stat"]) & set(SUPPORTED_STATS)):
         cal = fit_role_aware_calibrator(oof_eligible, stat)
@@ -300,15 +746,56 @@ def fit_calibrators(
     import datetime as _dt
     _meta = {
         "fitted_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
-        "n_rows": int(_post_dnp_n),
+        "n_rows": int(len(oof_eligible)),
         "stats": sorted(paths.keys()),
     }
     (out / "calibration_metadata.json").write_text(json.dumps(_meta, indent=2))
     print(f"[calibrate] Wrote calibration_metadata.json: {_meta['fitted_at']} n_rows={_meta['n_rows']}")
 
+    # Fit P(DNP) calibrator if p_dnp and did_play columns are present in OOF
+    if "p_dnp" in oof.columns and "did_play" in oof.columns:
+        _pdnp_path = fit_pdnp_calibrator(oof, out)
+        if _pdnp_path:
+            paths["pdnp"] = _pdnp_path
+
     # Also fit Beta calibrators for P(over) (Item 5A)
+    # Beta calibrators require a 'line' column to compute P(over) during training.
+    # The OOF parquet intentionally forbids 'line' to prevent lookahead bias.
+    # Join lines from a separate historical props parquet if provided.
     try:
-        beta_paths = fit_beta_calibrators(oof_pmfs_path, out_dir)
+        _beta_oof_path = oof_pmfs_path
+        if props_parquet_path is not None:
+            _props_path = Path(props_parquet_path)
+            if _props_path.exists():
+                _oof_for_beta = pd.read_parquet(oof_pmfs_path).copy()
+                if "line" not in _oof_for_beta.columns:
+                    _props_df = pd.read_parquet(_props_path)
+                    # Normalize stat column name if needed
+                    try:
+                        from wnba_props_model.constants import BDL_PROP_TO_STAT  # noqa: PLC0415
+                        if "stat" not in _props_df.columns and "prop_type" in _props_df.columns:
+                            _props_df["stat"] = _props_df["prop_type"].map(BDL_PROP_TO_STAT)
+                    except ImportError:
+                        pass
+                    _line_cols = [c for c in ["game_id", "player_id", "stat"] if c in _props_df.columns]
+                    _line_val_col = next((c for c in ["line_value", "line"] if c in _props_df.columns), None)
+                    if _line_cols and _line_val_col:
+                        _lines = (
+                            _props_df[_line_cols + [_line_val_col]]
+                            .dropna(subset=[_line_val_col])
+                            .rename(columns={_line_val_col: "line"})
+                            .groupby(_line_cols, as_index=False)["line"]
+                            .median()
+                        )
+                        _oof_for_beta = _oof_for_beta.merge(_lines, on=_line_cols, how="left")
+                        _n_with_line = int(_oof_for_beta["line"].notna().sum())
+                        print(f"[calibrate] Joined lines for beta calibration: {_n_with_line:,} OOF rows have a line")
+                        import tempfile as _tf  # noqa: PLC0415
+                        with _tf.NamedTemporaryFile(suffix=".parquet", delete=False) as _tmp:
+                            _tmp_path = _tmp.name
+                        _oof_for_beta.to_parquet(_tmp_path, index=False)
+                        _beta_oof_path = _tmp_path
+        beta_paths = fit_beta_calibrators(_beta_oof_path, out_dir)
         paths.update({f"beta_{k}": v for k, v in beta_paths.items()})
     except Exception as exc:
         logger.warning("[calibrate] Beta calibrator fitting failed: %s", exc)
@@ -352,7 +839,133 @@ def fit_calibrators(
     except Exception as exc:
         logger.warning("[calibrate] Conformal predictor fitting failed (non-fatal): %s", exc)
 
+    # Fit p_nz isotonic calibrators for hurdle-model stats (stl, blk)
+    if "p_nz" in oof_eligible.columns:
+        pnz_paths = fit_pnz_calibrators(oof_eligible, out)
+        paths.update({f"pnz_{k}": v for k, v in pnz_paths.items()})
+    else:
+        logger.info(
+            "[calibrate] p_nz column not in OOF — skipping p_nz calibrators "
+            "(rebuild OOF with updated training.py to enable)"
+        )
+
     return paths
+
+
+def apply_role_stratified_corrections(
+    pmfs_long: pd.DataFrame,
+    cal_dir: str | Path = "artifacts/models/calibration",
+) -> pd.DataFrame:
+    """Apply ONLY role-stratified bias corrections (no player-level form corrections here).
+
+    Replaces the single global bias correction (bias_corrections.json) with
+    per-role corrections (bias_corrections_by_role.json).
+
+    IMPORTANT: Player-level flat form corrections are applied AFTER Bayesian
+    shrinkage (in predict.py) to prevent shrinkage from dampening individual
+    player corrections that exceed the population prior by a large margin.
+
+    Call AFTER apply_calibrators, BEFORE apply_bayesian_shrinkage.
+
+    Parameters
+    ----------
+    pmfs_long : DataFrame with pmf_json, stat, role_bucket, player_name columns
+    cal_dir   : directory containing calibration artifacts
+
+    Returns
+    -------
+    Copy of pmfs_long with role-corrected pmf_json, pmf_mean, mean, median, mode, p0
+    """
+    cal_dir = Path(cal_dir)
+
+    role_corr_path = cal_dir / "bias_corrections_by_role.json"
+    if not role_corr_path.exists():
+        logger.warning(
+            "[calibrate] bias_corrections_by_role.json not found at %s — "
+            "skipping role-stratified corrections",
+            role_corr_path,
+        )
+        return pmfs_long
+
+    _role_corr_raw: dict = json.loads(role_corr_path.read_text())
+    # Support two JSON formats:
+    #   1. Nested:  {"starter": {"pts": 0.9557}}  → role_corrections["starter"]["pts"]
+    #   2. Flat:    {"corrections": {"starter|pts": 0.9557}}  → corrections["starter|pts"]
+    _corrections_flat: dict[str, float] = {}
+    if "corrections" in _role_corr_raw and isinstance(_role_corr_raw["corrections"], dict):
+        _corrections_flat = {k: float(v) for k, v in _role_corr_raw["corrections"].items()}
+    role_corrections: dict[str, dict[str, float]] = _role_corr_raw  # kept for legacy nested path
+
+    global_corrections: dict[str, float] = {}
+    global_corr_path = cal_dir / "bias_corrections.json"
+    if global_corr_path.exists():
+        try:
+            global_corrections = json.loads(global_corr_path.read_text())
+        except Exception as exc:
+            logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc)
+
+    out = pmfs_long.copy()
+    new_pmf_jsons: list[str] = []
+    n_corrected = 0
+
+    for _, row in out.iterrows():
+        stat = str(row.get("stat", ""))
+        role = str(row.get("role_bucket", "rotation"))
+        global_corr = float(global_corrections.get(stat, 1.0))
+        # Flat format lookup first ("starter|pts"), fall back to nested then global
+        _flat_key = f"{role}|{stat}"
+        if _flat_key in _corrections_flat:
+            role_corr = _corrections_flat[_flat_key]
+        else:
+            role_corr = float(role_corrections.get(role, {}).get(stat, global_corr))
+
+        # Net multiplier: swap global bias correction for role-specific one.
+        # For starters: net_mult ≈ 1.15 (pts), 1.25 (reb) → increases calibrated mean.
+        # For fringe/rotation: net_mult ≈ 1.0 (no change from global).
+        net_mult = (role_corr / global_corr) if global_corr > 0.0 else 1.0
+
+        if abs(net_mult - 1.0) < 0.01:
+            new_pmf_jsons.append(row["pmf_json"])
+            continue
+
+        player_name = str(row.get("player_name", ""))
+        try:
+            raw_pmf = json_to_pmf(row["pmf_json"])
+            corrected = _apply_mean_bias_correction(
+                raw_pmf,
+                float(np.clip(net_mult, 0.50, 2.50)),
+            )
+            new_pmf_jsons.append(pmf_to_json(corrected))
+            n_corrected += 1
+        except Exception as exc:
+            logger.debug("[calibrate] role_stratified: failed row %s/%s: %s", player_name, stat, exc)
+            new_pmf_jsons.append(row["pmf_json"])
+
+    out["pmf_json"] = new_pmf_jsons
+
+    # Recompute summary stats from updated PMFs
+    def _pmf_stats(pmf_json: str) -> dict:
+        pmf = normalize_pmf(json_to_pmf(pmf_json))
+        ks = np.arange(len(pmf))
+        mean = float(np.dot(ks, pmf))
+        return {
+            "pmf_mean": round(mean, 4),
+            "mean": round(mean, 4),
+            "median": int(np.searchsorted(np.cumsum(pmf), 0.5)),
+            "mode": int(np.argmax(pmf)),
+            "p0": float(pmf[0]),
+        }
+
+    stats_rows = [_pmf_stats(j) for j in out["pmf_json"]]
+    for key in ("pmf_mean", "mean", "median", "mode", "p0"):
+        out[key] = [r[key] for r in stats_rows]
+
+    logger.info(
+        "[calibrate] apply_role_stratified_corrections: corrected %d / %d PMF rows "
+        "(role_corr_roles=%s)",
+        n_corrected, len(out), sorted(role_corrections.keys()),
+    )
+    return out
 
 
 def apply_calibrators(
@@ -369,6 +982,14 @@ def apply_calibrators(
     is_calibrated=False and cal_source='no_calibrator'.
     """
     cal_dir = Path(cal_dir)
+    # Load per-stat multiplicative mean bias corrections (computed during fit_calibrators)
+    _bias_path_ac = cal_dir / "bias_corrections.json"
+    _bias_corrections_ac: dict[str, float] = {}
+    if _bias_path_ac.exists():
+        try:
+            _bias_corrections_ac = json.loads(_bias_path_ac.read_text())
+        except Exception as exc_bc:
+            logger.warning("[calibrate] Could not load bias_corrections.json: %s", exc_bc)
     out = pmfs_df.copy()
     calibrators: dict[str, RoleAwarePMFCalibrator] = {}
 
@@ -377,15 +998,122 @@ def apply_calibrators(
         if cal_path.exists():
             calibrators[stat] = RoleAwarePMFCalibrator.load(str(cal_path))
 
+    # Load per-stat variance compression factors (computed during fit_calibrators)
+    _var_compress_ac: dict[str, float] = {}
+    _var_compress_path = cal_dir / "variance_compress.json"
+    if _var_compress_path.exists():
+        try:
+            _var_compress_ac = json.loads(_var_compress_path.read_text())
+        except Exception as exc_vc:
+            logger.warning("[calibrate] Could not load variance_compress.json: %s", exc_vc)
+
+    # Load per-player variance compression factors (computed during fit_calibrators)
+    _player_vc_map: dict[str, float] = {}
+    _player_vc_path = cal_dir / "player_variance_compress.json"
+    if _player_vc_path.exists():
+        try:
+            _player_vc_map = json.loads(_player_vc_path.read_text())
+        except Exception:
+            pass
+
+    # Load p_nz calibrators for hurdle stats (stl, blk)
+    import joblib as _joblib_pnz  # noqa: PLC0415
+    _pnz_calibrators: dict[str, Any] = {}
+    for _pnz_stat in ("stl", "blk"):
+        _pnz_path = cal_dir / f"pnz_cal_{_pnz_stat}.pkl"
+        if _pnz_path.exists():
+            _pnz_calibrators[_pnz_stat] = _joblib_pnz.load(_pnz_path)
+            logger.info("[calibrate] Loaded p_nz calibrator for %s", _pnz_stat)
+
+    # Load P(DNP) calibrator
+    _pdnp_calibrator: Any = None
+    _pdnp_cal_path = cal_dir / "pdnp_cal.pkl"
+    if _pdnp_cal_path.exists():
+        try:
+            _pdnp_calibrator = _joblib_pnz.load(_pdnp_cal_path)
+            logger.info("[calibrate] Loaded P(DNP) calibrator from %s", _pdnp_cal_path)
+        except Exception as _pdnp_exc:
+            logger.warning("[calibrate] Could not load pdnp_cal.pkl: %s", _pdnp_exc)
+
+    # Apply P(DNP) calibration to p_dnp column if available
+    if _pdnp_calibrator is not None and "p_dnp" in out.columns:
+        _raw_pdnp = out["p_dnp"].fillna(0.0).clip(1e-6, 1 - 1e-6).values
+        _cal_pdnp = _pdnp_calibrator.predict(_raw_pdnp)
+        out = out.copy()
+        out["p_dnp"] = np.clip(_cal_pdnp, 0.0, 1.0)
+        logger.info("[calibrate] Applied P(DNP) calibration: mean_raw=%.3f mean_cal=%.3f",
+                    float(_raw_pdnp.mean()), float(_cal_pdnp.mean()))
+
+    # Protected mean bias correction (Phase H): DISABLED.
+    # The protected mechanism redistributed corrections non-uniformly: bench/low-producers
+    # received 100% of the bias while elite starters received only ~30%. This caused
+    # market-eligible high producers to be systematically under-corrected while bench
+    # players (who have no market lines) were over-corrected.  Net effect: the edge board
+    # was consistently UNDER-biased for players that actually appear in prop markets.
+    # We now apply the global alpha uniformly to all players so that every prediction
+    # receives the full multiplicative correction.
+    _protected_target_means: dict[str, np.ndarray] = {}
+
+    # Build a row-index → corrected mean map for fast lookup in the loop below
+    _row_corrected_mean: dict[int, float] = {}
+    if _protected_target_means:
+        for _pbc_stat, _pbc_target in _protected_target_means.items():
+            _pbc_idx = out[out["stat"] == _pbc_stat].index.tolist()
+            for _enum_i, _ridx in enumerate(_pbc_idx):
+                if _enum_i < len(_pbc_target):
+                    _row_corrected_mean[_ridx] = float(_pbc_target[_enum_i])
+
     new_pmf_jsons = []
     is_calibrated_flags = []
     cal_sources = []
 
-    for _, row in out.iterrows():
+    for _row_idx, row in out.iterrows():
         stat = row["stat"]
         role = str(row.get("role_bucket", "unknown"))
         player_id = row.get("player_id", None)
         raw_pmf = json_to_pmf(row["pmf_json"])
+
+        # Apply global mean bias correction uniformly to all players.
+        _alpha_ac = _bias_corrections_ac.get(stat, 1.0)
+        _vc_factor_ac = float(_var_compress_ac.get(stat, 1.0))
+        _is_combo_stat = stat in {"pts_reb", "pts_ast", "pts_reb_ast", "reb_ast"}
+        # Use the same wide clip range for all stats — after the LogLinear
+        # opp-adj fix, base-stat corrections can legitimately exceed 1.40
+        # (fg3m ≈ 1.658).  Restricting base stats to ±40% would silently
+        # under-correct them at inference time.
+        _alpha_clip_lo = 0.40
+        _alpha_clip_hi = 2.50
+        if _row_idx in _row_corrected_mean and abs(_alpha_ac - 1.0) > 0.005:
+            # Recompute alpha for this specific player from the protected target mean
+            _pmf_k = np.arange(len(raw_pmf), dtype=float)
+            _curr_mean = float(np.dot(_pmf_k, raw_pmf / max(raw_pmf.sum(), 1e-9)))
+            _target_mean = _row_corrected_mean[_row_idx]
+            _player_alpha = (_target_mean / _curr_mean) if _curr_mean > 0.01 else _alpha_ac
+            _player_alpha = float(np.clip(_player_alpha, _alpha_clip_lo, _alpha_clip_hi))
+            raw_pmf = _apply_mean_bias_correction(raw_pmf, _player_alpha, variance_compress_factor=_vc_factor_ac)
+        elif abs(_alpha_ac - 1.0) > 0.005 or _vc_factor_ac > 1.05:
+            raw_pmf = _apply_mean_bias_correction(raw_pmf, _alpha_ac, variance_compress_factor=_vc_factor_ac)
+
+        # Per-player variance compression override (applied after global stat-level VC)
+        _player_vc_factor = _player_vc_map.get(str(row.get("player_id", "")))
+        if _player_vc_factor is not None and abs(_player_vc_factor - 1.0) > 0.05:
+            raw_pmf = _apply_mean_bias_correction(
+                raw_pmf,
+                alpha=1.0,  # mean already corrected above; compress variance only
+                variance_compress_factor=float(_player_vc_factor),
+            )
+
+        # P_nz calibration for hurdle stats (stl, blk): rescale zero mass
+        if stat in _pnz_calibrators:
+            _p_nz_raw = float(1.0 - raw_pmf[0])
+            _p_nz_raw_clipped = np.clip(_p_nz_raw, 1e-6, 1 - 1e-6)
+            _p_nz_cal = float(_pnz_calibrators[stat].predict([_p_nz_raw_clipped])[0])
+            _p_nz_cal = np.clip(_p_nz_cal, 1e-6, 1 - 1e-6)
+            if _p_nz_raw > 1e-6:
+                # Rescale non-zero atoms proportionally; preserve shape of conditional distribution
+                raw_pmf[1:] = raw_pmf[1:] * (_p_nz_cal / _p_nz_raw)
+            raw_pmf[0] = 1.0 - _p_nz_cal
+            raw_pmf = raw_pmf / raw_pmf.sum()  # renormalize
 
         if stat in calibrators:
             try:
@@ -400,7 +1128,18 @@ def apply_calibrators(
                 is_calibrated_flags.append(False)
                 cal_sources.append("calibration_error")
         else:
-            new_pmf_jsons.append(row["pmf_json"])
+            # No isotonic calibrator for this stat (e.g. combo stats like pts_reb).
+            # Still persist the bias-corrected raw_pmf so that corrections in
+            # bias_corrections.json (e.g. pts_reb=1.491) are not silently discarded.
+            _needs_save = (
+                abs(_alpha_ac - 1.0) > 0.005
+                or _vc_factor_ac > 1.05
+                or (_player_vc_factor is not None and abs(_player_vc_factor - 1.0) > 0.05)
+            )
+            if _needs_save:
+                new_pmf_jsons.append(pmf_to_json(raw_pmf))
+            else:
+                new_pmf_jsons.append(row["pmf_json"])
             is_calibrated_flags.append(False)
             cal_sources.append("no_calibrator")
 
@@ -425,6 +1164,163 @@ def apply_calibrators(
         out[key] = [r[key] for r in stats_rows]
 
     return out
+
+
+
+# ---------------------------------------------------------------------------
+# Venn-Abers calibration for P(over) — applied at edge-report time
+# ---------------------------------------------------------------------------
+
+
+def apply_venn_abers_calibration(
+    comp_df: "pd.DataFrame",
+    cal_dir: "str | Path" = "artifacts/models/calibration",
+    model_prob_col: str = "model_prob_over",
+    stat_col: str = "stat",
+    role_col: str = "role_bucket",
+) -> "pd.DataFrame":
+    """Apply per-(stat, role) Venn-Abers calibrators to model P(over).
+
+    Reads ``venn_abers_{stat}_{role}.pkl`` artifacts from *cal_dir* and writes
+    calibrated probabilities to a ``p_over_va`` column.  Falls back to the raw
+    PMF P(over) when no calibrator exists for a (stat, role) pair.
+
+    Parameters
+    ----------
+    comp_df          : Market-comparison DataFrame with model_prob_over, stat, role_bucket.
+    cal_dir          : Directory containing calibration artifacts.
+    model_prob_col   : Column name for the raw model P(over). Default ``model_prob_over``.
+    stat_col         : Column name for the stat label. Default ``stat``.
+    role_col         : Column name for role bucket. Default ``role_bucket``.
+
+    Returns
+    -------
+    Copy of *comp_df* with ``p_over_va`` column added (calibrated when calibrator
+    exists, otherwise equal to ``model_prob_over``).
+    """
+    import joblib as _jl_va  # noqa: PLC0415
+
+    cal_dir = Path(cal_dir)
+    out = comp_df.copy()
+    # Initialise with raw model probability as fallback
+    out["p_over_va"] = out[model_prob_col].copy()
+
+    if model_prob_col not in comp_df.columns:
+        logger.warning("[calibrate] apply_venn_abers: column '%s' not found — skipping", model_prob_col)
+        return out
+
+    # Cache loaded calibrators to avoid repeated disk reads within this call
+    _va_cache: dict[str, object] = {}
+
+    for idx, row in out.iterrows():
+        stat = str(row.get(stat_col, ""))
+        role = str(row.get(role_col, "all"))
+        role_safe = role.replace("/", "_").replace(" ", "_")
+        cache_key = f"{stat}_{role_safe}"
+
+        if cache_key not in _va_cache:
+            va_path = cal_dir / f"venn_abers_{stat}_{role_safe}.pkl"
+            if va_path.exists():
+                try:
+                    _va_cache[cache_key] = _jl_va.load(va_path)
+                except Exception as exc:
+                    logger.debug("[calibrate] Venn-Abers load failed for %s: %s", va_path, exc)
+                    _va_cache[cache_key] = None
+            else:
+                _va_cache[cache_key] = None
+
+        cal = _va_cache.get(cache_key)
+        if cal is None:
+            continue  # leave raw model prob as fallback
+
+        raw_p = float(row.get(model_prob_col, 0.5))
+        if not (0.0 < raw_p < 1.0):
+            continue
+        try:
+            cal_p = float(cal.predict(np.array([raw_p]))[0])
+            out.at[idx, "p_over_va"] = float(np.clip(cal_p, 1e-6, 1 - 1e-6))
+        except Exception as exc:
+            logger.debug("[calibrate] Venn-Abers predict failed for %s/%s: %s", stat, role, exc)
+
+    n_calibrated = int((out["p_over_va"] != out[model_prob_col]).sum())
+    logger.info(
+        "[calibrate] apply_venn_abers: %d/%d rows received VA calibration",
+        n_calibrated, len(out),
+    )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Per-line isotonic calibration
+# ---------------------------------------------------------------------------
+
+_PER_LINE_CALIBRATORS: dict | None = None
+_PER_LINE_CALIBRATORS_LOADED = False
+
+
+def apply_per_line_calibration(
+    p_over: float,
+    stat: str,
+    line_z: float,
+    cal_dir: "str | Path" = "artifacts/models/calibration",
+) -> float:
+    """Apply per-line isotonic calibration to a raw P(over) value.
+
+    Loads per_line_calibrators.pkl (once, cached) from cal_dir, bins line_z into
+    one of five z-score buckets, and applies the fitted isotonic correction.
+
+    Soft fallback: if the pkl doesn't exist or no calibrator is found for the
+    (stat, bucket) pair, returns p_over unchanged.
+
+    Parameters
+    ----------
+    p_over  : Raw model P(over) in [0, 1].
+    stat    : Stat name (e.g. 'pts').
+    line_z  : Line z-score = (line - pmf_mean) / pmf_std.
+    cal_dir : Directory containing per_line_calibrators.pkl.
+    """
+    import pickle as _pkl
+
+    global _PER_LINE_CALIBRATORS, _PER_LINE_CALIBRATORS_LOADED
+    if not _PER_LINE_CALIBRATORS_LOADED:
+        pkl_path = Path(cal_dir) / "per_line_calibrators.pkl"
+        if pkl_path.exists():
+            try:
+                with open(pkl_path, "rb") as f:
+                    _PER_LINE_CALIBRATORS = _pkl.load(f)
+            except Exception as exc:
+                logger.warning("[calibrate] Could not load per_line_calibrators.pkl: %s", exc)
+                _PER_LINE_CALIBRATORS = {}
+        else:
+            _PER_LINE_CALIBRATORS = {}
+        _PER_LINE_CALIBRATORS_LOADED = True
+
+    if not _PER_LINE_CALIBRATORS:
+        return p_over
+
+    # Bin line_z into bucket
+    if line_z < -1.0:
+        bucket = "very_low"
+    elif line_z < -0.33:
+        bucket = "low"
+    elif line_z < 0.33:
+        bucket = "mid"
+    elif line_z < 1.0:
+        bucket = "high"
+    else:
+        bucket = "very_high"
+
+    key = f"{stat}|{bucket}"
+    cal = _PER_LINE_CALIBRATORS.get(key)
+    if cal is None:
+        return p_over
+
+    try:
+        cal_p = float(cal.predict([float(p_over)])[0])
+        return float(np.clip(cal_p, 1e-6, 1 - 1e-6))
+    except Exception as exc:
+        logger.debug("[calibrate] per_line_calibration(%s) failed: %s", key, exc)
+        return p_over
 
 
 # ---------------------------------------------------------------------------

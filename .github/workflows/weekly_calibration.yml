@@ -44,27 +44,96 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
+      - name: Architecture-change guard — force OOF rebuild if model files changed after last calibration
+        run: |
+          CALIB_DATE=$(git log -1 --format="%ct" -- artifacts/models/calibration/bias_corrections.json 2>/dev/null || echo "0")
+          MODEL_DATE=$(git log -1 --format="%ct" -- \
+            src/wnba_props_model/models/pts_hurdle_model.py \
+            src/wnba_props_model/models/sparse_stats_v2.py \
+            src/wnba_props_model/models/beta_binomial_fg3m.py \
+            src/wnba_props_model/models/minutes_correction.py \
+            src/wnba_props_model/models/rate_model.py \
+            src/wnba_props_model/models/pmf_engine.py \
+            src/wnba_props_model/models/log_linear_stat_model.py \
+            src/wnba_props_model/models/hurdle.py \
+            src/wnba_props_model/models/zinb_hurdle.py \
+            2>/dev/null || echo "0")
+          echo "Calibrator last committed: $(date -d @${CALIB_DATE} -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -r ${CALIB_DATE} +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo epoch=${CALIB_DATE})"
+          echo "Model files last committed: $(date -d @${MODEL_DATE} -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -r ${MODEL_DATE} +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo epoch=${MODEL_DATE})"
+          if [ "$MODEL_DATE" -gt "$CALIB_DATE" ]; then
+            echo "ARCHITECTURE_CHANGED=true" >> $GITHUB_ENV
+            echo "WARNING: Model files modified after last calibration commit. Forcing full OOF rebuild."
+          else
+            echo "ARCHITECTURE_CHANGED=false" >> $GITHUB_ENV
+            echo "Model architecture unchanged since last calibration."
+          fi
+
+      - name: Auto-sync stage4 dispersion_r_by_role from stage5 (permanent fix)
+        run: |
+          python3 - <<'EOF'
+          import yaml
+          s4_path = "config/model/stage4_baseline.yaml"
+          s5_path = "config/model/stage5_oof.yaml"
+          s4 = yaml.safe_load(open(s4_path))
+          s5 = yaml.safe_load(open(s5_path))
+          if s4.get("dispersion_r_by_role") != s5.get("dispersion_r_by_role"):
+              s4["dispersion_r_by_role"] = s5["dispersion_r_by_role"]
+              yaml.dump(s4, open(s4_path, "w"), default_flow_style=False, sort_keys=False, allow_unicode=True)
+              print("Auto-synced dispersion_r_by_role from stage5 -> stage4")
+          else:
+              print("dispersion_r_by_role already in sync — no change needed")
+          EOF
+
       - name: Assert stage4/stage5 config alignment
         run: |
           python3 - <<'EOF'
           import yaml, sys
           s4 = yaml.safe_load(open("config/model/stage4_baseline.yaml"))
           s5 = yaml.safe_load(open("config/model/stage5_oof.yaml"))
-          checks = [
-              ("sample_weight_halflife_days", s4, s5),
-              ("hgb_regressor.max_iter", s4["hgb_regressor"], s5["hgb_regressor"]),
-              ("hgb_regressor.max_leaf_nodes", s4["hgb_regressor"], s5["hgb_regressor"]),
-          ]
+          def check(label, v4, v5):
+              if v4 != v5:
+                  print(f"MISMATCH {label}: stage4={v4!r}  stage5={v5!r}")
+                  return True
+              print(f"OK {label}: {v4!r}")
+              return False
           failed = False
-          for key, a, b in checks:
-              k = key.split(".")[-1]
-              if a[k] != b[k]:
-                  print(f"MISMATCH {key}: stage4={a[k]} stage5={b[k]}")
-                  failed = True
-              else:
-                  print(f"OK {key}: {a[k]}")
+          failed |= check("random_seed", s4.get("random_seed"), s5.get("random_seed"))
+          failed |= check("sample_weight_halflife_days", s4.get("sample_weight_halflife_days"), s5.get("sample_weight_halflife_days"))
+          failed |= check("hgb_regressor.max_iter", s4["hgb_regressor"]["max_iter"], s5["hgb_regressor"]["max_iter"])
+          failed |= check("hgb_regressor.max_leaf_nodes", s4["hgb_regressor"]["max_leaf_nodes"], s5["hgb_regressor"]["max_leaf_nodes"])
+          failed |= check("hgb_regressor.min_samples_leaf", s4["hgb_regressor"]["min_samples_leaf"], s5["hgb_regressor"]["min_samples_leaf"])
+          failed |= check("hgb_regressor.learning_rate", s4["hgb_regressor"]["learning_rate"], s5["hgb_regressor"]["learning_rate"])
+          failed |= check("use_minutes_marginalization", s4.get("use_minutes_marginalization"), s5.get("use_minutes_marginalization"))
+          failed |= check("use_zinb_for_sparse_stats", s4.get("use_zinb_for_sparse_stats"), s5.get("use_zinb_for_sparse_stats"))
+          failed |= check("use_model_ensemble", s4.get("use_model_ensemble"), s5.get("use_model_ensemble"))
+          failed |= check("use_tuned_hyperparams", s4.get("use_tuned_hyperparams"), s5.get("use_tuned_hyperparams"))
+          failed |= check("use_mean_dependent_dispersion", s4.get("use_mean_dependent_dispersion"), s5.get("use_mean_dependent_dispersion"))
+          failed |= check("use_positional_defense_features", s4.get("use_positional_defense_features"), s5.get("use_positional_defense_features"))
+          failed |= check("use_ewma_features", s4.get("use_ewma_features"), s5.get("use_ewma_features"))
+          failed |= check("use_matchup_features", s4.get("use_matchup_features"), s5.get("use_matchup_features"))
+          failed |= check("sparse_stats", sorted(s4.get("sparse_stats", [])), sorted(s5.get("sparse_stats", [])))
+          s4_bb = s4.get("stat_overrides", {}).get("fg3m", {}).get("use_beta_binomial", False)
+          s5_bb = s5.get("stat_overrides", {}).get("fg3m", {}).get("use_beta_binomial", False)
+          failed |= check("stat_overrides.fg3m.use_beta_binomial", s4_bb, s5_bb)
+          s4_has_dr = "dispersion_r_by_role" in s4
+          s5_has_dr = "dispersion_r_by_role" in s5
+          failed |= check("dispersion_r_by_role present", s4_has_dr, s5_has_dr)
+          if s4_has_dr and s5_has_dr:
+              for stat in s4["dispersion_r_by_role"]:
+                  if stat in s5["dispersion_r_by_role"]:
+                      for role, v4 in s4["dispersion_r_by_role"][stat].items():
+                          v5 = s5["dispersion_r_by_role"][stat].get(role)
+                          failed |= check(f"dispersion_r_by_role.{stat}.{role}", v4, v5)
+          for stat in s4.get("pmf_support_caps", {}):
+              v4 = s4["pmf_support_caps"][stat]
+              v5 = s5.get("pmf_support_caps", {}).get(stat)
+              failed |= check(f"pmf_support_caps.{stat}", v4, v5)
           if failed:
+              print("\nCONFIG ALIGNMENT FAILED — OOF calibrators will be trained on a different")
+              print("model than production. Fix stage5_oof.yaml before the next weekly calibration run.")
               sys.exit(1)
+          else:
+              print("\nAll alignment checks passed.")
           EOF
 
       - name: Download tuned hyperparams artifact (if available)
@@ -84,7 +153,7 @@ jobs:
         continue-on-error: true
 
       - name: Download existing OOF from audit artifact (skip_oof_build + oof_run_id)
-        if: github.event.inputs.skip_oof_build == 'true' && github.event.inputs.oof_run_id != ''
+        if: github.event.inputs.skip_oof_build == 'true' && env.ARCHITECTURE_CHANGED != 'true' && github.event.inputs.oof_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: weekly-cal-audit-${{ github.event.inputs.oof_run_id }}
@@ -93,7 +162,7 @@ jobs:
           run-id: ${{ github.event.inputs.oof_run_id }}
 
       - name: Download existing OOF from oof-latest (skip_oof_build, no oof_run_id)
-        if: github.event.inputs.skip_oof_build == 'true' && github.event.inputs.oof_run_id == ''
+        if: github.event.inputs.skip_oof_build == 'true' && env.ARCHITECTURE_CHANGED != 'true' && github.event.inputs.oof_run_id == ''
         run: |
           mkdir -p data/oof
           AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=oof-latest" \
@@ -109,7 +178,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull BDL history (all seasons for OOF training)
-        if: github.event.inputs.skip_oof_build != 'true'
+        if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
@@ -120,26 +189,84 @@ jobs:
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
-        if: github.event.inputs.skip_oof_build != 'true'
+        if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
         run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
 
       - name: Build features
-        if: github.event.inputs.skip_oof_build != 'true'
+        if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
         run: python scripts/build_features.py --data-dir data/processed
 
-      - name: Build OOF PMFs (Stage 5)
-        if: github.event.inputs.skip_oof_build != 'true'
+      - name: Train SVD bridge estimator
+        if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
+        continue-on-error: true
         run: |
+          python3 - <<'PYEOF'
+          import pathlib, sys
+          sys.path.insert(0, '.')
+          from wnba_props_model.models.svd_bridge import SVDBridgeEstimator
+          import pandas as pd
+
+          feature_path = "data/processed/wnba_player_game_features_wide.parquet"
+          if not pathlib.Path(feature_path).exists():
+              import glob
+              candidates = glob.glob("data/processed/*.parquet")
+              print(f"Feature parquet not found at {feature_path}. Candidates: {candidates}")
+              sys.exit(0)  # Non-fatal: OOF will fall back to SVD drop
+
+          df = pd.read_parquet(feature_path)
+          svd_cols = [c for c in df.columns if 'svd_dim' in c.lower()]
+          if not svd_cols:
+              print("No SVD columns found in feature parquet. Skipping bridge training.")
+              sys.exit(0)
+
+          bridge = SVDBridgeEstimator()
+          bridge.fit(df, svd_cols)
+          pathlib.Path("artifacts/models").mkdir(parents=True, exist_ok=True)
+          bridge.save("artifacts/models/svd_bridge.pkl")
+          print(f"SVD bridge trained on {len(df)} rows, saved to artifacts/models/svd_bridge.pkl")
+          PYEOF
+
+      - name: Build OOF PMFs (Stage 5)
+        if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
+        id: oof-build
+        continue-on-error: true
+        timeout-minutes: 240
+        run: |
+          SVD_BRIDGE_ARG=""
+          if [ -f "artifacts/models/svd_bridge.pkl" ]; then
+            SVD_BRIDGE_ARG="--svd-bridge artifacts/models/svd_bridge.pkl"
+          fi
+          timeout 235m python scripts/build_oof_pmfs.py \
+            --features-wide data/processed/wnba_player_game_features_wide.parquet \
+            --features-long data/processed/wnba_player_game_features_long.parquet \
+            --manifest data/processed/feature_schema_manifest.json \
+            --config config/model/stage5_oof.yaml \
+            --out-dir data/oof \
+            --audit-out artifacts/audits/stage5_oof_audit.json \
+            $SVD_BRIDGE_ARG
+          echo "OOF_EXIT=$?" >> $GITHUB_ENV
+
+      - name: Build OOF PMFs — 2-fold fallback (if 4-fold timed out)
+        if: (github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true') && steps.oof-build.outcome != 'success'
+        run: |
+          echo "::warning title=OOF Fallback::4-fold OOF timed out or failed. Running 2-fold fallback."
+          rm -f data/oof/oof_player_stat_pmfs.parquet data/oof/oof_fold_manifest.parquet
+          SVD_BRIDGE_ARG=""
+          if [ -f "artifacts/models/svd_bridge.pkl" ]; then
+            SVD_BRIDGE_ARG="--svd-bridge artifacts/models/svd_bridge.pkl"
+          fi
           python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --features-long data/processed/wnba_player_game_features_long.parquet \
             --manifest data/processed/feature_schema_manifest.json \
             --config config/model/stage5_oof.yaml \
             --out-dir data/oof \
-            --audit-out artifacts/audits/stage5_oof_audit.json
+            --audit-out artifacts/audits/stage5_oof_audit.json \
+            --max-folds 2 \
+            $SVD_BRIDGE_ARG
 
       - name: Validate OOF PMFs
-        if: github.event.inputs.skip_oof_build != 'true'
+        if: github.event.inputs.skip_oof_build != 'true' || env.ARCHITECTURE_CHANGED == 'true'
         run: |
           python scripts/validate_oof_pmfs.py \
             --pmfs data/oof/oof_player_stat_pmfs.parquet \
@@ -230,6 +357,71 @@ jobs:
             --config config/model/stage6_calibration.yaml \
             --pre-cal
 
+      # HARD GATE: Reject degenerate OOF before calibrators are fitted.
+      # If any stat has mean_predicted/mean_actual ratio > 2.5 or < 0.3,
+      # the OOF is garbage and we must NOT fit calibrators on it.
+      - name: OOF degenerate prediction gate (HARD — blocks calibrator fit)
+        id: oof-degenerate-gate
+        run: |
+          python3 - <<'PYEOF'
+          import sys
+          import pandas as pd
+          from pathlib import Path
+
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print("::error title=OOF Missing::oof_player_stat_pmfs.parquet not found — cannot fit calibrators")
+              sys.exit(1)
+
+          oof = pd.read_parquet(oof_path)
+          required = {"stat", "pmf_mean", "actual_outcome"}
+          if not required.issubset(oof.columns):
+              print(f"[WARN] OOF missing columns {required - set(oof.columns)} — skipping degenerate check")
+              sys.exit(0)
+
+          # Filter to prop-eligible rows only — same floors as fit_calibrators.
+          # Bench/fringe rows with pmf_mean near zero drag the aggregate ratio up
+          # for sparse stats (stl, blk) and cause false degenerate failures.
+          PROP_FLOOR = {
+              "pts": 5.0, "reb": 2.0, "ast": 1.0, "fg3m": 0.30,
+              "stl": 0.30, "blk": 0.18, "turnover": 0.6,
+          }
+          n_before = len(oof)
+          if "pmf_mean" in oof.columns:
+              eligible_masks = []
+              for s, floor in PROP_FLOOR.items():
+                  eligible_masks.append((oof["stat"] == s) & (oof["pmf_mean"] >= floor))
+              unknown = ~oof["stat"].isin(PROP_FLOOR.keys())
+              combined = unknown.copy()
+              for m in eligible_masks:
+                  combined = combined | m
+              oof = oof[combined].copy()
+              print(f"Prop-eligible filter: {n_before:,} → {len(oof):,} rows (removed {n_before - len(oof):,} bench/fringe rows)")
+
+          stats = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+          failures = []
+          print("=== OOF Degenerate Prediction Gate (prop-eligible rows only) ===")
+          for stat in stats:
+              sub = oof[oof["stat"] == stat].dropna(subset=["pmf_mean", "actual_outcome"])
+              if len(sub) < 100:
+                  print(f"  SKIP {stat}: only {len(sub)} rows")
+                  continue
+              pred_mean = sub["pmf_mean"].mean()
+              act_mean  = sub["actual_outcome"].mean()
+              ratio = pred_mean / max(act_mean, 0.01)
+              flag = "OK  " if 0.3 <= ratio <= 2.5 else "FAIL"
+              print(f"  {flag}  {stat}: pred={pred_mean:.3f}, actual={act_mean:.3f}, ratio={ratio:.3f}")
+              if ratio > 2.5 or ratio < 0.3:
+                  failures.append(f"{stat} ratio={ratio:.3f}")
+
+          if failures:
+              print(f"\n::error title=OOF Degenerate::OOF predictions are degenerate for: {', '.join(failures)}")
+              print("Aborting — do NOT fit calibrators on degenerate OOF. Fix the model first.")
+              sys.exit(1)
+
+          print("\nOOF degenerate gate: PASSED")
+          PYEOF
+
       # R2.2 — Invalidate any stale calibrators before fitting new ones.
       # Calibrators fitted on a polluted model's OOF learn incorrect curves
       # (e.g. "star players' raw predictions are 50% too high, downscale by -3 pts").
@@ -262,11 +454,125 @@ jobs:
               print(f"  {flag}  {stat}: model_mean={model_mean:.2f}, actual_mean={actual_mean:.2f}, bias={bias:+.2f}")
           EOF
 
+      - name: Join historical prop lines to OOF parquet
+        run: |
+          python3 - <<'PYEOF'
+          from src.wnba_props_model.calibration.oof_line_joiner import join_historical_props_to_oof
+          import pathlib, sys
+          oof_path = "data/oof/oof_player_stat_pmfs.parquet"
+          props_path = "data/processed/wnba_player_props.parquet"
+          out_path = "data/oof/oof_pmfs_with_lines.parquet"
+          # Only run if both input files exist
+          if pathlib.Path(oof_path).exists() and pathlib.Path(props_path).exists():
+              join_historical_props_to_oof(oof_path, props_path, out_path)
+              print("OOF line join complete.")
+          else:
+              print(f"Skipping line join: oof={pathlib.Path(oof_path).exists()}, props={pathlib.Path(props_path).exists()}")
+          PYEOF
+        continue-on-error: true
+
+      - name: Train archetype-conditioned shrinkage model
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pathlib, sys
+          sys.path.insert(0, '.')
+          from wnba_props_model.models.archetype_shrinkage import ArchetypeConditionedShrinkage
+          import pandas as pd
+
+          feature_path = "data/processed/wnba_player_game_features_wide.parquet"
+          if not pathlib.Path(feature_path).exists():
+              print(f"Feature parquet not found at {feature_path}. Skipping archetype shrinkage training.")
+              sys.exit(0)
+
+          df = pd.read_parquet(feature_path)
+          model = ArchetypeConditionedShrinkage(n_archetypes=8)
+          # Use actual stat columns (rename from actual_ prefix if present)
+          stat_map = {f'actual_{s}': s for s in ['pts', 'reb', 'ast', 'fg3m', 'stl', 'blk', 'turnover']
+                      if f'actual_{s}' in df.columns}
+          df_fit = df.rename(columns=stat_map)
+          model.fit(df_fit)
+          pathlib.Path("artifacts/models").mkdir(parents=True, exist_ok=True)
+          model.save("artifacts/models/archetype_shrinkage.pkl")
+          print(f"Archetype shrinkage model trained on {len(df)} rows, "
+                f"saved to artifacts/models/archetype_shrinkage.pkl")
+          PYEOF
+
+      - name: Compute empirical role bias corrections
+        run: python scripts/compute_role_bias_corrections.py
+        continue-on-error: false
+
+      - name: Estimate OOF stat correlations for combo PMFs
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pandas as pd
+          import json
+          from pathlib import Path
+          from wnba_props_model.models.simulation import estimate_oof_correlations
+
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print("[WARN] OOF parquet not found — skipping correlation estimation")
+              exit(0)
+          oof = pd.read_parquet(oof_path)
+          corrs = estimate_oof_correlations(oof)
+          out_path = Path("config/model/combo_correlations.json")
+          out_path.parent.mkdir(parents=True, exist_ok=True)
+          with open(out_path, "w") as f:
+              json.dump(corrs, f, indent=2)
+          print("Combo correlations estimated:", corrs)
+          PYEOF
+
+      - name: Fit shrinkage params from OOF ECE
+        continue-on-error: true
+        run: python scripts/fit_shrinkage_params.py
+
       - name: Fit calibrators (Stage 6)
         run: |
           python scripts/fit_calibrators.py \
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
-            --out-dir artifacts/models/calibration
+            --out-dir artifacts/models/calibration \
+            --props-parquet data/processed/wnba_player_props.parquet
+
+      # HARD GATE: Reject calibrators where too many stats are at the floor.
+      # If > 4 stats have bias_correction == 0.60 (floored), the calibration
+      # did not converge — do NOT overwrite working calibrators with these.
+      - name: Calibrator bias floor gate (HARD — blocks promotion)
+        id: bias-floor-gate
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys
+          from pathlib import Path
+
+          bc_path = Path("artifacts/models/calibration/bias_corrections.json")
+          if not bc_path.exists():
+              print("::error title=No Bias Corrections::bias_corrections.json not found after fit")
+              sys.exit(1)
+
+          bc = json.loads(bc_path.read_text())
+          FLOOR = 0.6000
+          TOLERANCE = 0.0005  # treat values within 0.0005 of floor as floored
+          STATS = ["pts", "reb", "ast", "fg3m", "stl", "turnover", "blk", "stocks"]
+
+          floored = [s for s in STATS if s in bc and abs(bc[s] - FLOOR) < TOLERANCE]
+          print("=== Calibrator Bias Floor Gate ===")
+          for s in STATS:
+              v = bc.get(s)
+              if v is None:
+                  continue
+              at_floor = abs(v - FLOOR) < TOLERANCE
+              flag = "FLOOR" if at_floor else "OK   "
+              print(f"  {flag}  {s}: {v:.4f}")
+
+          print(f"\n{len(floored)} of {len([s for s in STATS if s in bc])} stats at floor ({floored})")
+          if len(floored) > 4:
+              print(f"\n::error title=Calibration Floor::Too many stats at floor 0.60 ({len(floored)}). "
+                    "Calibration did not converge. Keeping previous calibrators.")
+              sys.exit(1)
+
+          print("Bias floor gate: PASSED")
+          PYEOF
 
       - name: Apply calibrators to OOF (for post-cal gate)
         run: |
@@ -393,6 +699,85 @@ jobs:
         # Note: --game-totals-mode is a no-op if the flag is unknown;
         # a full game totals calibrator script can be wired here when OOF game totals exist.
 
+      - name: Generate calibrator artifact manifest (Gap 1 — artifact provenance)
+        # Emit artifact_manifest_calibrator.json so pregame_initial.yml can validate
+        # the calibrator's provenance before use.  gate_status=PASS is recorded here
+        # because this step only runs when the cal-gate has already passed.
+        # If any required field cannot be computed, exit nonzero; do NOT produce a
+        # manifest with blank or "unknown" fields.
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, subprocess, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          workflow_name = os.environ.get("GITHUB_WORKFLOW", "Weekly OOF Refresh & Calibration")
+
+          # git commit — FATAL if unreachable
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              if not git_commit:
+                  raise ValueError("git rev-parse HEAD returned empty string")
+          except Exception as exc:
+              print(f"[FATAL] Cannot compute git HEAD commit: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          cal_dir = Path("artifacts/models/calibration")
+          cal_dir.mkdir(parents=True, exist_ok=True)
+
+          # Feature manifest hash — FATAL if file missing
+          feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+          if not feat_manifest_path.exists():
+              print(f"[FATAL] Feature schema manifest not found at {feat_manifest_path}. "
+                    "Cannot produce a valid calibrator manifest without it.", file=sys.stderr)
+              sys.exit(1)
+          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+          # Config hash — FATAL if no calibration config found
+          config_path = Path("config/model/stage6_calibration.yaml")
+          if not config_path.exists():
+              config_path = Path("config/model/stage5_oof.yaml")
+          if not config_path.exists():
+              print(f"[FATAL] Neither stage6_calibration.yaml nor stage5_oof.yaml found. "
+                    "Cannot compute calibration config_hash.", file=sys.stderr)
+              sys.exit(1)
+          config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()[:16]
+
+          # Calibration cutoff: latest game date in OOF data — FATAL if unavailable
+          import pandas as pd
+          oof_path = Path("data/oof/oof_player_stat_pmfs.parquet")
+          if not oof_path.exists():
+              print(f"[FATAL] OOF parquet not found at {oof_path}. "
+                    "Cannot compute calibration_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          df = pd.read_parquet(oof_path)
+          date_col = next((c for c in ["game_date", "date"] if c in df.columns), None)
+          if not date_col:
+              print(f"[FATAL] No date column in OOF parquet. "
+                    "Cannot compute calibration_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          latest = pd.to_datetime(df[date_col]).max()
+          calibration_cutoff = latest.strftime("%Y-%m-%dT00:00:00Z")
+
+          manifest = {
+              "artifact_type": "calibrator",
+              "artifact_schema_version": "1",
+              "source_workflow": workflow_name,
+              "source_run_id": run_id,
+              "source_commit": git_commit,
+              "created_at_utc": datetime.now(timezone.utc).isoformat(),
+              "calibration_cutoff": calibration_cutoff,
+              "feature_manifest_hash": feature_manifest_hash,
+              "config_hash": config_hash,
+              "gate_status": "PASS",
+          }
+          out_path = cal_dir / "artifact_manifest_calibrator.json"
+          out_path.write_text(json.dumps(manifest, indent=2))
+          print(f"Calibrator artifact manifest written: {manifest}")
+          PYEOF
+
       - name: Promote calibrators (gate passed)
         # Only upload new calibrators when the post-cal gate passes.
         # Game totals calibrator (if built above) is included in the same artifact.
@@ -411,14 +796,89 @@ jobs:
           path: artifacts/models/calibration/
           key: calibrators-latest-${{ github.run_id }}
 
-      - name: Calibration gate failed -- preserving previous calibrators
-        # When the post-cal gate fails, log the failure clearly so it is visible
-        # in the Actions UI but do NOT upload the failing calibrators.
-        # The daily pipeline will continue using the last passing calibrators.
-        if: steps.cal-gate.outcome == 'failure'
+      - name: Commit calibrators to git
+        if: steps.cal-gate.outcome == 'success'
         run: |
-          echo "::warning title=Calibration Gate Failed::Post-cal gate failed. New calibrators NOT promoted. Previous calibrators remain active."
-          echo "Gate failed on $(date -u +%Y-%m-%d). Check artifacts/audits/stage5_oof_summary.md for details."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Stash newly fitted calibrator files so git pull --rebase can proceed
+          git stash --include-untracked
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f artifacts/models/calibration/ config/model/combo_correlations.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update calibration artifacts from refit run ${{ github.run_id }} [skip ci]"
+            git push
+            echo "Calibrators committed to main."
+          else
+            echo "No calibration artifact changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calibration gate failed -- preserving previous calibrators
+        # When any gate fails (degenerate OOF, bias floor, or post-cal strict gate),
+        # log the failure clearly. Previous calibrators remain active.
+        if: failure() && (steps.oof-degenerate-gate.outcome == 'failure' || steps.bias-floor-gate.outcome == 'failure' || steps.cal-gate.outcome == 'failure')
+        run: |
+          if [ "${{ steps.oof-degenerate-gate.outcome }}" == "failure" ]; then
+            echo "::error title=OOF Gate Failed::OOF predictions were degenerate. Calibrators NOT updated."
+          elif [ "${{ steps.bias-floor-gate.outcome }}" == "failure" ]; then
+            echo "::error title=Bias Floor Gate Failed::Too many stats at bias floor 0.60. Calibrators NOT updated."
+          else
+            echo "::warning title=Post-Cal Gate Failed::Post-cal strict gate failed. Calibrators NOT promoted."
+          fi
+          echo "Gate failed on $(date -u +%Y-%m-%d). Previous calibrators remain active."
+
+      - name: Auto-update dispersion r from OOF
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          pip install ruamel.yaml -q 2>/dev/null || true
+          python scripts/update_dispersion_config.py \
+            --oof-path data/oof/oof_player_stat_pmfs.parquet \
+            --config-path config/model/stage4_baseline.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
+          git pull --rebase origin main
+          git stash pop || true
+          git add config/model/stage4_baseline.yaml
+          git diff --cached --quiet || git commit -m "chore: auto-update dispersion_r from OOF [skip ci]"
+          git push || true
+        continue-on-error: true
+
+      - name: Compute position-stratified combo correlations
+        if: steps.cal-gate.outcome == 'success'
+        run: |
+          python scripts/compute_combo_correlations_by_pos.py \
+            --oof-path data/oof/oof_player_stat_pmfs.parquet \
+            --out artifacts/models/stage4_baseline/combo_correlations_by_pos.json
+        continue-on-error: true
+
+      - name: Update league priors from current-season data
+        if: always()
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/update_league_priors.py \
+            --stats-path data/processed/wnba_player_game_stats.parquet \
+            --season $YEAR \
+            --out artifacts/models/league_priors.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f artifacts/models/league_priors.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update league priors from $(date -u +%Y-%m-%d) season data [skip ci]"
+            git push
+            echo "League priors committed."
+          else
+            echo "No league priors changes to commit."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
       - name: Upload OOF audit artifacts
         uses: actions/upload-artifact@v4
@@ -441,3 +901,15 @@ jobs:
           path: data/oof/oof_player_stat_pmfs.parquet
           retention-days: 90
           overwrite: true
+
+      - name: Auto-trigger pregame pipeline with fresh calibrators
+        # Fires pregame_initial.yml immediately after a successful calibration
+        # run so the new .pkl calibrators are live for tonight's slate.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Calibration succeeded — triggering pregame pipeline..."
+          gh workflow run pregame_initial.yml --ref main \
+            --repo "${{ github.repository }}"
+          echo "Pregame pipeline triggered."

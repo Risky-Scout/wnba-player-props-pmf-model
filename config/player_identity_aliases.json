@@ -1,0 +1,21 @@
+{
+  "_comment": "Canonical player identity aliases. Maps duplicate BDL player IDs to the authoritative canonical_id. Format: { 'duplicate_id': { 'canonical_id': N, 'player_name': '...', 'team_abbreviation': '...', 'effective_from': 'YYYY-MM-DD', 'source': '...', 'resolution_reason': '...' } }",
+  "aliases": {
+    "101929": {
+      "canonical_id": 75090,
+      "player_name": "Teja Oblak",
+      "team_abbreviation": "POR",
+      "jersey_number": "7",
+      "effective_from": "2024-01-01",
+      "effective_through": null,
+      "source": "BDL API diagnostic 2026-07-14: both player records share same team (POR), jersey (#7), same name. Player 75090 has complete profile (height, age, position=G, 5+ stats rows). Player 101929 has null height/age, sparse record (1 stats row), was created as a duplicate entry.",
+      "resolution_reason": "Player 75090 is the authoritative record: more complete profile, more historical stats rows, correct position classification. Player 101929 is a sparse BDL duplicate. All rows for 101929 should use canonical_id=75090.",
+      "diagnostic": {
+        "pid_75090_profile": "position=G, height=5'8\", age=35, jersey=7, stats_rows_season_2026=5",
+        "pid_101929_profile": "position=Forward, height=null, age=null, jersey=7, stats_rows_season_2026=1",
+        "game_crosscheck": "Both appear in game_id=24757 with team=POR — same physical player",
+        "decision_evidence": ["lower ID = earlier/primary record", "complete profile", "consistent position G", "more historical data"]
+      }
+    }
+  }
+}

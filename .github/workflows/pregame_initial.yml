@@ -2,8 +2,7 @@
 # Runs at 10:00 UTC daily (6am ET) -- guarantees projections are available
 # >=13 hours before typical WNBA tip times (23:00-01:00 UTC).
 #
-# Delivery URL: https://sportsodds.wizardofodds.com/tools/odds-scanner/
-#               predictions/WNBA/Pre-Game-Edge/initial/
+# Delivery URL: https://sportsodds.wizardofodds.com/WNBA/Pre-Game/Edge/
 name: Pre-Game Initial Projections (T-1 day)
 
 on:
@@ -11,7 +10,7 @@ on:
   # IMPORTANT: Do NOT add a branches filter here — schedule-triggered workflows do not populate
   # github.event.workflow_run.head_branch, so the branches filter silently prevents firing.
   workflow_run:
-    workflows: ["Daily WNBA PMF Pipeline"]
+    workflows: ["Daily WNBA PMF Pipeline", "Weekly OOF Refresh & Calibration"]
     types: [completed]
   # Safety-net crons: run 30 min after each daily_pipeline cron (10 UTC and 14 UTC)
   # so we still publish even if the explicit workflow dispatch somehow fails.
@@ -29,6 +28,11 @@ on:
 jobs:
   pregame_initial:
     runs-on: ubuntu-latest
+    # When triggered via workflow_run (daily pipeline or weekly calibration),
+    # only proceed if the upstream workflow succeeded.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     concurrency:
       group: pregame-initial-${{ github.event.inputs.game_date || 'scheduled' }}
       cancel-in-progress: false
@@ -52,73 +56,189 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Download calibrators (cross-run via GitHub CLI)
-        # actions/download-artifact@v4 only searches the current run.
-        # Use the GitHub API to find the latest calibrators-latest artifact
-        # across ALL runs in this repository.
+      - name: Download calibrators (trigger-aware exact-run or compatible upstream run)
+        # Routing policy (Gap 1 — trigger-aware):
+        #   Daily trigger  ("Daily WNBA PMF Pipeline"):
+        #     calibrators = most recent successful weekly_calibration run on main
+        #     (the exact triggering daily run trains a model, not calibrators)
+        #   Weekly trigger ("Weekly OOF Refresh & Calibration"):
+        #     calibrators = exact triggering run (freshly fitted calibrators)
+        #   Scheduled/manual:
+        #     calibrators = most recent successful weekly_calibration run on main
+        # NEVER select by latest name alone. Fail if no compatible artifact is found.
+        # Gap 2: The downloaded calibration artifact is the sole authoritative source.
+        #        Do NOT overwrite any downloaded calibration files with git-committed versions.
         run: |
           mkdir -p artifacts/models/calibration
-          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
-          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            echo "Downloading calibrators-latest artifact id=$AID"
-            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/calibrators.zip
-            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
-            echo "Calibrators downloaded OK"
+          TRIGGER_WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Weekly OOF Refresh & Calibration" ]; then
+            # Weekly trigger: calibrators = exact triggering run
+            TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "Weekly trigger: resolving calibrators from exact triggering run ${TRIGGER_RUN_ID}"
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+            SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Daily WNBA PMF Pipeline" ]; then
+            # Daily trigger: calibrators = most recent compatible weekly_calibration run on main
+            echo "Daily trigger: resolving calibrators from most recent weekly_calibration run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/weekly_calibration.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+              echo "[FATAL] No successful weekly_calibration run found on main for Daily trigger calibrators." >&2
+              exit 1
+            fi
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
           else
-            echo "[WARN] calibrators-latest artifact not found — will use self-contained training"
+            # Scheduled/manual: calibrators from most recent weekly_calibration run on main
+            echo "Scheduled/manual trigger: resolving calibrators from most recent weekly_calibration run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/weekly_calibration.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+              SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/refit_calibrators.yml/runs?branch=main&status=success&per_page=1" \
+                --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+              if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+                echo "[FATAL] No successful weekly_calibration or refit_calibrators run found on main." >&2
+                exit 1
+              fi
+            fi
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
           fi
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No calibrators artifact found in source run ${SOURCE_RUN_ID}. Cannot proceed without a validated calibrator artifact." >&2
+            exit 1
+          fi
+          echo "Downloading calibrators artifact id=${AID} from source run ${SOURCE_RUN_ID}"
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/calibrators.zip
+          unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+          echo "SOURCE_CALIBRATORS_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
+          echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
+          # Manifest existence check only — full validation via shared validator runs in
+          # "Validate artifact manifests" step (after feature build when hashes are available).
+          if [ ! -f "artifacts/models/calibration/artifact_manifest_calibrator.json" ]; then
+            echo "[FATAL] No artifact_manifest_calibrator.json found after download. A missing artifact manifest is FATAL." >&2
+            exit 1
+          fi
+          echo "Calibrator manifest found — full validation deferred to post-feature-build step."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Download stage4 model (cross-run via GitHub CLI)
+      - name: Download stage4 model (trigger-aware exact-run or compatible upstream run)
+        # Routing policy (Gap 1 — trigger-aware):
+        #   Daily trigger  ("Daily WNBA PMF Pipeline"):
+        #     model = exact triggering run (just trained)
+        #   Weekly trigger ("Weekly OOF Refresh & Calibration"):
+        #     model = most recent successful daily_pipeline run on main
+        #   Scheduled/manual:
+        #     model = most recent successful daily_pipeline run on main
+        # NEVER select by latest name alone. A missing model artifact must exit nonzero.
         run: |
           mkdir -p artifacts/models/stage4_baseline
-          AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=model-stage4-latest" \
-            --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
-          if [ -n "$AID" ] && [ "$AID" != "null" ]; then
-            echo "Downloading model-stage4-latest artifact id=$AID"
-            gh api "repos/${{ github.repository }}/actions/artifacts/$AID/zip" > /tmp/model_stage4.zip
-            unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
-            echo "Stage4 model downloaded OK"
+          TRIGGER_WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Daily WNBA PMF Pipeline" ]; then
+            # Daily trigger: model = exact triggering run
+            TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "Daily trigger: resolving model from exact triggering run ${TRIGGER_RUN_ID}"
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+            SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
           else
-            echo "[WARN] model-stage4-latest artifact not found — will use self-contained training"
+            # Weekly trigger or scheduled/manual: model from most recent daily_pipeline run on main
+            echo "Weekly/scheduled/manual trigger: resolving model from most recent daily_pipeline run on main"
+            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/daily_pipeline.yml/runs?branch=main&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
+            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+              echo "[FATAL] No successful daily_pipeline run found on main. A missing model artifact must exit nonzero. The pregame publishing workflow must never train a replacement model." >&2
+              exit 1
+            fi
+            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
           fi
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No model-stage4 artifact found in source run ${SOURCE_RUN_ID}. A missing model artifact must exit nonzero. The pregame publishing workflow must never train a replacement model." >&2
+            exit 1
+          fi
+          echo "Downloading model-stage4 artifact id=${AID} from source run ${SOURCE_RUN_ID}"
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/model_stage4.zip
+          unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
+          echo "SOURCE_MODEL_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
+          echo "Stage4 model downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
+          # Manifest existence check only — full validation via shared validator runs in
+          # "Validate artifact manifests" step (after feature build when hashes are available).
+          if [ ! -f "artifacts/models/stage4_baseline/artifact_manifest_model.json" ]; then
+            echo "[FATAL] No artifact_manifest_model.json found after download. A missing artifact manifest is FATAL." >&2
+            exit 1
+          fi
+          echo "Model manifest found — full validation deferred to post-feature-build step."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
-      - name: Self-contained model train (if no model available from daily pipeline)
-        # Runs if neither the cache nor the artifact provided model files.
-        # Makes pregame_initial fully self-contained — no dependency on daily_pipeline.
-        run: |
-          if [ ! -f "artifacts/models/stage4_baseline/manifest.json" ] && \
-             [ ! -f "artifacts/models/stage4_baseline/model_manifest.json" ]; then
-            echo "[FALLBACK] No stage4 model found — training self-contained baseline"
-            python scripts/pull_bdl_history.py \
-              --start-season $(date -u +%Y) --end-season $(date -u +%Y) \
-              --out-dir data/raw/bdl
-            python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
-            python scripts/build_features.py --data-dir data/processed
-            python scripts/train_baseline_pmfs.py --time-decay-xi 0.003
-            echo "[FALLBACK] Self-contained training complete"
-          else
-            echo "[OK] Stage4 model found — skipping self-contained training"
-          fi
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Resolve game date
         id: date
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
             RESOLVED_DATE="${{ github.event.inputs.game_date }}"
+            echo "Explicit game_date input: ${RESOLVED_DATE}"
+            RESOLUTION_METHOD="manual_input"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # workflow_run trigger: derive game_date from the exact triggering artifact/manifest.
+            # If the artifact or date is unavailable, exit nonzero. Do NOT fall back to today.
+            TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
+            DELIVERY_NAME=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("daily-delivery-"))] | .[0].name' \
+              2>/dev/null || echo "")
+            if [ -z "$DELIVERY_NAME" ] || [ "$DELIVERY_NAME" = "null" ]; then
+              echo "[FATAL] No daily-delivery artifact found in triggering run ${TRIGGER_RUN_ID}." >&2
+              echo "[FATAL] game_date cannot be derived from workflow_run trigger without the triggering artifact." >&2
+              echo "[FATAL] Do NOT fall back to today for workflow_run triggers." >&2
+              exit 1
+            fi
+            INFERRED_DATE=$(echo "$DELIVERY_NAME" | grep -oP '\d{4}-\d{2}-\d{2}' | head -1)
+            if [ -z "$INFERRED_DATE" ]; then
+              echo "[FATAL] Could not extract date from artifact name '${DELIVERY_NAME}' in triggering run ${TRIGGER_RUN_ID}." >&2
+              echo "[FATAL] game_date must be derived from the exact triggering artifact, not today." >&2
+              exit 1
+            fi
+            RESOLVED_DATE="$INFERRED_DATE"
+            RESOLUTION_METHOD="workflow_run_artifact"
+            echo "Derived game_date from triggering artifact '${DELIVERY_NAME}': ${RESOLVED_DATE}"
           else
-            # workflow_run or cron safety-net (both run after daily_pipeline) — use TODAY
+            # cron/schedule or workflow_dispatch without explicit date — resolve today and record method
             RESOLVED_DATE="$(date -u +%Y-%m-%d)"
+            RESOLUTION_METHOD="scheduled_today"
+            echo "Cron/schedule trigger — using today: ${RESOLVED_DATE}"
           fi
           echo "GAME_DATE=${RESOLVED_DATE}" >> $GITHUB_ENV
-          echo "Game date set to: ${RESOLVED_DATE}"
+          echo "GAME_DATE_RESOLUTION_METHOD=${RESOLUTION_METHOD}" >> $GITHUB_ENV
+          echo "Game date resolved to: ${RESOLVED_DATE} (method=${RESOLUTION_METHOD})"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve selected production package (A4 — required before any model load)
+        run: |
+          python - <<'EOF'
+          import json, sys
+          from pathlib import Path
+          pkg_path = Path("config/selected_production_package.json")
+          if not pkg_path.exists():
+              print("[FATAL] config/selected_production_package.json not found", file=sys.stderr)
+              sys.exit(1)
+          pkg = json.loads(pkg_path.read_text())
+          print(f"[A4] Selected package: {pkg.get('selected_package')}")
+          print(f"[A4] model_version:       {pkg.get('model_version')}")
+          print(f"[A4] calibration_version: {pkg.get('calibration_version')}")
+          print(f"[A4] challenger_status:   {pkg.get('challenger_status','UNKNOWN')}")
+          print(f"[A4] selected_at_utc:     {pkg.get('selected_at_utc')}")
+          if pkg.get("selected_package") not in ("ENHANCED_CHAMPION", "OPTIMIZED_CHALLENGER"):
+              print(f"[FATAL] Unknown selected_package={pkg.get('selected_package')!r}", file=sys.stderr)
+              sys.exit(1)
+          print("[A4] Production package resolved successfully")
+          EOF
 
       - name: Pull BDL current-season data
         run: |
@@ -126,20 +246,122 @@ jobs:
           python scripts/pull_bdl_history.py \
             --start-season $YEAR --end-season $YEAR \
             --out-dir data/raw/bdl
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Build canonical tables
         run: |
           python scripts/build_canonical_tables.py \
             --raw-dir data/raw/bdl \
             --out-dir data/processed
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Build feature matrix from canonical tables
         run: |
           python scripts/build_features.py \
             --data-dir data/processed
-        continue-on-error: true
+        continue-on-error: false
+
+      - name: Validate artifact manifests — model and calibrator (Fix 1 — BLOCKING)
+        # Call shared validate_artifact_manifest() for both artifacts.
+        # A missing manifest, wrong source_run_id/commit, missing cutoff, or blank hash = FATAL.
+        # Run AFTER feature build so feature_schema_manifest.json exists for hash validation.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch source_commit for calibrator run from GitHub API
+          CAL_HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_CALIBRATORS_RUN_ID}" \
+            --jq '.head_sha' 2>/dev/null || echo "")
+          if [ -z "$CAL_HEAD_SHA" ] || [ "$CAL_HEAD_SHA" = "null" ]; then
+            echo "[FATAL] Cannot fetch head_sha for calibrator source run ${SOURCE_CALIBRATORS_RUN_ID}." >&2
+            exit 1
+          fi
+          # Fetch source_commit for model run from GitHub API
+          MODEL_HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_MODEL_RUN_ID}" \
+            --jq '.head_sha' 2>/dev/null || echo "")
+          if [ -z "$MODEL_HEAD_SHA" ] || [ "$MODEL_HEAD_SHA" = "null" ]; then
+            echo "[FATAL] Cannot fetch head_sha for model source run ${SOURCE_MODEL_RUN_ID}." >&2
+            exit 1
+          fi
+          export EXPECTED_CAL_SOURCE_RUN_ID="${SOURCE_CALIBRATORS_RUN_ID}"
+          export EXPECTED_CAL_SOURCE_COMMIT="${CAL_HEAD_SHA}"
+          export EXPECTED_MODEL_SOURCE_RUN_ID="${SOURCE_MODEL_RUN_ID}"
+          export EXPECTED_MODEL_SOURCE_COMMIT="${MODEL_HEAD_SHA}"
+          python3 - <<'PYEOF'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+          from wnba_props_model.pipeline.market_integrity import validate_artifact_manifest, ArtifactManifestError
+
+          prediction_ts = datetime.now(timezone.utc).isoformat()
+
+          feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+          if not feat_manifest_path.exists():
+              print(f"[FATAL] feature_schema_manifest.json not found at {feat_manifest_path}. "
+                    "Cannot validate artifact manifests without it.", file=sys.stderr)
+              sys.exit(1)
+          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+          # ── Validate calibrator manifest ─────────────────────────────────────────────
+          cal_manifest_path = Path("artifacts/models/calibration/artifact_manifest_calibrator.json")
+          if not cal_manifest_path.exists():
+              print(f"[FATAL] No artifact_manifest_calibrator.json — missing manifest is FATAL.", file=sys.stderr)
+              sys.exit(1)
+          cal_manifest = json.loads(cal_manifest_path.read_text())
+
+          cal_config_path = Path("config/model/stage6_calibration.yaml")
+          if not cal_config_path.exists():
+              cal_config_path = Path("config/model/stage5_oof.yaml")
+          cal_config_hash = (hashlib.sha256(cal_config_path.read_bytes()).hexdigest()[:16]
+                             if cal_config_path.exists() else None)
+
+          try:
+              validate_artifact_manifest(
+                  cal_manifest,
+                  expected_artifact_type="calibrator",
+                  prediction_timestamp_utc=prediction_ts,
+                  source_run_id=os.environ.get("EXPECTED_CAL_SOURCE_RUN_ID"),
+                  source_commit=os.environ.get("EXPECTED_CAL_SOURCE_COMMIT"),
+                  feature_manifest_hash=feature_manifest_hash,
+                  config_hash=cal_config_hash,
+              )
+              print(f"Calibrator manifest validated OK: "
+                    f"source_run={cal_manifest.get('source_run_id')}, "
+                    f"commit={cal_manifest.get('source_commit','')[:8]}, "
+                    f"gate={cal_manifest.get('gate_status')}")
+          except ArtifactManifestError as exc:
+              print(f"[FATAL] Calibrator artifact manifest validation failed: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          # ── Validate model manifest ───────────────────────────────────────────────────
+          model_manifest_path = Path("artifacts/models/stage4_baseline/artifact_manifest_model.json")
+          if not model_manifest_path.exists():
+              print(f"[FATAL] No artifact_manifest_model.json — missing manifest is FATAL.", file=sys.stderr)
+              sys.exit(1)
+          model_manifest = json.loads(model_manifest_path.read_text())
+
+          model_config_path = Path("config/model/stage4_baseline.yaml")
+          model_config_hash = (hashlib.sha256(model_config_path.read_bytes()).hexdigest()[:16]
+                               if model_config_path.exists() else None)
+
+          try:
+              validate_artifact_manifest(
+                  model_manifest,
+                  expected_artifact_type="model",
+                  prediction_timestamp_utc=prediction_ts,
+                  source_run_id=os.environ.get("EXPECTED_MODEL_SOURCE_RUN_ID"),
+                  source_commit=os.environ.get("EXPECTED_MODEL_SOURCE_COMMIT"),
+                  feature_manifest_hash=feature_manifest_hash,
+                  config_hash=model_config_hash,
+              )
+              print(f"Model manifest validated OK: "
+                    f"source_run={model_manifest.get('source_run_id')}, "
+                    f"commit={model_manifest.get('source_commit','')[:8]}, "
+                    f"cutoff={model_manifest.get('model_training_cutoff')}")
+          except ArtifactManifestError as exc:
+              print(f"[FATAL] Model artifact manifest validation failed: {exc}", file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+        continue-on-error: false
 
       - name: Build next-game slate (BDL games + roster)
         run: |
@@ -147,7 +369,7 @@ jobs:
           python scripts/build_next_game_slate.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Fetch and cache injury report (blueprint §5.1)
         run: |
@@ -165,9 +387,8 @@ jobs:
               sys.exit(0)
 
           if not api_key:
-              print("[WARN] BDL_API_KEY not set — writing empty injury file")
-              out_path.write_text("[]")
-              sys.exit(0)
+              print("[FATAL] BDL_API_KEY not set — cannot fetch injury report. Run must fail.", file=sys.stderr)
+              sys.exit(1)
 
           params = {"per_page": 100}
           headers = {"Authorization": api_key}
@@ -194,64 +415,527 @@ jobs:
               out_path.write_text(json.dumps(normalized, indent=2))
               print(f"Saved {len(normalized)} injury records → {out_path}")
           except Exception as exc:
-              print(f"[WARN] BDL injury fetch failed: {exc} — writing empty file")
-              out_path.write_text("[]")
+              print(f"[FATAL] BDL injury fetch failed: {exc} — run must fail to prevent stale injury data.", file=sys.stderr)
+              sys.exit(1)
           PYEOF
-        continue-on-error: true
+        continue-on-error: false
+
+      - name: Data schema & freshness tripwire
+        id: schema-tripwire
+        run: |
+          python - <<'PYEOF'
+          import sys, os, json
+          import pathlib
+          from datetime import datetime, timezone
+
+          CRITICAL_FEATURES = [
+              "player_pts_mean_l5",
+              "player_minutes_mean_l5",
+              "player_reb_mean_l5",
+              "player_ast_mean_l5",
+              "player_fg3m_mean_l5",
+              "player_pts_mean_season",
+              "player_minutes_mean_season",
+              "opp_pts_allowed_per_100_poss_l5",
+          ]
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[TRIPWIRE SKIP] pandas not available — skipping schema tripwire")
+              sys.exit(0)
+
+          game_date = os.environ.get("GAME_DATE", "")
+          slate_path = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
+          feature_path = pathlib.Path("data/processed/wnba_player_game_features_wide.parquet")
+          props_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          github_env = os.environ.get("GITHUB_ENV", "")
+
+          def set_no_deploy():
+              if github_env:
+                  with open(github_env, "a") as fh:
+                      fh.write("NO_DEPLOY=true\n")
+              print("[TRIPWIRE] NO_DEPLOY=true written to GITHUB_ENV")
+
+          # ------------------------------------------------------------------
+          # Check 1: Player count on slate
+          # ------------------------------------------------------------------
+          if slate_path.exists():
+              slate = pd.read_parquet(slate_path)
+              n_players = len(slate)
+              print(f"[TRIPWIRE] Check 1 — Slate players found: {n_players} ({slate_path})")
+              if n_players == 0:
+                  print("ERROR: Slate has 0 players. No games scheduled or BDL slate build failed.")
+                  print("       Aborting deployment (NO_DEPLOY=true).")
+                  set_no_deploy()
+                  sys.exit(1)
+              print(f"[TRIPWIRE] Check 1 PASS: {n_players} players on slate")
+          else:
+              print(f"[TRIPWIRE] Check 1 SKIP: Slate not found at {slate_path} — no games today or slate build failed.")
+
+          # ------------------------------------------------------------------
+          # Check 2: Odds props market lines
+          # ------------------------------------------------------------------
+          if props_path.exists():
+              props = pd.read_parquet(props_path)
+              n_props = len(props)
+              print(f"[TRIPWIRE] Check 2 — Odds props rows: {n_props}")
+              if n_props == 0:
+                  print("[WARN] Odds API returned 0 props with market lines. "
+                        "Books may not have posted lines yet. Continuing without halt.")
+              else:
+                  print(f"[TRIPWIRE] Check 2 PASS: {n_props} props with market lines")
+          else:
+              print(f"[WARN] Check 2 SKIP: Odds props parquet not found at {props_path}. "
+                    "Books may not have posted lines yet. Continuing.")
+
+          # ------------------------------------------------------------------
+          # Check 3: Critical feature columns (always validate against feature matrix,
+          # not the slate — the slate is only a roster/game schedule file)
+          # ------------------------------------------------------------------
+          if feature_path.exists():
+              feat_df = pd.read_parquet(feature_path)
+              missing = [c for c in CRITICAL_FEATURES if c not in feat_df.columns]
+              if missing:
+                  print(f"ERROR: Missing {len(missing)} critical feature column(s): {missing}")
+                  print("       This likely indicates a schema regression in build_features.py.")
+                  print("       Aborting deployment (NO_DEPLOY=true).")
+                  set_no_deploy()
+                  sys.exit(1)
+              print(f"[TRIPWIRE] Check 3 PASS: All {len(CRITICAL_FEATURES)} critical features present")
+          else:
+              print(f"[WARN] Check 3 SKIP: Feature matrix not found at {feature_path} — "
+                    "cannot validate feature columns")
+
+          # ------------------------------------------------------------------
+          # Check 4: Data freshness (training data age)
+          # ------------------------------------------------------------------
+          if feature_path.exists():
+              feat = pd.read_parquet(feature_path)
+              date_col = next((c for c in ["game_date", "date", "game_dt"] if c in feat.columns), None)
+              if date_col:
+                  latest_ts = pd.to_datetime(feat[date_col]).max()
+                  age_days = (datetime.now(timezone.utc) - latest_ts.replace(tzinfo=timezone.utc)).days
+                  print(f"[TRIPWIRE] Check 4 — Most recent game in training data: "
+                        f"{latest_ts.date()} ({age_days} day(s) old)")
+                  if age_days > 14:
+                      print(f"[WARN] Training data is {age_days} days old (>14 days threshold). "
+                            f"Last game: {latest_ts.date()}. Check BDL history pull step.")
+                  else:
+                      print(f"[TRIPWIRE] Check 4 PASS: Training data is {age_days} day(s) old (<=14)")
+              else:
+                  print("[WARN] Check 4 SKIP: No date column found in feature matrix")
+          else:
+              print("[WARN] Check 4 SKIP: Feature matrix not found — skipping freshness check")
+
+          print("[TRIPWIRE] All schema & freshness checks complete.")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
 
       - name: Generate pre-game PMF projections
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           SLATE="deliveries/tonight/slate_${GAME_DATE}.parquet"
-          if [ -f "$SLATE" ]; then
-            FEATURES_SRC="$SLATE"
-            echo "Using slate: $FEATURES_SRC"
-          else
-            FEATURES_SRC="data/processed/wnba_player_game_features_wide.parquet"
-            echo "Slate not found, falling back to historical features: $FEATURES_SRC"
+          if [ ! -f "$SLATE" ]; then
+            echo "[FATAL] Current-run slate not found at ${SLATE}." >&2
+            echo "[FATAL] Stale historical-feature fallback is FORBIDDEN per Ticket-2 pipeline integrity rules." >&2
+            echo "[FATAL] Run must fail. Check build_next_game_slate.py step." >&2
+            exit 1
           fi
+          echo "Using current-run slate: $SLATE"
           python scripts/predict_today.py \
-            --features-wide "$FEATURES_SRC" \
+            --features-wide "$SLATE" \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
             --model-dir artifacts/models/stage4_baseline \
             --cal-dir artifacts/models/calibration \
             --overrides config/player_overrides.json
 
-      - name: Pull Odds API player props + deep links
+      - name: Pull Odds API player props + deep links (BLOCKING when markets expected)
         run: |
-          python scripts/pull_odds_api_props.py \
+          python3 scripts/pull_odds_api_props.py \
             --game-date "$GAME_DATE" \
             --out-dir data/processed
-        continue-on-error: true
+          # Validate that the pull produced a non-empty market file.
+          # An empty or absent file is NOT the same as "no markets yet posted".
+          python3 - <<'PYEOF'
+          import sys, pathlib, os
+          import pandas as pd
+          game_date = os.environ.get("GAME_DATE", "")
+          props_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          slate_path = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
+          if not props_path.exists():
+              if slate_path.exists():
+                  slate = pd.read_parquet(slate_path)
+                  if len(slate) > 0:
+                      print(f"[FATAL] Odds file missing at {props_path} but slate has {len(slate)} players.", file=sys.stderr)
+                      sys.exit(1)
+              print(f"[INFO] No odds file and no active slate — status: LIVE_MARKETS_NOT_YET_AVAILABLE")
+          else:
+              df = pd.read_parquet(props_path)
+              if df.empty and slate_path.exists():
+                  slate = pd.read_parquet(slate_path)
+                  if len(slate) > 0:
+                      print(f"[WARN] Odds file exists but is empty. Status: LIVE_MARKETS_NOT_YET_AVAILABLE")
+              else:
+                  print(f"[OK] Odds file: {len(df)} rows at {props_path}")
+          PYEOF
+        continue-on-error: false
 
-      - name: Apply injury updates (UTM redistribution)
+      - name: BDL props fallback — fetch and normalize when Odds API returns empty
+        # When the Odds API returns zero rows for an active slate, fetch live player
+        # props from BDL /wnba/v1/odds/player_props and write them as the canonical
+        # raw-props parquet consumed by build_edge_report.py.
+        # FAIL DEPLOYMENT when an active slate has zero reconciled market rows.
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          # Req 4+5: Fail closed when slate has games, Odds API has zero rows, BDL has zero rows.
+          # Log provider evidence (HTTP status, row count) before any status conclusion.
+          python3 - <<'PYEOF'
+          import json, os, sys, time, pathlib
+          import requests
+          import pandas as pd
+
+          game_date = os.environ.get("GAME_DATE", "")
+          bdl_key   = os.environ.get("BDL_API_KEY", "")
+          oddsapi_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          out_path     = pathlib.Path("data/processed/wnba_player_props.parquet")
+          slate_path   = pathlib.Path(f"deliveries/tonight/slate_{game_date}.parquet")
+
+          # Only run fallback when Odds API result is empty and we have an active slate
+          oddsapi_empty = (not oddsapi_path.exists()) or pd.read_parquet(oddsapi_path).empty
+          if not oddsapi_empty:
+              print(f"[BDL-fallback] Odds API has data — skipping BDL fallback")
+              sys.exit(0)
+          if not slate_path.exists():
+              print(f"[BDL-fallback] No slate at {slate_path} — no games, skipping")
+              sys.exit(0)
+
+          slate = pd.read_parquet(slate_path)
+          if slate.empty:
+              print(f"[BDL-fallback] Empty slate — no games, skipping")
+              sys.exit(0)
+
+          print(f"[BDL-fallback] Odds API empty with {len(slate)} players on slate. Fetching BDL props.")
+
+          if not bdl_key:
+              print("[FATAL] BDL_API_KEY not set — cannot fetch BDL fallback props", file=sys.stderr)
+              sys.exit(1)
+
+          # Fetch all games for the game_date
+          r = requests.get(
+              "https://api.balldontlie.io/wnba/v1/games",
+              headers={"Authorization": bdl_key},
+              params={"dates[]": game_date, "per_page": 100}, timeout=20
+          )
+          games = r.json().get("data", []) if r.ok else []
+          print(f"[BDL-fallback] Games on {game_date}: {len(games)} (HTTP {r.status_code})")
+
+          # Fetch player props for each game
+          PROP_MAP = {
+              "points": "pts", "rebounds": "reb", "assists": "ast",
+              "threes": "fg3m", "blocks": "blk", "steals": "stl",
+              "turnovers": "turnover", "field_goals_made": "fgm",
+              "points_rebounds_assists": "pts_reb_ast",
+              "points_rebounds": "pts_reb",
+              "points_assists": "pts_ast",
+              "rebounds_assists": "reb_ast",
+              "blocks_steals": "stocks",
+          }
+          MODELED_STATS = set(PROP_MAP.values())
+
+          rows = []
+          raw_count = 0
+          for g in games:
+              gid = g["id"]
+              r2 = requests.get(
+                  "https://api.balldontlie.io/wnba/v1/odds/player_props",
+                  headers={"Authorization": bdl_key},
+                  params={"game_id": gid, "per_page": 100}, timeout=20
+              )
+              props = r2.json().get("data", []) if r2.ok else []
+              raw_count += len(props)
+              for p in props:
+                  mkt   = p.get("market", {})
+                  mtype = mkt.get("type", "")
+                  pt    = p.get("prop_type", "")
+                  stat  = PROP_MAP.get(pt)
+                  if not stat or stat not in MODELED_STATS:
+                      continue
+                  if mtype != "over_under":
+                      continue
+                  over_odds  = mkt.get("over_odds")
+                  under_odds = mkt.get("under_odds")
+                  if over_odds is None or under_odds is None:
+                      continue
+                  rows.append({
+                      "game_id":    int(gid),
+                      "game_date":  game_date,
+                      "player_id":  int(p["player_id"]),
+                      "vendor":     p.get("vendor", "bdl"),
+                      "stat":       stat,
+                      "line":       float(p.get("line_value", 0.0)),
+                      "over_odds":  float(over_odds),
+                      "under_odds": float(under_odds),
+                      "market_type": mtype,
+                      "updated_at": p.get("updated_at"),
+                  })
+              time.sleep(0.1)
+
+          print(f"[BDL-fallback] Raw props: {raw_count} total, {len(rows)} over-under modeled")
+
+          if not rows:
+              print(f"[FATAL] BDL fallback returned 0 usable props for active slate ({len(slate)} players). "
+                    "Cannot deploy with zero reconciled market rows.", file=sys.stderr)
+              sys.exit(1)
+
+          # Enrich with player names from existing PMF data
+          pmf_paths = list(pathlib.Path("deliveries/tonight").glob("full_pmfs_wide.parquet"))
+          if pmf_paths:
+              pmf = pd.read_parquet(pmf_paths[0])
+              if "player_id" in pmf.columns and "player_name" in pmf.columns:
+                  id_name = dict(zip(pmf["player_id"].astype(int), pmf["player_name"]))
+                  for row in rows:
+                      row["player_name"] = id_name.get(row["player_id"])
+                  rows = [r for r in rows if r.get("player_name")]
+                  print(f"[BDL-fallback] After name enrichment: {len(rows)} rows")
+
+          df = pd.DataFrame(rows)
+          df.to_parquet(out_path, index=False)
+          print(f"[BDL-fallback] Written {len(df)} rows → {out_path}")
+          PYEOF
+        continue-on-error: false
+
+      - name: Apply injury updates — rebuild affected PMFs (BLOCKING)
+        # Processes point-in-time injury statuses and rebuilds ALL affected
+        # player PMFs by rerunning predict_player_pmfs() with updated features.
+        # This is a BLOCKING step: failure prevents deployment.
+        # Replaces the former mean-only scaling approach that did not update
+        # pmf_json, P(over), P(under), or P(push).
         run: |
           python scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
-            --injuries-json "data/injuries/${GAME_DATE}.json"
-        continue-on-error: true
+            --injuries-json "data/injuries/${GAME_DATE}.json" \
+            --features "data/processed/wnba_player_game_features_wide.parquet" \
+            --model-dir artifacts/models/stage4_baseline \
+            --config-path config/model/stage4_baseline.yaml \
+            --cal-dir artifacts/models/calibration
+        continue-on-error: false
 
-      - name: Compute SHAP explainability
+      - name: Compute SHAP explainability (NONCRITICAL_EXPLAINABILITY_FAILURE if this step fails)
         run: |
           python scripts/compute_shap_explainability.py \
             --game-date "$GAME_DATE" \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --model-dir artifacts/models/stage4_baseline \
-            --out-dir artifacts/explainability
+            --out-dir artifacts/explainability || \
+          echo "NONCRITICAL_EXPLAINABILITY_FAILURE: SHAP computation failed — deployment continues"
         continue-on-error: true
 
-      - name: Build edge report
+      - name: Commit SHAP top-5 to repo (NONCRITICAL_EXPLAINABILITY_FAILURE if this step fails)
         run: |
-          python scripts/build_edge_report.py \
+          TOP5="artifacts/explainability/shap_${GAME_DATE}_top5.json"
+          LATEST="artifacts/explainability/shap_latest_top5.json"
+          if [ -f "$TOP5" ]; then
+            mkdir -p artifacts/explainability
+            cp "$TOP5" "$LATEST"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git stash --include-untracked
+            git pull --rebase origin main
+            git stash pop || true
+            git add -f "$LATEST"
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: update shap_latest_top5.json for ${GAME_DATE} [skip ci]"
+              git push
+              echo "SHAP top-5 committed to repo."
+            else
+              echo "No SHAP changes to commit."
+            fi
+          else
+            echo "[WARN] SHAP top-5 not found at $TOP5 — skipping commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Build edge report (BLOCKING)
+        run: |
+          # Req 6: Follow the production calibration manifest to determine which
+          # calibration method is required. Never silently run uncalibrated.
+          CAL_MANIFEST="artifacts/models/calibration/artifact_manifest_calibrator.json"
+          REQUIRE_VA_FLAG=""
+          if [ -f "$CAL_MANIFEST" ]; then
+            VA_REQUIRED=$(python3 -c "import json,sys; m=json.load(open(sys.argv[1])); method=str(m.get('calibration_method','') or '').lower(); print('true' if 'venn' in method or m.get('require_venn_abers',False) else 'false')" "$CAL_MANIFEST" 2>/dev/null || echo "false")
+            if [ "$VA_REQUIRED" = "true" ]; then
+              REQUIRE_VA_FLAG="--require-venn-abers"
+              echo "[calibration] Manifest declares Venn-Abers required"
+            else
+              echo "[calibration] Manifest uses role-aware isotonic calibration"
+            fi
+          else
+            echo "[calibration] No manifest — using role-aware isotonic"
+          fi
+
+          python3 scripts/build_edge_report.py \
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
+            --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
-            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --edge-threshold 0.0 \
+            $REQUIRE_VA_FLAG \
+            --source-policy odds_api_then_bdl
+        continue-on-error: false
+
+      - name: Prediction drift monitor
+        id: drift-monitor
+        run: |
+          python - <<'PYEOF'
+          import sys, os, json
+          import pathlib
+          from datetime import datetime, timezone
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[DRIFT SKIP] pandas not available — skipping drift monitor")
+              sys.exit(0)
+
+          game_date = os.environ.get("GAME_DATE", "")
+          edges_path = pathlib.Path("deliveries/tonight/publishable_edges.parquet")
+          audit_dir = pathlib.Path("artifacts/audits")
+          github_env = os.environ.get("GITHUB_ENV", "")
+
+          STAT_COLS = ["pts", "reb", "ast", "fg3m"]
+          OVERALL_LOW  = 0.15
+          OVERALL_HIGH = 0.70
+          STAT_LOW     = 0.05
+          STAT_HIGH    = 0.85
+
+          if not edges_path.exists():
+              print(f"[DRIFT] No publishable_edges.parquet at {edges_path} — "
+                    "no games today or edge report failed. Skipping drift monitor.")
+              sys.exit(0)
+
+          df = pd.read_parquet(edges_path)
+          if df.empty:
+              print("[DRIFT] Edge report is empty (no bettable props). Skipping drift monitor.")
+              sys.exit(0)
+
+          # Determine %OVER: prefer explicit direction column, then p_over, then edge_pp sign
+          def compute_pct_over(subset):
+              if "direction" in subset.columns:
+                  n_over = (subset["direction"].str.upper() == "OVER").sum()
+              elif "p_over" in subset.columns:
+                  n_over = (subset["p_over"] > 0.5).sum()
+              elif "edge_pp" in subset.columns:
+                  n_over = (subset["edge_pp"] > 0).sum()
+              else:
+                  return None
+              return n_over / len(subset) if len(subset) > 0 else None
+
+          overall_pct = compute_pct_over(df)
+          if overall_pct is None:
+              print("[DRIFT] Cannot determine OVER/UNDER direction — no direction/p_over/edge_pp column. "
+                    "Skipping drift monitor.")
+              sys.exit(0)
+
+          # Per-stat breakdown
+          stat_col = next((c for c in ["stat", "market", "prop_type"] if c in df.columns), None)
+
+          stat_results = {}
+          alerts = []
+
+          print(f"[DRIFT] ============= Prediction Drift Monitor =============")
+          print(f"[DRIFT] Total bettable props: {len(df)}")
+          print(f"[DRIFT] Overall %%OVER: {overall_pct:.1%} "
+                f"(thresholds: <{OVERALL_LOW:.0%} or >{OVERALL_HIGH:.0%})")
+
+          if overall_pct < OVERALL_LOW or overall_pct > OVERALL_HIGH:
+              alerts.append(f"overall: {overall_pct:.1%}")
+              print(f"\n{'='*60}")
+              print(f"WARNING: OVERALL %%OVER = {overall_pct:.1%} is OUTSIDE normal range "
+                    f"[{OVERALL_LOW:.0%}, {OVERALL_HIGH:.0%}]")
+              print(f"{'='*60}\n")
+          else:
+              print(f"[DRIFT] Overall %%OVER OK: {overall_pct:.1%}")
+
+          if stat_col:
+              for stat in STAT_COLS:
+                  sub = df[df[stat_col].str.lower() == stat] if len(df) > 0 else df
+                  if len(sub) == 0:
+                      print(f"[DRIFT]   {stat}: no rows (not in today's slate)")
+                      continue
+                  pct = compute_pct_over(sub)
+                  if pct is None:
+                      continue
+                  stat_results[stat] = {"pct_over": round(float(pct), 4), "n": int(len(sub))}
+                  flag = ""
+                  if pct < STAT_LOW or pct > STAT_HIGH:
+                      alerts.append(f"{stat}: {pct:.1%}")
+                      flag = " <== DRIFT ALERT"
+                      print(f"[DRIFT]   {stat}: %%OVER={pct:.1%} (n={len(sub)}) "
+                            f"OUTSIDE [{STAT_LOW:.0%}, {STAT_HIGH:.0%}]{flag}")
+                  else:
+                      print(f"[DRIFT]   {stat}: %%OVER={pct:.1%} (n={len(sub)}) OK")
+          else:
+              print("[DRIFT] No stat column found — skipping per-stat breakdown")
+
+          drift_alert = len(alerts) > 0
+
+          if drift_alert:
+              print(f"\n{'!'*60}")
+              print(f"DRIFT_ALERT TRIGGERED — affected: {', '.join(alerts)}")
+              print(f"Model is still deploying. Review calibrators and bias corrections.")
+              print(f"{'!'*60}\n")
+              if github_env:
+                  with open(github_env, "a") as fh:
+                      fh.write("DRIFT_ALERT=true\n")
+
+              # Write JSON summary
+              audit_dir.mkdir(parents=True, exist_ok=True)
+              report = {
+                  "generated_at": datetime.now(timezone.utc).isoformat(),
+                  "game_date": game_date,
+                  "overall_pct_over": round(float(overall_pct), 4),
+                  "overall_n": int(len(df)),
+                  "thresholds": {
+                      "overall_low": OVERALL_LOW, "overall_high": OVERALL_HIGH,
+                      "stat_low": STAT_LOW, "stat_high": STAT_HIGH,
+                  },
+                  "stat_results": stat_results,
+                  "alerts": alerts,
+              }
+              date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
+              out_path = audit_dir / f"drift_alert_{date_tag}.json"
+              out_path.write_text(json.dumps(report, indent=2))
+              print(f"[DRIFT] Alert report written to {out_path}")
+          else:
+              print("[DRIFT] No drift detected. All stats within normal ranges.")
+
+          print("[DRIFT] ============= Drift Monitor Complete =============")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
         continue-on-error: true
 
-      - name: Format pre-game JSON output (blueprint S3)
+      - name: Upload drift alert artifact
+        if: env.DRIFT_ALERT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-alert-${{ env.GAME_DATE }}-${{ github.run_number }}
+          path: artifacts/audits/drift_alert_*.json
+          retention-days: 30
+
+      - name: Format pre-game JSON output (BLOCKING — blueprint S3)
         run: |
           python scripts/format_pregame_output.py \
             --game-date "$GAME_DATE" \
@@ -261,6 +945,7 @@ jobs:
             --market-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --injuries data/injuries/${GAME_DATE}.json \
             --games data/processed/wnba_games.parquet
+        continue-on-error: false
 
       - name: Copy to initial/ subdirectory
         run: |
@@ -275,59 +960,569 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Generate Edge Board + PMF Dashboard web pages (initial pass)
+      - name: Verify combo PMF round-trip integrity
+        run: |
+          python scripts/verify_combo_roundtrip.py \
+            --delivery-dir deliveries/tonight \
+            --tolerance 1e-8 \
+            --fail-on-suppressed-in-edges
+        continue-on-error: false
+
+      - name: Generate Edge Board + PMF Dashboard web pages (BLOCKING — initial pass)
         run: |
           PROJ_FILE="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
           if [ ! -f "$PROJ_FILE" ]; then
             PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
           fi
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 
-          python scripts/generate_web_pages.py \
+          # Read model_version and calibration_version from manifests if available
+          MODEL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/stage4_baseline/model_manifest.json')); print(m.get('model_version','hgb_v2.3.1_idr_beta_conformal'))" 2>/dev/null || echo "hgb_v2.3.1_idr_beta_conformal")
+          CAL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/calibration/calibration_metadata.json')); print(m.get('calibration_version','idr_v12_beta_v12_conformal_v12'))" 2>/dev/null || echo "idr_v12_beta_v12_conformal_v12")
+
+          # Read market audit JSON to derive evidence-based market_status
+          EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
+
+          python3 scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
             ${PROJ_FILE:+--projections "$PROJ_FILE"} \
             ${EDGE_FILE:+--edges "$EDGE_FILE"} \
             --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
-            --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges \
-            --skip-live-html
+            --live-dir tools/odds-scanner/predictions/WNBA/In-Play/Edges \
+            --skip-live-html \
+            --json-only \
+            --release-id "$GITHUB_RUN_ID" \
+            --git-commit "$GIT_COMMIT" \
+            --model-version "$MODEL_VER" \
+            --calibration-version "$CAL_VER" \
+            ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Publish predictions to gh-pages (legacy Pre-Game-Edge path)
+      - name: Validate pre-game page release lineage (BLOCKING — both pages same run)
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from pathlib import Path
+          from wnba_props_model.pipeline.market_integrity import (
+              validate_page_release_lineage,
+              ArtifactLineageMismatchError,
+              check_no_stale_fallback,
+              StaleFallbackForbiddenError,
+          )
+
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          game_date = os.environ.get("GAME_DATE", "")
+          base_dir  = Path("tools/odds-scanner/predictions/WNBA/Pre-Game")
+          edge_path = base_dir / "Edge" / "latest.json"
+          pmf_path  = base_dir / "PMF-Distributions" / "latest.json"
+
+          # Stale-artifact check: both page files must exist from this run
+          try:
+              check_no_stale_fallback("edge_page", edge_path)
+              check_no_stale_fallback("pmf_page",  pmf_path)
+          except StaleFallbackForbiddenError as exc:
+              print(f"[FATAL] Stale page artifact: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          edge_json = json.loads(edge_path.read_text())
+          pmf_json  = json.loads(pmf_path.read_text())
+
+          # Release lineage: both pages must carry same release_id matching this run
+          if run_id:
+              try:
+                  validate_page_release_lineage(edge_json, pmf_json, expected_release_id=run_id)
+                  print(f"Page release lineage: PASS (release_id={run_id!r})")
+              except ArtifactLineageMismatchError as exc:
+                  print(f"[FATAL] Page release lineage mismatch: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          else:
+              print("[WARN] GITHUB_RUN_ID not set — skipping release lineage check (local run)")
+
+          print(f"edge_page: {edge_path} ({edge_json.get('total_props',0)} props)")
+          print(f"pmf_page:  {pmf_path} ({pmf_json.get('total_props',0)} props)")
+          print("Page lineage validation: PASS")
+          EOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
+
+      - name: Generate Distributions page (BLOCKING — combined Edges + PMF)
+        run: |
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          MODEL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/stage4_baseline/model_manifest.json')); print(m.get('model_version','hgb_v2.3.1_idr_beta_conformal'))" 2>/dev/null || echo "hgb_v2.3.1_idr_beta_conformal")
+          CAL_VER=$(python3 -c "import json; m=json.load(open('artifacts/models/calibration/calibration_metadata.json')); print(m.get('calibration_version','idr_v12_beta_v12_conformal_v12'))" 2>/dev/null || echo "idr_v12_beta_v12_conformal_v12")
+          python3 scripts/generate_distributions_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir tools/odds-scanner/predictions/WNBA \
+            --release-id "$GITHUB_RUN_ID" \
+            --git-commit "$GIT_COMMIT" \
+            --model-version "$MODEL_VER" \
+            --calibration-version "$CAL_VER" \
+            --json-only
+          echo "Distributions page generated for ${GAME_DATE}"
+        continue-on-error: false
+
+      - name: Sanity gate — block deployment if calibration is catastrophically wrong
+        run: |
+          python - <<'EOF'
+          import json, sys, pathlib
+          import pandas as pd
+
+          # Gate 1: bias_corrections floor check
+          bias_path = pathlib.Path("artifacts/models/calibration/bias_corrections.json")
+          if bias_path.exists():
+              bias = json.loads(bias_path.read_text())
+              for stat, val in bias.items():
+                  if val < 0.50:
+                      print(f"GATE FAIL: bias_corrections[{stat}]={val:.3f} below 0.50 floor")
+                      sys.exit(1)
+              print(f"Gate 1 PASS: bias_corrections min={min(bias.values()):.3f}")
+          else:
+              print("Gate 1 SKIP: bias_corrections.json not found")
+
+          # Gate 2: mean edge sanity check
+          edges_path = pathlib.Path("artifacts/edge_report/publishable_edges.parquet")
+          if not edges_path.exists():
+              edges_path = pathlib.Path("deliveries/tonight/publishable_edges.parquet")
+          if edges_path.exists():
+              df = pd.read_parquet(edges_path)
+              if "edge_pp" in df.columns and len(df) > 0:
+                  mean_edge = df["edge_pp"].mean()
+                  print(f"Gate 2: mean_edge_pp={mean_edge:.2f} across {len(df)} rows")
+                  if mean_edge < -20.0:
+                      print(f"DEPLOY BLOCKED: mean_edge={mean_edge:.1f}pp — calibration mismatch. Run weekly_calibration before deploying.")
+                      sys.exit(1)
+                  print(f"Gate 2 PASS: mean edge {mean_edge:.1f}pp is above -20pp threshold")
+              else:
+                  print("Gate 2 SKIP: no edge_pp column or empty parquet")
+          else:
+              print("Gate 2 SKIP: publishable_edges.parquet not found")
+
+          print("All sanity gates passed — deployment approved")
+          EOF
+        continue-on-error: false
+
+      - name: Stamp delivery artifacts with run metadata (stale-artifact prevention)
+        run: |
+          python - <<'PYEOF'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          run_id      = os.environ.get("GITHUB_RUN_ID", "")
+          game_date   = os.environ.get("GAME_DATE", "")
+          out_dir     = Path("deliveries/tonight")
+          inj_ts_file = Path(f"data/injuries/{game_date}.json")
+
+          # Resolve git commit
+          try:
+              git_commit = subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip()
+          except Exception:
+              git_commit = "unknown"
+
+          prediction_ts = datetime.now(timezone.utc).isoformat()
+          inj_ts = (
+              datetime.fromtimestamp(
+                  inj_ts_file.stat().st_mtime, tz=timezone.utc
+              ).isoformat()
+              if inj_ts_file.exists() else ""
+          )
+
+          meta = {
+              "github_run_id": run_id,
+              "git_commit": git_commit,
+              "prediction_timestamp": prediction_ts,
+              "market_snapshot_timestamp": prediction_ts,
+              "injury_snapshot_timestamp": inj_ts,
+              "game_date": game_date,
+          }
+
+          meta_path = out_dir / "run_metadata.json"
+          meta_path.parent.mkdir(parents=True, exist_ok=True)
+          meta_path.write_text(json.dumps(meta, indent=2))
+          print(f"Run metadata written: {meta}")
+
+          # Verify all delivery JSON artifacts contain matching run_id
+          errors = []
+          for p in out_dir.glob("*.json"):
+              if p.name == "run_metadata.json":
+                  continue
+              try:
+                  d = json.loads(p.read_text())
+              except Exception:
+                  continue
+              if isinstance(d, dict) and "github_run_id" in d:
+                  if str(d["github_run_id"]) != str(run_id):
+                      errors.append(f"{p.name}: run_id={d['github_run_id']} != {run_id}")
+
+          if errors:
+              print(f"[FATAL] Stale artifact(s) detected:", file=sys.stderr)
+              for e in errors:
+                  print(f"  {e}", file=sys.stderr)
+              sys.exit(1)
+
+          print("Artifact run_id verification: PASS")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
+
+      - name: Build expected PMF and edge manifests from upstream inputs (BLOCKING)
+        # Fix 3: Expected PMF manifest derived from final availability/actionability output
+        #   (availability_table_{date}.parquet) — NOT from original slate["status"].
+        # Fix 4: Expected edge manifest read from expected_market_comparison_manifest.parquet
+        #   written by build_edge_report.py AFTER market reconciliation — NOT raw odds parquet.
+        # PMF comparison is unconditional when games exist; missing/unexpected/duplicate = FATAL.
+        # Edge comparison uses validate_edge_manifest(); expected_nonempty+actual_empty = FATAL.
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, subprocess, sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          try:
+              import pandas as pd
+          except ImportError:
+              print("[FATAL] pandas not available", file=sys.stderr)
+              sys.exit(1)
+
+          from wnba_props_model.pipeline.market_integrity import (
+              validate_pmf_manifest,
+              validate_edge_manifest,
+              MissingPMFError,
+              DuplicatePMFError,
+              MissingEdgeError,
+              DuplicateEdgeError,
+          )
+
+          game_date = os.environ.get("GAME_DATE", "")
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          out_dir   = Path("deliveries/tonight")
+
+          # Supported stats for PMF generation (must match predict_today.py config)
+          SUPPORTED_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
+                             "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"]
+
+          # ── Expected PMF manifest — from final Ticket 1 availability output (Fix 3) ─
+          # Use availability_table_{date}.parquet produced by apply_injury_updates.py.
+          # Filter by is_market_actionable == True.
+          # Do NOT use original slate["status"] as the final injury truth.
+          slate_path = out_dir / f"slate_{game_date}.parquet"
+          avail_path = out_dir / f"availability_table_{game_date}.parquet"
+          scheduled_games_exist = slate_path.exists()
+
+          if avail_path.exists():
+              avail = pd.read_parquet(avail_path)
+              if "is_market_actionable" in avail.columns:
+                  eligible = avail[avail["is_market_actionable"] == True].copy()
+              elif "availability_status" in avail.columns:
+                  eligible = avail[~avail["availability_status"].str.lower().isin(
+                      ["inactive", "out", "dnp"]
+                  )].copy()
+              else:
+                  eligible = avail.copy()
+              key_cols = [c for c in ["game_id", "player_id"] if c in eligible.columns]
+              if key_cols and len(eligible) > 0:
+                  rows = []
+                  for _, row in eligible[key_cols].drop_duplicates().iterrows():
+                      for stat in SUPPORTED_STATS:
+                          rows.append({**row.to_dict(), "stat": stat})
+                  expected_pmf = pd.DataFrame(rows)
+                  print(f"Expected PMF manifest (from availability_table): {len(expected_pmf)} rows "
+                        f"({len(eligible)} actionable players × {len(SUPPORTED_STATS)} stats)")
+              else:
+                  expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+                  print("[WARN] Availability table has no actionable players or missing key columns")
+          elif scheduled_games_exist:
+              print(f"[FATAL] availability_table_{game_date}.parquet not found but slate exists. "
+                    "apply_injury_updates must produce availability_table before PMF validation.",
+                    file=sys.stderr)
+              sys.exit(1)
+          else:
+              expected_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+              print(f"[INFO] No availability table or slate — no games scheduled for {game_date}")
+
+          # ── Actual PMF manifest — from full_pmfs_wide.parquet ─────────────────────
+          pmf_path = out_dir / "full_pmfs_wide.parquet"
+          if pmf_path.exists():
+              pmfs = pd.read_parquet(pmf_path)
+              pmf_key_cols = [c for c in ["game_id", "player_id", "stat"] if c in pmfs.columns]
+              actual_pmf = pmfs[pmf_key_cols].drop_duplicates() if pmf_key_cols else pd.DataFrame(
+                  columns=["game_id", "player_id", "stat"])
+          else:
+              actual_pmf = pd.DataFrame(columns=["game_id", "player_id", "stat"])
+
+          # ── PMF integrity check — unconditional when games exist (Fix 3) ───────────
+          # expected nonempty + actual empty = FATAL
+          # missing / unexpected / duplicate keys = FATAL
+          # Only validated scheduled_game_count == 0 may skip.
+          if not expected_pmf.empty or not actual_pmf.empty:
+              try:
+                  validate_pmf_manifest(expected_pmf, actual_pmf)
+                  print(f"PMF manifest OK: expected={len(expected_pmf)}, actual={len(actual_pmf)}, "
+                        "missing=0, unexpected=0, duplicates=0")
+              except (MissingPMFError, DuplicatePMFError) as exc:
+                  print(f"[FATAL] PMF manifest integrity: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          else:
+              print("[INFO] Both expected and actual PMF sets are empty — no games scheduled")
+
+          # ── Expected edge manifest — from reconciled market manifest (Fix 4) ───────
+          # Read expected_market_comparison_manifest.parquet written by build_edge_report.py
+          # AFTER market validation and identity reconciliation, BEFORE edge construction.
+          # Do NOT build expected edges directly from raw odds parquet.
+          expected_edge_manifest_path = out_dir / "expected_market_comparison_manifest.parquet"
+          if expected_edge_manifest_path.exists():
+              expected_edge = pd.read_parquet(expected_edge_manifest_path)
+              print(f"Expected edge manifest (from reconciled markets): {len(expected_edge)} rows")
+          else:
+              expected_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
+              print("[INFO] expected_market_comparison_manifest.parquet not found — assuming no markets")
+
+          # ── Actual edge manifest — from market_comparison.parquet ─────────────────
+          mc_path = out_dir / "market_comparison.parquet"
+          if mc_path.exists():
+              mc = pd.read_parquet(mc_path)
+              edge_key_cols = [c for c in ["game_id", "player_id", "stat", "vendor", "line"]
+                               if c in mc.columns]
+              actual_edge = mc[edge_key_cols].drop_duplicates() if edge_key_cols else pd.DataFrame(
+                  columns=["game_id", "player_id", "stat", "vendor", "line"])
+          else:
+              actual_edge = pd.DataFrame(columns=["game_id", "player_id", "stat", "vendor", "line"])
+
+          # ── Edge integrity check — unconditional when expected manifest exists (Fix 4) ─
+          # expected nonempty + actual empty = FATAL (NOT LIVE_MARKETS_NOT_YET_AVAILABLE)
+          # missing / unexpected / duplicate rows = FATAL
+          # LIVE_MARKETS_NOT_YET_AVAILABLE valid ONLY when verified-zero markets (both empty).
+          live_markets_status = "LIVE_MARKETS_NOT_YET_AVAILABLE"
+          edge_completeness_status = "NOT_CHECKED"
+          if not expected_edge.empty or not actual_edge.empty:
+              try:
+                  validate_edge_manifest(expected_edge, actual_edge)
+                  live_markets_status = (
+                      "SUCCESS_WITH_MARKETS" if not expected_edge.empty
+                      else "LIVE_MARKETS_NOT_YET_AVAILABLE"
+                  )
+                  edge_completeness_status = "PASS"
+                  print(f"Edge manifest OK: expected={len(expected_edge)}, actual={len(actual_edge)}, "
+                        f"missing=0, unexpected=0, duplicates=0, market_status={live_markets_status}")
+              except (MissingEdgeError, DuplicateEdgeError) as exc:
+                  print(f"[FATAL] Edge manifest integrity: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          else:
+              print(f"[INFO] No expected or actual edge rows — market_status={live_markets_status}")
+              edge_completeness_status = live_markets_status
+
+          # ── Lineage report ─────────────────────────────────────────────────────────
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              git_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+          except Exception:
+              git_commit = git_branch = "unknown"
+
+          artifact_hashes = {}
+          for p in out_dir.glob("*.parquet"):
+              artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+          for p in out_dir.glob("*.json"):
+              artifact_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+
+          lineage_report = {
+              "github_run_id": run_id,
+              "git_commit": git_commit,
+              "branch": git_branch,
+              "game_date": game_date,
+              "game_date_resolution_method": os.environ.get("GAME_DATE_RESOLUTION_METHOD", ""),
+              "source_calibrators_run_id": os.environ.get("SOURCE_CALIBRATORS_RUN_ID", ""),
+              "source_model_run_id": os.environ.get("SOURCE_MODEL_RUN_ID", ""),
+              "prediction_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+              "artifact_hashes": artifact_hashes,
+              "expected_pmf_count": len(expected_pmf),
+              "actual_pmf_count": len(actual_pmf),
+              "expected_edge_count": len(expected_edge),
+              "actual_edge_count": len(actual_edge),
+              "live_markets_status": live_markets_status,
+              "edge_completeness_status": edge_completeness_status,
+          }
+          lineage_path = out_dir / "artifact_lineage_report.json"
+          out_dir.mkdir(parents=True, exist_ok=True)
+          lineage_path.write_text(json.dumps(lineage_report, indent=2))
+          print(f"Artifact lineage report written → {lineage_path}")
+          print(f"Expected PMFs: {len(expected_pmf)}, Actual PMFs: {len(actual_pmf)}")
+          print(f"Expected edges: {len(expected_edge)}, Actual edges: {len(actual_edge)}")
+          PYEOF
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        continue-on-error: false
+
+      - name: Stage all outputs for single gh-pages deploy
+        run: |
+          # Consolidate every output directory into _site so we make exactly
+          # one push to gh-pages — eliminates all push race conditions.
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
+          mkdir -p _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions
+
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game-Edge" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Edge" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
+          [ -d "tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions" ] && \
+            cp -r tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/. \
+                  _site/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
+          [ -d "tools/odds-scanner" ] && \
+            cp -r tools/odds-scanner/. _site/tools/odds-scanner/ || true
+          echo "Staged files: $(find _site -type f | wc -l)"
+
+      - name: Deploy all pages to gh-pages (single push — no race condition)
+        if: env.NO_DEPLOY != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
+          publish_dir: _site
           publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game-Edge
-          keep_files: true
+          destination_dir: .
+          force_orphan: true
 
-      - name: Publish Edge Board to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/Edge
-          keep_files: true
+      - name: Deploy WNBA pages to sportsodds.wizardofodds.com via FTP (BLOCKING)
+        if: env.NO_DEPLOY != 'true'
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: python3 scripts/ftp_deploy.py --wipe
+        continue-on-error: false
 
-      - name: Publish PMF Dashboard to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions
-          keep_files: true
+      - name: Post-deployment verification — custom domain (BLOCKING)
+        # Req 9: Verify the custom domain reflects the new release before declaring success.
+        # Fails the run when Edge rows = 0 and reconciled_quote_count > 0.
+        if: env.NO_DEPLOY != 'true'
+        env:
+          GAME_DATE: ${{ env.GAME_DATE }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, time, urllib.request
+          from datetime import datetime, timezone
 
-      - name: Publish dashboard index.html to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner
-          publish_branch: gh-pages
-          destination_dir: tools/odds-scanner
-          keep_files: true
+          CDN = "https://sportsodds.wizardofodds.com"
+          BASE = f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game"
+          run_id    = os.environ.get("GITHUB_RUN_ID", "")
+          game_date = os.environ.get("GAME_DATE", "")
+
+          def fetch(path, retries=3):
+              url = f"{path}?t={int(time.time()*1000)}"
+              for attempt in range(retries):
+                  try:
+                      req = urllib.request.Request(
+                          url, headers={"Cache-Control":"no-store","User-Agent":"pregame-verify"}
+                      )
+                      with urllib.request.urlopen(req, timeout=20) as r:
+                          return json.loads(r.read()), None
+                  except Exception as exc:
+                      if attempt < retries - 1:
+                          time.sleep(5)
+                      else:
+                          return None, str(exc)
+              return None, "max_retries"
+
+          errors = []
+          def check(label, cond, actual=None):
+              if not cond:
+                  errors.append(f"{label}: got {actual!r}")
+
+          print(f"[post-deploy] Verifying {CDN} for game_date={game_date} run_id={run_id}")
+
+          # ── Edge page ─────────────────────────────────────────────────────
+          edge_ptr, err = fetch(f"{BASE}/Edge/latest.json")
+          if not edge_ptr:
+              errors.append(f"Edge/latest.json fetch failed: {err}")
+          else:
+              check("Edge/game_date", edge_ptr.get("game_date") == game_date, edge_ptr.get("game_date"))
+              check("Edge/release_id_not_stale", run_id in str(edge_ptr.get("release_id","")), edge_ptr.get("release_id","")[:30])
+              check("Edge/model_version_enhanced", "hgb" in str(edge_ptr.get("model_version","")), edge_ptr.get("model_version"))
+
+              edge_payload = None
+              if edge_ptr.get("payload_path"):
+                  edge_payload, err = fetch(f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/{edge_ptr['payload_path']}")
+              if edge_payload:
+                  rqc = int(edge_payload.get("reconciled_quote_count", 0) or 0)
+                  edge_rows = int(edge_payload.get("total_props", 0) or 0)
+                  ms = edge_payload.get("market_status","")
+                  check("Edge/market_status", ms in ("SUCCESS_WITH_MARKETS","LIVE_MARKETS_NOT_YET_AVAILABLE"), ms)
+                  if ms == "SUCCESS_WITH_MARKETS":
+                      check("Edge/raw_quote_count>0",          int(edge_payload.get("raw_quote_count", 0) or 0) > 0)
+                      check("Edge/fresh_quote_count>0",        int(edge_payload.get("fresh_quote_count", 0) or 0) > 0)
+                      check("Edge/reconciled_quote_count>0",   rqc > 0)
+                      # Edge rows > 0 required when reconciled_quote_count > 0
+                      if rqc > 0:
+                          check("Edge/row_count>0_when_markets_exist", edge_rows > 0, edge_rows)
+
+                  props = edge_payload.get("props", [])
+                  identity_keys = [(r.get("player"), r.get("stat"), r.get("market_line"), r.get("game_id")) for r in props]
+                  dupes = len(identity_keys) - len(set(identity_keys))
+                  check("Edge/duplicate_identities=0", dupes == 0, dupes)
+                  if props and ms == "SUCCESS_WITH_MARKETS":
+                      p0 = props[0]
+                      check("Edge/vendor_present", bool(p0.get("best_bookmaker") or p0.get("vendor")))
+                      check("Edge/line_present",   p0.get("market_line") is not None)
+              else:
+                  errors.append(f"Edge payload fetch failed: {err}")
+
+          # ── Distributions page ────────────────────────────────────────────
+          dist_ptr, err = fetch(f"{BASE}/Distributions/latest.json")
+          if not dist_ptr:
+              errors.append(f"Distributions/latest.json fetch failed: {err}")
+          else:
+              check("Dist/game_date", dist_ptr.get("game_date") == game_date, dist_ptr.get("game_date"))
+              check("Dist/release_id_not_stale", run_id in str(dist_ptr.get("release_id","")), dist_ptr.get("release_id","")[:30])
+              check("Dist/row_count>0", (dist_ptr.get("row_count") or dist_ptr.get("total_props") or 0) > 0)
+              check("Dist/model_version_enhanced", "hgb" in str(dist_ptr.get("model_version","")), dist_ptr.get("model_version"))
+
+              dist_payload = None
+              if dist_ptr.get("payload_path"):
+                  dist_payload, err = fetch(f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/{dist_ptr['payload_path']}")
+              if dist_payload:
+                  dist_props = dist_payload.get("props", [])
+                  check("Dist/total_props>0", len(dist_props) > 0, len(dist_props))
+                  invalid_pmfs = 0
+                  for rr in dist_props[:50]:  # sample check
+                      pmf = rr.get("pmf_full") or rr.get("pmf", [])
+                      if isinstance(pmf, list) and pmf:
+                          s = sum(v[1] if isinstance(v,(list,tuple)) else float(v) for v in pmf)
+                          if abs(s-1.0) > 1e-3:
+                              invalid_pmfs += 1
+                  check("Dist/valid_pmfs_sampled", invalid_pmfs == 0, invalid_pmfs)
+
+          # ── Cross-page release_id match ───────────────────────────────────
+          if edge_ptr and dist_ptr:
+              check("Cross/release_ids_match",
+                    edge_ptr.get("release_id") == dist_ptr.get("release_id"),
+                    f"{edge_ptr.get('release_id','?')[:20]}=={dist_ptr.get('release_id','?')[:20]}")
+              check("Cross/calibration_versions_match",
+                    edge_ptr.get("calibration_version") == dist_ptr.get("calibration_version"))
+
+          if errors:
+              print(f"[post-deploy] VERIFICATION FAILED ({len(errors)} error(s)):", file=sys.stderr)
+              for e in errors:
+                  print(f"  ✗ {e}", file=sys.stderr)
+              sys.exit(1)
+          else:
+              print(f"[post-deploy] VERIFICATION PASSED — custom domain reflects new release")
+              if edge_payload:
+                  print(f"  Edge: {edge_payload.get('total_props')} props  status={edge_payload.get('market_status')}")
+              if dist_ptr:
+                  print(f"  Distributions: {dist_ptr.get('row_count')} props")
+          PYEOF
+        continue-on-error: false
 
       - name: Upload deliveries artifact
         uses: actions/upload-artifact@v4
@@ -338,4 +1533,5 @@ jobs:
             tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/
             tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/
             tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
+            tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
           retention-days: 14

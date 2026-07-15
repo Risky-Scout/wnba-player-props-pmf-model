@@ -31,22 +31,27 @@ SPORT_KEY = "basketball_wnba"
 # ---------------------------------------------------------------------------
 
 ODDS_API_TO_STAT: dict[str, str] = {
-    # Core props
+    # Core individual props
     "player_points":                       "pts",
     "player_rebounds":                     "reb",
     "player_assists":                      "ast",
     "player_threes":                       "fg3m",
     "player_blocks":                       "blk",
     "player_steals":                       "stl",
-    "player_blocks_steals":                "stocks",
     "player_turnovers":                    "turnover",
-    # Combo props
-    "player_points_rebounds_assists":      "pra",
-    "player_points_rebounds":              "pr",
-    "player_points_assists":               "pa",
-    "player_rebounds_assists":             "ra",
-    # Niche
+    "player_field_goals":                  "fgm",
     "player_frees_made":                   "ftm",
+    # Combo props — use canonical pipeline names so build_edge_report.py join works
+    "player_blocks_steals":                "stocks",
+    "player_points_rebounds_assists":      "pts_reb_ast",
+    "player_points_rebounds":              "pts_reb",
+    "player_points_assists":               "pts_ast",
+    "player_rebounds_assists":             "reb_ast",
+    # Quarter props
+    "player_points_q1":                    "pts_q1",
+    "player_rebounds_q1":                  "reb_q1",
+    "player_assists_q1":                   "ast_q1",
+    # Niche / less common
     "player_frees_attempts":               "fta",
     # Alternate lines (map to same stat)
     "player_points_alternate":             "pts",
@@ -55,23 +60,35 @@ ODDS_API_TO_STAT: dict[str, str] = {
     "player_steals_alternate":             "stl",
     "player_turnovers_alternate":          "turnover",
     "player_threes_alternate":             "fg3m",
-    "player_points_assists_alternate":     "pa",
-    "player_points_rebounds_alternate":    "pr",
-    "player_rebounds_assists_alternate":   "ra",
-    "player_points_rebounds_assists_alternate": "pra",
-    # Quarter props
-    "player_points_q1":                    "pts_q1",
-    "player_rebounds_q1":                  "reb_q1",
-    "player_assists_q1":                   "ast_q1",
+    "player_points_assists_alternate":     "pts_ast",
+    "player_points_rebounds_alternate":    "pts_reb",
+    "player_rebounds_assists_alternate":   "reb_ast",
+    "player_points_rebounds_assists_alternate": "pts_reb_ast",
 }
 
-# Core props requested for every game (20 markets × 1 region = 20 credits/call)
+# Core props requested for every game.
+# Credit cost = n_markets × n_regions per event call.
+# Current list: 20 markets × 1 region = 20 credits/event.
+#
+# Individual stats (9):  pts, reb, ast, fg3m, blk, stl, tov, fgm, ftm
+# Combo stats (5):       stocks, pra, pts_reb, pts_ast, reb_ast
+# Q1 quarter props (3):  pts_q1, reb_q1, ast_q1
+# Alternate lines (3):   pts_alt, reb_alt, fg3m_alt
+#
+# NOTE: Each additional market costs 1 more credit per event call.
+# Removing Q1 markets (3 saves 3 credits/event) is the easiest lever if quota is tight.
 CORE_PROP_MARKETS = [
+    # Individual stats
     "player_points", "player_rebounds", "player_assists",
     "player_threes", "player_blocks", "player_steals",
-    "player_blocks_steals", "player_turnovers",
+    "player_turnovers", "player_field_goals", "player_frees_made",
+    # Combo stats
+    "player_blocks_steals",
     "player_points_rebounds_assists", "player_points_rebounds",
     "player_points_assists", "player_rebounds_assists",
+    # Q1 quarter props (3 credits/event — remove to save quota)
+    "player_points_q1", "player_rebounds_q1", "player_assists_q1",
+    # Alternate lines
     "player_points_alternate", "player_rebounds_alternate",
     "player_threes_alternate",
 ]
@@ -263,7 +280,7 @@ class OddsAPIClient:
         """GET /v4/sports/basketball_wnba/events/{event_id}/odds
 
         Cost: n_markets × n_regions credits per call.
-        Default 15 markets × 1 region = 15 credits.
+        Default 20 markets × 1 region = 20 credits.
 
         Parameters
         ----------
@@ -327,7 +344,7 @@ class OddsAPIClient:
     ) -> dict:
         """GET /v4/historical/sports/basketball_wnba/events/{id}/odds
 
-        Cost: 10 × n_markets × n_regions credits (historical surcharge).
+        Cost: 10 × n_markets × n_regions credits (historical surcharge, 10× live rate).
         Use only for closing line archival (post_game_scoring.yml).
 
         Parameters
@@ -371,7 +388,7 @@ class OddsAPIClient:
         bookmaker, market_key, player_name, stat, line, over_odds, under_odds,
         outcome_link, market_link, event_link.
 
-        Cost: 15 credits × n_events (one API call per event).
+        Cost: 20 credits × n_events (one API call per event).
         """
         events = self.list_events_for_date(date_str)
         if not events:

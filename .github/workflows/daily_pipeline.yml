@@ -66,8 +66,18 @@ jobs:
       - name: Download calibrators (cross-run via GitHub CLI)
         # actions/download-artifact@v4 only finds artifacts from the current run.
         # Use the GitHub API to find the latest calibrators-latest artifact across all runs.
+        # JSON bias correction files are saved BEFORE the artifact unzip so the
+        # repo-committed versions can be restored afterward (artifact .pkl files are
+        # always used; JSON files in the repo take precedence when they differ).
         run: |
           mkdir -p artifacts/models/calibration
+          # Save repo-committed JSON overrides before artifact download may clobber them
+          for f in bias_corrections.json bias_corrections_by_role.json; do
+            if [ -f "artifacts/models/calibration/$f" ]; then
+              cp "artifacts/models/calibration/$f" "/tmp/repo_${f}"
+              echo "Saved repo version of $f"
+            fi
+          done
           AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100&name=calibrators-latest" \
             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null)
           if [ -n "$AID" ] && [ "$AID" != "null" ]; then
@@ -78,36 +88,68 @@ jobs:
           else
             echo "[WARN] No calibrators-latest artifact found — pipeline will run without calibrators"
           fi
+          # Restore repo-committed JSON files — they take precedence over artifact versions.
+          # This lets bias corrections be updated via git commit without a full calibration cycle.
+          # The .pkl isotonic calibrators still come from the artifact (require OOF data to retrain).
+          for f in bias_corrections.json bias_corrections_by_role.json; do
+            if [ -f "/tmp/repo_${f}" ]; then
+              cp "/tmp/repo_${f}" "artifacts/models/calibration/$f"
+              echo "Restored repo override for $f"
+            fi
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Set game date (today by default)
+      - name: Set game date (today or next game date)
         id: date
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
           if [ -n "${{ github.event.inputs.game_date }}" ]; then
-            # Manual override: predict for specified date
+            # Manual override — use exactly what was passed
             echo "target_date=${{ github.event.inputs.game_date }}" >> $GITHUB_OUTPUT
           else
-            # Default: predict for TODAY.
-            # WNBA games tip off 7-10 PM ET. Both the 9 AM and 2 PM scheduled runs
-            # should target the same calendar date so the afternoon run refreshes
-            # props for today's games without rebuilding the whole slate.
-            echo "target_date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+            # Auto-advance: if no WNBA games today, target tomorrow.
+            # On off days the pipeline exits cleanly but leaves pages empty.
+            # This keeps pages populated with the next slate's data.
+            python3 - <<'PYEOF'
+          import sys, os, json
+          from datetime import date, timedelta
+          try:
+              import urllib.request
+              today = date.today()
+              tomorrow = today + timedelta(days=1)
+              def has_games(d):
+                  try:
+                      api_key = os.environ.get("BDL_API_KEY", "")
+                      url = f"https://api.balldontlie.io/wnba/v1/games?dates[]={d.isoformat()}&per_page=5"
+                      req = urllib.request.Request(url, headers={"Authorization": api_key})
+                      with urllib.request.urlopen(req, timeout=8) as r:
+                          data = json.loads(r.read())
+                          return len(data.get("data", [])) > 0
+                  except Exception as e:
+                      print(f"[date] BDL check failed: {e} -- defaulting to today", flush=True)
+                      return True
+              target = today if has_games(today) else tomorrow
+              print(f"[date] target_date={target} (today={today}, tomorrow={tomorrow})", flush=True)
+          except Exception as e:
+              print(f"[date] Date logic failed: {e} -- falling back to today", flush=True)
+              target = date.today()
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"target_date={target.isoformat()}\n")
+          PYEOF
           fi
-          # Record today for data ingestion
           echo "today=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          # Record yesterday -- this is the game date whose closing lines we snapshot
-          # so that post_game_scoring.yml can download them for true CLV computation.
           echo "yesterday=$(date -u -d 'yesterday' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
-      - name: Pull BDL history (current season)
+      - name: Pull BDL history (full history 2022–current for rich training data)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
           YEAR=$(date -u +%Y)
           python scripts/pull_bdl_history.py \
-            --start-season $YEAR --end-season $YEAR \
+            --start-season 2022 --end-season $YEAR \
             --out-dir data/raw/bdl
 
       - name: Build canonical tables
@@ -175,6 +217,74 @@ jobs:
             --out-dir deliveries/next_game
         continue-on-error: true
 
+      - name: Compute daily drift correction from yesterday's results
+        continue-on-error: true
+        run: |
+          python3 - <<'PYEOF'
+          import pandas as pd
+          from pathlib import Path
+          from wnba_props_model.pipeline.daily_drift import (
+              compute_daily_drift, load_bias_corrections, save_bias_corrections
+          )
+
+          yesterday_preds_path = Path("deliveries/archive/yesterday_pmfs.parquet")
+          actuals_path = Path("data/processed/wnba_player_game_stats.parquet")
+          bias_path = Path("artifacts/models/calibration/bias_corrections.json")
+
+          if not yesterday_preds_path.exists():
+              print("No yesterday PMF archive -- skipping daily drift")
+              exit(0)
+          if not actuals_path.exists():
+              print("No actuals parquet -- skipping daily drift")
+              exit(0)
+
+          yesterday_pmfs = pd.read_parquet(yesterday_preds_path)
+          actuals_df = pd.read_parquet(actuals_path)
+
+          from datetime import date, timedelta
+          yesterday_date = (date.today() - timedelta(days=1)).isoformat()
+          date_col = next((c for c in ["game_date", "date"] if c in actuals_df.columns), None)
+          if date_col:
+              actuals_df = actuals_df[actuals_df[date_col].astype(str).str[:10] == yesterday_date]
+
+          if actuals_df.empty:
+              print(f"No actuals found for {yesterday_date} -- skipping daily drift")
+              exit(0)
+
+          stat_cols = [c for c in ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+                       if c in actuals_df.columns]
+          id_col = "player_id" if "player_id" in actuals_df.columns else "bdl_player_id"
+          actuals_long = actuals_df.melt(
+              id_vars=[id_col], value_vars=stat_cols,
+              var_name="stat", value_name="actual_value"
+          ).rename(columns={id_col: "player_id"}).dropna(subset=["actual_value"])
+
+          # Derive combo actuals from base actuals for drift tracking
+          combo_map = {
+              "pts_reb": ["pts", "reb"],
+              "pts_ast": ["pts", "ast"],
+              "reb_ast": ["reb", "ast"],
+              "pts_reb_ast": ["pts", "reb", "ast"],
+              "stocks": ["stl", "blk"],
+          }
+          combo_rows = []
+          for combo_stat, components in combo_map.items():
+              if not all(c in actuals_df.columns for c in components):
+                  continue
+              combo_df = actuals_df[[id_col] + components].copy()
+              combo_df = combo_df.rename(columns={id_col: "player_id"})
+              combo_df["actual_value"] = combo_df[components].sum(axis=1)
+              combo_df["stat"] = combo_stat
+              combo_rows.append(combo_df[["player_id", "stat", "actual_value"]])
+          if combo_rows:
+              actuals_long = pd.concat([actuals_long] + combo_rows, ignore_index=True)
+
+          current = load_bias_corrections(bias_path)
+          updated = compute_daily_drift(yesterday_pmfs, actuals_long, current)
+          save_bias_corrections(updated, bias_path)
+          print("Daily drift applied:", {k: v for k, v in updated.items() if not k.startswith("_")})
+          PYEOF
+
       - name: Predict D+1 projections (HGB + calibration)
         run: |
           # Use the D+1 slate if it was built; fall back to full feature table with date filter
@@ -208,6 +318,10 @@ jobs:
             --region us
         continue-on-error: true
 
+      - name: Compute empirical role bias corrections
+        run: python scripts/compute_role_bias_corrections.py
+        continue-on-error: true
+
       - name: Build edge report (Shin no-vig)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
@@ -217,7 +331,15 @@ jobs:
             --raw-props data/processed/wnba_player_props.parquet \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --out-dir deliveries/next_game \
-            --game-date ${{ steps.date.outputs.target_date }}
+            --game-date ${{ steps.date.outputs.target_date }} \
+            --cal-dir artifacts/models/calibration
+        continue-on-error: true
+
+      - name: Track CLV (Closing Line Value)
+        run: |
+          python scripts/track_clv.py --date "${{ steps.date.outputs.target_date }}" \
+            --predictions deliveries/next_game/pmf_edges.parquet \
+            --output data/clv_tracking.parquet
         continue-on-error: true
 
       - name: CI Variance Gate — reject degenerate predictions
@@ -301,6 +423,19 @@ jobs:
             --api-key "$BDL_API_KEY"
         continue-on-error: true
 
+      - name: Score yesterday's outcomes
+        # Fetches BDL box scores for yesterday and scores the edges published
+        # during that day's pipeline run against actual results.
+        # Appends to data/outcome_tracking.parquet for CLV / P&L reporting.
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          python scripts/score_outcomes.py \
+            --game-date "${{ steps.date.outputs.yesterday }}" \
+            --edges-path deliveries/archive/yesterday_pmfs.parquet \
+            --output-path data/outcome_tracking.parquet
+        continue-on-error: true
+
       - name: Download CLV tracking data (for drift check)
         # post_game_scoring.yml writes drift_window.parquet into data/clv_tracking/
         # and uploads it as clv-report-{date}-{run_id}. Without downloading this
@@ -312,16 +447,44 @@ jobs:
           path: data/clv_tracking/
         continue-on-error: true
 
-      - name: Check calibration drift
-        # Compares last 100 scored predictions per stat against ECE/mean_error thresholds.
-        # Reads from data/clv_tracking/drift_window.parquet -- a rolling 300-row-per-stat
-        # window WITH pmf_json written by post_game_scoring.yml. ECE computation requires
-        # the full PMF array so we cannot use results.parquet (which drops pmf_json).
-        # Soft drift (ECE>0.06): warning logged, pipeline continues.
-        # Hard drift (ECE>0.12): exit 1, triggers auto-refit below.
+      - name: Determine calibration staleness threshold
+        id: staleness
+        run: |
+          MONTH=$(date +%m)
+          if [ "$MONTH" -ge 9 ]; then
+            echo "threshold=3" >> $GITHUB_OUTPUT
+            echo "Season phase: playoffs (threshold=3 days)"
+          else
+            echo "threshold=7" >> $GITHUB_OUTPUT
+            echo "Season phase: regular season (threshold=7 days)"
+          fi
+
+      - name: Check calibration staleness and drift
+        # Checks two failure modes:
+        # 1. STALENESS: calibrators older than threshold days → force refit regardless of ECE.
+        # 2. DRIFT: ECE>0.12 on last 100 scored predictions → force refit.
+        # Both exit 1 to trigger the auto-refit steps below.
         id: drift-check
         continue-on-error: true
         run: |
+          STALE_THRESHOLD="${{ steps.staleness.outputs.threshold }}"
+          # Staleness check: force refit if calibrators have not been updated in threshold days
+          python3 - <<PYEOF
+          import json, sys, datetime, pathlib
+          meta = pathlib.Path('artifacts/models/calibration/calibration_metadata.json')
+          threshold = int('${STALE_THRESHOLD}')
+          if meta.exists():
+              d = json.loads(meta.read_text())
+              fitted_at = d.get('fitted_at', '')
+              if fitted_at:
+                  age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(fitted_at)).days
+                  if age > threshold:
+                      print(f'[STALE] Calibrators are {age} days old (>{threshold}) — forcing refit.')
+                      sys.exit(1)
+                  else:
+                      print(f'[OK] Calibrators are {age} days old (<={threshold}).')
+          PYEOF
+          # Drift check: ECE threshold gate
           python scripts/check_calibration_drift.py \
             --scored-predictions data/clv_tracking/drift_window.parquet \
             --thresholds-soft-ece 0.06 \
@@ -370,9 +533,85 @@ jobs:
           path: artifacts/models/stage4_baseline/
           key: model-stage4-latest-${{ github.run_id }}
 
+      - name: Generate model artifact manifest (Gap 1 — artifact provenance)
+        # Emit artifact_manifest_model.json into the model directory so that
+        # pregame_initial.yml can validate the artifact's provenance before use.
+        # MUST only run after training and validation succeed — no if: always().
+        # If any required field cannot be computed, exit nonzero; do NOT upload
+        # a manifest with blank or "unknown" fields.
+        run: |
+          python3 - <<'PYEOF'
+          import hashlib, json, os, subprocess, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          workflow_name = os.environ.get("GITHUB_WORKFLOW", "Daily WNBA PMF Pipeline")
+
+          # git commit — FATAL if unreachable
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              if not git_commit:
+                  raise ValueError("git rev-parse HEAD returned empty string")
+          except Exception as exc:
+              print(f"[FATAL] Cannot compute git HEAD commit: {exc}", file=sys.stderr)
+              sys.exit(1)
+
+          model_dir = Path("artifacts/models/stage4_baseline")
+          model_dir.mkdir(parents=True, exist_ok=True)
+
+          # Feature manifest hash — FATAL if file missing
+          feat_manifest_path = Path("data/processed/feature_schema_manifest.json")
+          if not feat_manifest_path.exists():
+              print(f"[FATAL] Feature schema manifest not found at {feat_manifest_path}. "
+                    "Cannot produce a valid model artifact manifest without it.", file=sys.stderr)
+              sys.exit(1)
+          feature_manifest_hash = hashlib.sha256(feat_manifest_path.read_bytes()).hexdigest()[:16]
+
+          # Config hash — FATAL if file missing
+          config_path = Path("config/model/stage4_baseline.yaml")
+          if not config_path.exists():
+              print(f"[FATAL] Model config not found at {config_path}. "
+                    "Cannot produce a valid model artifact manifest without it.", file=sys.stderr)
+              sys.exit(1)
+          config_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()[:16]
+
+          # Training cutoff: latest game date in feature table — FATAL if unavailable
+          import pandas as pd
+          feat_path = Path("data/processed/wnba_player_game_features_wide.parquet")
+          if not feat_path.exists():
+              print(f"[FATAL] Feature table not found at {feat_path}. "
+                    "Cannot compute model_training_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          df = pd.read_parquet(feat_path)
+          date_col = next((c for c in ["game_date", "date"] if c in df.columns), None)
+          if not date_col:
+              print(f"[FATAL] No date column in feature table. "
+                    "Cannot compute model_training_cutoff.", file=sys.stderr)
+              sys.exit(1)
+          latest = pd.to_datetime(df[date_col]).max()
+          model_training_cutoff = latest.strftime("%Y-%m-%dT00:00:00Z")
+
+          manifest = {
+              "artifact_type": "model",
+              "artifact_schema_version": "1",
+              "source_workflow": workflow_name,
+              "source_run_id": run_id,
+              "source_commit": git_commit,
+              "created_at_utc": datetime.now(timezone.utc).isoformat(),
+              "model_training_cutoff": model_training_cutoff,
+              "feature_manifest_hash": feature_manifest_hash,
+              "config_hash": config_hash,
+          }
+          out_path = model_dir / "artifact_manifest_model.json"
+          out_path.write_text(json.dumps(manifest, indent=2))
+          print(f"Model artifact manifest written: {manifest}")
+          PYEOF
+
       - name: Upload stage4 model (stable artifact for pregame workflows)
+        # Must only run after training, validation, and manifest generation succeed.
+        # No conditional guard — GitHub Actions default: skip on any prior failure.
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: model-stage4-latest
           path: artifacts/models/stage4_baseline/
@@ -421,6 +660,59 @@ jobs:
             artifacts/audits/drift_check_${{ steps.date.outputs.today }}.json
             artifacts/audits/closing_lines_${{ steps.date.outputs.yesterday }}.parquet
           retention-days: 14
+
+      - name: Bridge next_game → tonight for pregame_final compatibility
+        # When target_date != today (off-day advance), daily_pipeline writes to
+        # deliveries/next_game/ but pregame_final reads from deliveries/tonight/.
+        # Copy outputs so the pregame-initial artifact chain works correctly.
+        if: ${{ !cancelled() }}
+        run: |
+          TARGET="${{ steps.date.outputs.target_date }}"
+          TODAY=$(date -u +%Y-%m-%d)
+          if [ "$TARGET" != "$TODAY" ] && [ -d "deliveries/next_game" ]; then
+            mkdir -p deliveries/tonight
+            find deliveries/next_game -maxdepth 1 \( -name "*.parquet" -o -name "*.json" \) | while read f; do
+              cp "$f" "deliveries/tonight/$(basename $f)" 2>/dev/null || true
+            done
+            echo "[bridge] Copied next_game → tonight for target_date=$TARGET"
+            ls -la deliveries/tonight/ | head -20
+          else
+            echo "[bridge] target_date=$TARGET == today=$TODAY or next_game absent — no bridge needed"
+          fi
+
+      - name: Archive today's PMFs for daily drift (tomorrow)
+        continue-on-error: true
+        run: |
+          mkdir -p deliveries/archive
+          # Always prefer next_game/ (canonical output dir) first, then tonight/
+          # as fallback (populated by the bridge step on off-days). Previously this
+          # only searched tonight/, so on game days (target_date == today, no bridge)
+          # the archive was always empty and daily drift was a no-op every game day.
+          PARQUET_PATH=""
+          # 1. next_game: prefer the full PMF wide table
+          if [ -f "deliveries/next_game/full_pmfs_wide.parquet" ]; then
+            PARQUET_PATH="deliveries/next_game/full_pmfs_wide.parquet"
+          fi
+          # 2. next_game: any non-edge parquet
+          if [ -z "$PARQUET_PATH" ]; then
+            PARQUET_PATH=$(find deliveries/next_game -name "*.parquet" 2>/dev/null | grep -v "publishable\|market_comp\|edge\|quantile" | head -1)
+          fi
+          # 3. tonight/ fallback (bridge populated on off-days)
+          if [ -z "$PARQUET_PATH" ]; then
+            PARQUET_PATH=$(find deliveries/tonight -name "*.parquet" 2>/dev/null | grep -v "publishable\|market_comp\|edge\|quantile" | head -1)
+          fi
+          if [ -f "$PARQUET_PATH" ]; then
+            cp "$PARQUET_PATH" deliveries/archive/yesterday_pmfs.parquet
+            echo "Archived PMFs: $PARQUET_PATH"
+          else
+            FALLBACK=$(find deliveries/next_game deliveries/tonight -name "publishable_edges.parquet" 2>/dev/null | head -1)
+            if [ -f "$FALLBACK" ]; then
+              cp "$FALLBACK" deliveries/archive/yesterday_pmfs.parquet
+              echo "Archived publishable edges as PMF archive"
+            else
+              echo "[WARN] No parquet found to archive for drift"
+            fi
+          fi
 
       - name: Trigger pregame dashboard publish (explicit dispatch)
         # workflow_run events are unreliable for schedule-triggered parent workflows.
