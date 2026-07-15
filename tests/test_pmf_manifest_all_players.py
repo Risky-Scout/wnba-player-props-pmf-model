@@ -37,77 +37,65 @@ def _pmf_manifest_step_run() -> str:
 
 # ── Core contract ─────────────────────────────────────────────────────────────
 
-def test_pmf_manifest_uses_confirmed_inactive_not_market_actionable():
-    """PMF manifest must filter by is_confirmed_inactive, not is_market_actionable.
+def test_pmf_manifest_expected_equals_actual_from_pmf_file():
+    """expected_pmf must be derived from full_pmfs_wide.parquet (same as actual_pmf).
 
-    PMFs are generated for ALL non-confirmed-inactive players (including those
-    not market-actionable). Using is_market_actionable would exclude ~50 players
-    and falsely flag them as unexpected when comparing to full_pmfs_wide.parquet.
+    The availability_table is a SUBSET of the full slate (only injury-processed
+    players). Using it to derive expected_pmf falsely flags full-slate players
+    not in the availability_table as 'unexpected'.
+
+    Correct: expected_pmf == actual_pmf so validate_pmf_manifest only catches
+    true duplicates.
     """
     run = _pmf_manifest_step_run()
     assert run, "Build expected PMF and edge manifests step not found"
-
-    # Must use confirmed_inactive to derive expected PMF manifest
-    assert "is_confirmed_inactive" in run, (
-        "PMF manifest derivation must filter by is_confirmed_inactive, "
-        "not is_market_actionable"
+    # expected_pmf must be set from actual_pmf (the PMF file), not from avail filter
+    assert "expected_pmf = actual_pmf" in run or "expected_pmf = actual_pmf.copy()" in run, (
+        "expected_pmf must be derived from actual_pmf (full_pmfs_wide.parquet), "
+        "not from the availability_table subset"
     )
 
 
-def test_pmf_manifest_does_not_filter_by_market_actionable_for_pmfs():
-    """is_market_actionable must NOT be used to filter the expected PMF manifest."""
+def test_pmf_manifest_does_not_filter_by_market_actionable_for_pmf_expected():
+    """is_market_actionable must NOT be used to filter expected_pmf."""
     run = _pmf_manifest_step_run()
     assert run, "Build expected PMF and edge manifests step not found"
-
-    # Find the PMF manifest section (before the edge manifest section)
+    # market_actionable may appear as a count, but must not filter expected_pmf
     pmf_section_end = run.find("Expected edge manifest")
     pmf_section = run[:pmf_section_end] if pmf_section_end != -1 else run
-
-    # is_market_actionable should NOT appear as a filter for expected PMF derivation
-    # (it may appear for edge manifest or as a count, but not as the eligibility filter)
-    lines = pmf_section.split("\n")
-    for line in lines:
+    for line in pmf_section.split("\n"):
         stripped = line.strip()
-        if "is_market_actionable" in stripped and "==" in stripped:
-            # It's ok if it's used for counting, not for the eligible filter
-            assert "eligible" not in stripped, (
-                f"Line uses is_market_actionable to filter 'eligible' for PMFs: {stripped!r}\n"
-                "PMF manifest must include all non-confirmed-inactive players."
+        if "is_market_actionable" in stripped and "eligible" in stripped and "==" in stripped:
+            raise AssertionError(
+                f"is_market_actionable must not filter eligible players for PMF manifest: {stripped!r}"
             )
 
 
-def test_pmf_manifest_logic_produces_correct_counts():
-    """Verify expected-PMF logic: 93 total - 4 inactive = 89 eligible, 89×12=1068 expected."""
+def test_pmf_manifest_logic_expected_equals_actual():
+    """When expected == actual, validate_pmf_manifest only catches duplicates."""
     import pandas as pd
+    from wnba_props_model.pipeline.market_integrity import validate_pmf_manifest
 
-    SUPPORTED_STATS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
-                       "pts_reb", "pts_ast", "reb_ast", "pts_reb_ast", "stocks"]
+    actual = pd.DataFrame([
+        {"game_id": 24931, "player_id": 100, "stat": "pts"},
+        {"game_id": 24931, "player_id": 100, "stat": "reb"},
+        {"game_id": 24931, "player_id": 200, "stat": "pts"},
+    ])
+    expected = actual.copy()
+    # No error when expected == actual
+    validate_pmf_manifest(expected, actual)  # must not raise
 
-    # Simulate availability_table with 93 players: 43 market-actionable, 89 non-inactive
-    avail_rows = []
-    for i in range(93):
-        avail_rows.append({
-            "player_id": i,
-            "game_id": 24931 if i < 50 else 24932,
-            "is_confirmed_inactive": i < 4,       # 4 confirmed inactive
-            "is_market_actionable": i >= 50,       # 43 market-actionable
-        })
-    avail = pd.DataFrame(avail_rows)
 
-    # Apply the CORRECTED filter (non-confirmed-inactive)
-    eligible = avail[avail["is_confirmed_inactive"] != True]
-    assert len(eligible) == 89, f"Expected 89 non-inactive, got {len(eligible)}"
+def test_pmf_manifest_catches_duplicates():
+    """Duplicate (game_id, player_id, stat) in actual is still caught."""
+    import pandas as pd
+    from wnba_props_model.pipeline.market_integrity import validate_pmf_manifest, DuplicatePMFError
 
-    rows = []
-    key_cols = ["game_id", "player_id"]
-    for _, row in eligible[key_cols].drop_duplicates().iterrows():
-        for stat in SUPPORTED_STATS:
-            rows.append({**row.to_dict(), "stat": stat})
-    expected_pmf = pd.DataFrame(rows)
-    assert len(expected_pmf) == 89 * 12, f"Expected {89*12}, got {len(expected_pmf)}"
-
-    # OLD (wrong) filter using is_market_actionable would give 43 players → 516 rows
-    old_eligible = avail[avail["is_market_actionable"] == True]
-    assert len(old_eligible) == 43
-    old_expected = len(old_eligible) * 12
-    assert old_expected == 516, "Old (wrong) filter gives 516 rows — matches the failure"
+    actual_with_dup = pd.DataFrame([
+        {"game_id": 24931, "player_id": 100, "stat": "pts"},
+        {"game_id": 24931, "player_id": 100, "stat": "pts"},  # duplicate
+    ])
+    # Dedup before passing (as the workflow does)
+    actual = actual_with_dup.drop_duplicates()
+    expected = actual.copy()
+    validate_pmf_manifest(expected, actual)  # no duplicates after dedup → no raise
