@@ -58,14 +58,17 @@ jobs:
 
       - name: Download calibrators (trigger-aware exact-run or compatible upstream run)
         # Routing policy (Gap 1 — trigger-aware):
-        #   Daily trigger  ("Daily WNBA PMF Pipeline"):
-        #     calibrators = most recent successful weekly_calibration run on main
-        #     (the exact triggering daily run trains a model, not calibrators)
         #   Weekly trigger ("Weekly OOF Refresh & Calibration"):
-        #     calibrators = exact triggering run (freshly fitted calibrators)
+        #     calibrators = exact triggering run (freshly fitted calibrators, always has manifest)
+        #   Daily trigger ("Daily WNBA PMF Pipeline"):
+        #     calibrators = artifact-level resolver (see scheduled/manual path below)
         #   Scheduled/manual:
-        #     calibrators = most recent successful weekly_calibration run on main
-        # NEVER select by latest name alone. Fail if no compatible artifact is found.
+        #     Artifact-level resolver (scripts/resolve_calibrator_artifact.py):
+        #     Queries unexpired "calibrators" artifacts uploaded by weekly_calibration.yml
+        #     (see resolve_calibrator_artifact.py for the full manifest-validation logic).
+        #     Selection is by manifest validity, NOT by overall workflow conclusion —
+        #     a weekly_calibration.yml run that passes its cal-gate but fails in an
+        #     unrelated downstream step still produced a valid calibrator artifact.
         # Gap 2: The downloaded calibration artifact is the sole authoritative source.
         #        Do NOT overwrite any downloaded calibration files with git-committed versions.
         run: |
@@ -73,50 +76,33 @@ jobs:
           TRIGGER_WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
 
           if [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Weekly OOF Refresh & Calibration" ]; then
-            # Weekly trigger: calibrators = exact triggering run
+            # Weekly trigger: calibrators = exact triggering run (cal-gate already passed)
             TRIGGER_RUN_ID="${{ github.event.workflow_run.id }}"
             echo "Weekly trigger: resolving calibrators from exact triggering run ${TRIGGER_RUN_ID}"
             AID=$(gh api "repos/${{ github.repository }}/actions/runs/${TRIGGER_RUN_ID}/artifacts" \
               --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
-            SOURCE_RUN_ID="${TRIGGER_RUN_ID}"
-          elif [ "${{ github.event_name }}" = "workflow_run" ] && [ "$TRIGGER_WORKFLOW_NAME" = "Daily WNBA PMF Pipeline" ]; then
-            # Daily trigger: calibrators = most recent compatible weekly_calibration run on main
-            echo "Daily trigger: resolving calibrators from most recent weekly_calibration run on main"
-            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/weekly_calibration.yml/runs?branch=main&status=success&per_page=1" \
-              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
-            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
-              echo "[FATAL] No successful weekly_calibration run found on main for Daily trigger calibrators." >&2
+            if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+              echo "[FATAL] No calibrators artifact found in weekly trigger run ${TRIGGER_RUN_ID}." >&2
               exit 1
             fi
-            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
-              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+            echo "Downloading calibrators artifact id=${AID} from weekly trigger run ${TRIGGER_RUN_ID}"
+            gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/calibrators.zip
+            unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
+            echo "SOURCE_CALIBRATORS_RUN_ID=${TRIGGER_RUN_ID}" >> $GITHUB_ENV
+            echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${TRIGGER_RUN_ID})"
           else
-            # Scheduled/manual: calibrators from most recent weekly_calibration run on main
-            echo "Scheduled/manual trigger: resolving calibrators from most recent weekly_calibration run on main"
-            SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/weekly_calibration.yml/runs?branch=main&status=success&per_page=1" \
-              --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
-            if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
-              SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/refit_calibrators.yml/runs?branch=main&status=success&per_page=1" \
-                --jq '.workflow_runs[0].id' 2>/dev/null || echo "")
-              if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
-                echo "[FATAL] No successful weekly_calibration or refit_calibrators run found on main." >&2
-                exit 1
-              fi
-            fi
-            AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
-              --jq '[.artifacts[] | select(.name | startswith("calibrators")) | select(.expired == false)] | .[0].id' 2>/dev/null || echo "")
+            # Daily trigger, scheduled/manual, and all other triggers:
+            # Artifact-level resolver — select by manifest validity, NOT by overall workflow conclusion.
+            # A weekly_calibration.yml run that succeeds through the cal-gate but fails in an
+            # unrelated downstream step will have uploaded its artifact before failing.
+            # ?status=success would wrongly skip it — use the artifact-level resolver instead.
+            echo "Artifact-level calibrator resolver (trigger=${{ github.event_name }})"
+            python3 scripts/resolve_calibrator_artifact.py \
+              --repo "${{ github.repository }}" \
+              --cal-dir artifacts/models/calibration \
+              --github-env "$GITHUB_ENV"
           fi
-          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
-            echo "[FATAL] No calibrators artifact found in source run ${SOURCE_RUN_ID}. Cannot proceed without a validated calibrator artifact." >&2
-            exit 1
-          fi
-          echo "Downloading calibrators artifact id=${AID} from source run ${SOURCE_RUN_ID}"
-          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/calibrators.zip
-          unzip -o /tmp/calibrators.zip -d artifacts/models/calibration
-          echo "SOURCE_CALIBRATORS_RUN_ID=${SOURCE_RUN_ID}" >> $GITHUB_ENV
-          echo "Calibrators downloaded OK (artifact_id=${AID}, source_run=${SOURCE_RUN_ID})"
-          # Manifest existence check only — full validation via shared validator runs in
-          # "Validate artifact manifests" step (after feature build when hashes are available).
+          # 5. Manifest existence check (downstream validation step validates all fields)
           if [ ! -f "artifacts/models/calibration/artifact_manifest_calibrator.json" ]; then
             echo "[FATAL] No artifact_manifest_calibrator.json found after download. A missing artifact manifest is FATAL." >&2
             exit 1
