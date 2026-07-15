@@ -249,7 +249,7 @@ def compute_model_edge(
 # or player_name) to be meaningful — without player identity, (vendor,stat,line)
 # is too coarse and will falsely flag legitimate multi-player market data.
 _QUOTE_DEDUP_KEYS = ["vendor", "game_id", "player_id", "stat", "line"]
-_QUOTE_DEDUP_KEYS_ODDSAPI = ["bookmaker", "event_id", "player_name", "stat", "line"]
+_QUOTE_DEDUP_KEYS_ODDSAPI = ["vendor", "event_id", "player_name", "stat", "line"]
 _QUOTE_PLAYER_IDENTITY_COLS = frozenset({"player_id", "player_name"})
 
 
@@ -259,7 +259,11 @@ def validate_no_duplicate_quotes(
 ) -> None:
     """Raise DuplicateQuoteError if any key combination appears more than once.
 
-    Default key: (vendor, game_id, player_id, stat, line).
+    For BDL props: key = (vendor, game_id, player_id, stat, line).
+    For Odds API props: key = (vendor, event_id, player_name, stat, line).
+    Validation is skipped when no player-identity column (player_id or player_name)
+    is present — a key of (vendor, stat, line) alone is too coarse for multi-player
+    slates and produces false positives.
     """
     if quotes_df.empty:
         return
@@ -268,17 +272,22 @@ def validate_no_duplicate_quotes(
     if key_cols:
         present_keys = [k for k in key_cols if k in quotes_df.columns]
     else:
+        # Select the first candidate key that includes a player-identity column.
+        # The Odds API parquet has (vendor, stat, line) but NOT player_id/game_id —
+        # that 3-column key is too coarse and falsely flags multi-player props.
+        # We must try the Odds API secondary key (event_id, player_name) when
+        # the primary BDL key lacks player identity.
+        present_keys = []
         for candidate_keys in (_QUOTE_DEDUP_KEYS, _QUOTE_DEDUP_KEYS_ODDSAPI):
-            present_keys = [k for k in candidate_keys if k in quotes_df.columns]
-            if present_keys:
+            candidate_present = [k for k in candidate_keys if k in quotes_df.columns]
+            if candidate_present and _QUOTE_PLAYER_IDENTITY_COLS.intersection(candidate_present):
+                present_keys = candidate_present
                 break
 
     if not present_keys:
         return
 
-    # Validation is only meaningful when a player-identity column is present.
-    # Without player identity the key (vendor/bookmaker, stat, line) is too coarse
-    # and falsely flags multiple different players offering the same line.
+    # Final guard: skip when no player-identity column is present.
     if not _QUOTE_PLAYER_IDENTITY_COLS.intersection(present_keys):
         return
 
