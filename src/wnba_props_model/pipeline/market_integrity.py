@@ -431,8 +431,11 @@ def validate_provider_quotes(
     if source in _oddsapi_sources:
         # Odds API uses internal UUIDs for games and plain-text player names.
         # Require the provider-native identity columns, not canonical IDs.
+        # Accept event_id (raw Odds API UUID) OR game_id (normalized/canonical)
+        # as the game identity — some downstream-normalized Odds API rows carry
+        # game_id directly after reconciliation.
         required: list[tuple[str, list[str]]] = [
-            ("event_id",            ["event_id"]),
+            ("event_id or game_id", ["event_id", "game_id"]),
             ("player_name",         ["player_name"]),
             ("vendor/bookmaker",    ["vendor", "bookmaker"]),
             ("stat",                ["stat"]),
