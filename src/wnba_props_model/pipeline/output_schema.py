@@ -741,8 +741,21 @@ def build_game_record(
         return {}
 
     tmpl = game_rows.iloc[0]
-    home_team_id = int(tmpl.get("team_id") or 0)
-    away_team_id = int(tmpl.get("opponent_team_id") or 0)
+
+    def _safe_int(v: object, default: int = 0) -> int:
+        """Convert to int, treating NaN/None/non-numeric as default."""
+        try:
+            if v is None:
+                return default
+            import math as _math  # noqa: PLC0415
+            if isinstance(v, float) and (_math.isnan(v) or _math.isinf(v)):
+                return default
+            return int(v)
+        except (TypeError, ValueError):
+            return default
+
+    home_team_id = _safe_int(tmpl.get("team_id"))
+    away_team_id = _safe_int(tmpl.get("opponent_team_id"))
     home_abbr = str(tmpl.get("team_abbreviation") or "")
     away_abbr = str(tmpl.get("opponent_team_abbreviation") or "")
     commence_time = str(tmpl.get("game_date") or "")
