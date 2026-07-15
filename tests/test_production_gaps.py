@@ -163,18 +163,28 @@ class TestArtifactManifestValidation:
             )
 
     def test_feature_manifest_hash_mismatch_is_fatal(self):
-        """A feature_manifest_hash mismatch must raise ArtifactManifestError."""
+        """A canonical feature_manifest_hash mismatch must raise ArtifactManifestError.
+
+        New-style manifests (feature_hash_kind=canonical_feature_contract_v1) compare
+        canonical_feature_hash; a mismatch is fatal.
+        Legacy manifests (no feature_hash_kind) skip raw-hash comparison — the legacy
+        path accepts nonblank raw hashes to allow builds from different timestamps/paths
+        to validate correctly (see test_feature_hash_compat.py for legacy path tests).
+        """
         from wnba_props_model.pipeline.market_integrity import (
             ArtifactManifestError,
             validate_artifact_manifest,
         )
+        # Use a new-style manifest so canonical hash comparison is active
         manifest = self._good_model_manifest()
+        manifest["feature_hash_kind"] = "canonical_feature_contract_v1"
+        manifest["feature_manifest_hash"] = "correcthash123456"
         with pytest.raises(ArtifactManifestError, match="feature_manifest_hash"):
             validate_artifact_manifest(
                 manifest,
                 expected_artifact_type="model",
                 prediction_timestamp_utc="2026-07-13T12:00:00Z",
-                feature_manifest_hash="WRONG_HASH_TOTALLY_DIFFERENT",
+                canonical_feature_hash="WRONG_CANONICAL_HASH_000",
             )
 
     def test_config_hash_mismatch_is_fatal(self):
