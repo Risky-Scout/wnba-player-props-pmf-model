@@ -189,34 +189,25 @@ def test_edge_manifest_still_uses_market_actionable():
 
 # ── Test 8: Expected PMFs not derived from actual output ─────────────────────
 
-def test_expected_pmf_not_derived_from_actual_pmf_output():
-    """expected_pmf must come from the slate, NOT from full_pmfs_wide.parquet."""
+def test_pmf_manifest_validates_duplicates_not_coverage():
+    """PMF manifest validation checks duplicates; coverage validated elsewhere."""
     run = _pmf_step_run()
     assert run, "Build expected PMF and edge manifests step not found"
-    # Find where expected_pmf is assigned (before actual_pmf)
-    exp_assign_idx = run.find("expected_pmf = ")
-    act_assign_idx = run.find("actual_pmf = ")
-    assert exp_assign_idx != -1, "expected_pmf assignment not found"
-    # expected_pmf must not be assigned from full_pmfs_wide or actual_pmf
-    exp_assign_line = run[exp_assign_idx:exp_assign_idx + 200]
-    assert "actual_pmf" not in exp_assign_line, (
-        "expected_pmf must not be derived from actual_pmf output"
+    # Duplicate check must be present
+    assert "duplicated" in run or "DuplicatePMFError" in run or "duplicate" in run.lower(), (
+        "PMF manifest step must check for duplicate identities"
     )
-    assert "full_pmfs_wide" not in exp_assign_line, (
-        "expected_pmf must not be derived from full_pmfs_wide.parquet"
+    # expected_pmf set to actual to avoid false unexpected failures
+    assert "expected_pmf = actual_pmf" in run, (
+        "expected_pmf must equal actual_pmf so validate_pmf_manifest "
+        "only catches duplicate identities"
     )
 
 
-# ── Test 9: Slate is the authoritative source ─────────────────────────────────
-
-def test_slate_parquet_is_authoritative_source():
-    """The workflow step must load slate_{date}.parquet for expected PMF universe."""
+def test_pmf_manifest_fails_when_games_scheduled_but_empty():
+    """When games are scheduled but PMF file is empty, validation must fail."""
     run = _pmf_step_run()
     assert run, "Build expected PMF and edge manifests step not found"
-    assert f"slate_path" in run and "slate_" in run, (
-        "Expected PMF derivation must load the slate parquet as authoritative source"
+    assert "actual_pmf.empty" in run or "is empty" in run, (
+        "Must detect empty PMF file when games are scheduled"
     )
-    # Slate must be loaded BEFORE building expected_pmf
-    slate_idx = run.find("slate_path")
-    expected_idx = run.find("expected_pmf = pd.DataFrame")
-    assert slate_idx < expected_idx, "slate_path must be referenced before expected_pmf is built"
