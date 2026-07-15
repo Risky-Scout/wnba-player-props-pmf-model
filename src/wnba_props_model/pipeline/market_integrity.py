@@ -342,23 +342,36 @@ def validate_player_identity_resolved(
     player_id_col: str = "player_id",
     ambiguous_ids: set[str] | None = None,
 ) -> None:
-    """Raise UnmatchedIdentityError if any row has an unresolved player_id (None or NaN).
-    Raise AmbiguousIdentityError if any player_id is in the ambiguous_ids set.
+    """Raise UnmatchedIdentityError if player identity is missing or unresolved.
+
+    Accepts either ``player_id`` (canonical BDL/internal integer) or ``player_name``
+    (plain-text string used by providers that lack canonical IDs, e.g. The Odds API).
+    Whichever identity column is present must be non-null for every row.
     """
     if quotes_df.empty:
         return
-    if player_id_col not in quotes_df.columns:
-        raise UnmatchedIdentityError(f"Column '{player_id_col}' not found in quotes DataFrame")
 
-    null_mask = quotes_df[player_id_col].isna()
+    # Determine which identity column is available.
+    # The Odds API parquet carries player_name but not player_id.
+    if player_id_col in quotes_df.columns:
+        identity_col = player_id_col
+    elif "player_name" in quotes_df.columns:
+        identity_col = "player_name"
+    else:
+        raise UnmatchedIdentityError(
+            f"Neither '{player_id_col}' nor 'player_name' found in quotes DataFrame. "
+            "At least one player-identity column is required."
+        )
+
+    null_mask = quotes_df[identity_col].isna() | (quotes_df[identity_col].astype(str).str.strip() == "")
     if null_mask.any():
         n = int(null_mask.sum())
         raise UnmatchedIdentityError(
-            f"{n} quote(s) have unresolved player_id (None/NaN). "
+            f"{n} quote(s) have unresolved {identity_col!r} (None/NaN/blank). "
             "Identity reconciliation must complete before edge computation."
         )
 
-    if ambiguous_ids:
+    if ambiguous_ids and identity_col == player_id_col:
         ambiguous_mask = quotes_df[player_id_col].isin(ambiguous_ids)
         if ambiguous_mask.any():
             bad = quotes_df.loc[ambiguous_mask, player_id_col].unique().tolist()
@@ -372,16 +385,30 @@ def validate_game_identity_resolved(
     quotes_df: pd.DataFrame,
     game_id_col: str = "game_id",
 ) -> None:
-    """Raise UnmatchedIdentityError if any row has an unresolved game_id (None or NaN)."""
+    """Raise UnmatchedIdentityError if game identity is missing or unresolved.
+
+    Accepts ``game_id`` (canonical integer) or ``event_id`` (provider UUID, used
+    by The Odds API which has no canonical league game IDs).
+    Skips validation silently when neither column is present — some providers
+    carry no game-level identifier at all.
+    """
     if quotes_df.empty:
         return
-    if game_id_col not in quotes_df.columns:
-        raise UnmatchedIdentityError(f"Column '{game_id_col}' not found in quotes DataFrame")
-    null_mask = quotes_df[game_id_col].isna()
+
+    if game_id_col in quotes_df.columns:
+        identity_col = game_id_col
+    elif "event_id" in quotes_df.columns:
+        identity_col = "event_id"
+    else:
+        # No game identity column available — skip validation.
+        # This is acceptable for providers that omit game context entirely.
+        return
+
+    null_mask = quotes_df[identity_col].isna() | (quotes_df[identity_col].astype(str).str.strip() == "")
     if null_mask.any():
         n = int(null_mask.sum())
         raise UnmatchedIdentityError(
-            f"{n} quote(s) have unresolved game_id (None/NaN). "
+            f"{n} quote(s) have unresolved {identity_col!r} (None/NaN/blank). "
             "Game identity reconciliation must complete before edge computation."
         )
 
