@@ -2,11 +2,12 @@
   "artifact_type": "calibrator",
   "artifact_schema_version": "1",
   "source_workflow": "Weekly OOF Refresh & Calibration",
-  "source_run_id": "29383727727",
-  "source_commit": "666e11e02d5311edd16945fbc161a01c0248078f",
-  "created_at_utc": "2026-07-15T04:28:22.220598+00:00",
-  "calibration_cutoff": "2026-07-13T00:00:00Z",
-  "feature_manifest_hash": "745ccb4351000519",
+  "source_run_id": "29466162581",
+  "source_commit": "e23c302e0c36f8d1376fe975635c4286c0ca6145",
+  "created_at_utc": "2026-07-16T07:38:06.804981+00:00",
+  "calibration_cutoff": "2026-07-16T00:00:00Z",
+  "feature_manifest_hash": "a09813c66703ab24",
+  "feature_hash_kind": "canonical_feature_contract_v2",
   "config_hash": "f3516c16a4874a42",
   "gate_status": "PASS"
 }
