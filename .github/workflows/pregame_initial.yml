@@ -10,7 +10,14 @@ on:
   # IMPORTANT: Do NOT add a branches filter here — schedule-triggered workflows do not populate
   # github.event.workflow_run.head_branch, so the branches filter silently prevents firing.
   workflow_run:
-    workflows: ["Daily WNBA PMF Pipeline", "Weekly OOF Refresh & Calibration"]
+    # Only the daily pipeline may auto-trigger publishing. The weekly calibration
+    # job intentionally does NOT trigger this workflow directly: it commits a
+    # config/model/stage4_baseline.yaml change (dispersion auto-update) that
+    # invalidates the model artifact's config_hash, so it must hand off to
+    # daily_pipeline.yml (which retrains + re-syncs the config_hash) before publish.
+    # The trigger-aware calibrator resolver below still handles the weekly workflow
+    # name for the calibrator artifact lookup on the daily/scheduled paths.
+    workflows: ["Daily WNBA PMF Pipeline"]
     types: [completed]
   # Safety-net crons: run 30 min after each daily_pipeline cron (10 UTC and 14 UTC)
   # so we still publish even if the explicit workflow dispatch somehow fails.

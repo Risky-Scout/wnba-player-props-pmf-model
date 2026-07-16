@@ -985,14 +985,24 @@ jobs:
           retention-days: 90
           overwrite: true
 
-      - name: Auto-trigger pregame pipeline with fresh calibrators
-        # Fires pregame_initial.yml immediately after a successful calibration
-        # run so the new .pkl calibrators are live for tonight's slate.
+      - name: Auto-trigger daily pipeline (retrain before publish)
+        # Hand off to daily_pipeline.yml, NOT directly to pregame_initial.yml.
+        #
+        # This step runs AFTER "Auto-update dispersion r from OOF", which commits a
+        # change to config/model/stage4_baseline.yaml. That change invalidates the
+        # existing model artifact's config_hash, so pregame_initial's BLOCKING
+        # artifact-manifest validation would fail if we published before retraining.
+        #
+        # daily_pipeline.yml retrains the stage4 model against the updated config
+        # (regenerating artifact_manifest_model.json with a matching config_hash),
+        # then triggers pregame_initial.yml itself. Chain: weekly → daily → publish.
+        # This guarantees model + settings + calibrators are always in sync at publish
+        # time, so the pages can never be blocked/stale after a weekly calibration.
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Calibration succeeded — triggering pregame pipeline..."
-          gh workflow run pregame_initial.yml --ref main \
+          echo "Calibration succeeded — triggering daily pipeline retrain (re-syncs model config_hash before publish)..."
+          gh workflow run daily_pipeline.yml --ref main \
             --repo "${{ github.repository }}"
-          echo "Pregame pipeline triggered."
+          echo "Daily pipeline triggered; it will retrain and then publish pregame."
