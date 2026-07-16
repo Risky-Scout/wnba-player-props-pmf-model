@@ -16,6 +16,18 @@ on:
         required: false
         default: ''
         type: string
+  # Manual full-OOF-rebuild trigger via a dedicated sentinel file.
+  # Environments where workflow_dispatch is unavailable (e.g. app tokens lacking
+  # actions:write) cannot dispatch this workflow via the API. Bumping
+  # .github/oof_rebuild.trigger on main fires exactly one full OOF rebuild
+  # (skip_oof_build is empty on push events, so the rebuild steps run).
+  # Scoped to the sentinel path only, so routine development pushes and the
+  # workflow's own [skip ci] calibrator commits never re-fire this 6h job.
+  push:
+    branches:
+      - main
+    paths:
+      - .github/oof_rebuild.trigger
 
 jobs:
   weekly-calibration:
