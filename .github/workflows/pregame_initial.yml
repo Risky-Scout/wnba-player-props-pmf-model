@@ -1622,7 +1622,11 @@ jobs:
           from datetime import datetime, timezone
 
           CDN = "https://sportsodds.wizardofodds.com"
-          BASE = f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game"
+          # nginx serves the custom domain from the FTP root /WNBA/ (see ftp_deploy.py
+          # REMOTE_BASE). The /tools/odds-scanner/predictions/WNBA/ path is the gh-pages
+          # layout and is NOT the live custom-domain path — verifying it returns stale
+          # content. Verify the SAME path FTP deploys to.
+          BASE = f"{CDN}/WNBA/Pre-Game"
           run_id    = os.environ.get("GITHUB_RUN_ID", "")
           game_date = os.environ.get("GAME_DATE", "")
 
@@ -1660,7 +1664,7 @@ jobs:
 
               edge_payload = None
               if edge_ptr.get("payload_path"):
-                  edge_payload, err = fetch(f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/{edge_ptr['payload_path']}")
+                  edge_payload, err = fetch(f"{BASE}/Edge/{edge_ptr['payload_path']}")
               if edge_payload:
                   rqc = int(edge_payload.get("reconciled_quote_count", 0) or 0)
                   edge_rows = int(edge_payload.get("total_props", 0) or 0)
@@ -1697,7 +1701,7 @@ jobs:
 
               dist_payload = None
               if dist_ptr.get("payload_path"):
-                  dist_payload, err = fetch(f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/{dist_ptr['payload_path']}")
+                  dist_payload, err = fetch(f"{BASE}/Distributions/{dist_ptr['payload_path']}")
               if dist_payload:
                   dist_props = dist_payload.get("props", [])
                   check("Dist/total_props>0", len(dist_props) > 0, len(dist_props))

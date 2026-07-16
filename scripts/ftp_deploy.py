@@ -200,12 +200,24 @@ def deploy(dirs: list[str] | None = None, wipe: bool = True) -> None:
 
             _ensure_remote_dir(ftp, remote_dir)
 
-            for local_file in sorted(local_dir.iterdir()):
+            # Recurse so nested assets — notably the immutable release payloads at
+            # releases/<release_id>.json referenced by latest.json's payload_path and
+            # by the page JS — are deployed too. nginx serves them at the same relative
+            # path the pointer references. Without this, payload_path 404s on the live
+            # custom domain and the pages/post-deploy verification cannot load the release.
+            ensured_remote_dirs: set[str] = {remote_dir}
+            for local_file in sorted(local_dir.rglob("*")):
                 if not local_file.is_file():
                     continue
                 if local_file.suffix.lower() not in UPLOAD_EXTENSIONS:
                     continue
-                remote_file = f"{remote_dir}/{local_file.name}"
+                rel = local_file.relative_to(local_dir)
+                remote_file = f"{remote_dir}/{rel.as_posix()}"
+                if rel.parent != Path("."):
+                    parent_remote = f"{remote_dir}/{rel.parent.as_posix()}"
+                    if parent_remote not in ensured_remote_dirs:
+                        _ensure_remote_dir(ftp, parent_remote)
+                        ensured_remote_dirs.add(parent_remote)
                 _upload_file(ftp, local_file, remote_file)
                 uploaded += 1
 
