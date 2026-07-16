@@ -254,7 +254,13 @@ def test_weekly_calibration_has_actions_write():
 # ─── 11. Weekly auto-trigger is blocking ─────────────────────────────────────
 
 def test_weekly_auto_trigger_is_blocking():
-    step = _get_step(_load_wf(WF_WEEKLY), "Auto-trigger pregame pipeline")
-    assert step is not None, "Auto-trigger step must exist in weekly_calibration.yml"
+    # Weekly now hands off to the daily pipeline (retrain re-syncs the model
+    # config_hash) instead of publishing directly, so the pages can never be
+    # blocked/stale after a weekly calibration. The hand-off step must still be
+    # blocking (not continue-on-error) and must target daily_pipeline.yml.
+    step = _get_step(_load_wf(WF_WEEKLY), "Auto-trigger daily pipeline")
+    assert step is not None, "Auto-trigger daily pipeline step must exist in weekly_calibration.yml"
     assert step.get("continue-on-error") is not True, \
         "Auto-trigger step must be blocking (not continue-on-error: true)"
+    assert "gh workflow run daily_pipeline.yml" in step.get("run", ""), \
+        "Weekly must hand off to daily_pipeline.yml (not trigger pregame_initial.yml directly)"
