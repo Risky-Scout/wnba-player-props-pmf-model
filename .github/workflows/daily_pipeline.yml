@@ -19,6 +19,22 @@ on:
         description: "Skip model retrain (use cached models)"
         required: false
         default: "false"
+  # Manual full-retrain trigger via a dedicated sentinel file.
+  # Environments where workflow_dispatch is unavailable (e.g. app tokens lacking
+  # actions:write) cannot dispatch this workflow via the API. Bumping
+  # .github/daily_retrain.trigger on main fires exactly one full model retrain
+  # (skip_train is empty on push events, so the model is trained), which
+  # regenerates artifact_manifest_model.json with the current config_hash and
+  # then dispatches pregame_initial. Use this after weekly_calibration mutates
+  # config/model/stage4_baseline.yaml (dispersion auto-update) so the model
+  # artifact's config_hash re-syncs with main before pregame validation.
+  # Scoped to the sentinel path only, so routine development pushes and the
+  # workflow's own [skip ci] commits never re-fire this retrain job.
+  push:
+    branches:
+      - main
+    paths:
+      - .github/daily_retrain.trigger
 
 jobs:
   daily-pipeline:
