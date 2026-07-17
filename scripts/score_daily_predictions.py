@@ -5,7 +5,14 @@ pre-game model predictions, and computes:
   - NLL (Negative Log-Likelihood) per PMF
   - RPS (Ranked Probability Score)
   - Binary Log Loss (Ignorance Score) for over/under market lines
-  - CLV (Closing Line Value) = model_prob - market_prob_at_prediction_time
+  - model_edge_open = model_prob - OPEN market no-vig prob (OUTCOME-INDEPENDENT; NOT CLV)
+  - model_close_edge = model PMF prob at CLOSING line (selected side) - closing no-vig prob
+  - price_clv / line_clv = market movement for the selected side between open and close
+  - hit_result / realized_profit = settled outcome (kept DISTINCT from the edge/CLV fields)
+
+NOTE: A model-versus-market probability difference is a MODEL EDGE, not CLV. CLV is
+market movement (price/line) and is known at close, independent of the game result.
+None of the edge/CLV fields here are multiplied by the outcome.
 
 Appends scored rows to data/clv_tracking/results.parquet for longitudinal tracking.
 
@@ -34,6 +41,29 @@ from wnba_props_model.models.simulation import json_to_pmf, normalize_pmf
 app = typer.Typer(add_completion=False)
 
 _IS_DELTA_FLAG_THRESHOLD = 0.0  # IS delta > 0 → market is better → flag for improvement
+
+
+def _p_over_cond(pmf, line: float) -> float:
+    """Model P(over | non-push) at a discrete ``line``.
+
+    Over = strictly greater than the line; the winning region starts at
+    floor(line)+1 (Over 10 and Over 10.5 both mean 11+). For an INTEGER line the
+    exact-line mass is a PUSH and is removed from the denominator, so the result
+    is conditional on a non-push (matching the pushes-excluded binary target).
+    """
+    import math as _math
+    arr = np.asarray(pmf, dtype=float)
+    if arr.size == 0:
+        return float("nan")
+    cutoff = _math.floor(line) + 1
+    p_over = float(arr[cutoff:].sum()) if cutoff < len(arr) else 0.0
+    if float(line).is_integer():
+        li = int(round(line))
+        p_push = float(arr[li]) if 0 <= li < len(arr) else 0.0
+    else:
+        p_push = 0.0
+    denom = 1.0 - p_push
+    return float(min(max(p_over / denom, 0.0), 1.0)) if denom > 1e-9 else float(p_over)
 
 
 def _print_rolling_is_summary(combined: pd.DataFrame, window_days: int = 30) -> None:
@@ -269,40 +299,93 @@ def main(
                     joined.loc[valid, "hit_result"],
                 )
             ]
-            # CLV (open-line): positive = model edge was correct direction vs. OPEN market
-            joined.loc[valid, "clv"] = (
+            # Model edge vs OPEN market (OUTCOME-INDEPENDENT; this is NOT CLV).
+            # It is the model's probability minus the open no-vig market probability
+            # for the OVER; it is never multiplied by the game result.
+            joined.loc[valid, "model_edge_open"] = (
                 joined.loc[valid, "model_prob_over"] - joined.loc[valid, "market_prob_over_no_vig"]
-            ) * (2 * joined.loc[valid, "hit_result"] - 1)
-            joined.loc[valid, "clv_type"] = "open"
+            )
 
-    # True CLV: compute vs. closing lines if available (the gold standard)
+    # Closing-line edge + CLV (OUTCOME-INDEPENDENT). Requires a CANONICAL closing
+    # table (game_id, player_id, stat, market_prob_over_no_vig, line). All of these
+    # are known at close and NONE are multiplied by the game result.
     if closing_lines and Path(closing_lines).exists():
         try:
             cl_df = pd.read_parquet(closing_lines)
-            if not cl_df.empty and "market_prob_over_no_vig" in cl_df.columns:
+            required_cl = {"game_id", "player_id", "stat", "market_prob_over_no_vig", "line"}
+            if cl_df.empty or not required_cl.issubset(cl_df.columns):
+                missing = required_cl - set(cl_df.columns)
+                typer.echo(
+                    f"[WARN] Closing table unusable (empty={cl_df.empty}, missing={missing}). "
+                    "Skipping closing-line edge. It must be canonicalized to "
+                    "game_id/player_id/stat/market_prob_over_no_vig/line before scoring.",
+                    err=True,
+                )
+            else:
                 cl_df = cl_df.rename(columns={
                     "market_prob_over_no_vig": "closing_prob_over_no_vig",
                     "line": "closing_line",
                 })
                 cl_sub = cl_df[["game_id", "player_id", "stat",
-                                "closing_prob_over_no_vig", "closing_line"]].dropna()
+                                "closing_prob_over_no_vig", "closing_line"]].dropna(
+                    subset=["game_id", "player_id", "stat"])
+                # Fail-closed on many-to-many: closing table must be 1 row per key.
+                if cl_sub.duplicated(subset=["game_id", "player_id", "stat"]).any():
+                    raise ValueError(
+                        "Closing lines are not unique per (game_id, player_id, stat) — "
+                        "refusing many-to-many join (would inflate sample size)."
+                    )
+                for k in ["game_id", "player_id", "stat"]:
+                    joined[k] = joined[k].astype("string")
+                    cl_sub[k] = cl_sub[k].astype("string")
                 joined = joined.merge(cl_sub, on=["game_id", "player_id", "stat"], how="left")
 
-                cl_valid = (
-                    joined["closing_prob_over_no_vig"].notna()
-                    & joined["hit_result"].notna()
-                )
-                if cl_valid.any():
-                    joined.loc[cl_valid, "true_clv"] = (
-                        joined.loc[cl_valid, "model_prob_over"]
-                        - joined.loc[cl_valid, "closing_prob_over_no_vig"]
-                    ) * (2 * joined.loc[cl_valid, "hit_result"].astype(float) - 1)
+                cl_valid = joined["closing_prob_over_no_vig"].notna() & joined["closing_line"].notna()
+                n_done = 0
+                for i in joined.index[cl_valid]:
+                    row = joined.loc[i]
+                    try:
+                        pmf = normalize_pmf(json_to_pmf(row["pmf_json"]))
+                    except Exception:
+                        continue
+                    cl_line = float(row["closing_line"])
+                    m_over_close = _p_over_cond(pmf, cl_line)
+                    close_p_over = float(row["closing_prob_over_no_vig"])
+                    # Selected side = the side the model recommends (from open edge; fall
+                    # back to model P(over) vs 0.5). Determined WITHOUT the outcome.
+                    me = row.get("model_edge_open")
+                    if pd.notna(me):
+                        side = "over" if float(me) > 0 else "under"
+                    else:
+                        side = "over" if float(row.get("model_prob_over", 0.5)) >= 0.5 else "under"
+                    if side == "over":
+                        m_side, close_side = m_over_close, close_p_over
+                    else:
+                        m_side, close_side = 1.0 - m_over_close, 1.0 - close_p_over
+                    joined.loc[i, "selected_side"] = side
+                    # model_close_edge: model PMF prob for the selected side at the
+                    # closing line MINUS the closing no-vig prob for that side.
+                    joined.loc[i, "model_close_edge"] = m_side - close_side
+                    # price_clv: closing no-vig prob for the selected side minus the OPEN
+                    # no-vig prob for that side (favourable price movement toward your side).
+                    open_p_over = row.get("market_prob_over_no_vig")
+                    if pd.notna(open_p_over):
+                        open_side = float(open_p_over) if side == "over" else 1.0 - float(open_p_over)
+                        joined.loc[i, "price_clv"] = close_side - open_side
+                    # line_clv: quoted-line movement favourable to the selected side.
+                    open_line = row.get("line")
+                    if pd.notna(open_line):
+                        ol = float(open_line)
+                        joined.loc[i, "line_clv"] = (ol - cl_line) if side == "over" else (cl_line - ol)
+                    n_done += 1
+                if n_done:
+                    _mce = joined.loc[cl_valid, "model_close_edge"].dropna()
                     typer.echo(
-                        f"[score] True CLV computed for {cl_valid.sum()} rows "
-                        f"(mean={joined.loc[cl_valid, 'true_clv'].mean():+.4f})"
+                        f"[score] Closing-line edge computed for {n_done} rows "
+                        f"(mean model_close_edge={_mce.mean():+.4f}, outcome-independent)"
                     )
         except Exception as exc:
-            typer.echo(f"[WARN] Closing-line CLV computation failed: {exc}", err=True)
+            typer.echo(f"[WARN] Closing-line edge computation failed: {exc}", err=True)
 
     joined["game_date"] = today
     joined["scored_at"] = datetime.now(timezone.utc).isoformat()
@@ -378,7 +461,8 @@ def compute_closing_line_value(
         closing_odds_df: DataFrame from /wnba/v1/odds with latest odds (closing odds)
 
     Returns:
-        DataFrame with added: closing_p_over, clv, clv_positive, clv_pp
+        DataFrame with added: closing_p_over, model_close_edge,
+        model_close_edge_positive, model_close_edge_pp (all outcome-independent)
     """
     # Get closing odds (latest update before game start per player/prop)
     if "updated_at" in closing_odds_df.columns:
@@ -431,27 +515,28 @@ def compute_closing_line_value(
     else:
         merged["closing_p_over"] = float("nan")
 
-    # CLV = model - closing (positive = model found value before market moved)
+    # model_close_edge = model - closing no-vig prob (model edge vs the close).
+    # This is a MODEL-VS-MARKET probability difference — it is NOT CLV, and it is
+    # outcome-independent (never multiplied by the result).
     if "model_p_over" in merged.columns:
-        merged["clv"] = merged["model_p_over"] - merged["closing_p_over"]
-        merged["clv_positive"] = (merged["clv"] > 0).astype(int)
-        merged["clv_pp"] = merged["clv"] * 100
+        merged["model_close_edge"] = merged["model_p_over"] - merged["closing_p_over"]
+        merged["model_close_edge_positive"] = (merged["model_close_edge"] > 0).astype(int)
+        merged["model_close_edge_pp"] = merged["model_close_edge"] * 100
     else:
-        merged["clv"] = float("nan")
-        merged["clv_positive"] = 0
-        merged["clv_pp"] = float("nan")
+        merged["model_close_edge"] = float("nan")
+        merged["model_close_edge_positive"] = 0
+        merged["model_close_edge_pp"] = float("nan")
 
     return merged
 
 
 def generate_clv_report(results_parquet: str, lookback: int = 100) -> dict:
-    """Generate rolling CLV report with key performance metrics.
+    """Generate a rolling MODEL-CLOSE-EDGE report (outcome-independent).
 
-    Key metrics:
-      - CLV% (fraction of bets with positive CLV): Target > 60%
-      - mean_true_clv (average CLV in pp): Target > 2pp
-      - CLV by stat: Which stats does the model beat the close on?
-      - CLV by role: Starters vs bench
+    Reports the model's edge vs. the closing market (model_close_edge). This is a
+    model-vs-market probability difference, NOT CLV. It is not multiplied by the
+    game result. Economic CLV (price_clv/line_clv) and realized P&L are reported
+    separately (P3).
     """
     try:
         df = pd.read_parquet(results_parquet)
@@ -460,30 +545,28 @@ def generate_clv_report(results_parquet: str, lookback: int = 100) -> dict:
 
     recent = df.tail(lookback)
     if recent.empty:
-        return {"n_bets": 0, "clv_pct": 0.0, "mean_clv_pp": 0.0}
+        return {"n_bets": 0, "model_close_edge_pct": 0.0, "mean_model_close_edge_pp": 0.0}
 
-    clv_col = "clv" if "clv" in recent.columns else "true_clv" if "true_clv" in recent.columns else None
-    if clv_col is None:
-        return {"n_bets": len(recent), "clv_pct": float("nan"), "mean_clv_pp": float("nan")}
+    edge_col = "model_close_edge" if "model_close_edge" in recent.columns else None
+    if edge_col is None:
+        return {"n_bets": len(recent), "model_close_edge_pct": float("nan"),
+                "mean_model_close_edge_pp": float("nan")}
 
-    clv_valid = recent[clv_col].dropna()
+    edge_valid = recent[edge_col].dropna()
     report = {
         "n_bets": len(recent),
-        "n_with_clv": len(clv_valid),
-        "clv_pct": float((clv_valid > 0).mean() * 100),
-        "mean_clv_pp": float(clv_valid.mean() * 100),
-        "median_clv_pp": float(clv_valid.median() * 100),
+        "n_with_edge": len(edge_valid),
+        "model_close_edge_pct": float((edge_valid > 0).mean() * 100),
+        "mean_model_close_edge_pp": float(edge_valid.mean() * 100),
+        "median_model_close_edge_pp": float(edge_valid.median() * 100),
     }
-    if "stat" in recent.columns and clv_col in recent.columns:
-        report["clv_by_stat"] = (
-            recent.groupby("stat")[clv_col].mean().multiply(100).round(2).to_dict()
+    if "stat" in recent.columns:
+        report["model_close_edge_by_stat"] = (
+            recent.groupby("stat")[edge_col].mean().multiply(100).round(2).to_dict()
         )
-        report["clv_positive_by_stat"] = (
-            recent.groupby("stat")[clv_col].apply(lambda x: (x > 0).mean() * 100).round(1).to_dict()
-        )
-    if "role_bucket" in recent.columns and clv_col in recent.columns:
-        report["clv_by_role"] = (
-            recent.groupby("role_bucket")[clv_col].mean().multiply(100).round(2).to_dict()
+    if "role_bucket" in recent.columns:
+        report["model_close_edge_by_role"] = (
+            recent.groupby("role_bucket")[edge_col].mean().multiply(100).round(2).to_dict()
         )
     return report
 

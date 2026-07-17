@@ -529,20 +529,36 @@ jobs:
               print(f"  {flag}  {stat}: model_mean={model_mean:.2f}, actual_mean={actual_mean:.2f}, bias={bias:+.2f}")
           EOF
 
-      - name: Join historical prop lines to OOF parquet
+      - name: Join HISTORICAL prop lines to OOF parquet (fail-closed)
+        # OOF historical-line validation (distinct from live opening-line scoring in
+        # post_game_scoring.yml). The joiner now FAILS CLOSED on missing keys, zero
+        # overlap, many-to-many, or coverage < 10%. It writes oof_pmfs_with_lines
+        # ONLY when the join is trustworthy; otherwise no file is produced and
+        # per-line calibration is skipped downstream (never fit from pmf_mean).
+        #
+        # KNOWN (P1): data/processed/wnba_player_props.parquet is the LIVE/upcoming
+        # feed, which does NOT overlap historical OOF games — so this step is
+        # EXPECTED to fail-closed until a real historical props source (Odds API
+        # historical event-odds, from 2023-05-03) is wired in P1. That is by design:
+        # we would rather produce no market-enriched OOF than a zero-coverage one.
         run: |
           python3 - <<'PYEOF'
-          from src.wnba_props_model.calibration.oof_line_joiner import join_historical_props_to_oof
-          import pathlib, sys
+          import pathlib
+          from src.wnba_props_model.calibration.oof_line_joiner import (
+              join_historical_props_to_oof, OOFLineJoinError,
+          )
           oof_path = "data/oof/oof_player_stat_pmfs.parquet"
           props_path = "data/processed/wnba_player_props.parquet"
           out_path = "data/oof/oof_pmfs_with_lines.parquet"
-          # Only run if both input files exist
-          if pathlib.Path(oof_path).exists() and pathlib.Path(props_path).exists():
-              join_historical_props_to_oof(oof_path, props_path, out_path)
-              print("OOF line join complete.")
-          else:
+          if not (pathlib.Path(oof_path).exists() and pathlib.Path(props_path).exists()):
               print(f"Skipping line join: oof={pathlib.Path(oof_path).exists()}, props={pathlib.Path(props_path).exists()}")
+          else:
+              try:
+                  join_historical_props_to_oof(oof_path, props_path, out_path)
+                  print("OOF historical-line join complete (trustworthy coverage).")
+              except OOFLineJoinError as exc:
+                  print(f"[P0][FAIL-CLOSED] Historical-line join rejected: {exc}")
+                  print("No oof_pmfs_with_lines written; per-line calibration will be SKIPPED.")
           PYEOF
         continue-on-error: true
 
@@ -605,10 +621,23 @@ jobs:
 
       - name: Fit calibrators (Stage 6)
         run: |
+          # Per-line (line-dependent) calibration is fit ONLY from the validated
+          # market-enriched OOF table (oof_pmfs_with_lines) with REAL lines. If the
+          # historical-line join failed-closed (no trustworthy lines), that file is
+          # absent and per-line calibration is skipped loudly — never fit from raw
+          # OOF / pmf_mean. The line-INDEPENDENT calibrators (bias, role-isotonic)
+          # still fit from the raw OOF.
+          OOF_WITH_LINES_ARG=""
+          if [ -f data/oof/oof_pmfs_with_lines.parquet ]; then
+            OOF_WITH_LINES_ARG="--oof-with-lines data/oof/oof_pmfs_with_lines.parquet"
+          else
+            echo "[P0] oof_pmfs_with_lines.parquet absent — per-line calibration will be SKIPPED (no real lines)."
+          fi
           python scripts/fit_calibrators.py \
             --oof-pmfs data/oof/oof_player_stat_pmfs.parquet \
             --out-dir artifacts/models/calibration \
-            --props-parquet data/processed/wnba_player_props.parquet
+            --props-parquet data/processed/wnba_player_props.parquet \
+            $OOF_WITH_LINES_ARG
 
       # HARD GATE: Reject calibrators where too many stats are at the floor.
       # If > 4 stats have bias_correction == 0.60 (floored), the calibration

@@ -23,6 +23,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import typer
 
@@ -55,14 +56,24 @@ def main(
     out_dir: str = typer.Option("data/clv_tracking", "--out-dir"),
     api_key: str = typer.Option("", envvar="ODDS_API_KEY"),
     region: str = typer.Option("us", "--region"),
+    games_path: str = typer.Option("data/processed/wnba_games.parquet", "--games-path",
+                                   help="Canonical games table for event_id -> game_id resolution."),
+    roster_path: str = typer.Option("data/processed/wnba_player_game_stats.parquet", "--roster-path",
+                                    help="Canonical player-game table for player_name -> player_id resolution."),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
-    """Pull historical closing lines (and optionally opening lines) for CLV calculation."""
+    """Pull historical closing lines and CANONICALIZE them to the scorer contract.
+
+    Fail-closed (P0): exits NONZERO on empty output. The scorer requires a
+    canonical table (game_id, player_id, stat, market_prob_over_no_vig, line);
+    provider-native fields (event_id, player_name, close_prob_over_no_vig) are
+    canonicalized here before scoring. Rows whose event or player cannot be
+    resolved to canonical IDs by EXACT match are dropped (never fuzzy-matched).
+    """
     key = api_key or os.environ.get("ODDS_API_KEY", "")
     if not key:
-        typer.echo("[WARN] No ODDS_API_KEY — cannot pull closing lines", err=True)
-        _write_empty(Path(out_dir), game_date)
-        raise typer.Exit(0)
+        typer.echo("[FATAL] No ODDS_API_KEY — cannot pull closing lines", err=True)
+        raise typer.Exit(1)
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -77,9 +88,8 @@ def main(
         client = OddsAPIClient(api_key=key, region=region)
         raw = client.get_closing_lines_for_date(game_date, close_time_utc=snap_time)
     except OddsAPIError as exc:
-        typer.echo(f"[ERROR] Closing line pull failed: {exc}", err=True)
-        _write_empty(out, game_date)
-        raise typer.Exit(0)
+        typer.echo(f"[FATAL] Closing line pull failed: {exc}", err=True)
+        raise typer.Exit(1)
 
     typer.echo(
         f"[OddsAPI] Got {len(raw):,} outcome rows | "
@@ -91,8 +101,12 @@ def main(
         raise typer.Exit(0)
 
     if not raw:
-        _write_empty(out, game_date)
-        raise typer.Exit(0)
+        typer.echo(
+            f"[FATAL] Odds API returned zero closing-line rows for {game_date}. "
+            "Refusing to write an empty file (fail-closed).",
+            err=True,
+        )
+        raise typer.Exit(1)
 
     df = pd.DataFrame(raw)
 
@@ -162,25 +176,118 @@ def main(
     except Exception as exc:
         typer.echo(f"[WARN] Opening snapshot failed (non-fatal): {exc}", err=True)
 
-    out_path = out / f"closing_lines_oddsapi_{game_date}.parquet"
-    merged.to_parquet(out_path, index=False)
-    typer.echo(f"[OddsAPI] Wrote {len(merged):,} closing-line rows → {out_path}")
+    # Canonicalize provider-native (event_id/player_name) rows to the scorer
+    # contract (game_id/player_id/stat/market_prob_over_no_vig/line). Fail-closed:
+    # unmatched rows are dropped, and an empty canonical result is a nonzero exit.
+    merged = merged.rename(columns={"close_prob_over_no_vig": "market_prob_over_no_vig"})
+    canonical = canonicalize_closing_lines(merged, game_date, games_path, roster_path)
+    if canonical.empty:
+        typer.echo(
+            "[FATAL] Zero rows survived canonicalization (no event/player resolved "
+            "to canonical IDs). Refusing to write a table the scorer cannot use.",
+            err=True,
+        )
+        raise typer.Exit(1)
 
-    by_stat = merged.groupby("stat").size().sort_values(ascending=False)
+    out_path = out / f"closing_lines_oddsapi_{game_date}.parquet"
+    canonical.to_parquet(out_path, index=False)
+    typer.echo(f"[OddsAPI] Wrote {len(canonical):,} CANONICAL closing-line rows → {out_path}")
+    typer.echo(f"  identity_method: {canonical['identity_method'].value_counts().to_dict()}")
+
+    by_stat = canonical.groupby("stat").size().sort_values(ascending=False)
     typer.echo("\nRows per stat:")
     for stat, count in by_stat.items():
         typer.echo(f"  {stat:20s}: {count:,}")
 
 
-def _write_empty(out: Path, game_date: str) -> None:
-    out.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(columns=[
-        "event_id", "game_date", "snapshot_time", "home_team", "away_team",
-        "bookmaker", "market_key", "stat", "player_name", "line",
-        "over_odds", "under_odds", "close_prob_over_no_vig", "close_shin_z",
-        "opening_line", "opening_p_over", "line_movement",
-        "pulled_at_utc", "source",
-    ]).to_parquet(out / f"closing_lines_oddsapi_{game_date}.parquet", index=False)
+# WNBA full-name -> abbreviation (stable, 12 teams). Used to bridge Odds API team
+# names to canonical team abbreviations for event->game_id resolution.
+_WNBA_TEAM_ABBR = {
+    "atlanta dream": "ATL", "chicago sky": "CHI", "connecticut sun": "CON",
+    "dallas wings": "DAL", "golden state valkyries": "GSV", "indiana fever": "IND",
+    "las vegas aces": "LVA", "los angeles sparks": "LAS", "minnesota lynx": "MIN",
+    "new york liberty": "NYL", "phoenix mercury": "PHO", "seattle storm": "SEA",
+    "washington mystics": "WAS",
+}
+
+
+def _norm_name(s: object) -> str:
+    """Normalize a player name for exact matching (case/space/punctuation-insensitive)."""
+    import re
+    return re.sub(r"[^a-z0-9]", "", str(s).lower())
+
+
+def _team_abbr(team: object) -> str:
+    t = str(team).strip().lower()
+    if t in _WNBA_TEAM_ABBR:
+        return _WNBA_TEAM_ABBR[t]
+    # already an abbreviation?
+    up = str(team).strip().upper()
+    return up if len(up) <= 4 else ""
+
+
+def canonicalize_closing_lines(
+    df: pd.DataFrame, game_date: str, games_path: str, roster_path: str
+) -> pd.DataFrame:
+    """Resolve provider-native closing rows to the canonical scorer schema.
+
+    EXACT matching only (no fuzzy): game via (game_date, {home,away} abbrev),
+    player via normalized name within the matched game's rosters. Unmatched rows
+    are dropped. Emits one consensus row per (game_id, player_id, stat).
+    """
+    games_p, roster_p = Path(games_path), Path(roster_path)
+    if not games_p.exists() or not roster_p.exists():
+        raise FileNotFoundError(
+            f"Canonicalization requires games ({games_path}) and roster ({roster_path})."
+        )
+    games = pd.read_parquet(games_p)
+    roster = pd.read_parquet(roster_p)
+
+    # ── game_id resolution: date + unordered team-abbrev pair ──────────────────
+    g = games.copy()
+    if "game_date" in g.columns:
+        g["_gd"] = pd.to_datetime(g["game_date"]).dt.strftime("%Y-%m-%d")
+        g = g[g["_gd"] == game_date]
+    g["_pair"] = g.apply(
+        lambda r: frozenset({str(r.get("home_team_abbreviation", "")).upper(),
+                             str(r.get("visitor_team_abbreviation", "")).upper()}), axis=1)
+    pair_to_game = {p: gid for p, gid in zip(g["_pair"], g["game_id"]) }
+
+    df = df.copy()
+    df["_pair"] = df.apply(
+        lambda r: frozenset({_team_abbr(r.get("home_team")), _team_abbr(r.get("away_team"))}), axis=1)
+    df["game_id"] = df["_pair"].map(pair_to_game)
+
+    # ── player_id resolution: exact normalized name within the game's rosters ──
+    rr = roster[["game_id", "player_id", "player_name"]].dropna().copy() if {
+        "game_id", "player_id", "player_name"}.issubset(roster.columns) else pd.DataFrame(
+        columns=["game_id", "player_id", "player_name"])
+    rr["_nm"] = rr["player_name"].map(_norm_name)
+    name_lookup = {(str(gid), nm): pid for gid, nm, pid in zip(rr["game_id"], rr["_nm"], rr["player_id"])}
+
+    df["_nm"] = df["player_name"].map(_norm_name)
+    df["player_id"] = [name_lookup.get((str(gid), nm)) for gid, nm in zip(df["game_id"], df["_nm"])]
+
+    df["identity_method"] = np.where(
+        df["player_id"].notna(), "exact_roster_name", "unmatched")
+    resolved = df[df["game_id"].notna() & df["player_id"].notna() & df["stat"].notna()].copy()
+    if resolved.empty:
+        return resolved
+
+    # ── one consensus row per (game_id, player_id, stat) ───────────────────────
+    for k in ["game_id", "player_id", "stat"]:
+        resolved[k] = resolved[k].astype("string")
+    agg = {"line": "median", "market_prob_over_no_vig": "median"}
+    for c in ["over_odds", "under_odds", "opening_line", "line_movement"]:
+        if c in resolved.columns:
+            agg[c] = "median"
+    consensus = (resolved.groupby(["game_id", "player_id", "stat"], as_index=False)
+                 .agg(agg))
+    consensus["game_date"] = game_date
+    consensus["identity_method"] = "exact_roster_name"
+    consensus["source"] = "odds_api_v4_historical"
+    consensus["is_closing"] = True
+    return consensus
 
 
 if __name__ == "__main__":

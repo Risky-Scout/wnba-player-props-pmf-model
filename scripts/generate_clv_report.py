@@ -75,7 +75,7 @@ def _kelly_roi_stats(df: pd.DataFrame) -> dict:
     if not required.issubset(df.columns) or df.empty:
         return result
 
-    valid = df[["model_prob_over", "hit_result", "market_prob_over_no_vig", "clv"]].dropna()
+    valid = df[["model_prob_over", "hit_result", "market_prob_over_no_vig"]].dropna()
     if valid.empty:
         return result
 
@@ -153,13 +153,16 @@ def _stat_report(df: pd.DataFrame) -> list[dict]:
                 rec["mean_market_ignorance_score"] = float(gv["market_ignorance_score"].mean())
             if "model_bin_logloss" in gv and "market_bin_logloss" in gv:
                 rec["logloss_delta"] = float((gv["model_bin_logloss"] - gv["market_bin_logloss"]).mean())
-            if "clv" in gv and gv["clv"].notna().any():
-                rec["mean_clv"] = float(gv["clv"].mean())
-                rec["positive_clv_pct"] = float((gv["clv"] > 0).mean())
-            # True CLV (vs. closing line)
-            if "true_clv" in gv and gv["true_clv"].notna().any():
-                rec["mean_true_clv"] = float(gv["true_clv"].mean())
-                rec["positive_true_clv_pct"] = float((gv["true_clv"] > 0).mean())
+            # Model edge vs close (model-vs-market prob diff; NOT CLV; outcome-independent)
+            if "model_close_edge" in gv and gv["model_close_edge"].notna().any():
+                rec["mean_model_close_edge"] = float(gv["model_close_edge"].mean())
+                rec["positive_model_close_edge_pct"] = float((gv["model_close_edge"] > 0).mean())
+            # True (economic) CLV — market movement, outcome-independent
+            if "price_clv" in gv and gv["price_clv"].notna().any():
+                rec["mean_price_clv"] = float(gv["price_clv"].mean())
+                rec["positive_price_clv_pct"] = float((gv["price_clv"] > 0).mean())
+            if "line_clv" in gv and gv["line_clv"].notna().any():
+                rec["mean_line_clv"] = float(gv["line_clv"].mean())
 
             if "hit_result" in gv and "model_prob_over" in gv:
                 rec["empirical_hit_rate"] = float(gv["hit_result"].mean())
@@ -221,15 +224,15 @@ def main(
         "per_book_margins": book_margins,
     }
 
-    # Overall CLV summary
-    if "clv" in recent.columns and recent["clv"].notna().any():
-        overall["overall_mean_clv"] = float(recent["clv"].mean())
-        overall["overall_positive_clv_pct"] = float((recent["clv"] > 0).mean())
+    # Overall model-close-edge summary (model-vs-market prob diff; NOT CLV)
+    if "model_close_edge" in recent.columns and recent["model_close_edge"].notna().any():
+        overall["overall_mean_model_close_edge"] = float(recent["model_close_edge"].mean())
+        overall["overall_positive_model_close_edge_pct"] = float((recent["model_close_edge"] > 0).mean())
 
-    # True CLV (vs. closing line)
-    if "true_clv" in recent.columns and recent["true_clv"].notna().any():
-        overall["overall_mean_true_clv"] = float(recent["true_clv"].mean())
-        overall["overall_positive_true_clv_pct"] = float((recent["true_clv"] > 0).mean())
+    # Economic CLV (market movement, outcome-independent)
+    if "price_clv" in recent.columns and recent["price_clv"].notna().any():
+        overall["overall_mean_price_clv"] = float(recent["price_clv"].mean())
+        overall["overall_positive_price_clv_pct"] = float((recent["price_clv"] > 0).mean())
 
     if "logloss_delta" in [r.get("logloss_delta") for r in stat_rows if "logloss_delta" in r]:
         deltas = [r["logloss_delta"] for r in stat_rows if "logloss_delta" in r]
@@ -279,8 +282,10 @@ def main(
             f"- Total bets: {roi_stats.get('n_bets', 'N/A')} "
             f"(OVER: {roi_stats.get('n_model_over_bets', '?')})",
         ]
-        if "overall_mean_true_clv" in overall:
-            lines.append(f"- Mean True CLV (vs closing): {overall['overall_mean_true_clv']:+.4f}")
+        if "overall_mean_model_close_edge" in overall:
+            lines.append(f"- Mean model edge vs close (NOT CLV): {overall['overall_mean_model_close_edge']:+.4f}")
+        if "overall_mean_price_clv" in overall:
+            lines.append(f"- Mean price CLV (market movement): {overall['overall_mean_price_clv']:+.4f}")
 
     # Per-book margin section
     if book_margins:

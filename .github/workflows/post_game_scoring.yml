@@ -94,9 +94,7 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Download closing lines for scored game date
-        # The daily pipeline snapshots BDL props for yesterday's games each morning.
-        # We need those lines here to compute true CLV (model prob vs. closing price).
+      - name: Download prior closing-line artifacts (BDL snapshot fallback only)
         uses: actions/download-artifact@v4
         with:
           pattern: drift-audit-*
@@ -104,40 +102,10 @@ jobs:
           path: artifacts/closing_lines_tmp
         continue-on-error: true
 
-      - name: Locate closing lines parquet
-        id: closing
-        run: |
-          GAME_DATE="${{ steps.date.outputs.game_date }}"
-          # Priority: 1) Odds API closing lines, 2) BDL snapshot, 3) fixed path fallback
-          CL_ODDS="artifacts/closing_lines_tmp/closing_lines_oddsapi_${GAME_DATE}.parquet"
-          CL_BDL=$(find artifacts/closing_lines_tmp -name "closing_lines_${GAME_DATE}.parquet" 2>/dev/null | grep -v oddsapi | head -1)
-          if [ -f "$CL_ODDS" ]; then
-            echo "path=$CL_ODDS" >> $GITHUB_OUTPUT
-            echo "Using Odds API closing lines: $CL_ODDS"
-          elif [ -n "$CL_BDL" ]; then
-            echo "path=$CL_BDL" >> $GITHUB_OUTPUT
-            echo "Using BDL closing lines: $CL_BDL"
-          else
-            echo "path=artifacts/audits/closing_lines_${GAME_DATE}.parquet" >> $GITHUB_OUTPUT
-            echo "Using fallback closing lines path"
-          fi
-
-      - name: Pull Odds API closing lines (true CLV basis)
-        # Historical Odds API snapshot at 11 PM UTC (7 PM ET + 4h) captures closing prices.
-        # Cost: ~150 credits. Falls back silently if key unavailable.
-        env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-        run: |
-          GAME_DATE="${{ steps.date.outputs.game_date }}"
-          if [ -n "$ODDS_API_KEY" ]; then
-            python scripts/pull_odds_api_closing_lines.py \
-              --game-date "$GAME_DATE" \
-              --close-time "${GAME_DATE}T23:30:00Z" \
-              --out-dir artifacts/closing_lines_tmp
-          fi
-        continue-on-error: true
-
-      - name: Pull BDL actuals
+      # ── Correct ordering (P0): pull BDL -> pull FRESH closing -> canonicalize ->
+      #    validate -> SELECT -> score. The closing-file selection must happen AFTER
+      #    the fresh pull so scoring never uses a stale/pre-pull path.
+      - name: Pull BDL actuals (canonical games/roster for ID resolution)
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
@@ -147,6 +115,45 @@ jobs:
             --out-dir data/raw/bdl
           python scripts/build_canonical_tables.py \
             --raw-dir data/raw/bdl --out-dir data/processed
+
+      - name: Pull FRESH Odds API closing lines and canonicalize
+        # Historical Odds API snapshot at 11:30 PM UTC captures closing prices.
+        # The puller fails-closed on empty output and canonicalizes event/player IDs
+        # to the scorer contract (game_id/player_id/stat/market_prob_over_no_vig/line)
+        # using the canonical games + roster tables built above.
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          if [ -n "$ODDS_API_KEY" ]; then
+            python scripts/pull_odds_api_closing_lines.py \
+              --game-date "$GAME_DATE" \
+              --close-time "${GAME_DATE}T23:30:00Z" \
+              --out-dir artifacts/closing_lines_tmp \
+              --games-path data/processed/wnba_games.parquet \
+              --roster-path data/processed/wnba_player_game_stats.parquet
+          else
+            echo "[WARN] No ODDS_API_KEY — closing-line edge/CLV will be skipped (fail-closed at scorer)."
+          fi
+        continue-on-error: true
+
+      - name: Select closing-lines parquet (AFTER fresh pull)
+        id: closing
+        run: |
+          GAME_DATE="${{ steps.date.outputs.game_date }}"
+          # Prefer the freshly-pulled canonical Odds API file; then a BDL snapshot.
+          CL_ODDS="artifacts/closing_lines_tmp/closing_lines_oddsapi_${GAME_DATE}.parquet"
+          CL_BDL=$(find artifacts/closing_lines_tmp -name "closing_lines_${GAME_DATE}.parquet" 2>/dev/null | grep -v oddsapi | head -1)
+          if [ -f "$CL_ODDS" ]; then
+            echo "path=$CL_ODDS" >> $GITHUB_OUTPUT
+            echo "Using freshly-pulled canonical Odds API closing lines: $CL_ODDS"
+          elif [ -n "$CL_BDL" ]; then
+            echo "path=$CL_BDL" >> $GITHUB_OUTPUT
+            echo "Using BDL closing lines: $CL_BDL"
+          else
+            echo "path=artifacts/audits/closing_lines_${GAME_DATE}.parquet" >> $GITHUB_OUTPUT
+            echo "No closing-line file available — scorer will skip closing-line edge (fail-closed)."
+          fi
 
       - name: Guard — skip scoring on no-game dates
         id: game_guard

@@ -169,13 +169,18 @@ def _market_summary(results_path: str, edges_path: str, lookback_days: int) -> s
                 lines.append("*No scored predictions in the lookback window yet.*")
             else:
                 lines.append(f"**Scored predictions (last {lookback_days} days):** {n_total:,}")
-                if "clv" in res.columns:
-                    clv_valid = res["clv"].dropna()
-                    lines.append(f"**Open-line CLV (mean):** {clv_valid.mean():+.4f} ({len(clv_valid):,} bets)")
-                if "true_clv" in res.columns:
-                    tclv_valid = res["true_clv"].dropna()
-                    if len(tclv_valid):
-                        lines.append(f"**True CLV vs closing line (mean):** {tclv_valid.mean():+.4f} ({len(tclv_valid):,} bets)")
+                if "model_edge_open" in res.columns:
+                    e_valid = res["model_edge_open"].dropna()
+                    if len(e_valid):
+                        lines.append(f"**Model edge vs open (mean, NOT CLV):** {e_valid.mean():+.4f} ({len(e_valid):,} bets)")
+                if "model_close_edge" in res.columns:
+                    mce = res["model_close_edge"].dropna()
+                    if len(mce):
+                        lines.append(f"**Model edge vs close (mean, NOT CLV):** {mce.mean():+.4f} ({len(mce):,} bets)")
+                if "price_clv" in res.columns:
+                    pc = res["price_clv"].dropna()
+                    if len(pc):
+                        lines.append(f"**Price CLV vs closing (mean, outcome-independent):** {pc.mean():+.4f} ({len(pc):,} bets)")
                 if "model_bin_logloss" in res.columns and "market_bin_logloss" in res.columns:
                     valid = res.dropna(subset=["model_bin_logloss", "market_bin_logloss"])
                     if len(valid):
