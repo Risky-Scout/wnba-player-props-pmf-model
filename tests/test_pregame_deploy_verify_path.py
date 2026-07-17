@@ -1,66 +1,81 @@
-"""Focused regression tests for the post-deployment verification path fix.
+"""Regression tests for deploying to the real product page path.
 
-The custom domain (sportsodds.wizardofodds.com) is served by nginx from the FTP
-root /WNBA/ (ftp_deploy.py REMOTE_BASE). Two coupled defects made the BLOCKING
-"Post-deployment verification — custom domain" step fail even after a successful
-deploy:
+The live product pages are served by nginx at
+  https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/...
+A prior regression (commit 3efe49d) pointed the FTP deploy at /WNBA/ instead,
+so the real Edge/Distributions pages went stale. Additionally the pipeline's
+latest.json was a pointer, but the deployed page shells read a SELF-CONTAINED
+latest.json (data.props inline).
 
-1. The verification fetched the gh-pages layout path
-   (/tools/odds-scanner/predictions/WNBA/...) instead of the live /WNBA/ path,
-   so it read stale content.
-2. ftp_deploy.py uploaded only top-level files (non-recursive), so the immutable
-   release payloads at releases/<release_id>.json — referenced by latest.json's
-   payload_path and by the page JS — 404'd on the live domain.
-
-These tests lock both fixes.
+These tests lock the corrected behavior:
+1. ftp_deploy targets /tools/odds-scanner/predictions/WNBA and only touches
+   data files (.json), never the existing index.html shells.
+2. The post-deploy verification checks the real /tools/odds-scanner/ path and
+   reads the self-contained latest.json directly.
+3. The generators write a self-contained latest.json (props inline).
 """
 from __future__ import annotations
 
 import ftplib
-import io
 from pathlib import Path
-
-import pytest
 
 import scripts.ftp_deploy as ftp_deploy
 
 WF_PATH = Path(".github/workflows/pregame_initial.yml")
+REAL_BASE = "/tools/odds-scanner/predictions/WNBA"
 
 
-# ── Fix 1: verification hits the live /WNBA/ path, not the gh-pages layout ─────
+# ── Deploy target + shell preservation ────────────────────────────────────────
 
-def test_verification_uses_live_wnba_path():
-    content = WF_PATH.read_text()
-    assert 'BASE = f"{CDN}/WNBA/Pre-Game"' in content, (
-        "Post-deploy verification must check the live custom-domain /WNBA/ path "
-        "that FTP deploys to"
+def test_ftp_deploy_targets_real_product_path():
+    assert ftp_deploy.REMOTE_BASE == REAL_BASE, (
+        "ftp_deploy must publish to the real product path the page shells read"
     )
 
 
-def test_verification_does_not_use_ghpages_layout_for_custom_domain():
-    """The custom-domain payload fetches must resolve against BASE (/WNBA/), not
-    the gh-pages /tools/odds-scanner/predictions/WNBA/ layout."""
+def test_ftp_deploy_preserves_html_shells():
+    # .html must never be uploaded or wiped — the branded shells already exist
+    # and must not be regenerated/overwritten.
+    assert ".html" not in ftp_deploy.UPLOAD_EXTENSIONS, "must not upload/overwrite index.html shells"
+    assert ".html" not in ftp_deploy.WIPE_EXTENSIONS, "must not wipe index.html shells"
+    assert ".json" in ftp_deploy.UPLOAD_EXTENSIONS and ".json" in ftp_deploy.WIPE_EXTENSIONS
+
+
+# ── post-deploy verification checks the real path, self-contained ─────────────
+
+def test_verification_uses_real_product_path():
     content = WF_PATH.read_text()
-    # Extract the verification step body (from its name to the next step marker).
+    assert 'BASE = f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game"' in content, (
+        "Post-deploy verification must check the real /tools/odds-scanner/ product path"
+    )
+
+
+def test_verification_reads_self_contained_latest_json():
+    content = WF_PATH.read_text()
     start = content.index("Post-deployment verification — custom domain")
     tail = content[start:]
     end = tail.index("\n      - name:", 1) if "\n      - name:" in tail[1:] else len(tail)
     step = tail[:end]
-    # Match the actual fetch interpolation, not prose comments.
-    assert "{CDN}/tools/odds-scanner" not in step, (
-        "Post-deploy verification must NOT fetch the gh-pages layout path from the "
-        "custom domain; use the live /WNBA/ BASE for pointer and payload fetches"
+    # latest.json is the payload itself — no pointer follow via payload_path.
+    assert "edge_payload = edge_ptr" in step and "dist_payload = dist_ptr" in step, (
+        "verification must treat latest.json as the self-contained payload"
     )
-    assert '{BASE}/Edge/' in step and '{BASE}/Distributions/' in step, (
-        "payload fetches should be relative to the corrected BASE"
-    )
+    assert "payload_path" not in step, "verification must not follow a payload_path pointer"
 
 
-# ── Fix 2: ftp_deploy uploads recursively (releases/<id>.json subdir) ──────────
+# ── generators write a self-contained latest.json ────────────────────────────
+
+def test_generators_write_self_contained_latest_json():
+    web = Path("scripts/generate_web_pages.py").read_text()
+    dist = Path("scripts/generate_distributions_page.py").read_text()
+    assert '(edge_dir / "latest.json").write_text(_edge_payload_str)' in web
+    assert '(pmf_dir  / "latest.json").write_text(_pmf_payload_str)' in web
+    assert '(out_dir / "latest.json").write_text(_payload_str)' in dist
+
+
+# ── ftp_deploy uploads recursively to the real path (releases/<id>.json) ──────
 
 class _FakeFTP:
-    """Minimal fake FTP that records STOR targets and supports the context manager."""
-
     def __init__(self, *_a, **_k):
         self.stored: list[str] = []
         self.dirs: set[str] = set()
@@ -78,7 +93,6 @@ class _FakeFTP:
         return "220 fake"
 
     def cwd(self, path):
-        # Simulate: dirs we've "made" (or root) exist; unknown dirs raise perm error.
         if path == "/" or path in self.dirs:
             return "250 OK"
         raise ftplib.error_perm(f"550 no such dir {path}")
@@ -97,18 +111,16 @@ class _FakeFTP:
         return []
 
     def storbinary(self, cmd, _fp):
-        # cmd == "STOR /WNBA/Pre-Game/Edge/releases/RID.json"
         self.stored.append(cmd.split(" ", 1)[1])
         return "226 OK"
 
 
-def test_ftp_deploy_uploads_nested_release_payload(tmp_path, monkeypatch):
-    # Build a fake local page dir with a top-level pointer + a nested release file.
+def test_ftp_deploy_uploads_nested_release_to_real_path(tmp_path, monkeypatch):
     local_base = tmp_path / "WNBA"
     edge = local_base / "Pre-Game" / "Edge"
     (edge / "releases").mkdir(parents=True)
-    (edge / "latest.json").write_text('{"payload_path": "releases/run123.json"}')
-    (edge / "2026-07-16.json").write_text("{}")
+    (edge / "latest.json").write_text('{"props": [], "total_props": 0}')
+    (edge / "index.html").write_text("<html>shell</html>")  # must NOT be uploaded
     (edge / "releases" / "run123.json").write_text('{"total_props": 130}')
 
     monkeypatch.setattr(ftp_deploy, "LOCAL_BASE", local_base)
@@ -121,8 +133,10 @@ def test_ftp_deploy_uploads_nested_release_payload(tmp_path, monkeypatch):
 
     ftp_deploy.deploy(dirs=["Pre-Game/Edge"], wipe=False)
 
-    assert "/WNBA/Pre-Game/Edge/latest.json" in fake.stored
-    assert "/WNBA/Pre-Game/Edge/releases/run123.json" in fake.stored, (
-        "Recursive upload must deploy the immutable release payload subdir so the "
-        "pointer's payload_path resolves on the live domain"
+    assert f"{REAL_BASE}/Pre-Game/Edge/latest.json" in fake.stored
+    assert f"{REAL_BASE}/Pre-Game/Edge/releases/run123.json" in fake.stored, (
+        "recursive upload must deploy the release payload to the real product path"
+    )
+    assert not any(s.endswith("index.html") for s in fake.stored), (
+        "index.html shells must never be uploaded/overwritten"
     )

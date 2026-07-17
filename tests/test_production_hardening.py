@@ -232,22 +232,17 @@ class TestCacheSafePayloads:
         # Check releases dir
         release_path = out / "PMF-Distributions" / "releases" / "TEST_RELEASE_001.json"
         assert release_path.exists(), f"Immutable release file must exist: {release_path}"
-        # Check latest.json is a pointer with full required fields
-        import hashlib as _hl
+        # latest.json is SELF-CONTAINED (full payload) — the deployed page shells
+        # fetch latest.json directly and read data.props (no pointer to follow).
+        # The immutable release file (checked above) still exists for archival.
         latest = json.loads((out / "PMF-Distributions" / "latest.json").read_text())
-        assert latest.get("pointer") is True, "latest.json must be a pointer"
         assert latest.get("release_id") == "TEST_RELEASE_001"
-        assert "payload_path" in latest or "release_payload_path" in latest
-        assert "payload_sha256" in latest, "Pointer must include payload_sha256"
-        assert "row_count" in latest, "Pointer must include row_count"
-        assert "generated_at_utc" in latest, "Pointer must include generated_at_utc"
-        # Validate payload_sha256 matches actual release file
-        release_payload = release_path.read_text()
-        expected_sha = _hl.sha256(release_payload.encode()).hexdigest()
-        assert latest["payload_sha256"] == expected_sha, "payload_sha256 must match release file"
-        # Validate row_count matches actual props
-        release_data = json.loads(release_payload)
-        assert latest["row_count"] == release_data.get("total_props", 0)
+        assert "props" in latest, "latest.json must contain the full props array (self-contained)"
+        assert "game_date" in latest and "total_props" in latest
+        # latest.json content must match the immutable release payload
+        release_data = json.loads(release_path.read_text())
+        assert latest.get("total_props") == release_data.get("total_props")
+        assert len(latest.get("props", [])) == len(release_data.get("props", []))
 
     def test_latest_json_is_pointer_not_full_payload(self, tmp_path: Path):
         """latest.json must contain pointer fields, not the full props array."""
@@ -274,11 +269,14 @@ class TestCacheSafePayloads:
             "--git-commit", "abc",
         ], capture_output=True, text=True)
         latest_edge = json.loads((out / "Edge" / "latest.json").read_text())
-        # pointer must NOT contain the full props array
-        assert "props" not in latest_edge, (
-            "latest.json must be a pointer, not a full payload — 'props' should not be present"
+        # latest.json must be SELF-CONTAINED — the deployed shells read data.props
+        # directly from latest.json (they do not follow a payload_path pointer).
+        assert "props" in latest_edge, (
+            "latest.json must be self-contained with the full props array "
+            "(the deployed page shells read data.props directly)"
         )
-        assert latest_edge.get("pointer") is True
+        assert latest_edge.get("release_id") == "PTR_TEST"
+        assert latest_edge.get("game_date") == "2026-07-14"
 
     def test_stale_date_payload_rejected(self, tmp_path: Path):
         """A payload with game_date != target date must be rejected as stale."""
@@ -331,9 +329,10 @@ class TestCacheSafePayloads:
         ], capture_output=True, text=True)
         assert r.returncode == 0, f"Failed: {r.stderr[:300]}"
 
-        # Check pointer structure
+        # latest.json is self-contained (full payload), not a pointer
         dist_latest = json.loads((tmp_path / "Pre-Game" / "Distributions" / "latest.json").read_text())
-        assert dist_latest.get("pointer") is True, "Distributions latest.json must be a pointer"
+        assert "props" in dist_latest, "Distributions latest.json must be self-contained (full props)"
+        assert dist_latest.get("total_props", 0) > 0
 
         # The actual content should come from releases/R1.json
         dist_release = tmp_path / "Pre-Game" / "Distributions" / "releases" / "R1.json"

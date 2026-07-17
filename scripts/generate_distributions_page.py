@@ -963,14 +963,19 @@ def main(
         "row_count": payload["total_props"],
         "total_props": payload["total_props"],  # backward compat alias
     })
-    (out_dir / "latest.json").write_text(json.dumps(_pointer, separators=(",", ":")))
+    # latest.json is SELF-CONTAINED (full payload incl. props) — the deployed
+    # Distributions shell fetches latest.json directly and reads `data.props`;
+    # it does not follow a payload_path pointer. Payload carries release_id /
+    # game_date / model_version for lineage. Cache-busting is via the shell's
+    # `?t=<timestamp>` query param.
+    (out_dir / "latest.json").write_text(_payload_str)
 
     if not json_only:
         (out_dir / "index.html").write_text(_HTML)
 
     typer.echo(f"  → releases/{_eff_release_id}.json ({payload['total_props']} props) sha256={_payload_sha256[:12]}")
     typer.echo(f"  → {game_date}.json")
-    typer.echo(f"  → latest.json (pointer, release_id={_eff_release_id!r}, row_count={payload['total_props']})")
+    typer.echo(f"  → latest.json (self-contained payload, release_id={_eff_release_id!r}, row_count={payload['total_props']})")
     if not json_only:
         typer.echo(f"  → index.html")
     typer.echo("[generate_distributions_page] Done.")

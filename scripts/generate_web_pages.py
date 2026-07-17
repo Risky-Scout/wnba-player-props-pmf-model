@@ -2009,11 +2009,18 @@ def main(
         "row_count": pmf_json["total_props"],
         "total_props": pmf_json["total_props"],  # backward compat alias
     })
-    (edge_dir / "latest.json").write_text(json.dumps(_edge_pointer, separators=(",", ":")))
-    (pmf_dir  / "latest.json").write_text(json.dumps(_pmf_pointer,  separators=(",", ":")))
+    # latest.json is SELF-CONTAINED (full payload incl. props) — the deployed
+    # page shells fetch latest.json directly and read `data.props`. They do NOT
+    # follow a payload_path pointer. The payload already carries release_id,
+    # game_date, model_version and calibration_version for lineage validation.
+    # Cache-busting is handled by the shells' `?t=<timestamp>` query param.
+    # (The date-specific and immutable release files above remain available for
+    #  the ?date= view and for immutable archival.)
+    (edge_dir / "latest.json").write_text(_edge_payload_str)
+    (pmf_dir  / "latest.json").write_text(_pmf_payload_str)
     typer.echo(f"  Edge: releases/{_eff_release_id}.json ({edge_json['total_props']} props) sha256={_edge_sha256[:12]}")
     typer.echo(f"  PMF:  releases/{_eff_release_id}.json ({pmf_json['total_props']} props) sha256={_pmf_sha256[:12]}")
-    typer.echo(f"  Both latest.json → pointer release_id={_eff_release_id!r}")
+    typer.echo(f"  Both latest.json → self-contained payload release_id={_eff_release_id!r}")
 
     # --- Write HTML templates (skip when --json-only) ---
     if not json_only:

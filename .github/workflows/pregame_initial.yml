@@ -1629,11 +1629,11 @@ jobs:
           from datetime import datetime, timezone
 
           CDN = "https://sportsodds.wizardofodds.com"
-          # nginx serves the custom domain from the FTP root /WNBA/ (see ftp_deploy.py
-          # REMOTE_BASE). The /tools/odds-scanner/predictions/WNBA/ path is the gh-pages
-          # layout and is NOT the live custom-domain path — verifying it returns stale
-          # content. Verify the SAME path FTP deploys to.
-          BASE = f"{CDN}/WNBA/Pre-Game"
+          # Verify the LIVE product pages, which nginx serves at
+          # /tools/odds-scanner/predictions/WNBA/... (the path the page shells and
+          # ftp_deploy.py REMOTE_BASE both use). latest.json is SELF-CONTAINED
+          # (full payload incl. props), so it IS the payload — no pointer to follow.
+          BASE = f"{CDN}/tools/odds-scanner/predictions/WNBA/Pre-Game"
           run_id    = os.environ.get("GITHUB_RUN_ID", "")
           game_date = os.environ.get("GAME_DATE", "")
 
@@ -1669,9 +1669,8 @@ jobs:
               check("Edge/release_id_not_stale", run_id in str(edge_ptr.get("release_id","")), edge_ptr.get("release_id","")[:30])
               check("Edge/model_version_enhanced", "hgb" in str(edge_ptr.get("model_version","")), edge_ptr.get("model_version"))
 
-              edge_payload = None
-              if edge_ptr.get("payload_path"):
-                  edge_payload, err = fetch(f"{BASE}/Edge/{edge_ptr['payload_path']}")
+              # latest.json is self-contained — it IS the payload.
+              edge_payload = edge_ptr
               if edge_payload:
                   rqc = int(edge_payload.get("reconciled_quote_count", 0) or 0)
                   edge_rows = int(edge_payload.get("total_props", 0) or 0)
@@ -1706,9 +1705,8 @@ jobs:
               check("Dist/row_count>0", (dist_ptr.get("row_count") or dist_ptr.get("total_props") or 0) > 0)
               check("Dist/model_version_enhanced", "hgb" in str(dist_ptr.get("model_version","")), dist_ptr.get("model_version"))
 
-              dist_payload = None
-              if dist_ptr.get("payload_path"):
-                  dist_payload, err = fetch(f"{BASE}/Distributions/{dist_ptr['payload_path']}")
+              # latest.json is self-contained — it IS the payload.
+              dist_payload = dist_ptr
               if dist_payload:
                   dist_props = dist_payload.get("props", [])
                   check("Dist/total_props>0", len(dist_props) > 0, len(dist_props))

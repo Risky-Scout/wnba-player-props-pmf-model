@@ -8,8 +8,11 @@ Uploads every file in the following directories (preserving structure):
   In-Play/Edges/          → index.html + latest.json
   In-Play/Pricer/         → index.html
 
-All files are uploaded to /WNBA/<same path> on the server, which nginx
-serves at https://sportsodds.wizardofodds.com/WNBA/<same path>.
+Data files are uploaded to /tools/odds-scanner/predictions/WNBA/<same path> on
+the server, which nginx serves at
+https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/<same path>.
+Only data files (.json) and assets are uploaded — existing index.html page
+shells are preserved (never overwritten or wiped).
 
 When --wipe is set (default True for pre-game dirs), existing HTML/JSON files
 in the three pre-game player-facing directories are deleted before uploading
@@ -38,8 +41,13 @@ except ImportError:
     pass
 
 # Remote base where all WNBA files live on the server.
-# nginx serves sportsodds.wizardofodds.com/WNBA/... directly from /WNBA/
-REMOTE_BASE = "/WNBA"
+# nginx serves the live product pages at
+#   https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/...
+# so files must be deployed to that directory (the FTP login root maps to the
+# nginx web root). Deploying to /WNBA/ (a previous regression) published to a
+# path the product pages do NOT read, leaving the live Edge/Distributions pages
+# stale. Keep this in sync with the URLs the page shells are served from.
+REMOTE_BASE = "/tools/odds-scanner/predictions/WNBA"
 
 # Local base directory containing all the pages
 LOCAL_BASE = REPO_ROOT / "tools" / "odds-scanner" / "predictions" / "WNBA"
@@ -63,10 +71,15 @@ WIPE_DIRS = {
 }
 
 # File extensions to upload (skip .parquet, .pkl, etc.)
-UPLOAD_EXTENSIONS = {".html", ".json", ".js", ".css", ".txt", ".ico", ".png", ".svg"}
+# NOTE: .html is intentionally EXCLUDED. The page shells (index.html) already
+# exist on the server and must not be regenerated/overwritten — the pipeline's
+# job is to refresh the DATA the shells consume (latest.json / <date>.json /
+# releases/*.json), not the shells themselves.
+UPLOAD_EXTENSIONS = {".json", ".js", ".css", ".txt", ".ico", ".png", ".svg"}
 
-# Extensions targeted by the remote wipe (only player-page files)
-WIPE_EXTENSIONS = {".html", ".json"}
+# Extensions targeted by the remote wipe. Only stale data files are wiped;
+# .html shells are preserved so the existing page shells are never deleted.
+WIPE_EXTENSIONS = {".json"}
 
 
 def _ensure_remote_dir(ftp: ftplib.FTP, path: str) -> None:
