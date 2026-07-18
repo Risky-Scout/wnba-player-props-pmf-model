@@ -816,12 +816,27 @@ fetch(dataUrl)
   .then(data => {
     ALL = data.props || [];
     updateKPIs(data);
+    if (data.abstain) { renderAbstain(data); return; }
     render();
   })
   .catch(err => {
     document.getElementById('tableBody').innerHTML =
       `<tr class="empty-row"><td colspan="12">Failed to load: ${err.message}</td></tr>`;
   });
+
+function renderAbstain(data) {
+  const msg = data.abstain_reason || 'No validated betting edges currently qualify';
+  const disc = data.disclaimer || 'Forecast-only mode: no validated betting edge is currently published; no profitability or closing-line-value advantage is claimed.';
+  const tbody = document.getElementById('tableBody');
+  if (tbody) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="12">`
+      + `<div style="font-size:1rem;font-weight:600;margin-bottom:8px">${msg}</div>`
+      + `<div style="color:var(--text3);max-width:640px;margin:0 auto">${disc}</div>`
+      + `</td></tr>`;
+  }
+  const cl = document.getElementById('countLbl');
+  if (cl) cl.textContent = 'Forecast-only — betting edges withheld';
+}
 
 function updateKPIs(data) {
   document.getElementById('kTotal').textContent = data.total_props || 0;
