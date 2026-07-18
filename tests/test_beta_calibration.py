@@ -2,8 +2,11 @@
 
 Verifies:
 1. apply_beta_calibrators returns values in [0, 1] for any input.
-2. predict_today.py p_over_beta column is added when calibrators are present.
-3. Calibrator fit/apply round-trip is consistent.
+2. Calibrator fit/apply round-trip is consistent.
+
+Note (P3 Defect #4): predict_today.py no longer writes an unconsumed `p_over_beta`
+column via an invalid `mean/(mean+1)` P(over) fallback; that dead path was removed.
+A line-specific P(over) must come only from a valid PMF at the quoted line.
 """
 from __future__ import annotations
 

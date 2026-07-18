@@ -165,39 +165,14 @@ def main(
     except Exception as exc:
         typer.echo(f"[WARN] Game Total Anchoring failed (non-fatal): {exc}")
 
-    # Beta Calibration of P(over) (Item 5A) — apply Beta calibrators fitted by
-    # fit_calibrators.py. Beta calibrators recalibrate the P(over) scalar, which
-    # is more powerful than PMF-level isotonic calibration for binary market edges.
-    try:
-        import joblib as _jl  # noqa: PLC0415
-        from wnba_props_model.pipeline.calibrate import apply_beta_calibrators  # noqa: PLC0415
-        _beta_cal_dir = Path(effective_cal_dir or "artifacts/models/calibration")
-        if not pmfs.empty and "stat" in pmfs.columns:
-            _beta_applied = 0
-            for _stat, _stat_rows in pmfs.groupby("stat"):
-                _cal_path = _beta_cal_dir / f"beta_cal_{_stat}.pkl"
-                if not _cal_path.exists():
-                    continue
-                _cal = _jl.load(_cal_path)
-                # Compute P(over) from PMF at the line column (use market line if present)
-                _line_col = "line" if "line" in _stat_rows.columns else None
-                _mean_col = "mean" if "mean" in _stat_rows.columns else None
-                if _mean_col is None:
-                    continue
-                # We only recalibrate the scalar p_over, not the full PMF shape.
-                # store into p_over_beta column for downstream edge calc.
-                _raw_p = _stat_rows.get("p_over", _stat_rows[_mean_col] / (_stat_rows[_mean_col] + 1.0))
-                _vals = _raw_p.fillna(0.5).clip(1e-6, 1 - 1e-6).values.reshape(-1, 1)
-                try:
-                    _cal_p = _cal.predict(_vals)
-                    pmfs.loc[_stat_rows.index, "p_over_beta"] = _cal_p
-                    _beta_applied += len(_stat_rows)
-                except Exception:
-                    pass
-            if _beta_applied:
-                typer.echo(f"Beta calibration applied to {_beta_applied:,} rows.")
-    except Exception as _bexc:
-        typer.echo(f"[WARN] Beta calibrators skipped (non-fatal): {_bexc}")
+    # P3 Defect #4: the former beta-calibration block wrote an unconsumed beta P(over)
+    # column using an INVALID mean-based fallback when no PMF-derived P(over) existed.
+    # That column was not consumed by the production selector (build_edge_report/deliver
+    # derive model_prob_over from the PMF at the exact line), so the dead path is REMOVED.
+    # A line-specific P(over) must be computed only from a valid normalized PMF at the
+    # quoted line with correct push handling and a matching fold-safe calibrator — never
+    # from an unrelated scalar. If that machinery is reinstated it must carry the line and
+    # calibrator hash in provenance and FAIL (not substitute) on a mismatch.
 
     # Conformal Prediction Intervals (Item 5D) — flag props where model uncertainty
     # is too high to have a meaningful edge (line inside conformal interval → no edge).
