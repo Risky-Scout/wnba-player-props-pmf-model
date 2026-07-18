@@ -1,0 +1,11 @@
+{
+  "dev_start": "2026-05-08",
+  "dev_end": "2026-06-30",
+  "dev_rows": 20090,
+  "dev_games": 145,
+  "holdout_start": "2026-07-02",
+  "holdout_end": "2026-07-16",
+  "holdout_rows": 5110,
+  "holdout_games": 37,
+  "holdout_cutoff": "2026-07-01"
+}
