@@ -180,6 +180,13 @@ def main(
         ),
     ),
     edge_threshold: float = typer.Option(0.0, help="Minimum |edge| to publish (default 0 — show all props)."),
+    policy: str = typer.Option(
+        "", "--policy",
+        help=("Canonical recommendation policy YAML (config/recommendation_policy.yaml). "
+              "When supplied, its edge_threshold/min_market_prob/max_shin_z/source_policy, "
+              "stat & side suppression, and publication_mode (abstain/publish) OVERRIDE the "
+              "individual flags. The historical replay loads the same file."),
+    ),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
     max_shin_z: float = typer.Option(
@@ -239,6 +246,25 @@ def main(
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+
+    # ── Canonical policy (shared with the historical replay) ──────────────────
+    _policy = None
+    _policy_abstain = False
+    _policy_suppress_stats: set = set()
+    _policy_suppress_sides: set = set()
+    if policy:
+        from wnba_props_model.pipeline.policy import load_policy
+        _policy = load_policy(policy)
+        edge_threshold = _policy.edge_threshold
+        min_market_prob = _policy.min_market_prob
+        max_shin_z = _policy.max_shin_z
+        source_policy = _policy.source_policy
+        _policy_abstain = _policy.abstain
+        _policy_suppress_stats = set(_policy.suppress_stats)
+        _policy_suppress_sides = {str(s).lower() for s in _policy.suppress_sides}
+        typer.echo(f"[policy] loaded v{_policy.version}: threshold={edge_threshold} "
+                   f"mode={_policy.publication_mode} suppress_stats={sorted(_policy_suppress_stats)} "
+                   f"suppress_sides={sorted(_policy_suppress_sides)}")
 
     # ── Validate source policy ────────────────────────────────────────────────
     if source_policy not in _VALID_POLICIES:
@@ -880,6 +906,23 @@ def main(
     _qs_counts = edges["quality_status"].value_counts().to_dict()
     typer.echo(f"[quality_gate] {_qs_counts}")
 
+    # ── Policy-driven suppression & abstention (P2) ───────────────────────────
+    _abstain_reason = ""
+    if _policy is not None:
+        if _policy_suppress_stats and "stat" in edges.columns:
+            _before = len(edges)
+            edges = edges[~edges["stat"].isin(_policy_suppress_stats)].copy()
+            typer.echo(f"[policy] suppressed {sorted(_policy_suppress_stats)}: {_before}→{len(edges)} rows")
+        if _policy_suppress_sides and "direction" in edges.columns:
+            _before = len(edges)
+            edges = edges[~edges["direction"].str.lower().isin(_policy_suppress_sides)].copy()
+            typer.echo(f"[policy] suppressed sides {sorted(_policy_suppress_sides)}: {_before}→{len(edges)} rows")
+        if _policy_abstain:
+            # Publish an EXPLICIT empty/abstaining board — never show unvalidated picks.
+            _abstain_reason = "No validated betting edges currently qualify"
+            typer.echo(f"[policy] ABSTAIN mode — writing empty board ({len(edges)} candidate rows withheld)")
+            edges = edges.iloc[0:0].copy()
+
     edges_path = out / "publishable_edges.parquet"
     edges.to_parquet(edges_path, index=False)
 
@@ -902,6 +945,10 @@ def main(
         "game_date": today,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "market_status": STATUS_SUCCESS_WITH_MARKETS,
+        "publication_mode": (_policy.publication_mode if _policy is not None else "publish"),
+        "abstain": bool(_policy_abstain),
+        "abstain_reason": _abstain_reason,
+        "policy_version": (_policy.version if _policy is not None else None),
         "no_vig_method": "shin",
         "props_source": props_source,
         "source_policy": source_policy,

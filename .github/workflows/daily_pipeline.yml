@@ -348,8 +348,10 @@ jobs:
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --out-dir deliveries/next_game \
             --game-date ${{ steps.date.outputs.target_date }} \
+            --slate-manifest deliveries/next_game/slate_manifest.json \
+            --policy config/recommendation_policy.yaml \
             --cal-dir artifacts/models/calibration
-        continue-on-error: true
+        continue-on-error: false
 
       - name: Track CLV (Closing Line Value)
         run: |
@@ -726,13 +728,9 @@ jobs:
             cp "$PARQUET_PATH" deliveries/archive/yesterday_pmfs.parquet
             echo "Archived PMFs: $PARQUET_PATH"
           else
-            FALLBACK=$(find deliveries/next_game deliveries/tonight -name "publishable_edges.parquet" 2>/dev/null | head -1)
-            if [ -f "$FALLBACK" ]; then
-              cp "$FALLBACK" deliveries/archive/yesterday_pmfs.parquet
-              echo "Archived publishable edges as PMF archive"
-            else
-              echo "[WARN] No parquet found to archive for drift"
-            fi
+            # Do NOT fall back to an edge artifact: reusing a stale/old edge file as a
+            # PMF archive risks stale publication downstream (P2 condition 7/10).
+            echo "[WARN] No current-run PMF parquet found to archive for drift; skipping (no stale reuse)"
           fi
 
       - name: Trigger pregame dashboard publish (explicit dispatch)

@@ -1007,9 +1007,8 @@ jobs:
             --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
-            --edge-threshold 0.0 \
-            $REQUIRE_VA_FLAG \
-            --source-policy odds_api_then_bdl
+            --policy config/recommendation_policy.yaml \
+            $REQUIRE_VA_FLAG
         continue-on-error: false
 
       - name: Prediction drift monitor
@@ -1213,6 +1212,7 @@ jobs:
             --git-commit "$GIT_COMMIT" \
             --model-version "$MODEL_VER" \
             --calibration-version "$CAL_VER" \
+            --policy config/recommendation_policy.yaml \
             ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
           echo "Initial web pages generated for ${GAME_DATE} at $(date -u)"
         continue-on-error: false

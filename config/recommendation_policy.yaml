@@ -1,0 +1,43 @@
+# Canonical recommendation & publication policy (P2).
+# SINGLE source of truth loaded by BOTH the live edge builder (build_edge_report.py)
+# and the historical replay. Changing selection/publication behavior must happen here.
+version: 1
+
+edge:
+  # Threshold selected on chronological development folds (see docs/p2_threshold_selection.md),
+  # frozen before the untouched holdout. Nonzero — never publish every prop at 0.0.
+  edge_threshold: 0.04
+  min_market_prob: 0.05
+  max_shin_z: 0.15
+  supported_stats: [pts, reb, ast, fg3m]
+  # Calibration layer that MUST be present and applied to a nonzero eligible set.
+  required_calibration: [role_aware_isotonic]
+  source_policy: odds_api_then_bdl
+
+  # Publication mode for the Edge page:
+  #   abstain  -> publish an explicit empty board ("No validated betting edges currently qualify")
+  #   publish  -> publish qualifying, calibrated recommendations
+  # Set to ABSTAIN: the Edge gate is NOT met (P1 repaired holdout: model log-loss worse than
+  # the market, negative CLV, Under ROI CI spans zero, Overs materially negative).
+  publication_mode: abstain
+
+  # Diagnosed side/stat policy (Phase 5). Overs were materially negative (P1 holdout Over ROI
+  # -9.4%, CI excludes zero); no side/stat currently qualifies, hence full abstention.
+  suppress_sides: [over]
+  suppress_stats: []
+
+forecast:
+  # Stats that PASS the forecasting launch gate on the untouched holdout (Phase 3,
+  # production-equivalent fold-safe calibration). Only these publish on the PMF/
+  # Distributions pages; the rest are suppressed.
+  publish_stats: [reb, turnover]
+  suppress_stats: [pts, ast, fg3m, blk, stl]
+  suppress_reasons:
+    pts: "90% central interval under-covers (0.79 < 0.85) after fold-safe calibration — overconfident"
+    ast: "mid-PIT non-uniformity 0.18 > 0.15 (wide support) — shape miscalibration"
+    fg3m: "mid-PIT non-uniformity 0.25 > 0.15 — shape miscalibration"
+    blk: "mid-PIT non-uniformity 0.57 — severe shape miscalibration"
+    stl: "mid-PIT non-uniformity 0.25 > 0.15 — shape miscalibration"
+
+# Final release status determined by the launch gates.
+status: LAUNCH_READY_FORECAST_ONLY

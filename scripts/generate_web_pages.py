@@ -107,6 +107,8 @@ def _build_edge_json(
     market_request_status: str = "ok",
     fresh_quote_count: int | None = None,
     rejection_counts: dict | None = None,
+    abstain: bool = False,
+    abstain_reason: str = "",
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -358,6 +360,16 @@ def _build_edge_json(
     payload["reconciled_quote_count"] = reconciled_quote_count if reconciled_quote_count is not None else n_rows
     payload["rejection_counts"] = rejection_counts or {}
     payload["market_request_timestamp_utc"] = market_request_timestamp_utc or datetime.now(timezone.utc).isoformat()
+
+    # ── Abstention (P2): explicit forecast-only state — never present unvalidated picks
+    # as recommendations, and never claim profitability/CLV/edge advantage. ──────────
+    payload["abstain"] = bool(abstain)
+    if abstain:
+        payload["abstain_reason"] = abstain_reason or "No validated betting edges currently qualify"
+        payload["publication_mode"] = "forecast_only"
+        payload["disclaimer"] = ("Forecast-only mode: model probability distributions are shown for "
+                                 "information. No validated betting edge is currently published; "
+                                 "no profitability or closing-line-value advantage is claimed.")
     return payload
 
 
@@ -1792,9 +1804,25 @@ def main(
             "raw_quote_count, and market_request_timestamp_utc are read from this file."
         ),
     ),
+    policy: str = typer.Option(
+        "", "--policy",
+        help=("Canonical recommendation policy YAML. When abstain, the Edge page publishes an "
+              "explicit forecast-only board; forecast.publish_stats restricts the PMF page to "
+              "gate-passing stats."),
+    ),
 ) -> None:
     """Generate all three web page directories (Edge, PMF-Distributions, Inplay/Edges)."""
     out = Path(out_dir)
+    _pol = None
+    _pol_forecast_stats: set = set()
+    _pol_abstain = False
+    if policy:
+        from wnba_props_model.pipeline.policy import load_policy
+        _pol = load_policy(policy)
+        _pol_abstain = _pol.abstain
+        _pol_forecast_stats = set(_pol.forecast_publish_stats)
+        typer.echo(f"[policy] v{_pol.version} abstain={_pol_abstain} "
+                   f"forecast_stats={sorted(_pol_forecast_stats)}")
     edge_dir = out / "Edge"
     pmf_dir = out / "PMF-Distributions"
     live_out = Path(live_dir)
@@ -1912,6 +1940,8 @@ def main(
     _market_req_status: str = "ok"
     _fresh_quote_count: int | None = None
     _rejection_counts: dict | None = None
+    _abstain: bool = False
+    _abstain_reason: str = ""
     if market_audit_json and Path(market_audit_json).exists():
         try:
             _audit = json.loads(Path(market_audit_json).read_text())
@@ -1923,9 +1953,25 @@ def main(
             _market_req_status = _audit.get("market_request_status", "ok")
             _rejection_counts = _audit.get("rejection_counts", {})
             _market_req_ts = _audit.get("market_request_timestamp_utc", _audit.get("generated_at", ""))
-            typer.echo(f"  Market audit: status={market_status} raw={_raw_quote_count} fresh={_fresh_quote_count}")
+            _abstain = bool(_audit.get("abstain", False))
+            _abstain_reason = _audit.get("abstain_reason", "")
+            typer.echo(f"  Market audit: status={market_status} raw={_raw_quote_count} "
+                       f"fresh={_fresh_quote_count} abstain={_abstain}")
         except Exception as exc:
             typer.echo(f"  [WARN] Could not read market audit JSON {market_audit_json}: {exc}", err=True)
+
+    # Policy overrides the audit: an abstaining policy forces forecast-only Edge output
+    # regardless of how many candidate rows exist, and never presents unvalidated picks.
+    if _pol_abstain:
+        _abstain = True
+        _abstain_reason = _abstain_reason or "No validated betting edges currently qualify"
+        if edges_df is not None and len(edges_df):
+            edges_df = edges_df.iloc[0:0].copy()
+    # Restrict the PMF/Distributions page to forecasting-gate-passing stats.
+    if _pol_forecast_stats and proj_df is not None and "stat" in proj_df.columns:
+        _n0 = len(proj_df)
+        proj_df = proj_df[proj_df["stat"].isin(_pol_forecast_stats)].copy()
+        typer.echo(f"[policy] PMF page restricted to {sorted(_pol_forecast_stats)}: {_n0}→{len(proj_df)} rows")
 
     # --- Build JSON ---
     edge_json = _build_edge_json(edges_df, proj_df, game_date,
@@ -1938,7 +1984,8 @@ def main(
                                  market_request_timestamp_utc=_market_req_ts,
                                  market_request_status=_market_req_status,
                                  fresh_quote_count=_fresh_quote_count,
-                                 rejection_counts=_rejection_counts)
+                                 rejection_counts=_rejection_counts,
+                                 abstain=_abstain, abstain_reason=_abstain_reason)
     pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
                                  release_id=release_id, git_commit=git_commit,
                                  model_version=model_version,

@@ -212,7 +212,10 @@ jobs:
           python scripts/apply_injury_updates.py \
             --game-date "$GAME_DATE" \
             --out-dir deliveries/tonight \
-            --injuries-json "data/injuries/${GAME_DATE}.json"
+            --injuries-json "data/injuries/${GAME_DATE}.json" \
+            --slate "deliveries/tonight/full_pmfs_wide.parquet" \
+            --features "deliveries/tonight/slate_${GAME_DATE}.parquet" \
+            --model-dir artifacts/models/stage4_baseline
         continue-on-error: false
 
       - name: Pull final Odds API props + deep links
@@ -280,8 +283,7 @@ jobs:
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --cal-dir artifacts/models/calibration \
-            --require-venn-abers \
-            --source-policy odds_api_then_bdl
+            --policy config/recommendation_policy.yaml
         continue-on-error: false
 
       - name: Format final JSON output
@@ -336,6 +338,7 @@ jobs:
           fi
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
           GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
 
           python scripts/generate_web_pages.py \
             --game-date "$GAME_DATE" \
@@ -346,7 +349,9 @@ jobs:
             --skip-live-html \
             --json-only \
             --release-id "$GITHUB_RUN_ID" \
-            --git-commit "$GIT_COMMIT"
+            --git-commit "$GIT_COMMIT" \
+            --policy config/recommendation_policy.yaml \
+            ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
           echo "Web pages generated for ${GAME_DATE}"
         continue-on-error: false
 
