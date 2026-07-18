@@ -56,9 +56,12 @@ def test_policy_currently_consistent():
     assert errs == [], f"policy inconsistencies: {errs}"
 
 
-def test_current_status_is_validation_pending_with_nothing_certified():
+def test_current_status_is_non_launch_with_nothing_certified():
+    # After the bounded evaluation the status is BLOCKED_MODEL (or VALIDATION_PENDING while
+    # running) — never a launch state — and nothing is certified; Edge abstains.
     pol = load_policy(POLICY)
-    assert pol.status == "VALIDATION_PENDING"
+    assert pol.status in ("VALIDATION_PENDING", "BLOCKED_MODEL")
+    assert pol.status not in LAUNCH_STATES
     assert pol.forecast_certified_stats == []
     assert pol.forecast_publish_stats == []
     assert pol.abstain is True

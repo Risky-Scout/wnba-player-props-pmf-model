@@ -32,19 +32,20 @@ forecast:
   # No stat is certified for public decision use until the CORRECTED gate
   # (evaluation/forecasting.py: randomized seeded PIT + two-sided coverage + line-level
   # calibration) runs successfully on a sufficient rolling-origin evaluation set.
-  status: VALIDATION_PENDING
-  # No stat is currently certified. publish_stats stays empty until the corrected gate
-  # promotes a stat. certified_stats is what the public may treat as decision-usable.
+  # BLOCKED_MODEL: the bounded champion/Challenger-A evaluation on the FULL 2026 season
+  # (63 dates, committed 25-date holdout, ~1315 obs/stat) certified ZERO stats under the
+  # committed corrected gates — pts/reb/blk/ast fail randomized-PIT calibration and all
+  # stats fail two-sided 50% coverage (over-dispersed). CRPS beats the climatology
+  # baseline, but calibration/coverage do not pass. Gates were NOT weakened. See
+  # docs/p3_forecast_gate_result.md. Structural repair (Challenger B minutes-distribution /
+  # C count families) requires model retraining and did not yield a pass in this evaluation.
+  status: BLOCKED_MODEL
   publish_stats: []
   certified_stats: []
-  # Distributions may remain reachable but must show the pending banner below and must
-  # NOT label any stat certified.
-  pending_banner: "Forecast validation is being refreshed. No stat is currently certified for public decision use."
-  # Prior (unaccepted) gate result — retained only for provenance, NOT authorization.
-  prior_unvalidated_gate_pass: [reb, turnover]
+  pending_banner: "The WNBA forecasting model did not pass statistical validation. No stat is currently certified; forecasts are shown for information only and must not be used for decisions."
   suppress_stats: [pts, ast, fg3m, blk, stl, reb, turnover]
 
-# Overall release status. MUST be VALIDATION_PENDING while no stat is certified — never
-# expose LAUNCH_READY/LIVE_VALIDATED anywhere until forecast.certified_stats is non-empty
-# and each certified stat has a matching validated registry entry.
-status: VALIDATION_PENDING
+# Overall release status. Never expose LAUNCH_READY/LIVE_VALIDATED until
+# forecast.certified_stats is non-empty with matching validated registry entries.
+# BLOCKED_MODEL: bounded champion/Challenger-A evaluation certified zero stats (see forecast block).
+status: BLOCKED_MODEL

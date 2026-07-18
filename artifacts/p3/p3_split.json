@@ -1,0 +1,8 @@
+{
+  "holdout_start": "2026-06-20",
+  "holdout_end": "2026-07-16",
+  "n_holdout_dates": 25,
+  "n_calib_dates": 10,
+  "dev_start": "2026-05-08",
+  "n_total_dates": 63
+}

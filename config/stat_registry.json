@@ -1,0 +1,93 @@
+{
+  "ast": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_locscale",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 0.8975,
+    "log_score": 2.0526,
+    "crps_vs_baseline": -0.2555,
+    "pit_ks_p": 0.0002,
+    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0002 < 0.01); 50% interval over-covers (emp 0.736 vs 0.5; clustered CI excludes nominal); 80% interval over-covers (emp 0.890 vs 0.8; clustered CI excludes nominal); log score 2.053 worse than baseline by +0.119"
+  },
+  "blk": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_loc",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 0.2679,
+    "log_score": 0.7632,
+    "crps_vs_baseline": -0.026,
+    "pit_ks_p": 0.0001,
+    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0001 < 0.01); 50% interval over-covers (emp 0.909 vs 0.5; clustered CI excludes nominal); 80% interval over-covers (emp 0.954 vs 0.8; clustered CI excludes nominal); 80% interval too broad: sharpness ratio 1.20 > 1.15"
+  },
+  "fg3m": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_locscale",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 0.5146,
+    "log_score": 1.2196,
+    "crps_vs_baseline": -0.0684,
+    "pit_ks_p": 0.5226,
+    "suppression_reason": "50% interval over-covers (emp 0.831 vs 0.5; clustered CI excludes nominal); 80% interval over-covers (emp 0.940 vs 0.8; clustered CI excludes nominal); 80% interval too broad: sharpness ratio 1.27 > 1.15"
+  },
+  "pts": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_locscale",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 3.2612,
+    "log_score": 4.9148,
+    "crps_vs_baseline": -0.9363,
+    "pit_ks_p": 0.0,
+    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0000 < 0.01); 80% interval under-covers (emp 0.717 vs 0.8; clustered CI excludes nominal); 90% interval under-covers (emp 0.766 vs 0.9; clustered CI excludes nominal); log score 4.915 worse than baseline by +1.748"
+  },
+  "reb": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_locscale",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 1.3014,
+    "log_score": 2.9461,
+    "crps_vs_baseline": -0.3625,
+    "pit_ks_p": 0.0,
+    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0000 < 0.01); 90% interval under-covers (emp 0.842 vs 0.9; clustered CI excludes nominal); log score 2.946 worse than baseline by +0.617"
+  },
+  "stl": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_locscale",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 0.4359,
+    "log_score": 1.1174,
+    "crps_vs_baseline": -0.0569,
+    "pit_ks_p": 0.1728,
+    "suppression_reason": "50% interval over-covers (emp 0.867 vs 0.5; clustered CI excludes nominal); 80% interval over-covers (emp 0.954 vs 0.8; clustered CI excludes nominal); 90% interval over-covers (emp 0.984 vs 0.9; clustered CI excludes nominal)"
+  },
+  "turnover": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "winner": "challenger_A_locscale",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 0.6484,
+    "log_score": 1.496,
+    "crps_vs_baseline": -0.0758,
+    "pit_ks_p": 0.2375,
+    "suppression_reason": "50% interval over-covers (emp 0.786 vs 0.5; clustered CI excludes nominal); 80% interval over-covers (emp 0.931 vs 0.8; clustered CI excludes nominal)"
+  }
+}

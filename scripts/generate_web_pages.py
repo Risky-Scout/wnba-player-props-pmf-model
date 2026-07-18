@@ -1163,8 +1163,11 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
 
   function renderValidationBanner(data) {
     if (document.getElementById('valBanner')) return;
-    var pending = (data.forecast_status === 'VALIDATION_PENDING');
+    var st = data.forecast_status || '';
+    var pending = (st === 'VALIDATION_PENDING' || st === 'BLOCKED_MODEL');
     if (!pending && data.forecast_certified !== false) return;
+    var title = (st === 'BLOCKED_MODEL')
+      ? 'Forecasting model not validated' : 'Forecast validation in progress';
     var msg = data.pending_banner ||
       'Forecast validation is being refreshed. No stat is currently certified for public decision use.';
     var meta = [data.model_version ? 'Model ' + data.model_version : '',
@@ -1177,7 +1180,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
     b.id = 'valBanner';
     b.style.cssText = 'margin:16px auto;max-width:900px;padding:16px 20px;border:1px solid #b3801f;'
       + 'border-radius:10px;background:#241d0e;color:#f2d492;text-align:center;line-height:1.6';
-    b.innerHTML = '<div style="font-weight:700;margin-bottom:6px">Forecast validation in progress</div>'
+    b.innerHTML = '<div style="font-weight:700;margin-bottom:6px">' + title + '</div>'
       + '<div>' + msg + '</div>'
       + '<div style="font-size:.7rem;color:#a98a4b;margin-top:8px">These distributions are shown for '
       + 'information only and are NOT certified for betting or decision use. ' + meta + '</div>';
@@ -2045,12 +2048,13 @@ def main(
     _fc_status = (_pol.forecast_status if _pol is not None else "")
     _fc_certified = (_pol.forecast_certified_stats if _pol is not None else []) or []
     _fc_pending_banner = (_pol.forecast_pending_banner if _pol is not None else "")
-    if _fc_status != "VALIDATION_PENDING" and _fc_certified and proj_df is not None and "stat" in proj_df.columns:
+    _uncertified = _fc_status in ("VALIDATION_PENDING", "BLOCKED_MODEL")
+    if not _uncertified and _fc_certified and proj_df is not None and "stat" in proj_df.columns:
         _n0 = len(proj_df)
         proj_df = proj_df[proj_df["stat"].isin(_fc_certified)].copy()
         typer.echo(f"[policy] PMF page restricted to CERTIFIED stats {sorted(_fc_certified)}: {_n0}→{len(proj_df)} rows")
-    elif _fc_status == "VALIDATION_PENDING":
-        typer.echo("[policy] forecast VALIDATION_PENDING — distributions shown as UNCERTIFIED with refresh banner")
+    elif _uncertified:
+        typer.echo(f"[policy] forecast {_fc_status} — distributions shown as UNCERTIFIED with banner")
 
     # --- Build JSON ---
     edge_json = _build_edge_json(edges_df, proj_df, game_date,
@@ -2078,7 +2082,7 @@ def main(
     for _pl in (edge_json, pmf_json):
         _pl["forecast_status"] = _fc_status or "UNKNOWN"
         _pl["certified_stats"] = list(_fc_certified)
-        if _fc_status == "VALIDATION_PENDING":
+        if _fc_status in ("VALIDATION_PENDING", "BLOCKED_MODEL"):
             _pl["forecast_certified"] = False
             _pl["pending_banner"] = _fc_pending_banner or (
                 "Forecast validation is being refreshed. No stat is currently certified "

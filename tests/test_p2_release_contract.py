@@ -161,6 +161,6 @@ def test_forecast_suppression_encoded():
     # Under VALIDATION_PENDING nothing is certified/published; all seven stats are
     # suppressed from certified publication until the corrected gate runs.
     p = load_policy(POLICY)
-    assert p.forecast_status == "VALIDATION_PENDING"
+    assert p.forecast_status in ("VALIDATION_PENDING", "BLOCKED_MODEL")
     assert set(p.forecast_publish_stats) == set()
     assert {"pts", "reb", "ast", "fg3m", "blk", "stl", "turnover"} <= set(p.forecast_suppress_stats)
