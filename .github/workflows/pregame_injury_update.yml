@@ -217,7 +217,8 @@ jobs:
             --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
-            --policy config/recommendation_policy.yaml
+            --policy config/recommendation_policy.yaml \
+            --require-policy
         continue-on-error: true
 
       - name: Format injury-updated JSON output

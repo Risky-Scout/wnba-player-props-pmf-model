@@ -283,7 +283,8 @@ jobs:
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --cal-dir artifacts/models/calibration \
-            --policy config/recommendation_policy.yaml
+            --policy config/recommendation_policy.yaml \
+            --require-policy
         continue-on-error: false
 
       - name: Format final JSON output

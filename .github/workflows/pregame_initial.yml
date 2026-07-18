@@ -1011,6 +1011,7 @@ jobs:
             --game-date "$GAME_DATE" \
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --policy config/recommendation_policy.yaml \
+            --require-policy \
             $REQUIRE_VA_FLAG
         continue-on-error: false
 
