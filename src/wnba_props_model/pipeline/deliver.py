@@ -339,9 +339,13 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     for _, r in joined.iterrows():
         model_probs.append(prob_over_from_pmf(json_to_pmf(r["pmf_json"]), r["line"]))
     joined["model_prob_over"] = model_probs
-    joined["edge_over"] = joined["model_prob_over"] - joined["market_prob_over_no_vig"]
+    # Shared production edge definition (also used by the P1 historical replay).
+    from wnba_props_model.pipeline.recommendation import edge_over_under
+    _edges = [edge_over_under(mo, mk) for mo, mk in
+              zip(joined["model_prob_over"], joined["market_prob_over_no_vig"])]
+    joined["edge_over"] = [e[0] for e in _edges]
     # edge_under: how much the model's under probability exceeds the market's under probability
-    joined["edge_under"] = joined["market_prob_over_no_vig"] - joined["model_prob_over"]
+    joined["edge_under"] = [e[1] for e in _edges]
     joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
     joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
 
