@@ -109,6 +109,9 @@ def _build_edge_json(
     rejection_counts: dict | None = None,
     abstain: bool = False,
     abstain_reason: str = "",
+    validation_status: str = "",
+    enabled_stats: list | None = None,
+    suppressed_stats: list | None = None,
 ) -> dict:
     """Build the payload for Pre-Game/Edge/latest.json.
 
@@ -364,6 +367,9 @@ def _build_edge_json(
     # ── Abstention (P2): explicit forecast-only state — never present unvalidated picks
     # as recommendations, and never claim profitability/CLV/edge advantage. ──────────
     payload["abstain"] = bool(abstain)
+    payload["validation_status"] = validation_status or ("LAUNCH_READY_FORECAST_ONLY" if abstain else "")
+    payload["enabled_stats"] = list(enabled_stats or [])
+    payload["suppressed_stats"] = list(suppressed_stats or [])
     if abstain:
         payload["abstain_reason"] = abstain_reason or "No validated betting edges currently qualify"
         payload["publication_mode"] = "forecast_only"
@@ -827,15 +833,41 @@ fetch(dataUrl)
 function renderAbstain(data) {
   const msg = data.abstain_reason || 'No validated betting edges currently qualify';
   const disc = data.disclaimer || 'Forecast-only mode: no validated betting edge is currently published; no profitability or closing-line-value advantage is claimed.';
-  const tbody = document.getElementById('tableBody');
-  if (tbody) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="12">`
-      + `<div style="font-size:1rem;font-weight:600;margin-bottom:8px">${msg}</div>`
-      + `<div style="color:var(--text3);max-width:640px;margin:0 auto">${disc}</div>`
-      + `</td></tr>`;
+  // Hide EVERY betting affordance — counters, filters (BET/SMALL BET/LEAN, Over/Under),
+  // the recommendation table (Action/Tier/Edge/Kelly/Best-Odds columns) and sorting.
+  ['.kpis', '.filters', '.tbl-wrap'].forEach(function(sel){
+    var el = document.querySelector(sel);
+    if (el) el.style.display = 'none';
+  });
+  // Neutralize betting language in the footer.
+  document.querySelectorAll('footer > div').forEach(function(d){
+    if (/Kelly|BET|Edge =|Confidence/i.test(d.textContent)) d.style.display = 'none';
+  });
+  // Explicit abstaining forecast-only banner + release metadata.
+  var main = document.querySelector('main');
+  if (main && !document.getElementById('abstainBanner')) {
+    var meta = [
+      data.model_version ? 'Model ' + data.model_version : '',
+      data.calibration_version ? 'Calibration ' + data.calibration_version : '',
+      data.game_date ? 'Forecast date ' + data.game_date : '',
+      data.release_id ? 'Run ' + data.release_id : '',
+      data.validation_status ? 'Status ' + data.validation_status : 'Status LAUNCH_READY_FORECAST_ONLY'
+    ].filter(Boolean).join(' · ');
+    var enabled = (data.enabled_stats || []).join(', ');
+    var suppressed = (data.suppressed_stats || []).join(', ');
+    var b = document.createElement('div');
+    b.id = 'abstainBanner';
+    b.style.cssText = 'margin:24px auto;max-width:720px;padding:22px 26px;border:1px solid var(--border);'
+      + 'border-radius:12px;background:var(--surface,#12161c);text-align:center';
+    b.innerHTML =
+      '<div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Forecast-only release · Betting edges abstained</div>'
+      + '<div style="font-size:1.15rem;font-weight:700;margin-bottom:10px">' + msg + '</div>'
+      + '<div style="color:var(--text3);line-height:1.7;margin-bottom:14px">' + disc + '</div>'
+      + (enabled ? '<div style="font-size:.8rem;color:var(--text2)">Validated forecast stats: ' + enabled + '</div>' : '')
+      + (suppressed ? '<div style="font-size:.8rem;color:var(--text3)">Suppressed: ' + suppressed + '</div>' : '')
+      + '<div style="font-size:.7rem;color:var(--text3);margin-top:14px">' + meta + '</div>';
+    main.insertBefore(b, main.firstChild);
   }
-  const cl = document.getElementById('countLbl');
-  if (cl) cl.textContent = 'Forecast-only — betting edges withheld';
 }
 
 function updateKPIs(data) {
@@ -2000,7 +2032,10 @@ def main(
                                  market_request_status=_market_req_status,
                                  fresh_quote_count=_fresh_quote_count,
                                  rejection_counts=_rejection_counts,
-                                 abstain=_abstain, abstain_reason=_abstain_reason)
+                                 abstain=_abstain, abstain_reason=_abstain_reason,
+                                 validation_status=(_pol.status if _pol is not None else ""),
+                                 enabled_stats=(_pol.forecast_publish_stats if _pol is not None else None),
+                                 suppressed_stats=(_pol.forecast_suppress_stats if _pol is not None else None))
     pmf_json  = _build_pmf_json(edges_df, proj_df, game_date,
                                  release_id=release_id, git_commit=git_commit,
                                  model_version=model_version,

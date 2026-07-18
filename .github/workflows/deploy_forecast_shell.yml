@@ -1,0 +1,61 @@
+name: Deploy forecast-only Edge shell (one-time)
+
+# Controlled, one-time deploy of the forecast-only Edge page SHELL (index.html),
+# which hides betting affordances and shows the explicit abstention state. Routine
+# daily runs never touch shells (ftp_deploy uploads .json only); this workflow opts
+# in via --include-html and --no-wipe so the live abstaining latest.json is preserved.
+# Fired by pushing the sentinel .github/deploy_shell.trigger to main.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/deploy_shell.trigger
+  workflow_dispatch:
+
+jobs:
+  deploy-forecast-shell:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Secret preflight (presence only)
+        run: |
+          test -n "$FTP_HOST" && test -n "$FTP_USER" && test -n "$FTP_PASS" \
+            || { echo "[FATAL] FTP_* secrets missing"; exit 1; }
+          echo "FTP secrets present."
+
+      - name: Write forecast-only Edge shell
+        run: |
+          EDGE_DIR="tools/odds-scanner/predictions/WNBA/Pre-Game/Edge"
+          mkdir -p "$EDGE_DIR"
+          python - <<'PYEOF'
+          import importlib.util, pathlib
+          spec = importlib.util.spec_from_file_location("gwp", "scripts/generate_web_pages.py")
+          g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+          out = pathlib.Path("tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/index.html")
+          out.write_text(g._EDGE_HTML)
+          assert "Betting edges abstained" in g._EDGE_HTML, "shell missing abstain markup"
+          print(f"Wrote forecast-only Edge shell ({len(g._EDGE_HTML)} bytes)")
+          PYEOF
+
+      - name: Deploy Edge shell only (html, preserve live JSON)
+        run: python3 scripts/ftp_deploy.py --dirs Pre-Game/Edge --no-wipe --include-html
+
+      - name: Verify live shell carries abstention UX
+        run: |
+          URL="https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/"
+          BODY=$(curl -fsS "$URL?t=$(date +%s)")
+          echo "$BODY" | grep -q "Betting edges abstained" \
+            && echo "[verify] forecast-only abstention shell is LIVE" \
+            || { echo "[FATAL] live shell missing abstention markup"; exit 1; }
