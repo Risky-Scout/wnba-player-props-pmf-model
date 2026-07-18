@@ -35,9 +35,13 @@ jobs:
             || { echo "[FATAL] FTP_* secrets missing"; exit 1; }
           echo "FTP secrets present."
 
-      - name: Write forecast-only Edge shell
+      - name: Write forecast-only Edge shell (index.html ONLY)
         run: |
           EDGE_DIR="tools/odds-scanner/predictions/WNBA/Pre-Game/Edge"
+          # CRITICAL: strip any repo-tracked stale data files so the shell deploy
+          # uploads ONLY index.html and can never clobber the live latest.json /
+          # release payloads. ftp_deploy recurses the whole dir, so it must be clean.
+          rm -rf "$EDGE_DIR"
           mkdir -p "$EDGE_DIR"
           python - <<'PYEOF'
           import importlib.util, pathlib
@@ -48,6 +52,8 @@ jobs:
           assert "Betting edges abstained" in g._EDGE_HTML, "shell missing abstain markup"
           print(f"Wrote forecast-only Edge shell ({len(g._EDGE_HTML)} bytes)")
           PYEOF
+          # Fail if anything other than index.html remains to be uploaded.
+          test "$(find "$EDGE_DIR" -type f | wc -l)" = "1" || { echo "[FATAL] extra files present"; find "$EDGE_DIR" -type f; exit 1; }
 
       - name: Deploy Edge shell only (html, preserve live JSON)
         run: python3 scripts/ftp_deploy.py --dirs Pre-Game/Edge --no-wipe --include-html
