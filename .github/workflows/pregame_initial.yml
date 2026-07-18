@@ -51,6 +51,12 @@ on:
       - src/wnba_props_model/pipeline/market_integrity.py
       - src/wnba_props_model/pipeline/output_schema.py
 
+concurrency:
+  # Single-flight: all pregame publishers share ONE group so no two runs mutate
+  # deliveries/tonight or the live pointer concurrently (incident-response #2).
+  group: wnba-pregame-live-publish
+  cancel-in-progress: false
+
 jobs:
   pregame_initial:
     runs-on: ubuntu-latest

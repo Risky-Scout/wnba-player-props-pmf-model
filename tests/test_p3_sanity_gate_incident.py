@@ -61,6 +61,19 @@ def test_gate_limits_threads_before_heavy_import_and_clean_exits():
     assert "os._exit(" in src
 
 
+def test_publishers_share_single_flight_group():
+    # All pregame publishers must share ONE concurrency group so no two runs mutate
+    # deliveries/tonight or the live pointer concurrently (competing-publishers fix #2).
+    import yaml
+    for wf in ["pregame_initial.yml", "pregame_final.yml",
+               "pregame_odds_refresh.yml", "pregame_injury_update.yml"]:
+        doc = yaml.safe_load((REPO / ".github/workflows" / wf).read_text())
+        conc = doc.get("concurrency")
+        assert conc and conc.get("group") == "wnba-pregame-live-publish", \
+            f"{wf}: missing shared single-flight concurrency group"
+        assert conc.get("cancel-in-progress") is False, f"{wf}: must serialize, not cancel"
+
+
 def test_workflow_uses_hardened_gate_not_heredoc():
     wf = (REPO / ".github/workflows/pregame_initial.yml").read_text()
     assert "python scripts/calibration_sanity_gate.py" in wf
