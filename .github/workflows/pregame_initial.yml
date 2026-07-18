@@ -1743,3 +1743,5 @@ jobs:
           retention-days: 14
 
 # P3: publish BLOCKED_MODEL forecast state (no stat certified; distributions uncertified).
+
+# P3: publish LIVE_VALIDATED_FORECAST_ONLY (turnover certified; location-and-scale calibration).
