@@ -2014,11 +2014,19 @@ def main(
         _abstain_reason = _abstain_reason or "No validated betting edges currently qualify"
         if edges_df is not None and len(edges_df):
             edges_df = edges_df.iloc[0:0].copy()
-    # Restrict the PMF/Distributions page to forecasting-gate-passing stats.
-    if _pol_forecast_stats and proj_df is not None and "stat" in proj_df.columns:
+    # Forecast publication policy:
+    #  - VALIDATION_PENDING: no stat is CERTIFIED. Distributions stay reachable (shown as
+    #    informational/uncertified) with the pending banner; nothing is restricted-as-certified.
+    #  - otherwise: restrict the page to the CERTIFIED stats.
+    _fc_status = (_pol.forecast_status if _pol is not None else "")
+    _fc_certified = (_pol.forecast_certified_stats if _pol is not None else []) or []
+    _fc_pending_banner = (_pol.forecast_pending_banner if _pol is not None else "")
+    if _fc_status != "VALIDATION_PENDING" and _fc_certified and proj_df is not None and "stat" in proj_df.columns:
         _n0 = len(proj_df)
-        proj_df = proj_df[proj_df["stat"].isin(_pol_forecast_stats)].copy()
-        typer.echo(f"[policy] PMF page restricted to {sorted(_pol_forecast_stats)}: {_n0}→{len(proj_df)} rows")
+        proj_df = proj_df[proj_df["stat"].isin(_fc_certified)].copy()
+        typer.echo(f"[policy] PMF page restricted to CERTIFIED stats {sorted(_fc_certified)}: {_n0}→{len(proj_df)} rows")
+    elif _fc_status == "VALIDATION_PENDING":
+        typer.echo("[policy] forecast VALIDATION_PENDING — distributions shown as UNCERTIFIED with refresh banner")
 
     # --- Build JSON ---
     edge_json = _build_edge_json(edges_df, proj_df, game_date,
@@ -2040,6 +2048,17 @@ def main(
                                  release_id=release_id, git_commit=git_commit,
                                  model_version=model_version,
                                  calibration_version=calibration_version)
+
+    # Forecast validation status on BOTH payloads (never present an uncertified stat as
+    # certified; carry the refresh banner when validation is pending).
+    for _pl in (edge_json, pmf_json):
+        _pl["forecast_status"] = _fc_status or "UNKNOWN"
+        _pl["certified_stats"] = list(_fc_certified)
+        if _fc_status == "VALIDATION_PENDING":
+            _pl["forecast_certified"] = False
+            _pl["pending_banner"] = _fc_pending_banner or (
+                "Forecast validation is being refreshed. No stat is currently certified "
+                "for public decision use.")
 
     # --- Write immutable release payloads and cache-safe latest.json pointer ---
     # A3: Immutable release files at releases/<release_id>.json

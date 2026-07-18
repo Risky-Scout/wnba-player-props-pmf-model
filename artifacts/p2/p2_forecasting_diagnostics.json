@@ -11,32 +11,54 @@
     "holdout_cutoff": "2026-07-01"
   },
   "primary_model": "fold_safe_calibrated",
-  "stats_passed": [
-    "reb",
-    "turnover"
-  ],
+  "stats_passed": [],
   "stats_suppressed": [
     "ast",
     "blk",
     "fg3m",
     "pts",
-    "stl"
+    "reb",
+    "stl",
+    "turnover"
   ],
   "suppression_reasons": {
     "ast": [
-      "PIT non-uniformity 0.177 > 0.15 (wide-support stat)"
+      "insufficient coverage: 15 game-dates (<25)",
+      "50% interval over-covers (emp 0.784 vs 0.5; clustered CI excludes nominal)",
+      "80% interval over-covers (emp 0.925 vs 0.8; clustered CI excludes nominal)"
     ],
     "blk": [
-      "PIT non-uniformity 0.566 > 0.15 (wide-support stat)"
+      "insufficient coverage: 15 game-dates (<25)",
+      "randomized-PIT non-uniform (KS p=0.0004 < 0.01)",
+      "50% interval over-covers (emp 0.918 vs 0.5; clustered CI excludes nominal)",
+      "80% interval over-covers (emp 0.963 vs 0.8; clustered CI excludes nominal)",
+      "90% interval over-covers (emp 0.974 vs 0.9; clustered CI excludes nominal)"
     ],
     "fg3m": [
-      "PIT non-uniformity 0.251 > 0.15 (wide-support stat)"
+      "insufficient coverage: 15 game-dates (<25)",
+      "50% interval over-covers (emp 0.849 vs 0.5; clustered CI excludes nominal)",
+      "80% interval over-covers (emp 0.944 vs 0.8; clustered CI excludes nominal)"
     ],
     "pts": [
-      "90% interval under-covers (0.790 < 0.85) \u2014 overconfident"
+      "insufficient coverage: 15 game-dates (<25)",
+      "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+      "80% interval under-covers (emp 0.743 vs 0.8; clustered CI excludes nominal)",
+      "90% interval under-covers (emp 0.790 vs 0.9; clustered CI excludes nominal)"
+    ],
+    "reb": [
+      "insufficient coverage: 15 game-dates (<25)",
+      "randomized-PIT non-uniform (KS p=0.0001 < 0.01)",
+      "50% interval over-covers (emp 0.642 vs 0.5; clustered CI excludes nominal)"
     ],
     "stl": [
-      "PIT non-uniformity 0.248 > 0.15 (wide-support stat)"
+      "insufficient coverage: 15 game-dates (<25)",
+      "50% interval over-covers (emp 0.823 vs 0.5; clustered CI excludes nominal)",
+      "80% interval over-covers (emp 0.926 vs 0.8; clustered CI excludes nominal)"
+    ],
+    "turnover": [
+      "insufficient coverage: 15 game-dates (<25)",
+      "50% interval over-covers (emp 0.781 vs 0.5; clustered CI excludes nominal)",
+      "80% interval over-covers (emp 0.934 vs 0.8; clustered CI excludes nominal)"
     ]
   },
   "per_stat_raw": {
@@ -49,38 +71,60 @@
       "mae": 1.217614863520548,
       "rmse": 1.7448138971606857,
       "crps": 0.9715587031781964,
-      "pit_ece": 0.23013698630136986,
+      "log_score": 1.980078958688776,
+      "pit_ks_stat": 0.21127600460258505,
+      "pit_ks_p": 5.459611396915962e-29,
+      "pit_mid_ece": 0.23013698630136986,
       "coverage": {
         "0.5": {
           "empirical": 0.726,
-          "ci_lo": 0.6926,
-          "ci_hi": 0.7571,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 2.211
+          "clustered_ci_lo": 0.6812,
+          "clustered_ci_hi": 0.784,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.226,
+          "mean_width": 2.211,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.8904,
-          "ci_lo": 0.8657,
-          "ci_hi": 0.9111,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 4.178
+          "clustered_ci_lo": 0.8719,
+          "clustered_ci_hi": 0.9102,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0904,
+          "mean_width": 4.178,
+          "median_width": 4.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.9411,
-          "ci_lo": 0.9216,
-          "ci_hi": 0.956,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 5.53
+          "clustered_ci_lo": 0.9292,
+          "clustered_ci_hi": 0.9542,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0411,
+          "mean_width": 5.53,
+          "median_width": 5.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.01579256968931507,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.01579256968931507,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.230 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "50% interval over-covers (emp 0.726 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.890 vs 0.8; clustered CI excludes nominal)"
       ]
     },
     "blk": {
@@ -92,38 +136,60 @@
       "mae": 0.33604890049315067,
       "rmse": 0.6324839386163232,
       "crps": 0.26602271197871413,
-      "pit_ece": 0.6808219178082193,
+      "log_score": 0.8798127226362193,
+      "pit_ks_stat": 0.1506424966844303,
+      "pit_ks_p": 6.0189851057021364e-15,
+      "pit_mid_ece": 0.6808219178082193,
       "coverage": {
         "0.5": {
           "empirical": 0.7863,
-          "ci_lo": 0.7551,
-          "ci_hi": 0.8145,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 0.116
+          "clustered_ci_lo": 0.7637,
+          "clustered_ci_hi": 0.8066,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.2863,
+          "mean_width": 0.116,
+          "median_width": 0.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.8575,
-          "ci_lo": 0.8303,
-          "ci_hi": 0.881,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 0.403
+          "clustered_ci_lo": 0.8348,
+          "clustered_ci_hi": 0.879,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0575,
+          "mean_width": 0.403,
+          "median_width": 0.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         },
         "0.9": {
           "empirical": 0.9041,
-          "ci_lo": 0.8806,
-          "ci_hi": 0.9234,
           "nominal": 0.9,
-          "compatible": true,
-          "mean_width": 0.721
+          "clustered_ci_lo": 0.8856,
+          "clustered_ci_hi": 0.923,
+          "ci_excludes_nominal": false,
+          "coverage_error": 0.0041,
+          "mean_width": 0.721,
+          "median_width": 0.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.02015370305616438,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.02015370305616438,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "material bias -0.20 > 0.25\u00b7RMSE (0.63)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "material bias -0.20 > 0.25\u00b7RMSE (0.63)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "50% interval over-covers (emp 0.786 vs 0.5; clustered CI excludes nominal)"
       ]
     },
     "fg3m": {
@@ -135,38 +201,60 @@
       "mae": 0.7681934523013698,
       "rmse": 1.0729262920291363,
       "crps": 0.5068980344214374,
-      "pit_ece": 0.26575342465753427,
+      "log_score": 1.2503801834759123,
+      "pit_ks_stat": 0.06088739343246197,
+      "pit_ks_p": 0.008486331341023777,
+      "pit_mid_ece": 0.26575342465753427,
       "coverage": {
         "0.5": {
           "empirical": 0.826,
-          "ci_lo": 0.7968,
-          "ci_hi": 0.8518,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 1.193
+          "clustered_ci_lo": 0.8127,
+          "clustered_ci_hi": 0.8415,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.326,
+          "mean_width": 1.193,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.9233,
-          "ci_lo": 0.9017,
-          "ci_hi": 0.9405,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 2.325
+          "clustered_ci_lo": 0.9067,
+          "clustered_ci_hi": 0.9421,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1233,
+          "mean_width": 2.325,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.9493,
-          "ci_lo": 0.9309,
-          "ci_hi": 0.963,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 3.115
+          "clustered_ci_lo": 0.9317,
+          "clustered_ci_hi": 0.9688,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0493,
+          "mean_width": 3.115,
+          "median_width": 3.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.005744493378995435,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.005744493378995435,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.266 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0085 < 0.01)",
+        "50% interval over-covers (emp 0.826 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.923 vs 0.8; clustered CI excludes nominal)"
       ]
     },
     "pts": {
@@ -178,37 +266,60 @@
       "mae": 4.40187100790411,
       "rmse": 5.895048302446627,
       "crps": 3.318772382132302,
-      "pit_ece": 0.12328767123287669,
+      "log_score": 3.06814537226083,
+      "pit_ks_stat": 0.13986962181430768,
+      "pit_ks_p": 6.056305604360343e-13,
+      "pit_mid_ece": 0.12328767123287669,
       "coverage": {
         "0.5": {
           "empirical": 0.6425,
-          "ci_lo": 0.607,
-          "ci_hi": 0.6764,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 8.111
+          "clustered_ci_lo": 0.6142,
+          "clustered_ci_hi": 0.6736,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1425,
+          "mean_width": 8.111,
+          "median_width": 8.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.8616,
-          "ci_lo": 0.8347,
-          "ci_hi": 0.8848,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 15.663
+          "clustered_ci_lo": 0.843,
+          "clustered_ci_hi": 0.8841,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0616,
+          "mean_width": 15.663,
+          "median_width": 14.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         },
         "0.9": {
           "empirical": 0.9411,
-          "ci_lo": 0.9216,
-          "ci_hi": 0.956,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 19.986
+          "clustered_ci_lo": 0.9308,
+          "clustered_ci_hi": 0.9527,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0411,
+          "mean_width": 19.986,
+          "median_width": 18.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.014386491731050213,
-      "tail_cov90_ok": true,
-      "passed": true,
-      "reasons": []
+      "calib_ece_pooled": 0.014386491731050213,
+      "line_level": {},
+      "n_dates": 15,
+      "passed": false,
+      "reasons": [
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "50% interval over-covers (emp 0.642 vs 0.5; clustered CI excludes nominal)"
+      ]
     },
     "reb": {
       "stat": "reb",
@@ -219,38 +330,60 @@
       "mae": 1.7768112724246574,
       "rmse": 2.399850902873984,
       "crps": 1.3535418839536724,
-      "pit_ece": 0.1794520547945205,
+      "log_score": 2.278593523352696,
+      "pit_ks_stat": 0.1692653494347897,
+      "pit_ks_p": 9.272932546477763e-19,
+      "pit_mid_ece": 0.1794520547945205,
       "coverage": {
         "0.5": {
           "empirical": 0.7055,
-          "ci_lo": 0.6714,
-          "ci_hi": 0.7374,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 3.385
+          "clustered_ci_lo": 0.6667,
+          "clustered_ci_hi": 0.7434,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.2055,
+          "mean_width": 3.385,
+          "median_width": 3.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.9014,
-          "ci_lo": 0.8776,
-          "ci_hi": 0.9209,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 6.297
+          "clustered_ci_lo": 0.8811,
+          "clustered_ci_hi": 0.9209,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1014,
+          "mean_width": 6.297,
+          "median_width": 6.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.9521,
-          "ci_lo": 0.9341,
-          "ci_hi": 0.9653,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 8.104
+          "clustered_ci_lo": 0.9383,
+          "clustered_ci_hi": 0.9642,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0521,
+          "mean_width": 8.104,
+          "median_width": 8.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.02017287430273972,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.02017287430273972,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.179 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "50% interval over-covers (emp 0.706 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.901 vs 0.8; clustered CI excludes nominal)"
       ]
     },
     "stl": {
@@ -262,38 +395,60 @@
       "mae": 0.7019948891095891,
       "rmse": 1.0222621648024364,
       "crps": 0.5444904694297752,
-      "pit_ece": 0.46301369863013697,
+      "log_score": 1.3827560242154728,
+      "pit_ks_stat": 0.22882545838094037,
+      "pit_ks_p": 6.2347121404142194e-34,
+      "pit_mid_ece": 0.46301369863013697,
       "coverage": {
         "0.5": {
           "empirical": 0.6438,
-          "ci_lo": 0.6084,
-          "ci_hi": 0.6777,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 0.432
+          "clustered_ci_lo": 0.6184,
+          "clustered_ci_hi": 0.6688,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1438,
+          "mean_width": 0.432,
+          "median_width": 0.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.8247,
-          "ci_lo": 0.7954,
-          "ci_hi": 0.8505,
           "nominal": 0.8,
-          "compatible": true,
-          "mean_width": 1.13
+          "clustered_ci_lo": 0.7977,
+          "clustered_ci_hi": 0.8507,
+          "ci_excludes_nominal": false,
+          "coverage_error": 0.0247,
+          "mean_width": 1.13,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         },
         "0.9": {
           "empirical": 0.8959,
-          "ci_lo": 0.8716,
-          "ci_hi": 0.916,
           "nominal": 0.9,
-          "compatible": true,
-          "mean_width": 1.663
+          "clustered_ci_lo": 0.8744,
+          "clustered_ci_hi": 0.9181,
+          "ci_excludes_nominal": false,
+          "coverage_error": -0.0041,
+          "mean_width": 1.663,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.045152945619178084,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.045152945619178084,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "material bias -0.45 > 0.25\u00b7RMSE (1.02)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "material bias -0.45 > 0.25\u00b7RMSE (1.02)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "50% interval over-covers (emp 0.644 vs 0.5; clustered CI excludes nominal)"
       ]
     },
     "turnover": {
@@ -305,38 +460,60 @@
       "mae": 0.9838203470273973,
       "rmse": 1.3027810289174075,
       "crps": 0.7099392787693777,
-      "pit_ece": 0.1643835616438356,
+      "log_score": 1.6495769006493497,
+      "pit_ks_stat": 0.10711646456392082,
+      "pit_ks_p": 9.09453759755718e-08,
+      "pit_mid_ece": 0.1643835616438356,
       "coverage": {
         "0.5": {
           "empirical": 0.7137,
-          "ci_lo": 0.6799,
-          "ci_hi": 0.7453,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 1.518
+          "clustered_ci_lo": 0.6885,
+          "clustered_ci_hi": 0.7374,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.2137,
+          "mean_width": 1.518,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.8904,
-          "ci_lo": 0.8657,
-          "ci_hi": 0.9111,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 2.781
+          "clustered_ci_lo": 0.8677,
+          "clustered_ci_hi": 0.9108,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0904,
+          "mean_width": 2.781,
+          "median_width": 3.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.9329,
-          "ci_lo": 0.9124,
-          "ci_hi": 0.9489,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 3.511
+          "clustered_ci_lo": 0.914,
+          "clustered_ci_hi": 0.9494,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0329,
+          "mean_width": 3.511,
+          "median_width": 4.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.02004813923287671,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.02004813923287671,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.164 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "50% interval over-covers (emp 0.714 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.890 vs 0.8; clustered CI excludes nominal)"
       ]
     }
   },
@@ -350,38 +527,59 @@
       "mae": 1.2989842594246575,
       "rmse": 1.7049179073580862,
       "crps": 0.9009024677748311,
-      "pit_ece": 0.17671232876712328,
+      "log_score": 1.8361096303599131,
+      "pit_ks_stat": 0.04272275188065133,
+      "pit_ks_p": 0.1358046619255215,
+      "pit_mid_ece": 0.17671232876712328,
       "coverage": {
         "0.5": {
           "empirical": 0.7836,
-          "ci_lo": 0.7522,
-          "ci_hi": 0.8119,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 2.499
+          "clustered_ci_lo": 0.7411,
+          "clustered_ci_hi": 0.8295,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.2836,
+          "mean_width": 2.499,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.9247,
-          "ci_lo": 0.9032,
-          "ci_hi": 0.9417,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 4.697
+          "clustered_ci_lo": 0.906,
+          "clustered_ci_hi": 0.9428,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1247,
+          "mean_width": 4.697,
+          "median_width": 4.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.9603,
-          "ci_lo": 0.9435,
-          "ci_hi": 0.9722,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 6.126
+          "clustered_ci_lo": 0.9483,
+          "clustered_ci_hi": 0.9725,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0603,
+          "mean_width": 6.126,
+          "median_width": 5.5,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.009327458621574403,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.009327458621574403,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.177 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "50% interval over-covers (emp 0.784 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.925 vs 0.8; clustered CI excludes nominal)"
       ]
     },
     "blk": {
@@ -393,38 +591,61 @@
       "mae": 0.46983768017808225,
       "rmse": 0.6018106185383215,
       "crps": 0.24630809662228123,
-      "pit_ece": 0.5657534246575343,
+      "log_score": 0.7286828090179429,
+      "pit_ks_stat": 0.07632748379489351,
+      "pit_ks_p": 0.00037411677020995866,
+      "pit_mid_ece": 0.5657534246575343,
       "coverage": {
         "0.5": {
           "empirical": 0.9178,
-          "ci_lo": 0.8956,
-          "ci_hi": 0.9356,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 0.812
+          "clustered_ci_lo": 0.8997,
+          "clustered_ci_hi": 0.9356,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.4178,
+          "mean_width": 0.812,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.963,
-          "ci_lo": 0.9467,
-          "ci_hi": 0.9745,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 1.205
+          "clustered_ci_lo": 0.9538,
+          "clustered_ci_hi": 0.9735,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.163,
+          "mean_width": 1.205,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.974,
-          "ci_lo": 0.9597,
-          "ci_hi": 0.9833,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 1.427
+          "clustered_ci_lo": 0.9661,
+          "clustered_ci_hi": 0.9833,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.074,
+          "mean_width": 1.427,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         }
       },
-      "calib_ece": 0.011244622487084872,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.011244622487084872,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.566 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0004 < 0.01)",
+        "50% interval over-covers (emp 0.918 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.963 vs 0.8; clustered CI excludes nominal)",
+        "90% interval over-covers (emp 0.974 vs 0.9; clustered CI excludes nominal)"
       ]
     },
     "fg3m": {
@@ -436,38 +657,59 @@
       "mae": 0.8055591183287671,
       "rmse": 1.0784902298927481,
       "crps": 0.5019153447235746,
-      "pit_ece": 0.2506849315068493,
+      "log_score": 1.2109370872282579,
+      "pit_ks_stat": 0.040546685877624444,
+      "pit_ks_p": 0.17729581223539048,
+      "pit_mid_ece": 0.2506849315068493,
       "coverage": {
         "0.5": {
           "empirical": 0.8493,
-          "ci_lo": 0.8215,
-          "ci_hi": 0.8734,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 1.349
+          "clustered_ci_lo": 0.8341,
+          "clustered_ci_hi": 0.8673,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.3493,
+          "mean_width": 1.349,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.9438,
-          "ci_lo": 0.9247,
-          "ci_hi": 0.9583,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 2.562
+          "clustered_ci_lo": 0.9266,
+          "clustered_ci_hi": 0.9623,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1438,
+          "mean_width": 2.562,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.9699,
-          "ci_lo": 0.9548,
-          "ci_hi": 0.98,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 3.305
+          "clustered_ci_lo": 0.9583,
+          "clustered_ci_hi": 0.9819,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0699,
+          "mean_width": 3.305,
+          "median_width": 3.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.009461011967120183,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.009461011967120183,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.251 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "50% interval over-covers (emp 0.849 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.944 vs 0.8; clustered CI excludes nominal)"
       ]
     },
     "pts": {
@@ -479,38 +721,60 @@
       "mae": 4.598110319835617,
       "rmse": 5.911254995492557,
       "crps": 3.2840342863981693,
-      "pit_ece": 0.09452054794520548,
+      "log_score": 7.181352451094371,
+      "pit_ks_stat": 0.16301369863013698,
+      "pit_ks_p": 1.9792040901217288e-17,
+      "pit_mid_ece": 0.09452054794520548,
       "coverage": {
         "0.5": {
           "empirical": 0.5534,
-          "ci_lo": 0.5172,
-          "ci_hi": 0.5891,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 8.103
+          "clustered_ci_lo": 0.5173,
+          "clustered_ci_hi": 0.6049,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0534,
+          "mean_width": 8.103,
+          "median_width": 8.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         },
         "0.8": {
           "empirical": 0.7425,
-          "ci_lo": 0.7095,
-          "ci_hi": 0.7729,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 15.83
+          "clustered_ci_lo": 0.7105,
+          "clustered_ci_hi": 0.7841,
+          "ci_excludes_nominal": true,
+          "coverage_error": -0.0575,
+          "mean_width": 15.83,
+          "median_width": 15.0,
+          "materially_under": true,
+          "materially_over": false,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.7904,
-          "ci_lo": 0.7594,
-          "ci_hi": 0.8184,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 20.222
+          "clustered_ci_lo": 0.7593,
+          "clustered_ci_hi": 0.8254,
+          "ci_excludes_nominal": true,
+          "coverage_error": -0.1096,
+          "mean_width": 20.222,
+          "median_width": 19.0,
+          "materially_under": true,
+          "materially_over": false,
+          "fail": true
         }
       },
-      "calib_ece": 0.018172595482645937,
-      "tail_cov90_ok": false,
+      "calib_ece_pooled": 0.018172595482645937,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "90% interval under-covers (0.790 < 0.85) \u2014 overconfident"
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0000 < 0.01)",
+        "80% interval under-covers (emp 0.743 vs 0.8; clustered CI excludes nominal)",
+        "90% interval under-covers (emp 0.790 vs 0.9; clustered CI excludes nominal)"
       ]
     },
     "reb": {
@@ -522,37 +786,60 @@
       "mae": 1.8421133311506852,
       "rmse": 2.336346280886691,
       "crps": 1.293464246833359,
-      "pit_ece": 0.09041095890410958,
+      "log_score": 2.3222074173210743,
+      "pit_ks_stat": 0.08389921459052595,
+      "pit_ks_p": 6.261473555758542e-05,
+      "pit_mid_ece": 0.09041095890410958,
       "coverage": {
         "0.5": {
           "empirical": 0.6425,
-          "ci_lo": 0.607,
-          "ci_hi": 0.6764,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 3.327
+          "clustered_ci_lo": 0.6117,
+          "clustered_ci_hi": 0.6738,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1425,
+          "mean_width": 3.327,
+          "median_width": 3.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.8247,
-          "ci_lo": 0.7954,
-          "ci_hi": 0.8505,
           "nominal": 0.8,
-          "compatible": true,
-          "mean_width": 6.342
+          "clustered_ci_lo": 0.8041,
+          "clustered_ci_hi": 0.8432,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.0247,
+          "mean_width": 6.342,
+          "median_width": 6.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         },
         "0.9": {
           "empirical": 0.9068,
-          "ci_lo": 0.8836,
-          "ci_hi": 0.9259,
           "nominal": 0.9,
-          "compatible": true,
-          "mean_width": 8.407
+          "clustered_ci_lo": 0.8879,
+          "clustered_ci_hi": 0.9271,
+          "ci_excludes_nominal": false,
+          "coverage_error": 0.0068,
+          "mean_width": 8.407,
+          "median_width": 8.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.01449952521083259,
-      "tail_cov90_ok": true,
-      "passed": true,
-      "reasons": []
+      "calib_ece_pooled": 0.01449952521083259,
+      "line_level": {},
+      "n_dates": 15,
+      "passed": false,
+      "reasons": [
+        "insufficient coverage: 15 game-dates (<25)",
+        "randomized-PIT non-uniform (KS p=0.0001 < 0.01)",
+        "50% interval over-covers (emp 0.642 vs 0.5; clustered CI excludes nominal)"
+      ]
     },
     "stl": {
       "stat": "stl",
@@ -563,38 +850,59 @@
       "mae": 0.7060313381232877,
       "rmse": 0.9005479721683163,
       "crps": 0.4419912299415458,
-      "pit_ece": 0.24794520547945204,
+      "log_score": 1.1344008793414064,
+      "pit_ks_stat": 0.028440834402416626,
+      "pit_ks_p": 0.5903637028213025,
+      "pit_mid_ece": 0.24794520547945204,
       "coverage": {
         "0.5": {
           "empirical": 0.8233,
-          "ci_lo": 0.7939,
-          "ci_hi": 0.8492,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 1.121
+          "clustered_ci_lo": 0.7947,
+          "clustered_ci_hi": 0.8462,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.3233,
+          "mean_width": 1.121,
+          "median_width": 1.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.926,
-          "ci_lo": 0.9047,
-          "ci_hi": 0.9429,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 1.79
+          "clustered_ci_lo": 0.9066,
+          "clustered_ci_hi": 0.943,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.126,
+          "mean_width": 1.79,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.963,
-          "ci_lo": 0.9467,
-          "ci_hi": 0.9745,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 2.249
+          "clustered_ci_lo": 0.948,
+          "clustered_ci_hi": 0.9746,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.063,
+          "mean_width": 2.249,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.006156873725566851,
-      "tail_cov90_ok": true,
+      "calib_ece_pooled": 0.006156873725566851,
+      "line_level": {},
+      "n_dates": 15,
       "passed": false,
       "reasons": [
-        "PIT non-uniformity 0.248 > 0.15 (wide-support stat)"
+        "insufficient coverage: 15 game-dates (<25)",
+        "50% interval over-covers (emp 0.823 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.926 vs 0.8; clustered CI excludes nominal)"
       ]
     },
     "turnover": {
@@ -606,37 +914,60 @@
       "mae": 1.0116813840136987,
       "rmse": 1.281981653338057,
       "crps": 0.6711597233504016,
-      "pit_ece": 0.12328767123287672,
+      "log_score": 1.5339750546476383,
+      "pit_ks_stat": 0.015730886939215205,
+      "pit_ks_p": 0.9932425582664687,
+      "pit_mid_ece": 0.12328767123287672,
       "coverage": {
         "0.5": {
           "empirical": 0.7808,
-          "ci_lo": 0.7494,
-          "ci_hi": 0.8093,
           "nominal": 0.5,
-          "compatible": false,
-          "mean_width": 1.834
+          "clustered_ci_lo": 0.7503,
+          "clustered_ci_hi": 0.8036,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.2808,
+          "mean_width": 1.834,
+          "median_width": 2.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.8": {
           "empirical": 0.9342,
-          "ci_lo": 0.9139,
-          "ci_hi": 0.95,
           "nominal": 0.8,
-          "compatible": false,
-          "mean_width": 3.168
+          "clustered_ci_lo": 0.9125,
+          "clustered_ci_hi": 0.9549,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.1342,
+          "mean_width": 3.168,
+          "median_width": 3.0,
+          "materially_under": false,
+          "materially_over": true,
+          "fail": true
         },
         "0.9": {
           "empirical": 0.963,
-          "ci_lo": 0.9467,
-          "ci_hi": 0.9745,
           "nominal": 0.9,
-          "compatible": false,
-          "mean_width": 3.944
+          "clustered_ci_lo": 0.9488,
+          "clustered_ci_hi": 0.976,
+          "ci_excludes_nominal": true,
+          "coverage_error": 0.063,
+          "mean_width": 3.944,
+          "median_width": 4.0,
+          "materially_under": false,
+          "materially_over": false,
+          "fail": false
         }
       },
-      "calib_ece": 0.00810181418761365,
-      "tail_cov90_ok": true,
-      "passed": true,
-      "reasons": []
+      "calib_ece_pooled": 0.00810181418761365,
+      "line_level": {},
+      "n_dates": 15,
+      "passed": false,
+      "reasons": [
+        "insufficient coverage: 15 game-dates (<25)",
+        "50% interval over-covers (emp 0.781 vs 0.5; clustered CI excludes nominal)",
+        "80% interval over-covers (emp 0.934 vs 0.8; clustered CI excludes nominal)"
+      ]
     }
   }
 }

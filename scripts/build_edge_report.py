@@ -925,7 +925,13 @@ def main(
     _qs_counts = edges["quality_status"].value_counts().to_dict()
     typer.echo(f"[quality_gate] {_qs_counts}")
 
-    # ── Policy-driven suppression & abstention (P2) ───────────────────────────
+    # ── Policy-driven suppression & abstention (P2/P3 artifact contracts) ──────
+    # CONTRACT (Defect 1):
+    #   candidate_edges.parquet   — all internally eligible model-market candidates
+    #   publishable_edges.parquet — ONLY publicly authorized recommendations
+    # In abstain mode publishable_edges MUST have zero rows (schema preserved); the
+    # retained candidates live ONLY in candidate_edges.parquet and no downstream reader
+    # may treat them as publishable.
     _abstain_reason = ""
     if _policy is not None:
         if _policy_suppress_stats and "stat" in edges.columns:
@@ -936,19 +942,26 @@ def main(
             _before = len(edges)
             edges = edges[~edges["direction"].str.lower().isin(_policy_suppress_sides)].copy()
             typer.echo(f"[policy] suppressed sides {sorted(_policy_suppress_sides)}: {_before}→{len(edges)} rows")
-        if _policy_abstain:
-            # Forecast-only: the PUBLIC board abstains (handled in generate_web_pages),
-            # but the internal parquet is retained (threshold- and suppression-filtered)
-            # so downstream integrity verifiers still have data. Never emptied here —
-            # emptying breaks market-dependent round-trip checks.
-            _abstain_reason = "No validated betting edges currently qualify"
-            edges = edges.copy()
-            edges["abstained"] = True
-            typer.echo(f"[policy] ABSTAIN mode — {len(edges)} rows retained internally; "
-                       "public Edge board will abstain")
 
+    candidate_path = out / "candidate_edges.parquet"
     edges_path = out / "publishable_edges.parquet"
-    edges.to_parquet(edges_path, index=False)
+    _candidate_count = int(len(edges))
+    if _policy_abstain:
+        _abstain_reason = "No validated betting edges currently qualify"
+        candidates = edges.copy()
+        candidates["abstained"] = True
+        candidates.to_parquet(candidate_path, index=False)
+        # publishable = ZERO rows, schema preserved (add the abstained column for parity).
+        publishable = candidates.iloc[0:0].copy()
+        publishable.to_parquet(edges_path, index=False)
+        edges = publishable  # everything below sees the PUBLIC (empty) set
+        typer.echo(f"[policy] ABSTAIN — {_candidate_count} candidates → candidate_edges.parquet; "
+                   "publishable_edges.parquet has 0 rows (public abstention)")
+    else:
+        edges = edges.copy()
+        edges["abstained"] = False
+        edges.to_parquet(candidate_path, index=False)   # candidates == public set pre-final-gates
+        edges.to_parquet(edges_path, index=False)
 
     standard_edges = int((edges.get("confidence_tier", pd.Series(dtype=str)) == "standard").sum()) if "confidence_tier" in edges.columns else len(edges)
     high_adv_edges = int((edges.get("confidence_tier", pd.Series(dtype=str)) == "high_adversity").sum()) if "confidence_tier" in edges.columns else 0
@@ -973,6 +986,9 @@ def main(
         "abstain": bool(_policy_abstain),
         "abstain_reason": _abstain_reason,
         "policy_version": (_policy.version if _policy is not None else None),
+        "candidate_edge_rows": _candidate_count,
+        "public_recommendation_rows": int(len(edges)),
+        "forecast_status": (_policy.forecast_status if _policy is not None else ""),
         "no_vig_method": "shin",
         "props_source": props_source,
         "source_policy": source_policy,

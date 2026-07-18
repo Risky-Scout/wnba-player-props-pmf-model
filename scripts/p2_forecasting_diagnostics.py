@@ -81,16 +81,18 @@ def main(
 
     def _table(res, title):
         out_lines = [f"## {title}", "",
-                     "| stat | n | bias | MAE | RMSE | CRPS | PIT-ECE | 80%cov | 90%cov | calib-ECE | PASS |",
-                     "|------|---|------|-----|------|------|---------|--------|--------|-----------|------|"]
+                     "| stat | n | dates | bias | RMSE | CRPS | logS | PIT-KS-p | 50%cov | 80%cov | 90%cov | PASS |",
+                     "|------|---|-------|------|------|------|------|----------|--------|--------|--------|------|"]
         for s in sorted(res):
-            r = res[s]; c80 = r["coverage"].get("0.8", {}); c90 = r["coverage"].get("0.9", {})
+            r = res[s]
+            def _c(level):
+                c = r["coverage"].get(level, {})
+                emp = c.get("empirical", "?"); bad = c.get("fail", False)
+                return f"{emp}{'✗' if bad else '✓'}"
             out_lines.append(
-                f"| {s} | {r['n']} | {r['bias']:+.2f} | {r['mae']:.2f} | {r['rmse']:.2f} | "
-                f"{r['crps']:.3f} | {r['pit_ece']:.3f} | "
-                f"{c80.get('empirical','?')}({'ok' if c80.get('compatible') else 'X'}) | "
-                f"{c90.get('empirical','?')}({'ok' if c90.get('compatible') else 'X'}) | "
-                f"{r['calib_ece']:.3f} | {'YES' if r['passed'] else 'NO'} |")
+                f"| {s} | {r['n']} | {r.get('n_dates','?')} | {r['bias']:+.2f} | {r['rmse']:.2f} | "
+                f"{r['crps']:.3f} | {r.get('log_score', float('nan')):.3f} | {r.get('pit_ks_p', float('nan')):.4f} | "
+                f"{_c('0.5')} | {_c('0.8')} | {_c('0.9')} | {'YES' if r['passed'] else 'NO'} |")
         return out_lines
 
     lines = ["# P2 Forecasting Diagnostics (untouched holdout)", "",

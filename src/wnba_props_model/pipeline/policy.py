@@ -36,6 +36,9 @@ class RecommendationPolicy:
     suppress_stats: list = field(default_factory=list)
     forecast_publish_stats: list = field(default_factory=list)
     forecast_suppress_stats: list = field(default_factory=list)
+    forecast_status: str = ""
+    forecast_certified_stats: list = field(default_factory=list)
+    forecast_pending_banner: str = ""
     status: str = ""
     raw: dict = field(default_factory=dict)
 
@@ -75,6 +78,9 @@ def load_policy(path: str | Path = DEFAULT_POLICY_PATH) -> RecommendationPolicy:
         suppress_stats=list(edge.get("suppress_stats", [])),
         forecast_publish_stats=list(fc.get("publish_stats", [])),
         forecast_suppress_stats=list(fc.get("suppress_stats", [])),
+        forecast_status=str(fc.get("status", "")),
+        forecast_certified_stats=list(fc.get("certified_stats", [])),
+        forecast_pending_banner=str(fc.get("pending_banner", "")),
         status=str(doc.get("status", "")),
         raw=doc,
     )
