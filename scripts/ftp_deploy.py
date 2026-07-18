@@ -156,7 +156,8 @@ def _upload_file(ftp: ftplib.FTP, local_path: Path, remote_path: str) -> None:
     print(f"  ✓ {remote_path} ({len(content) / 1024:.1f} KB)")
 
 
-def deploy(dirs: list[str] | None = None, wipe: bool = True) -> None:
+def deploy(dirs: list[str] | None = None, wipe: bool = True,
+           include_html: bool = False) -> None:
     """Deploy local prediction pages to the FTP server.
 
     Parameters
@@ -167,7 +168,12 @@ def deploy(dirs: list[str] | None = None, wipe: bool = True) -> None:
         When True (default), deletes all existing HTML/JSON files in WIPE_DIRS on the
         remote server before uploading fresh ones. This prevents stale player pages for
         players not on today's slate from persisting on the live site.
+    include_html:
+        When True, `.html` page shells are ALSO uploaded. Off by default so routine
+        daily runs only refresh data (.json) and never disturb the shells. Used for a
+        controlled, one-time shell update (e.g. deploying the forecast-only Edge shell).
     """
+    upload_exts = set(UPLOAD_EXTENSIONS) | ({".html"} if include_html else set())
     host = os.environ.get("FTP_HOST", "").strip()
     user = os.environ.get("FTP_USER", "").strip()
     password = os.environ.get("FTP_PASS", "").strip()
@@ -222,7 +228,7 @@ def deploy(dirs: list[str] | None = None, wipe: bool = True) -> None:
             for local_file in sorted(local_dir.rglob("*")):
                 if not local_file.is_file():
                     continue
-                if local_file.suffix.lower() not in UPLOAD_EXTENSIONS:
+                if local_file.suffix.lower() not in upload_exts:
                     continue
                 rel = local_file.relative_to(local_dir)
                 remote_file = f"{remote_dir}/{rel.as_posix()}"
@@ -256,5 +262,11 @@ if __name__ == "__main__":
             "Use --no-wipe to skip the wipe step (e.g. for in-play-only deploys)."
         ),
     )
+    parser.add_argument(
+        "--include-html",
+        action="store_true",
+        default=False,
+        help="Also upload .html page shells (default: off). Use for a one-time shell update.",
+    )
     args = parser.parse_args()
-    deploy(dirs=args.dirs, wipe=args.wipe)
+    deploy(dirs=args.dirs, wipe=args.wipe, include_html=args.include_html)
