@@ -38,6 +38,7 @@ app = typer.Typer(add_completion=False)
 
 MIN_DATE = "2023-05-03"  # Odds API historical props availability floor
 BACKFILL_MARKETS = list(hm.MARKET_TO_STAT.keys())
+DECISION_LEAD_HOURS = 12  # decision snapshot = tip - 12h (production morning publish)
 
 
 def _read_json(p: Path):
@@ -144,13 +145,19 @@ def main(
     all_quotes: list[dict] = []
     unmatched_events: list[dict] = []
     unmatched_players: dict[str, int] = {}
+    seen_event_ids: set[str] = set()  # global dedupe by provider event id
     n_events = 0
     for gd in eligible_dates:
-        ev_key = f"events_{gd}"
+        gd_next = (datetime.fromisoformat(f"{gd}T00:00:00+00:00") + timedelta(days=1)).strftime("%Y-%m-%d")
+        # Filter events to those COMMENCING in this canonical game's UTC window so
+        # coverage is measured per eligible game, not from an unfiltered daily snapshot.
+        ctf, ctt = f"{gd}T00:00:00Z", f"{gd_next}T12:00:00Z"
+        ev_key = f"events_{gd}_{ctf}_{ctt}"
         ev_payload = _cache_get(cache, ev_key)
         if ev_payload is None:
             try:
-                ev_payload = client.list_historical_events(f"{gd}T12:00:00Z")
+                ev_payload = client.list_historical_events(
+                    f"{gd}T12:00:00Z", commence_time_from=ctf, commence_time_to=ctt)
                 _cache_put(cache, ev_key, ev_payload)
             except OddsAPIError as exc:
                 typer.echo(f"[P1][WARN] events fetch failed {gd}: {exc}", err=True)
@@ -158,6 +165,9 @@ def main(
         events = (ev_payload or {}).get("data", []) or []
         day_events = pd.DataFrame(games_df[games_df.get("game_date") == gd]) if "game_date" in games_df.columns else games_df
         for ev in events:
+            if ev.get("id") in seen_event_ids:
+                continue  # deduplicate globally by provider event id
+            seen_event_ids.add(ev.get("id"))
             n_events += 1
             gid = hm.resolve_game_id(day_events, ev.get("home_team", ""), ev.get("away_team", ""), gd)
             if gid is None:
@@ -172,6 +182,7 @@ def main(
                 tip = datetime.fromisoformat(f"{gd}T23:00:00+00:00")
             snapshots = {
                 "open": (tip - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "decision": (tip - timedelta(hours=DECISION_LEAD_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "close": (tip - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
             for _label, snap in snapshots.items():
@@ -192,7 +203,8 @@ def main(
                         unmatched_players[row["player_name"]] = unmatched_players.get(row["player_name"], 0) + 1
                         continue
                     row.update({"game_id": gid, "player_id": pid, "game_date": gd,
-                                "identity_method": method, "source": "odds_api_v4_historical"})
+                                "identity_method": method, "source": "odds_api_v4_historical",
+                                "odds_format": "american", "snapshot_label": _label})
                     all_quotes.append(row)
         typer.echo(f"[P1] {gd}: events={len(events)} quotes_so_far={len(all_quotes)} "
                    f"remaining={client.quota_remaining}")

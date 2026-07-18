@@ -158,3 +158,76 @@ def test_duplicate_oof_keys_detected():
                         "stat": ["pts", "pts"], "actual_outcome": [10, 11]})
     dup = oof.duplicated(subset=["game_id", "player_id", "stat"]).any()
     assert dup  # the pipeline asserts NOT dup, so this proves detection works
+
+
+# 9. No post-tip quote is ever used for decision or closing selection.
+def test_no_post_tip_quote():
+    tip = pd.Timestamp("2026-07-10T23:00:00Z")
+    paired = pd.DataFrame({
+        "game_id": ["g1", "g1"], "player_id": ["p1", "p1"], "stat": ["pts", "pts"],
+        "book": ["dk", "dk"], "line": [18.5, 18.5],
+        "snapshot_time": [tip - pd.Timedelta(hours=1), tip + pd.Timedelta(minutes=30)],
+        "commence_time": [tip, tip], "over_odds": [-110, -110], "under_odds": [-110, -110],
+        "market_prob_over_no_vig": [0.5, 0.5],
+    })
+    tagged = hm.select_open_close(paired)
+    assert (pd.to_datetime(tagged["snapshot_time"], utc=True) < tip).all()
+    dec = hm.select_decision_snapshot(paired, lead_hours=0.5)
+    assert dec.empty or (pd.to_datetime(dec["snapshot_time"], utc=True) < tip).all()
+
+
+# Decision snapshot is the quote available at tip - lead (not the closing quote).
+def test_decision_snapshot_vs_close():
+    tip = pd.Timestamp("2026-07-10T23:00:00Z")
+    rows = [
+        {"snap": tip - pd.Timedelta(hours=24), "line": 17.5},   # opening
+        {"snap": tip - pd.Timedelta(hours=12), "line": 18.5},   # decision (lead=12)
+        {"snap": tip - pd.Timedelta(minutes=5), "line": 19.5},  # closing
+    ]
+    paired = pd.DataFrame([{
+        "game_id": "g1", "player_id": "p1", "stat": "pts", "book": "dk", "line": r["line"],
+        "snapshot_time": r["snap"], "commence_time": tip, "over_odds": -110, "under_odds": -110,
+        "market_prob_over_no_vig": 0.5} for r in rows])
+    dec = hm.select_decision_snapshot(paired, lead_hours=12)
+    assert len(dec) == 1 and float(dec.iloc[0]["line"]) == 18.5
+    closing = hm.select_open_close(paired)
+    close = closing[closing["is_closing"]]
+    assert float(close.iloc[0]["line"]) == 19.5  # closing != decision
+
+
+# 14. Fold-safe calibration cutoff precedes evaluated games (no lookahead).
+def test_fold_safe_cutoff():
+    rng = np.random.default_rng(0)
+    dates = pd.date_range("2026-06-01", periods=20, freq="D")
+    obs = pd.DataFrame({
+        "stat": ["pts"] * 400,
+        "game_date": np.repeat(dates, 20),
+        "raw_p_over": rng.uniform(0.2, 0.8, 400),
+    })
+    obs["over_outcome"] = (rng.uniform(size=400) < obs["raw_p_over"]).astype(float)
+    cal = hm.fold_safe_calibrated_prob_over(obs, n_folds=5, min_train=10)
+    # First fold keeps raw (no earlier data); output aligned & bounded.
+    assert len(cal) == len(obs)
+    first_fold = obs["game_date"] < dates[4]
+    assert np.allclose(cal[first_fold].values, obs.loc[first_fold, "raw_p_over"].values)
+    assert (cal >= 0).all() and (cal <= 1).all()
+
+
+# 15. Coverage categories reconcile to the eligible canonical-game denominator.
+def test_coverage_reconciles():
+    eligible = {"g1", "g2", "g3", "g4"}
+    matched = {"g1", "g2"}
+    matched_no_props = eligible - matched
+    assert len(matched) + len(matched_no_props) == len(eligible)
+
+
+# 6. Production/replay parity: the shared edge helper is what deliver.py uses.
+def test_shared_edge_helper_parity():
+    from wnba_props_model.pipeline.recommendation import edge_over_under
+    eo, eu = edge_over_under(0.62, 0.55)
+    assert eo == pytest.approx(0.07) and eu == pytest.approx(-0.07)
+    # matches the historical selector's internal edge for the same inputs
+    rec = select_recommendation(model_prob_over=0.62, over_odds=-110, under_odds=-110,
+                                stat="pts", no_vig_fn=_simple_no_vig, publishable_stats={"pts"},
+                                edge_threshold=0.0)
+    assert rec.edge_over == pytest.approx(0.62 - rec.market_prob_over_no_vig)

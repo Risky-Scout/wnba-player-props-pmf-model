@@ -150,37 +150,31 @@ def test_assert_no_lookahead():
         hm.assert_no_lookahead(bad)
 
 
-# 14. Recommendation-policy reproduction (side = sign(edge); threshold filter; no outcome in selection)
-def test_grade_df_policy():
-    # model over prob strongly > market -> OVER recommendation; small edge -> dropped
-    pmf_over = np.zeros(30); pmf_over[20:].fill(0.1); pmf_over[:20] = 0.0  # mass high -> P(over 17.5) high
-    ev = pd.DataFrame([{
-        "game_id": "g", "player_id": "p", "stat": "pts", "game_date": "2026-07-10",
-        "line": 17.5, "market_prob_over_no_vig": 0.40,
-        "over_odds": -110, "under_odds": -110,
-        "pmf_json": json.dumps({str(i): (0.1 if i >= 20 else 0.0) for i in range(30)}),
-        "actual_outcome": 25.0,
-    }])
-    g = evaljob._grade_df(ev, min_edge=0.02)
-    assert len(g) == 1 and g.iloc[0]["side"] == "over"
-    # tiny edge -> no recommendation
-    ev2 = ev.copy(); ev2.loc[0, "market_prob_over_no_vig"] = g.iloc[0]["model_prob_over"] - 0.001
-    assert len(evaljob._grade_df(ev2, min_edge=0.02)) == 0
+# 14. Recommendation-policy reproduction now lives in the SHARED selector +
+# build_executable_recs (see tests/test_p1_repair.py::test_selector_parity and
+# test_quote_provenance_and_no_synthetic_price).
+def test_shared_selector_side_and_threshold():
+    from wnba_props_model.pipeline.recommendation import select_recommendation
+    def nv(o, u):
+        io, iu = hm.american_to_implied(o), hm.american_to_implied(u)
+        return (io / (io + iu), iu / (io + iu), 0.0)
+    # model over prob strongly > market -> OVER recommendation
+    rec = select_recommendation(model_prob_over=0.70, over_odds=-110, under_odds=-110,
+                                stat="pts", no_vig_fn=nv, publishable_stats={"pts"}, edge_threshold=0.02)
+    assert rec.side == "over" and rec.selected
+    # tiny edge -> not selected
+    rec2 = select_recommendation(model_prob_over=0.501, over_odds=-110, under_odds=-110,
+                                 stat="pts", no_vig_fn=nv, publishable_stats={"pts"}, edge_threshold=0.02)
+    assert not rec2.selected
 
 
-def test_zero_odds_invalid_and_skipped():
+def test_zero_and_invalid_odds_skipped():
     import math as _m
     assert not hm._valid_american(0) and not hm._valid_american(None) and not hm._valid_american(float("inf"))
+    assert not hm._valid_american(-0.5) and not hm._valid_american(50)  # inside (-100,100)
     assert hm._valid_american(-110) and hm._valid_american(120)
-    assert _m.isnan(hm.profit_at_american(0, True))  # never divides by zero
-    ev = pd.DataFrame([{
-        "game_id": "g", "player_id": "p", "stat": "pts", "game_date": "2026-07-10",
-        "line": 17.5, "market_prob_over_no_vig": 0.9,  # big under edge
-        "over_odds": 0, "under_odds": 0,  # placeholder zero prices -> skipped
-        "pmf_json": json.dumps({str(i): (0.1 if i < 10 else 0.0) for i in range(20)}),
-        "actual_outcome": 5.0,
-    }])
-    assert len(evaljob._grade_df(ev, min_edge=0.02)) == 0  # zero-odds pick skipped
+    assert _m.isnan(hm.profit_at_american(0, True))    # never divides by zero
+    assert _m.isnan(hm.profit_at_american(-0.5, True)) # fabricated price never pays
 
 
 # 15. ROI at positive and negative American odds

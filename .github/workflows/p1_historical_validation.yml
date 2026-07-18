@@ -82,11 +82,12 @@ jobs:
             --roster data/processed/wnba_player_game_stats.parquet \
             --out-dir artifacts/p1 --cache-dir artifacts/p1_cache
 
-      - name: Steps 5-8 — evaluate + forced verdict
+      - name: Steps 5-8 — evaluate (executable quotes + fold-safe calibration) + forced verdict
         run: |
           python scripts/p1_build_evaluation.py \
             --oof data/oof/oof_player_stat_pmfs.parquet \
-            --closing-consensus artifacts/p1/p1_closing_consensus.parquet \
+            --quotes artifacts/p1/p1_quotes.parquet \
+            --decision-lead-hours 12 \
             --out-dir artifacts/p1
 
       - name: Print verdict (no secrets)

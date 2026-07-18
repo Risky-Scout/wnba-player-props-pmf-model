@@ -36,3 +36,19 @@ Repair replaces synthetic prices with **exact executable quote-level rows** (quo
 enforces strict American-odds validation, groups closing selection by book only,
 computes bet-level P&L from executable prices, fixes the coverage denominator, shares
 the production selector, and reconstructs fold-safe calibration.
+
+### Repaired result (executable prices, same OOF, same period)
+Grading the identical recommendations against the **exact executable book price** at a
+decision snapshot (tip − 12h), with fold-safe walk-forward calibration:
+
+| | prior (synthetic median) | repaired (executable) |
+|---|---|---|
+| Under ROI | **+64.6%** | **+3.5%** (95% CI −3.3% .. +10.7%, spans 0) |
+| Over ROI | **+113%** | −(spans 0) |
+| invalid-price rows graded | 67 Under / 92 Over | **0** |
+| coverage denominator | all snapshot events | **eligible canonical OOF games (85.1%)** |
+| model vs market log-loss | — | model **worse** (+0.10) |
+
+The Under lean is **INCONCLUSIVE** on repaired data (interval spans zero and the model
+scores worse than the market on the graded bets) — a statistical conclusion, not a
+plausibility cap. The +64.6%/+113% figures were entirely synthetic-price artifacts.

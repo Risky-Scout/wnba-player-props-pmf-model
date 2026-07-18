@@ -12,6 +12,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+def edge_over_under(model_prob_over: float, market_prob_over_no_vig: float) -> tuple[float, float]:
+    """The single production edge definition, shared by the edge report and the P1
+    replay. edge_over = model - market; edge_under = market - model."""
+    eo = float(model_prob_over) - float(market_prob_over_no_vig)
+    return eo, -eo
+
+
 @dataclass(frozen=True)
 class Recommendation:
     stat: str
@@ -53,8 +60,7 @@ def select_recommendation(
     if p_over is None:
         return None
     p_over = float(p_over)
-    edge_over = float(model_prob_over) - p_over
-    edge_under = -edge_over
+    edge_over, edge_under = edge_over_under(model_prob_over, p_over)
     side = "over" if edge_over > 0 else "under"
     abs_edge = abs(edge_over)
 
