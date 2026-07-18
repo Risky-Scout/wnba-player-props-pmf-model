@@ -158,7 +158,9 @@ def test_publishers_run_on_daily_schedule():
 
 # Forecast gate outcome is encoded and total stats reconcile.
 def test_forecast_suppression_encoded():
+    # Under VALIDATION_PENDING nothing is certified/published; all seven stats are
+    # suppressed from certified publication until the corrected gate runs.
     p = load_policy(POLICY)
-    published = set(p.forecast_publish_stats); suppressed = set(p.forecast_suppress_stats)
-    assert published and suppressed and not (published & suppressed)
-    assert published | suppressed == {"pts", "reb", "ast", "fg3m", "blk", "stl", "turnover"}
+    assert p.forecast_status == "VALIDATION_PENDING"
+    assert set(p.forecast_publish_stats) == set()
+    assert {"pts", "reb", "ast", "fg3m", "blk", "stl", "turnover"} <= set(p.forecast_suppress_stats)

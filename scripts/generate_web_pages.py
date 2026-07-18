@@ -1152,6 +1152,7 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
           allProps = data.props || [];
           document.getElementById('hdrDate').textContent = data.game_date || '';
           document.getElementById('genTime').textContent = data.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
+          renderValidationBanner(data);
           render();
         })
         .catch(err => { document.getElementById('pmfGrid').innerHTML = '<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ' + err.message + '</div>'; });
@@ -1159,6 +1160,29 @@ main{max-width:1400px;margin:24px auto;padding:0 18px}
     .catch(err => {
       document.getElementById('pmfGrid').innerHTML = `<div class="loading" style="grid-column:1/-1;color:#e05a6a">Failed to load: ${err.message}</div>`;
     });
+
+  function renderValidationBanner(data) {
+    if (document.getElementById('valBanner')) return;
+    var pending = (data.forecast_status === 'VALIDATION_PENDING');
+    if (!pending && data.forecast_certified !== false) return;
+    var msg = data.pending_banner ||
+      'Forecast validation is being refreshed. No stat is currently certified for public decision use.';
+    var meta = [data.model_version ? 'Model ' + data.model_version : '',
+                data.calibration_version ? 'Calibration ' + data.calibration_version : '',
+                data.game_date ? 'Forecast date ' + data.game_date : '',
+                data.release_id ? 'Run ' + data.release_id : '',
+                'Status ' + (data.forecast_status || 'VALIDATION_PENDING')].filter(Boolean).join(' · ');
+    var host = document.querySelector('main') || document.body;
+    var b = document.createElement('div');
+    b.id = 'valBanner';
+    b.style.cssText = 'margin:16px auto;max-width:900px;padding:16px 20px;border:1px solid #b3801f;'
+      + 'border-radius:10px;background:#241d0e;color:#f2d492;text-align:center;line-height:1.6';
+    b.innerHTML = '<div style="font-weight:700;margin-bottom:6px">Forecast validation in progress</div>'
+      + '<div>' + msg + '</div>'
+      + '<div style="font-size:.7rem;color:#a98a4b;margin-top:8px">These distributions are shown for '
+      + 'information only and are NOT certified for betting or decision use. ' + meta + '</div>';
+    host.insertBefore(b, host.firstChild);
+  }
 
   const _PMF_STAT_DISPLAY = {
     'FG3M':'3PM','PTS_REB':'Pts+Reb','PTS_AST':'Pts+Ast',
@@ -2014,11 +2038,19 @@ def main(
         _abstain_reason = _abstain_reason or "No validated betting edges currently qualify"
         if edges_df is not None and len(edges_df):
             edges_df = edges_df.iloc[0:0].copy()
-    # Restrict the PMF/Distributions page to forecasting-gate-passing stats.
-    if _pol_forecast_stats and proj_df is not None and "stat" in proj_df.columns:
+    # Forecast publication policy:
+    #  - VALIDATION_PENDING: no stat is CERTIFIED. Distributions stay reachable (shown as
+    #    informational/uncertified) with the pending banner; nothing is restricted-as-certified.
+    #  - otherwise: restrict the page to the CERTIFIED stats.
+    _fc_status = (_pol.forecast_status if _pol is not None else "")
+    _fc_certified = (_pol.forecast_certified_stats if _pol is not None else []) or []
+    _fc_pending_banner = (_pol.forecast_pending_banner if _pol is not None else "")
+    if _fc_status != "VALIDATION_PENDING" and _fc_certified and proj_df is not None and "stat" in proj_df.columns:
         _n0 = len(proj_df)
-        proj_df = proj_df[proj_df["stat"].isin(_pol_forecast_stats)].copy()
-        typer.echo(f"[policy] PMF page restricted to {sorted(_pol_forecast_stats)}: {_n0}→{len(proj_df)} rows")
+        proj_df = proj_df[proj_df["stat"].isin(_fc_certified)].copy()
+        typer.echo(f"[policy] PMF page restricted to CERTIFIED stats {sorted(_fc_certified)}: {_n0}→{len(proj_df)} rows")
+    elif _fc_status == "VALIDATION_PENDING":
+        typer.echo("[policy] forecast VALIDATION_PENDING — distributions shown as UNCERTIFIED with refresh banner")
 
     # --- Build JSON ---
     edge_json = _build_edge_json(edges_df, proj_df, game_date,
@@ -2040,6 +2072,17 @@ def main(
                                  release_id=release_id, git_commit=git_commit,
                                  model_version=model_version,
                                  calibration_version=calibration_version)
+
+    # Forecast validation status on BOTH payloads (never present an uncertified stat as
+    # certified; carry the refresh banner when validation is pending).
+    for _pl in (edge_json, pmf_json):
+        _pl["forecast_status"] = _fc_status or "UNKNOWN"
+        _pl["certified_stats"] = list(_fc_certified)
+        if _fc_status == "VALIDATION_PENDING":
+            _pl["forecast_certified"] = False
+            _pl["pending_banner"] = _fc_pending_banner or (
+                "Forecast validation is being refreshed. No stat is currently certified "
+                "for public decision use.")
 
     # --- Write immutable release payloads and cache-safe latest.json pointer ---
     # A3: Immutable release files at releases/<release_id>.json

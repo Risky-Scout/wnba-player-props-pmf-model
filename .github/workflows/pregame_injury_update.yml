@@ -219,7 +219,9 @@ jobs:
             --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
             --policy config/recommendation_policy.yaml \
             --require-policy
-        continue-on-error: true
+        # Release-critical: abstain handles market unavailability; a nonzero exit is a
+        # real forecast/policy failure and must block (no stale board preserved).
+        continue-on-error: false
 
       - name: Format injury-updated JSON output
         run: |

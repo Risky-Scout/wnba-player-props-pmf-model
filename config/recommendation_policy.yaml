@@ -27,17 +27,22 @@ edge:
   suppress_stats: []
 
 forecast:
-  # Stats that PASS the forecasting launch gate on the untouched holdout (Phase 3,
-  # production-equivalent fold-safe calibration). Only these publish on the PMF/
-  # Distributions pages; the rest are suppressed.
-  publish_stats: [reb, turnover]
-  suppress_stats: [pts, ast, fg3m, blk, stl]
-  suppress_reasons:
-    pts: "90% central interval under-covers (0.79 < 0.85) after fold-safe calibration — overconfident"
-    ast: "mid-PIT non-uniformity 0.18 > 0.15 (wide support) — shape miscalibration"
-    fg3m: "mid-PIT non-uniformity 0.25 > 0.15 — shape miscalibration"
-    blk: "mid-PIT non-uniformity 0.57 — severe shape miscalibration"
-    stl: "mid-PIT non-uniformity 0.25 > 0.15 — shape miscalibration"
+  # VALIDATION_PENDING: the prior gate (midpoint-PIT uniformity, ignored two-sided
+  # coverage, unlimited over-coverage, pooled dependent thresholds) is NOT accepted.
+  # No stat is certified for public decision use until the CORRECTED gate
+  # (evaluation/forecasting.py: randomized seeded PIT + two-sided coverage + line-level
+  # calibration) runs successfully on a sufficient rolling-origin evaluation set.
+  status: VALIDATION_PENDING
+  # No stat is currently certified. publish_stats stays empty until the corrected gate
+  # promotes a stat. certified_stats is what the public may treat as decision-usable.
+  publish_stats: []
+  certified_stats: []
+  # Distributions may remain reachable but must show the pending banner below and must
+  # NOT label any stat certified.
+  pending_banner: "Forecast validation is being refreshed. No stat is currently certified for public decision use."
+  # Prior (unaccepted) gate result — retained only for provenance, NOT authorization.
+  prior_unvalidated_gate_pass: [reb, turnover]
+  suppress_stats: [pts, ast, fg3m, blk, stl, reb, turnover]
 
 # Final release status determined by the launch gates.
 status: LAUNCH_READY_FORECAST_ONLY
