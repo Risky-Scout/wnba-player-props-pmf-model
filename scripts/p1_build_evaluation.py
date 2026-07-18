@@ -159,7 +159,7 @@ def main(
     # forces INCONCLUSIVE (a handful of games can't support a market verdict).
     n_under_games = int(unders["game_id"].nunique()) if not unders.empty else 0
     n_games_total = int(graded["game_id"].nunique())
-    verdict = hm.forced_verdict(under_res, n_game_clusters=n_under_games)
+    verdict, verdict_reason = hm.verdict_with_reason(under_res, n_game_clusters=n_under_games)
 
     per_stat = {}
     for stat, g in graded.groupby("stat"):
@@ -167,6 +167,7 @@ def main(
 
     results = {
         "verdict": verdict,
+        "verdict_reason": verdict_reason,
         "min_edge": min_edge,
         "n_consensus_observations": n_consensus,
         "n_recommendations": int(len(graded)),
@@ -191,6 +192,9 @@ def main(
     lines = [
         "# P1 Historical Validation — WNBA Under Lean", "",
         f"**VERDICT: {verdict}**", "",
+        f"_Reason: {verdict_reason}_", "",
+        f"- Event match rate / coverage note: {n_games_total} distinct games graded "
+        f"(see p1_coverage_summary.json for provider event-match rate).", "",
         f"- Consensus observations graded: {n_consensus}",
         f"- Recommendations (|edge| >= {min_edge:.0%}): {len(graded)} across "
         f"{n_games_total} distinct games (Under recs span {n_under_games} games)",

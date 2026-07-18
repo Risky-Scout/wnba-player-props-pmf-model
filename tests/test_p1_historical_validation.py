@@ -234,6 +234,22 @@ def test_forced_verdict_coverage_gate():
     assert hm.forced_verdict(g, n_game_clusters=40) == "SUPPORTED"     # adequate coverage
 
 
+def test_verdict_plausibility_and_consistency_guards():
+    # Implausibly large ROI -> artifact -> INCONCLUSIVE despite favorable CI/coverage.
+    g = hm.GradeResult(n=2276, roi=0.646, roi_ci95=(0.25, 1.12))
+    v, reason = hm.verdict_with_reason(g, n_game_clusters=94)
+    assert v == "INCONCLUSIVE" and "implausibly large" in reason
+    # Model worse than market on log-loss -> positive ROI is artifact -> INCONCLUSIVE.
+    g2 = hm.GradeResult(n=500, roi=0.05, roi_ci95=(0.01, 0.09),
+                        model_minus_market_logloss=0.12)
+    v2, reason2 = hm.verdict_with_reason(g2, n_game_clusters=94)
+    assert v2 == "INCONCLUSIVE" and "worse than the market" in reason2
+    # Clean, plausible, consistent -> SUPPORTED.
+    g3 = hm.GradeResult(n=500, roi=0.04, roi_ci95=(0.01, 0.07),
+                        model_minus_market_logloss=-0.01)
+    assert hm.verdict_with_reason(g3, n_game_clusters=60)[0] == "SUPPORTED"
+
+
 def test_team_abbr_matches_bdl_and_nicknames():
     # Full names and bare nicknames both resolve to BDL abbreviations.
     assert hm.team_abbr("Las Vegas Aces") == "LV"

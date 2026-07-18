@@ -350,22 +350,42 @@ def assert_no_lookahead(oof: pd.DataFrame) -> None:
         )
 
 
+def verdict_with_reason(under: GradeResult, n_game_clusters: int | None = None,
+                        min_clusters: int = 25, max_plausible_roi: float = 0.15,
+                        logloss_tol: float = 0.02) -> tuple[str, str]:
+    """Return (verdict, reason) for the Under lean.
+
+    SUPPORTED requires ALL of: >=50 recs, a finite ROI 95% interval, adequate
+    independent game-cluster coverage, a PLAUSIBLE ROI magnitude, and the model
+    NOT scoring worse than the market on the bet probabilities. These guards are
+    deliberately conservative (anti-overclaiming): an extreme ROI or a model that
+    is worse-calibrated than the market indicates a data/identity artifact, not a
+    real closing-line edge, and yields INCONCLUSIVE."""
+    lo, hi = under.roi_ci95
+    if under.n < 50:
+        return "INCONCLUSIVE", f"only {under.n} Under recommendations (<50)"
+    if any(map(lambda x: x != x, [lo, hi])):
+        return "INCONCLUSIVE", "ROI confidence interval is undefined"
+    if n_game_clusters is not None and n_game_clusters < min_clusters:
+        return "INCONCLUSIVE", (f"only {n_game_clusters} independent game clusters "
+                                f"(<{min_clusters}); coverage does not support a conclusion")
+    if abs(under.roi) > max_plausible_roi:
+        return "INCONCLUSIVE", (f"ROI {under.roi:+.2f} is implausibly large for real "
+                                "closing-line betting — indicates a data/identity artifact, "
+                                "not a market edge")
+    mml = under.model_minus_market_logloss
+    if mml == mml and mml > logloss_tol and lo > 0:
+        return "INCONCLUSIVE", (f"model log-loss is worse than the market by {mml:+.3f}; a "
+                                "model less accurate than the market cannot be genuinely "
+                                "beating it — positive ROI is treated as artifact")
+    if lo > 0:
+        return "SUPPORTED", "price-adjusted ROI 95% interval excludes zero (favorable) with adequate coverage and consistent calibration"
+    if hi < 0:
+        return "NOT SUPPORTED", "price-adjusted ROI 95% interval excludes zero (unfavorable)"
+    return "INCONCLUSIVE", "ROI 95% interval spans zero"
+
+
 def forced_verdict(under: GradeResult, n_game_clusters: int | None = None,
                    min_clusters: int = 25) -> str:
-    """SUPPORTED / NOT SUPPORTED / INCONCLUSIVE for the Under lean, using the
-    game-clustered ROI 95% interval (price-adjusted, not raw hit rate).
-
-    Returns INCONCLUSIVE when coverage is too thin to support any conclusion:
-    fewer than 50 Under recommendations, a NaN interval, OR — critically — too
-    few independent game clusters (low event coverage makes multiple props from a
-    handful of games masquerade as a large, significant sample)."""
-    lo, hi = under.roi_ci95
-    if under.n < 50 or any(map(lambda x: x != x, [lo, hi])):  # nan check / small n
-        return "INCONCLUSIVE"
-    if n_game_clusters is not None and n_game_clusters < min_clusters:
-        return "INCONCLUSIVE"  # coverage does not support a conclusion
-    if lo > 0:
-        return "SUPPORTED"
-    if hi < 0:
-        return "NOT SUPPORTED"
-    return "INCONCLUSIVE"
+    """Backward-compatible verdict string (see verdict_with_reason)."""
+    return verdict_with_reason(under, n_game_clusters, min_clusters)[0]
