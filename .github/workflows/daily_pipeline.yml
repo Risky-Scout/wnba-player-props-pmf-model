@@ -350,6 +350,7 @@ jobs:
             --game-date ${{ steps.date.outputs.target_date }} \
             --slate-manifest deliveries/next_game/slate_manifest.json \
             --policy config/recommendation_policy.yaml \
+            --require-policy \
             --cal-dir artifacts/models/calibration
         continue-on-error: false
 

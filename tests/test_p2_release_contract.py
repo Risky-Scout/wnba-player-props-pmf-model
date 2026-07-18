@@ -105,6 +105,34 @@ def test_side_and_stat_suppression_applied():
     assert "_policy_suppress_sides" in src and "_policy_suppress_stats" in src
 
 
+# P3 Phase 1: production must fail closed without the canonical policy.
+def test_production_requires_policy_flag():
+    src = (REPO / "scripts/build_edge_report.py").read_text()
+    assert "--require-policy" in src and "require_policy" in src
+    assert "policy_required_but_missing" in src
+    # every production edge build passes --require-policy
+    for wf in ["pregame_initial.yml", "pregame_final.yml", "pregame_odds_refresh.yml",
+               "pregame_injury_update.yml", "daily_pipeline.yml"]:
+        assert "--require-policy" in (REPO / ".github/workflows" / wf).read_text(), \
+            f"{wf}: production edge build must pass --require-policy"
+
+
+def test_invalid_policy_fails_closed(tmp_path):
+    from wnba_props_model.pipeline.policy import load_policy, PolicyError
+    bad = tmp_path / "missing.yaml"
+    with pytest.raises((PolicyError, FileNotFoundError, OSError)):
+        load_policy(bad)
+
+
+def test_preregistration_doc_exists():
+    doc = (REPO / "docs/p3_forecasting_gates_preregistration.md")
+    assert doc.exists()
+    txt = doc.read_text()
+    # forbids the invalid gate and mandates two-sided coverage + line-level calibration
+    assert "midpoint-PIT" in txt and "two-sided coverage" in txt.lower()
+    assert "randomized PIT" in txt
+
+
 # Every workflow that PUBLISHES the Edge board to the custom domain must apply the
 # canonical policy on EVERY run, or a mid-day refresh could overwrite the abstaining
 # board with an unvalidated threshold-0 board.
