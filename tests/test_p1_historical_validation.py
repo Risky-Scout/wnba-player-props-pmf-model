@@ -189,19 +189,23 @@ def test_profit_and_roi_signs():
     assert hm.profit_at_american(150, False) == pytest.approx(-1.0)
     assert hm.profit_at_american(-120, True) == pytest.approx(100/120)
     df = pd.DataFrame({
-        "side": ["under", "under"], "price_american": [150, -120], "won": [True, False],
-        "model_prob_side": [0.6, 0.6], "market_prob_side": [0.5, 0.5],
+        "side": ["under", "under"], "price_american": [150.0, -120.0],
+        "decimal_odds": [2.5, 100/120 + 1], "won": [True, False],
+        "profit": [1.5, -1.0],
+        "model_prob_over": [0.4, 0.4], "market_prob_over_no_vig": [0.5, 0.5],
         "game_date": ["2026-07-10", "2026-07-11"],
     })
     r = hm.grade(df, n_boot=200)
     assert r.n == 2 and r.wins == 1 and r.losses == 1
     assert r.roi == pytest.approx((1.5 - 1.0) / 2)
+    assert r.total_profit == pytest.approx(0.5)
 
 
 # 16. Clustered CI generation
 def test_clustered_ci():
     settled = pd.DataFrame({
-        "price_american": [-110]*20, "won": ([True, False]*10),
+        "price_american": [-110.0]*20, "won": ([True, False]*10),
+        "profit": ([100/110, -1.0]*10),
         "game_date": [f"2026-07-{d:02d}" for d in range(1, 11)] * 2,
     })
     lo, hi = hm.clustered_bootstrap_roi_ci(settled, "game_date", n_boot=500)
@@ -234,17 +238,19 @@ def test_forced_verdict_coverage_gate():
     assert hm.forced_verdict(g, n_game_clusters=40) == "SUPPORTED"     # adequate coverage
 
 
-def test_verdict_plausibility_and_consistency_guards():
-    # Implausibly large ROI -> artifact -> INCONCLUSIVE despite favorable CI/coverage.
-    g = hm.GradeResult(n=2276, roi=0.646, roi_ci95=(0.25, 1.12))
-    v, reason = hm.verdict_with_reason(g, n_game_clusters=94)
-    assert v == "INCONCLUSIVE" and "implausibly large" in reason
-    # Model worse than market on log-loss -> positive ROI is artifact -> INCONCLUSIVE.
+def test_verdict_no_plausibility_cap():
+    # Repaired data: NO plausibility cap. A large favorable CI with consistent
+    # (not-worse-than-market) calibration is reported as SUPPORTED, not capped.
+    g = hm.GradeResult(n=2276, roi=0.20, roi_ci95=(0.05, 0.35),
+                       model_minus_market_logloss=-0.01)
+    v, _ = hm.verdict_with_reason(g, n_game_clusters=94)
+    assert v == "SUPPORTED"
+    # Model worse than market on log-loss -> positive ROI cannot be a real edge -> INCONCLUSIVE.
     g2 = hm.GradeResult(n=500, roi=0.05, roi_ci95=(0.01, 0.09),
                         model_minus_market_logloss=0.12)
     v2, reason2 = hm.verdict_with_reason(g2, n_game_clusters=94)
     assert v2 == "INCONCLUSIVE" and "worse than the market" in reason2
-    # Clean, plausible, consistent -> SUPPORTED.
+    # Clean, consistent, favorable -> SUPPORTED.
     g3 = hm.GradeResult(n=500, roi=0.04, roi_ci95=(0.01, 0.07),
                         model_minus_market_logloss=-0.01)
     assert hm.verdict_with_reason(g3, n_game_clusters=60)[0] == "SUPPORTED"
