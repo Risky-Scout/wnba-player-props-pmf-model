@@ -918,10 +918,15 @@ def main(
             edges = edges[~edges["direction"].str.lower().isin(_policy_suppress_sides)].copy()
             typer.echo(f"[policy] suppressed sides {sorted(_policy_suppress_sides)}: {_before}→{len(edges)} rows")
         if _policy_abstain:
-            # Publish an EXPLICIT empty/abstaining board — never show unvalidated picks.
+            # Forecast-only: the PUBLIC board abstains (handled in generate_web_pages),
+            # but the internal parquet is retained (threshold- and suppression-filtered)
+            # so downstream integrity verifiers still have data. Never emptied here —
+            # emptying breaks market-dependent round-trip checks.
             _abstain_reason = "No validated betting edges currently qualify"
-            typer.echo(f"[policy] ABSTAIN mode — writing empty board ({len(edges)} candidate rows withheld)")
-            edges = edges.iloc[0:0].copy()
+            edges = edges.copy()
+            edges["abstained"] = True
+            typer.echo(f"[policy] ABSTAIN mode — {len(edges)} rows retained internally; "
+                       "public Edge board will abstain")
 
     edges_path = out / "publishable_edges.parquet"
     edges.to_parquet(edges_path, index=False)
