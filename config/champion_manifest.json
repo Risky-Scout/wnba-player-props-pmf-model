@@ -1,13 +1,55 @@
 {
-  "champion": "schema_v2_structural + location_and_scale_forecast_calibration",
+  "champion": "schema_v2_structural + location_forecast_calibration",
   "certified_stats": [
     "turnover"
   ],
+  "github_sha": "a1d61d6efff6",
+  "code_commit": "a1d61d6efff6",
   "feature_schema": "schema_v2",
-  "code_commit": "71154a3bfab6",
+  "feature_hash": "9a21a1d622fbb055",
+  "model_hash": "stage_v2_structural",
   "calibration_artifact": "config/certified_forecast_calibration.json",
-  "calibration_hash": "18be7257b4ea67e9",
-  "registry_hash": "7f24090dbadf203a",
+  "calibration_hash": "258e7c8b3fb5658d",
+  "registry_hash": "dbedf13bbf97b5f1",
+  "policy_hash": "b485859f0dcf1c8f",
+  "ledger_hash": "ef22ea7799fd9a0a",
+  "split_dates": [
+    [
+      "2026-06-20",
+      "2026-06-21",
+      "2026-06-22",
+      "2026-06-23",
+      "2026-06-24"
+    ],
+    [
+      "2026-06-25",
+      "2026-06-26",
+      "2026-06-27",
+      "2026-06-28",
+      "2026-06-30"
+    ],
+    [
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+      "2026-07-06"
+    ],
+    [
+      "2026-07-07",
+      "2026-07-08",
+      "2026-07-09",
+      "2026-07-10",
+      "2026-07-11"
+    ],
+    [
+      "2026-07-12",
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16"
+    ]
+  ],
   "validation": "docs/p3_forecast_gate_result.md",
   "status": "LIVE_VALIDATED_FORECAST_ONLY"
 }

@@ -32,6 +32,25 @@ def test_manifest_hash_matches_calibration_artifact():
     assert REGISTRY["turnover"]["calibration_hash"] == h
     assert MANIFEST["status"] == "LIVE_VALIDATED_FORECAST_ONLY"
     assert MANIFEST["feature_schema"] == "schema_v2"
+    # manifest carries the full lineage set incl. prequential ledger hash (no stale commit)
+    for k in ("github_sha", "policy_hash", "ledger_hash", "registry_hash", "feature_hash", "split_dates"):
+        assert MANIFEST.get(k)
+    assert MANIFEST["ledger_hash"] == "ef22ea7799fd9a0a"
+
+
+def test_prequential_calibration_is_location_only():
+    # the prequential winner was LOCATION (bias-only) -> scale factor must be 1.0
+    assert CALIB["method"] == "location_recalibration"
+    assert CALIB["stats"]["turnover"]["_pooled"][1] == 1.0
+    for _role, (_d, _s) in CALIB["stats"]["turnover"]["by_role"].items():
+        assert _s == 1.0
+
+
+def test_release_manifest_verification_passes():
+    import subprocess, sys
+    r = subprocess.run([sys.executable, str(REPO / "scripts/verify_release_manifest.py")],
+                       capture_output=True, text=True, env={"PYTHONPATH": str(REPO / "src")})
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 def test_evaluated_vs_deployed_parity():

@@ -6,9 +6,9 @@
     "calibration_method": null,
     "calibration_hash": null,
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-    "suppression_reason": "did not pass corrected forecast gate"
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+    "suppression_reason": "did not pass corrected prequential forecast gate"
   },
   "blk": {
     "forecast_allowed": false,
@@ -17,9 +17,9 @@
     "calibration_method": null,
     "calibration_hash": null,
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-    "suppression_reason": "did not pass corrected forecast gate"
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+    "suppression_reason": "did not pass corrected prequential forecast gate"
   },
   "fg3m": {
     "forecast_allowed": false,
@@ -28,9 +28,9 @@
     "calibration_method": null,
     "calibration_hash": null,
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-    "suppression_reason": "did not pass corrected forecast gate"
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+    "suppression_reason": "did not pass corrected prequential forecast gate"
   },
   "pts": {
     "forecast_allowed": false,
@@ -39,9 +39,9 @@
     "calibration_method": null,
     "calibration_hash": null,
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-    "suppression_reason": "did not pass corrected forecast gate"
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+    "suppression_reason": "did not pass corrected prequential forecast gate"
   },
   "reb": {
     "forecast_allowed": false,
@@ -50,9 +50,9 @@
     "calibration_method": null,
     "calibration_hash": null,
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-    "suppression_reason": "did not pass corrected forecast gate"
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+    "suppression_reason": "did not pass corrected prequential forecast gate"
   },
   "stl": {
     "forecast_allowed": false,
@@ -61,19 +61,19 @@
     "calibration_method": null,
     "calibration_hash": null,
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-    "suppression_reason": "did not pass corrected forecast gate"
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+    "suppression_reason": "did not pass corrected prequential forecast gate"
   },
   "turnover": {
     "forecast_allowed": true,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
-    "calibration_method": "location_and_scale_recalibration",
-    "calibration_hash": "18be7257b4ea67e9",
+    "calibration_method": "location_recalibration",
+    "calibration_hash": "258e7c8b3fb5658d",
     "feature_schema": "schema_v2",
-    "code_commit": "71154a3bfab6",
-    "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
+    "code_commit": "a1d61d6efff6",
+    "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
     "suppression_reason": ""
   }
 }

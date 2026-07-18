@@ -1,0 +1,381 @@
+{
+  "certified": [
+    "turnover"
+  ],
+  "ledger_hash": "ef22ea7799fd9a0a",
+  "blocks": [
+    [
+      "2026-06-20",
+      "2026-06-21",
+      "2026-06-22",
+      "2026-06-23",
+      "2026-06-24"
+    ],
+    [
+      "2026-06-25",
+      "2026-06-26",
+      "2026-06-27",
+      "2026-06-28",
+      "2026-06-30"
+    ],
+    [
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-07-05",
+      "2026-07-06"
+    ],
+    [
+      "2026-07-07",
+      "2026-07-08",
+      "2026-07-09",
+      "2026-07-10",
+      "2026-07-11"
+    ],
+    [
+      "2026-07-12",
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16"
+    ]
+  ],
+  "per_stat": {
+    "ast": {
+      "forecast_allowed": false,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 0.8975,
+      "crps_vs_baseline": -0.2555,
+      "pit_ks_p": 0.0002,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location_and_scale"
+        }
+      ],
+      "suppression_reason": "randomized-PIT non-uniform (KS p=0.0002 < 0.01); 80% interval residual CI excludes zero (residual -0.030, CI [-0.0436,-0.0155]; contained 0.92 vs inclusion 0.89); 90% interval residual CI excludes zero (residual -0.036, CI [-0.0482,-0.0242]; contained 0.96 vs inclusion 0.93); log score 2.053 worse than baseline by +0.119"
+    },
+    "blk": {
+      "forecast_allowed": false,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 0.2679,
+      "crps_vs_baseline": -0.026,
+      "pit_ks_p": 0.0001,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location"
+        }
+      ],
+      "suppression_reason": "randomized-PIT non-uniform (KS p=0.0001 < 0.01); 80% interval residual CI excludes zero (residual -0.018, CI [-0.0293,-0.0086]; contained 0.97 vs inclusion 0.95); 90% interval residual CI excludes zero (residual -0.013, CI [-0.0218,-0.0043]; contained 0.98 vs inclusion 0.97); 80% interval too broad: sharpness ratio 1.20 > 1.15"
+    },
+    "fg3m": {
+      "forecast_allowed": false,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 0.5146,
+      "crps_vs_baseline": -0.0684,
+      "pit_ks_p": 0.5226,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location_and_scale"
+        }
+      ],
+      "suppression_reason": "50% interval residual CI excludes zero (residual +0.018, CI [0.0019,0.034]; contained 0.81 vs inclusion 0.83); 80% interval too broad: sharpness ratio 1.27 > 1.15"
+    },
+    "pts": {
+      "forecast_allowed": false,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 3.2612,
+      "crps_vs_baseline": -0.9363,
+      "pit_ks_p": 0.0,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location_and_scale"
+        }
+      ],
+      "suppression_reason": "randomized-PIT non-uniform (KS p=0.0000 < 0.01); 50% interval under-dispersed (residual -0.127, CI [-0.1535,-0.0997]; contained 0.63 vs inclusion 0.51); 80% interval under-dispersed (residual -0.169, CI [-0.1926,-0.1453]; contained 0.89 vs inclusion 0.72); 90% interval under-dispersed (residual -0.181, CI [-0.2026,-0.1602]; contained 0.95 vs inclusion 0.77); log score 4.915 worse than baseline by +1.748"
+    },
+    "reb": {
+      "forecast_allowed": false,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 1.3014,
+      "crps_vs_baseline": -0.3625,
+      "pit_ks_p": 0.0,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location_and_scale"
+        }
+      ],
+      "suppression_reason": "randomized-PIT non-uniform (KS p=0.0000 < 0.01); 50% interval under-dispersed (residual -0.145, CI [-0.1688,-0.1201]; contained 0.71 vs inclusion 0.56); 80% interval under-dispersed (residual -0.134, CI [-0.154,-0.1089]; contained 0.90 vs inclusion 0.77); 90% interval under-dispersed (residual -0.113, CI [-0.1311,-0.0932]; contained 0.95 vs inclusion 0.84); log score 2.946 worse than baseline by +0.617"
+    },
+    "stl": {
+      "forecast_allowed": false,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 0.4359,
+      "crps_vs_baseline": -0.0569,
+      "pit_ks_p": 0.1728,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location_and_scale"
+        }
+      ],
+      "suppression_reason": "90% interval residual CI excludes zero (residual +0.013, CI [0.0042,0.0191]; contained 0.97 vs inclusion 0.98)"
+    },
+    "turnover": {
+      "forecast_allowed": true,
+      "market_comparison_allowed": false,
+      "betting_recommendation_allowed": false,
+      "n": 1315,
+      "n_dates": 25,
+      "crps": 0.6484,
+      "crps_vs_baseline": -0.0758,
+      "pit_ks_p": 0.2375,
+      "block_choices": [
+        {
+          "block": 0,
+          "block_start": "2026-06-20",
+          "n_before": 2285,
+          "n_block": 269,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 1,
+          "block_start": "2026-06-25",
+          "n_before": 2554,
+          "n_block": 316,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 2,
+          "block_start": "2026-07-02",
+          "n_before": 2870,
+          "n_block": 197,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 3,
+          "block_start": "2026-07-07",
+          "n_before": 3067,
+          "n_block": 315,
+          "variant": "location_and_scale"
+        },
+        {
+          "block": 4,
+          "block_start": "2026-07-12",
+          "n_before": 3382,
+          "n_block": 218,
+          "variant": "location_and_scale"
+        }
+      ],
+      "suppression_reason": ""
+    }
+  }
+}

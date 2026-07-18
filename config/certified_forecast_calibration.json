@@ -1,36 +1,36 @@
 {
-  "method": "location_and_scale_recalibration",
+  "method": "location_recalibration",
   "transform": "wnba_props_model.evaluation.pmf_recalibration.recalibrate_pmf",
   "stats": {
     "turnover": {
       "_pooled": [
         0.271217,
-        0.955657
+        1.0
       ],
       "by_role": {
         "bench": [
           0.223064,
-          1.000444
+          1.0
         ],
         "core": [
           0.238441,
-          0.951343
+          1.0
         ],
         "fringe": [
           0.326999,
-          1.03897
+          1.0
         ],
         "inactive_risk": [
           0.361846,
-          1.066057
+          1.0
         ],
         "rotation": [
           0.272498,
-          0.970344
+          1.0
         ],
         "starter": [
           0.308034,
-          0.829661
+          1.0
         ]
       },
       "n_train": 3600
