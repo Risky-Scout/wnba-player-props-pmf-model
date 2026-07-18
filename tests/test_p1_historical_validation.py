@@ -118,6 +118,20 @@ def test_build_consensus_modal_line():
     assert cons.iloc[0]["n_books"] == 2  # no-vig aggregated only over books at the selected line
 
 
+def test_build_consensus_median_tiebreak_snaps_to_real_line():
+    # Two modal lines (17.5, 18.5) tie -> median 18.0 is NOT a real line; must snap
+    # to an actual modal line (nearest, lowest on tie) and never crash.
+    closing = pd.DataFrame({
+        "game_id": ["g"]*2, "player_id": ["p"]*2, "stat": ["pts"]*2, "book": ["a", "b"],
+        "line": [17.5, 18.5], "is_closing": [True]*2,
+        "market_prob_over_no_vig": [0.5, 0.55], "over_odds": [-110]*2, "under_odds": [-110]*2,
+        "commence_time": ["c"]*2,
+    })
+    cons = hm.build_consensus(closing)
+    assert len(cons) == 1
+    assert cons.iloc[0]["line"] in (17.5, 18.5)  # a REAL modal line, not 18.0
+
+
 # 12. Integer-line push handling
 def test_p_over_conditional_push():
     pmf = np.zeros(21); pmf[10] = 1.0

@@ -196,8 +196,15 @@ def build_consensus(closing_paired: pd.DataFrame) -> pd.DataFrame:
     for (gid, pid, stat), g in cl.groupby(["game_id", "player_id", "stat"]):
         lines = g["line"].astype(float)
         counts = lines.value_counts()
-        top = counts[counts == counts.max()].index.tolist()
-        sel_line = float(np.median(top)) if len(top) > 1 else float(top[0])
+        top = sorted(float(x) for x in counts[counts == counts.max()].index.tolist())
+        if len(top) == 1:
+            sel_line = top[0]
+        else:
+            # Median tie-break, snapped to an ACTUAL modal line (the median of two
+            # half-point lines is not itself a valid line). Deterministic: nearest
+            # modal line to the median, lowest on a distance tie.
+            med = float(np.median(top))
+            sel_line = min(top, key=lambda x: (abs(x - med), x))
         at_line = g[g["line"].astype(float) == sel_line]
         out.append({
             "game_id": str(gid), "player_id": str(pid), "stat": str(stat),
