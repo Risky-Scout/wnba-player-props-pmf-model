@@ -4,6 +4,8 @@
 # P2: forecast-only publication (Edge abstains) via config/recommendation_policy.yaml;
 # combo round-trip verifier tolerates absent market lines (PMF integrity still enforced).
 # P3: republish abstaining board (restores self-contained latest.json after shell-deploy fix).
+# P3 safety: forecast status VALIDATION_PENDING — no stat certified; distributions shown
+# as uncertified with a refresh banner; Edge remains in explicit abstention.
 #
 # Delivery URL: https://sportsodds.wizardofodds.com/WNBA/Pre-Game/Edge/
 name: Pre-Game Initial Projections (T-1 day)

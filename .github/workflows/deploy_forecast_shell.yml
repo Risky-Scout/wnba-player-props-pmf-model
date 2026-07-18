@@ -35,33 +35,35 @@ jobs:
             || { echo "[FATAL] FTP_* secrets missing"; exit 1; }
           echo "FTP secrets present."
 
-      - name: Write forecast-only Edge shell (index.html ONLY)
+      - name: Write forecast-only shells (index.html ONLY per dir)
         run: |
-          EDGE_DIR="tools/odds-scanner/predictions/WNBA/Pre-Game/Edge"
-          # CRITICAL: strip any repo-tracked stale data files so the shell deploy
-          # uploads ONLY index.html and can never clobber the live latest.json /
-          # release payloads. ftp_deploy recurses the whole dir, so it must be clean.
-          rm -rf "$EDGE_DIR"
-          mkdir -p "$EDGE_DIR"
+          BASE="tools/odds-scanner/predictions/WNBA/Pre-Game"
+          # CRITICAL: strip repo-tracked stale data files so the shell deploy uploads ONLY
+          # index.html and can never clobber the live latest.json / release payloads.
+          rm -rf "$BASE/Edge" "$BASE/PMF-Distributions"
+          mkdir -p "$BASE/Edge" "$BASE/PMF-Distributions"
           python - <<'PYEOF'
           import importlib.util, pathlib
           spec = importlib.util.spec_from_file_location("gwp", "scripts/generate_web_pages.py")
           g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
-          out = pathlib.Path("tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/index.html")
-          out.write_text(g._EDGE_HTML)
-          assert "Betting edges abstained" in g._EDGE_HTML, "shell missing abstain markup"
-          print(f"Wrote forecast-only Edge shell ({len(g._EDGE_HTML)} bytes)")
+          base = pathlib.Path("tools/odds-scanner/predictions/WNBA/Pre-Game")
+          (base / "Edge/index.html").write_text(g._EDGE_HTML)
+          (base / "PMF-Distributions/index.html").write_text(g._PMF_HTML)
+          assert "Betting edges abstained" in g._EDGE_HTML, "edge shell missing abstain markup"
+          assert "renderValidationBanner" in g._PMF_HTML, "PMF shell missing validation banner"
+          print(f"Edge shell {len(g._EDGE_HTML)} bytes; PMF shell {len(g._PMF_HTML)} bytes")
           PYEOF
-          # Fail if anything other than index.html remains to be uploaded.
-          test "$(find "$EDGE_DIR" -type f | wc -l)" = "1" || { echo "[FATAL] extra files present"; find "$EDGE_DIR" -type f; exit 1; }
+          for d in Edge PMF-Distributions; do
+            test "$(find "$BASE/$d" -type f | wc -l)" = "1" || { echo "[FATAL] extra files in $d"; find "$BASE/$d" -type f; exit 1; }
+          done
 
-      - name: Deploy Edge shell only (html, preserve live JSON)
-        run: python3 scripts/ftp_deploy.py --dirs Pre-Game/Edge --no-wipe --include-html
+      - name: Deploy shells only (html, preserve live JSON)
+        run: python3 scripts/ftp_deploy.py --dirs Pre-Game/Edge Pre-Game/PMF-Distributions --no-wipe --include-html
 
-      - name: Verify live shell carries abstention UX
+      - name: Verify live shells
         run: |
-          URL="https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/"
-          BODY=$(curl -fsS "$URL?t=$(date +%s)")
-          echo "$BODY" | grep -q "Betting edges abstained" \
-            && echo "[verify] forecast-only abstention shell is LIVE" \
-            || { echo "[FATAL] live shell missing abstention markup"; exit 1; }
+          B="https://sportsodds.wizardofodds.com/tools/odds-scanner/predictions/WNBA/Pre-Game"
+          curl -fsS "$B/Edge/?t=$(date +%s)" | grep -q "Betting edges abstained" \
+            && echo "[verify] Edge abstention shell LIVE" || { echo "[FATAL] Edge shell missing"; exit 1; }
+          curl -fsS "$B/PMF-Distributions/?t=$(date +%s)" | grep -q "renderValidationBanner" \
+            && echo "[verify] PMF validation banner shell LIVE" || { echo "[FATAL] PMF shell missing"; exit 1; }
