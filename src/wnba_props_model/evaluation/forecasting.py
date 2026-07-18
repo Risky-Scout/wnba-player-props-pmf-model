@@ -97,11 +97,37 @@ def ks_uniform(u: np.ndarray) -> tuple[float, float]:
     return d, float(min(max(p, 0.0), 1.0))
 
 
-def log_score(pmf: np.ndarray, y: int) -> float:
-    """Negative log predictive probability at the realized count (lower is better)."""
-    if pmf.size == 0 or y < 0 or y >= len(pmf):
+OVERFLOW_FLOOR = 1e-6  # explicit tail probability for out-of-support outcomes
+
+
+def log_score(pmf: np.ndarray, y: int, overflow_floor: float = OVERFLOW_FLOOR) -> float:
+    """Negative log predictive probability at the realized count (lower is better).
+
+    An outcome BEYOND stored support is scored through an explicit overflow probability
+    (``overflow_floor``) rather than returning NaN — so every observation contributes a
+    finite proper score and out-of-support misses cannot silently disappear from the mean."""
+    if pmf.size == 0 or y < 0:
         return float("nan")
-    return -math.log(max(float(pmf[y]), 1e-12))
+    p = float(pmf[y]) if y < len(pmf) else 0.0
+    return -math.log(max(p, overflow_floor))
+
+
+def validate_pmf(pmf: np.ndarray, y: int, tol: float = 1e-6) -> tuple[bool, str]:
+    """PMF integrity check. Returns (ok, reason). Fails on non-finite/negative mass,
+    mass not summing to 1 within tol, or empty support. `support_miss` (y beyond support)
+    is returned as a distinct reason so it can be counted (not silently NaN'd)."""
+    if pmf.size == 0:
+        return False, "empty_support"
+    if not np.all(np.isfinite(pmf)):
+        return False, "nonfinite_mass"
+    if np.any(pmf < -tol):
+        return False, "negative_mass"
+    s = float(pmf.sum())
+    if abs(s - 1.0) > 1e-3:
+        return False, f"mass_sum_{s:.4f}"
+    if y >= len(pmf):
+        return True, "support_miss"   # valid PMF but outcome beyond stored support
+    return True, "ok"
 
 
 def central_interval(pmf: np.ndarray, cover: float) -> tuple[int, int]:
@@ -161,7 +187,16 @@ class StatForecastResult:
     calib_ece_pooled: float = float("nan")  # DIAGNOSTIC ONLY (dependent thresholds)
     line_level: dict = field(default_factory=dict)  # separate, real-line calibration
     n_dates: int = 0
-    passed: bool = False
+    support_miss: int = 0
+    invalid_pmf: int = 0
+    crps_vs_baseline: float = float("nan")   # model - baseline (<=0 is good)
+    log_vs_baseline: float = float("nan")
+    sharpness_ratio: float = float("nan")    # model width / baseline width (<=1.15 ok)
+    # three independent per-stat statuses (a stat can forecast without betting eligibility)
+    forecast_allowed: bool = False
+    market_comparison_allowed: bool = False
+    betting_recommendation_allowed: bool = False
+    passed: bool = False                      # alias of forecast_allowed
     reasons: list = field(default_factory=list)
 
 
@@ -182,17 +217,18 @@ def _clustered_coverage_ci(hits: np.ndarray, clusters: np.ndarray,
     return (float(lo), float(hi))
 
 
-def line_level_threshold_calibration(rows) -> dict:
+def line_level_threshold_calibration(rows, min_lines: int = 150) -> dict:
     """Threshold calibration at REAL historical market lines — ONE observation per
     (game,player,stat,line), NOT every integer threshold. `rows` needs columns
-    p_over (model P(Y>line)) and over_outcome (1 if actual>line, NaN on push)."""
+    p_over (model P(Y>line)) and over_outcome (1 if actual>line, NaN on push).
+    Requires at least ``min_lines`` (committed spec = 150) genuine line observations."""
     import pandas as pd  # local import
     df = pd.DataFrame(rows) if not hasattr(rows, "columns") else rows
     if df.empty or "p_over" not in df or "over_outcome" not in df:
         return {"available": False, "reason": "no real market lines"}
     d = df.dropna(subset=["p_over", "over_outcome"])
-    if len(d) < 30:
-        return {"available": False, "reason": f"only {len(d)} lines (<30)"}
+    if len(d) < min_lines:
+        return {"available": False, "reason": f"only {len(d)} lines (<{min_lines})"}
     p = d["p_over"].astype(float).clip(1e-6, 1 - 1e-6).values
     y = d["over_outcome"].astype(float).values
     brier = float(np.mean((p - y) ** 2))
@@ -227,7 +263,8 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
                   material_bias_frac: float = 0.25,
                   under_tol: float = 0.05, over_tol: float = 0.07,
                   ks_p_min: float = 0.01, min_n: int = 300, min_dates: int = 25,
-                  lines=None) -> StatForecastResult:
+                  lines=None, baseline: dict | None = None,
+                  sharpness_max_ratio: float = 1.15, min_real_lines: int = 150) -> StatForecastResult:
     """Corrected forecasting gate (P3 Defect 3). df needs pmf_json, actual_outcome and
     (for the seed/cluster) game_id, player_id, stat, model_version, game_date.
 
@@ -261,6 +298,18 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
     if r.n == 0:
         r.reasons.append("no valid rows"); return r
     stat = r.stat
+    mhash = df["model_hash"].astype(str).values[idx] if "model_hash" in df else mver
+    chash = df["calibration_hash"].astype(str).values[idx] if "calibration_hash" in df else mver
+
+    # PMF integrity BEFORE scoring — count invalid PMFs and support misses (an
+    # out-of-support outcome is scored via an explicit overflow prob in log_score, so it
+    # can never silently become NaN and drop out of the mean).
+    for p, yi in zip(pmfs, y):
+        ok, reason = validate_pmf(p, int(yi))
+        if not ok:
+            r.invalid_pmf += 1
+        elif reason == "support_miss":
+            r.support_miss += 1
 
     err = means - y
     r.bias = float(err.mean()); r.mae = float(np.abs(err).mean())
@@ -271,9 +320,10 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
     _ls = [log_score(p, int(yi)) for p, yi in zip(pmfs, y)]
     r.log_score = float(np.nanmean(_ls))
 
-    # Randomized, deterministically-seeded PIT vs Uniform (KS).
-    u = np.array([randomized_pit(p, int(yi), f"{g}|{pl}|{stat}|{mv}")
-                  for p, yi, g, pl, mv in zip(pmfs, y, gid, pid, mver)])
+    # Randomized, deterministically-seeded PIT vs Uniform (KS). Seed includes model +
+    # calibration hashes so the V draw is reproducible and artifact-specific.
+    u = np.array([randomized_pit(p, int(yi), f"{g}|{pl}|{stat}|{mh}|{ch}")
+                  for p, yi, g, pl, mh, ch in zip(pmfs, y, gid, pid, mhash, chash)])
     u = u[~np.isnan(u)]
     r.pit_ks_stat, r.pit_ks_p = ks_uniform(u)
     _midpit = np.array([mid_pit(p, int(yi)) for p, yi in zip(pmfs, y)])
@@ -311,11 +361,27 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
             preds.append(1.0 - cdf[k - 1]); outs.append(1.0 if yi >= k else 0.0)
     r.calib_ece_pooled, _ = _ece(np.array(preds), np.array(outs))
 
-    # Line-level real-market calibration (separate; when lines supplied).
-    if lines is not None:
-        r.line_level = line_level_threshold_calibration(lines)
+    # Proper-score & sharpness vs the preregistered seasonal-player empirical baseline.
+    if baseline:
+        b_crps = baseline.get("crps"); b_log = baseline.get("log_score")
+        if b_crps is not None:
+            r.crps_vs_baseline = r.crps - float(b_crps)
+        if b_log is not None:
+            r.log_vs_baseline = r.log_score - float(b_log)
+        b_w = baseline.get("mean_width_80")
+        m_w = r.coverage.get("0.8", {}).get("mean_width")
+        if b_w and m_w is not None and float(b_w) > 0:
+            r.sharpness_ratio = float(m_w) / float(b_w)
 
-    # ---- gate ----
+    # Line-level real-market calibration (separate; >=150 genuine lines required).
+    if lines is not None:
+        r.line_level = line_level_threshold_calibration(lines, min_lines=min_real_lines)
+
+    # ---- forecast gate (determines forecast_allowed) ----
+    if r.invalid_pmf > 0:
+        r.reasons.append(f"{r.invalid_pmf} invalid PMFs (integrity failure)")
+    if r.support_miss > 0:
+        r.reasons.append(f"{r.support_miss} out-of-support outcomes (insufficient upper support)")
     if r.n < min_n:
         r.reasons.append(f"insufficient sample: {r.n} rows (<{min_n})")
     if r.n_dates < min_dates:
@@ -330,5 +396,27 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
             direction = "under-covers" if c["materially_under"] else "over-covers"
             r.reasons.append(f"{int(cl*100)}% interval {direction} "
                              f"(emp {c['empirical']:.3f} vs {cl}; clustered CI excludes nominal)")
-    r.passed = len(r.reasons) == 0
+    # Proper scores MUST affect passage (no worse than baseline).
+    if baseline:
+        if r.crps_vs_baseline == r.crps_vs_baseline and r.crps_vs_baseline > 0:
+            r.reasons.append(f"CRPS {r.crps:.3f} worse than baseline by {r.crps_vs_baseline:+.3f}")
+        if r.log_vs_baseline == r.log_vs_baseline and r.log_vs_baseline > 0:
+            r.reasons.append(f"log score {r.log_score:.3f} worse than baseline by {r.log_vs_baseline:+.3f}")
+        if r.sharpness_ratio == r.sharpness_ratio and r.sharpness_ratio > sharpness_max_ratio:
+            r.reasons.append(f"80% interval too broad: sharpness ratio {r.sharpness_ratio:.2f} > {sharpness_max_ratio}")
+    else:
+        r.reasons.append("no preregistered baseline supplied (proper-score/sharpness gate cannot pass)")
+
+    r.forecast_allowed = len(r.reasons) == 0
+    r.passed = r.forecast_allowed
+
+    # ---- market/betting eligibility (independent of forecast_allowed) ----
+    ll = r.line_level
+    if ll.get("available"):
+        slope = ll.get("calibration_slope", float("nan"))
+        ece = ll.get("reliability_ece", float("nan"))
+        slope_ok = (slope == slope and 0.8 <= slope <= 1.25)
+        ece_ok = (ece == ece and ece <= 0.06)
+        r.market_comparison_allowed = bool(ll.get("n_lines", 0) >= min_real_lines and ece_ok)
+        r.betting_recommendation_allowed = bool(r.market_comparison_allowed and slope_ok and r.forecast_allowed)
     return r

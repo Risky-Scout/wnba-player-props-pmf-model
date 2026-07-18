@@ -87,16 +87,77 @@ def test_midpoint_pit_and_pooled_ece_reported_but_not_gated():
     assert "mid" not in joined.lower() and "pooled" not in joined.lower()
 
 
-def test_line_level_calibration_is_separate():
+def test_line_level_calibration_requires_150():
     rows = pd.DataFrame({
-        "p_over": [0.6, 0.4, 0.55, 0.3, 0.7] * 10,
-        "over_outcome": [1, 0, 1, 0, 1] * 10,
+        "p_over": [0.6, 0.4, 0.55, 0.3, 0.7] * 40,       # 200 lines
+        "over_outcome": [1, 0, 1, 0, 1] * 40,
     })
-    out = fc.line_level_threshold_calibration(rows)
-    assert out["available"] and out["n_lines"] == 50
+    out = fc.line_level_threshold_calibration(rows)   # default min_lines=150
+    assert out["available"] and out["n_lines"] == 200
     assert "brier" in out and "log_loss" in out and "calibration_slope" in out
-    # too few lines -> unavailable (not a pooled fallback)
-    assert not fc.line_level_threshold_calibration(rows.head(5))["available"]
+    # 50 lines -> UNAVAILABLE under the committed 150 minimum (not silently reduced to 30)
+    assert not fc.line_level_threshold_calibration(rows.head(50))["available"]
+
+
+def _baseline(crps, log_score, w80):
+    return {"crps": crps, "log_score": log_score, "mean_width_80": w80}
+
+
+def test_proper_score_gate_blocks_worse_than_baseline():
+    n = 400
+    base = np.array([0.1, 0.2, 0.4, 0.2, 0.1])
+    rng = np.random.default_rng(3)
+    actuals = [int(rng.choice(len(base), p=base)) for _ in range(n)]
+    dates = [f"2026-06-{(i % 30)+1:02d}" for i in range(n)]
+    df = _build_df([base] * n, actuals, dates)
+    # baseline strictly better (lower) CRPS/log -> model must fail proper-score gate
+    r = fc.evaluate_stat(df, min_n=100, min_dates=20,
+                         baseline=_baseline(crps=0.0, log_score=0.0, w80=99))
+    assert any("worse than baseline" in reason for reason in r.reasons)
+    assert not r.forecast_allowed
+
+
+def test_sharpness_gate_blocks_overbroad():
+    n = 400
+    base = np.array([0.1, 0.2, 0.4, 0.2, 0.1])
+    rng = np.random.default_rng(4)
+    actuals = [int(rng.choice(len(base), p=base)) for _ in range(n)]
+    dates = [f"2026-06-{(i % 30)+1:02d}" for i in range(n)]
+    df = _build_df([base] * n, actuals, dates)
+    # tiny baseline width -> model intervals look far too broad -> sharpness fail
+    r = fc.evaluate_stat(df, min_n=100, min_dates=20,
+                         baseline=_baseline(crps=9, log_score=9, w80=0.1))
+    assert any("too broad" in reason for reason in r.reasons)
+
+
+def test_no_baseline_cannot_pass():
+    n = 400
+    base = np.array([0.1, 0.2, 0.4, 0.2, 0.1])
+    rng = np.random.default_rng(5)
+    actuals = [int(rng.choice(len(base), p=base)) for _ in range(n)]
+    dates = [f"2026-06-{(i % 30)+1:02d}" for i in range(n)]
+    r = fc.evaluate_stat(_build_df([base] * n, actuals, dates), min_n=100, min_dates=20)
+    assert not r.forecast_allowed
+    assert any("no preregistered baseline" in reason for reason in r.reasons)
+
+
+def test_three_independent_statuses_exist():
+    n = 200
+    base = np.array([0.1, 0.2, 0.4, 0.2, 0.1])
+    r = fc.evaluate_stat(_build_df([base] * n, [2] * n, ["2026-06-01"] * n), min_n=300)
+    # market/betting default False without real lines; all three attributes present
+    assert hasattr(r, "forecast_allowed") and hasattr(r, "market_comparison_allowed")
+    assert hasattr(r, "betting_recommendation_allowed")
+    assert r.market_comparison_allowed is False and r.betting_recommendation_allowed is False
+
+
+def test_out_of_support_scored_not_nan():
+    # PMF supports 0..4 but actual=10 -> log_score finite (overflow), support_miss counted
+    pmf = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
+    ls = fc.log_score(pmf, 10)
+    assert np.isfinite(ls) and ls > 0
+    ok, reason = fc.validate_pmf(pmf, 10)
+    assert ok and reason == "support_miss"
 
 
 def test_insufficient_coverage_blocks():

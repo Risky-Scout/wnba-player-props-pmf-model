@@ -13,13 +13,13 @@ GEN_PAGES = (REPO / "scripts/generate_web_pages.py").read_text()
 
 
 # ---- Immediate safety correction ----
-def test_forecast_status_validation_pending():
+def test_forecast_status_non_launch_nothing_certified():
     p = load_policy(POLICY)
-    assert p.forecast_status == "VALIDATION_PENDING"
+    assert p.forecast_status in ("VALIDATION_PENDING", "BLOCKED_MODEL")
     assert p.forecast_certified_stats == []          # nothing certified
     assert p.forecast_publish_stats == []            # nothing published as certified
     assert p.forecast_pending_banner and "certified" in p.forecast_pending_banner.lower()
-    # all seven stats suppressed from certified publication until corrected gate runs
+    # all seven stats suppressed from certified publication
     for s in ("pts", "reb", "ast", "fg3m", "blk", "stl", "turnover"):
         assert s in p.forecast_suppress_stats
 

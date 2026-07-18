@@ -60,11 +60,12 @@ def _fit_factors(train: pd.DataFrame, min_n: int = 40,
     resid_sd = float(np.std(y - means, ddof=1))
     model_sd = float(np.sqrt(np.mean(train["pmf_variance"].astype(float).clip(lower=1e-6))))
     scale = resid_sd / model_sd if model_sd > 1e-6 else 1.0
-    return (delta, float(np.clip(scale, 0.75, 1.6)))
+    # Allow meaningful sharpening (down to 0.4) since the raw PMFs are over-dispersed.
+    return (delta, float(np.clip(scale, 0.4, 1.6)))
 
 
 def fold_safe_pmf_recalibration(df: pd.DataFrame, role_col: str = "role_bucket",
-                                use_role: bool = True) -> pd.Series:
+                                use_role: bool = True, use_dispersion: bool = False) -> pd.Series:
     """Return a Series of recalibrated pmf_json aligned to df.index. For each fold
     (ordered by fold_id / date), correction factors are fit per (stat[, role]) on
     strictly-earlier folds only; pooled per-stat factors are the fallback."""
@@ -82,12 +83,12 @@ def fold_safe_pmf_recalibration(df: pd.DataFrame, role_col: str = "role_bucket",
         prior = d[d[fold_key] < f] if fold_key else d[d["_date"] < f]
         for stat, g in cur.groupby("stat"):
             pri_stat = prior[prior["stat"] == stat]
-            pooled = _fit_factors(pri_stat)
+            pooled = _fit_factors(pri_stat, dispersion=use_dispersion)
             for idx, row in g.iterrows():
                 delta, scale = pooled
                 if use_role and role_col in g.columns:
                     pri_cell = pri_stat[pri_stat[role_col] == row[role_col]]
-                    cell = _fit_factors(pri_cell)
+                    cell = _fit_factors(pri_cell, dispersion=use_dispersion)
                     if cell != (0.0, 1.0):
                         delta, scale = cell
                 pmf = pmf_to_array(row["pmf_json"])
