@@ -1741,3 +1741,5 @@ jobs:
             tools/odds-scanner/predictions/WNBA/Pre-Game/PMF-Distributions/
             tools/odds-scanner/predictions/WNBA/Pre-Game/Distributions/
           retention-days: 14
+
+# P3: publish BLOCKED_MODEL forecast state (no stat certified; distributions uncertified).
