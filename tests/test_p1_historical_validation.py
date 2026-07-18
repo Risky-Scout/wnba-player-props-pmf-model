@@ -168,6 +168,21 @@ def test_grade_df_policy():
     assert len(evaljob._grade_df(ev2, min_edge=0.02)) == 0
 
 
+def test_zero_odds_invalid_and_skipped():
+    import math as _m
+    assert not hm._valid_american(0) and not hm._valid_american(None) and not hm._valid_american(float("inf"))
+    assert hm._valid_american(-110) and hm._valid_american(120)
+    assert _m.isnan(hm.profit_at_american(0, True))  # never divides by zero
+    ev = pd.DataFrame([{
+        "game_id": "g", "player_id": "p", "stat": "pts", "game_date": "2026-07-10",
+        "line": 17.5, "market_prob_over_no_vig": 0.9,  # big under edge
+        "over_odds": 0, "under_odds": 0,  # placeholder zero prices -> skipped
+        "pmf_json": json.dumps({str(i): (0.1 if i < 10 else 0.0) for i in range(20)}),
+        "actual_outcome": 5.0,
+    }])
+    assert len(evaljob._grade_df(ev, min_edge=0.02)) == 0  # zero-odds pick skipped
+
+
 # 15. ROI at positive and negative American odds
 def test_profit_and_roi_signs():
     assert hm.profit_at_american(150, True) == pytest.approx(1.5)

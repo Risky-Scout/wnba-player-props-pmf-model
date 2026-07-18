@@ -68,19 +68,34 @@ def team_abbr(team: object) -> str:
     return up if 1 <= len(up) <= 4 else ""
 
 
+def _valid_american(american: object) -> bool:
+    """American odds of 0 (or non-finite) are invalid/placeholder prices."""
+    try:
+        a = float(american)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(a) and a != 0.0
+
+
 def american_to_decimal(american: float) -> float:
     a = float(american)
+    if a == 0:
+        return float("nan")
     return 1.0 + (a / 100.0 if a > 0 else 100.0 / abs(a))
 
 
 def american_to_implied(american: float) -> float:
     a = float(american)
+    if a == 0:
+        return float("nan")
     return (100.0 / (a + 100.0)) if a > 0 else (abs(a) / (abs(a) + 100.0))
 
 
 def profit_at_american(american: float, won: bool) -> float:
     """Flat 1-unit stake settled profit at the offered American price."""
     a = float(american)
+    if a == 0:
+        return float("nan")
     if not won:
         return -1.0
     return (a / 100.0) if a > 0 else (100.0 / abs(a))

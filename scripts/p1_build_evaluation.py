@@ -61,6 +61,8 @@ def _grade_df(df: pd.DataFrame, min_edge: float) -> pd.DataFrame:
         if not np.isfinite(m_over):
             continue
         k_over = float(r["market_prob_over_no_vig"])
+        if not np.isfinite(k_over) or not (0.0 < k_over < 1.0):
+            continue  # skip observations without a valid no-vig market probability
         edge = m_over - k_over
         side = "over" if edge > 0 else "under"
         if abs(edge) < min_edge:
@@ -75,8 +77,9 @@ def _grade_df(df: pd.DataFrame, min_edge: float) -> pd.DataFrame:
             won = np.nan if is_push else (actual < line)
             price = r.get("under_odds")
             m_side, k_side = 1.0 - m_over, 1.0 - k_over
-        if price is None or (isinstance(price, float) and not np.isfinite(price)):
-            continue
+        if not hm._valid_american(price):
+            continue  # skip missing / non-finite / zero (placeholder) prices
+        price = float(price)
         rows.append({
             "game_id": r["game_id"], "player_id": r["player_id"], "stat": r["stat"],
             "game_date": r.get("game_date"), "season": str(r.get("game_date", ""))[:4],
