@@ -243,6 +243,28 @@ def select_open_close(paired: pd.DataFrame) -> pd.DataFrame:
     return p.drop(columns=["_snap", "_tip"])
 
 
+def select_decision_snapshot(paired: pd.DataFrame, lead_hours: float = 12.0) -> pd.DataFrame:
+    """Per (game_id, player_id, stat, BOOK) select the quote available at the DECISION
+    time = tip - lead_hours (the latest quote whose snapshot is at or before that
+    decision cutoff). This is the executable quote a bettor could have taken when the
+    public recommendation would have been published. Rows with no quote at/at-before
+    the decision cutoff are dropped (no post-decision information)."""
+    cols = list(paired.columns) + ["is_decision"]
+    if paired.empty:
+        return pd.DataFrame(columns=cols)
+    p = paired.copy()
+    p["_snap"] = pd.to_datetime(p["snapshot_time"], utc=True, errors="coerce")
+    p["_tip"] = pd.to_datetime(p["commence_time"], utc=True, errors="coerce")
+    p["_cut"] = p["_tip"] - pd.Timedelta(hours=lead_hours)
+    p = p[p["_snap"] <= p["_cut"]].copy()
+    if p.empty:
+        return pd.DataFrame(columns=cols)
+    grp = ["game_id", "player_id", "stat", "book"]
+    dec_idx = p.groupby(grp)["_snap"].idxmax()
+    p["is_decision"] = p.index.isin(set(dec_idx))
+    return p[p["is_decision"]].drop(columns=["_snap", "_tip", "_cut"])
+
+
 def build_consensus(closing_paired: pd.DataFrame) -> pd.DataFrame:
     """CALIBRATION/SCORING consensus ONLY — one row per (game_id, player_id, stat):
     the modal closing line (median tie-break, snapped to a real modal line) and the
@@ -275,9 +297,10 @@ def build_consensus(closing_paired: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-def build_executable_recs(decision_paired: pd.DataFrame, pmf_by_key: dict,
+def build_executable_recs(decision_paired: pd.DataFrame, pmf_by_key: dict | None = None,
                           *, no_vig_fn, publishable_stats, edge_threshold: float,
-                          min_market_prob: float = 0.05, max_shin_z: float = 0.15) -> pd.DataFrame:
+                          min_market_prob: float = 0.05, max_shin_z: float = 0.15,
+                          prob_over_col: str | None = None) -> pd.DataFrame:
     """One EXECUTABLE recommendation per (game_id, player_id, stat) from exact
     decision-time book quotes. Side/edge come from the shared production selector
     applied to each candidate book's own paired price; among SELECTED candidates
@@ -291,13 +314,18 @@ def build_executable_recs(decision_paired: pd.DataFrame, pmf_by_key: dict,
     eid_col = "event_id" if "event_id" in decision_paired.columns else "odds_event_id"
     rows = []
     for (gid, pid, stat), g in decision_paired.groupby(["game_id", "player_id", "stat"]):
-        pmf = pmf_by_key.get((str(gid), str(pid), str(stat)))
-        if pmf is None:
-            continue
+        pmf = None
+        if prob_over_col is None:
+            pmf = (pmf_by_key or {}).get((str(gid), str(pid), str(stat)))
+            if pmf is None:
+                continue
         best = None
         for _, r in g.iterrows():
             line = float(r["line"])
-            m_over = p_over_conditional(pmf, line)
+            if prob_over_col is not None:
+                m_over = float(r[prob_over_col])
+            else:
+                m_over = p_over_conditional(pmf, line)
             if not math.isfinite(m_over):
                 continue
             rec = select_recommendation(
@@ -499,6 +527,44 @@ def forced_verdict(under: GradeResult, n_game_clusters: int | None = None,
                    min_clusters: int = 25) -> str:
     """Backward-compatible verdict string (see verdict_with_reason)."""
     return verdict_with_reason(under, n_game_clusters, min_clusters)[0]
+
+
+def fold_safe_calibrated_prob_over(obs: pd.DataFrame, *, prob_col: str = "raw_p_over",
+                                   outcome_col: str = "over_outcome", stat_col: str = "stat",
+                                   date_col: str = "game_date", n_folds: int = 5,
+                                   min_train: int = 50) -> pd.Series:
+    """Walk-forward, fold-safe probability calibration of P(over).
+
+    Games are ordered by date and split into ``n_folds`` chronological folds. For
+    each fold, a per-stat isotonic map from raw P(over) to the realized over-rate is
+    fit using ONLY strictly-earlier folds (cutoff precedes every evaluated game),
+    then applied to that fold. The first fold and any stat with too few earlier
+    observations fall back to the raw probability (no lookahead is ever used).
+    Returns a calibrated P(over) Series aligned to ``obs.index``."""
+    try:
+        from sklearn.isotonic import IsotonicRegression
+    except Exception:
+        return obs[prob_col].astype(float)
+    o = obs.copy()
+    o["_date"] = pd.to_datetime(o[date_col], errors="coerce")
+    dates = np.sort(o["_date"].dropna().unique())
+    if len(dates) < n_folds:
+        return o[prob_col].astype(float)
+    edges = np.array_split(dates, n_folds)
+    fold_start = [blk[0] for blk in edges]
+    cal = o[prob_col].astype(float).copy()
+    for k in range(1, len(fold_start)):
+        cutoff = fold_start[k]
+        fold_mask = (o["_date"] >= cutoff) & (o["_date"] < (fold_start[k + 1] if k + 1 < len(fold_start) else o["_date"].max() + pd.Timedelta(days=1)))
+        train = o[o["_date"] < cutoff]
+        for stat, fg in o[fold_mask].groupby(stat_col):
+            tr = train[(train[stat_col] == stat) & train[outcome_col].notna()]
+            if len(tr) < min_train:
+                continue  # keep raw (no reliable earlier calibration)
+            ir = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
+            ir.fit(tr[prob_col].astype(float).values, tr[outcome_col].astype(float).values)
+            cal.loc[fg.index] = ir.predict(fg[prob_col].astype(float).values)
+    return cal.clip(1e-6, 1 - 1e-6)
 
 
 # ---------------------------------------------------------------------------
