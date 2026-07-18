@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -31,26 +32,33 @@ def _sha(obj) -> str:
 
 @app.command()
 def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.parquet"),
-         certified: str = typer.Option("turnover", help="Comma-separated certified stats."),
+         prequential: str = typer.Option("artifacts/p3/p3_prequential_result.json"),
          cal_out: str = typer.Option("config/certified_forecast_calibration.json"),
          registry_out: str = typer.Option("config/stat_registry.json"),
-         manifest_out: str = typer.Option("config/champion_manifest.json")) -> None:
-    certified_stats = [s.strip() for s in certified.split(",") if s.strip()]
+         manifest_out: str = typer.Option("config/champion_manifest.json"),
+         policy_path: str = typer.Option("config/recommendation_policy.yaml")) -> None:
+    # Certified stats + ledger hash come from the strictly-prequential gate result.
+    preq = json.loads(Path(prequential).read_text())
+    certified_stats = list(preq["certified"])
+    ledger_hash = preq["ledger_hash"]
+    split_dates = preq["blocks"]
     df = pd.read_parquet(oof)
     df = df[df["actual_outcome"].notna() & df["pmf_json"].notna()]
     if "did_play" in df.columns:
         df = df[df["did_play"] == True]  # noqa: E712
 
-    calib = {"method": "location_and_scale_recalibration",
+    # The prequential winner was LOCATION (bias-only) calibration for every block, so the
+    # production calibrator uses dispersion=False to match the validated transform exactly.
+    calib = {"method": "location_recalibration",
              "transform": "wnba_props_model.evaluation.pmf_recalibration.recalibrate_pmf",
              "stats": {}}
     for stat in certified_stats:
         s = df[df["stat"] == stat]
-        pooled = _fit_factors(s, dispersion=True)
+        pooled = _fit_factors(s, dispersion=False)
         by_role = {}
         if "role_bucket" in s.columns:
             for role, g in s.groupby("role_bucket"):
-                f = _fit_factors(g, dispersion=True)
+                f = _fit_factors(g, dispersion=False)
                 by_role[str(role)] = [round(f[0], 6), round(f[1], 6)]
         calib["stats"][stat] = {"_pooled": [round(pooled[0], 6), round(pooled[1], 6)],
                                 "by_role": by_role, "n_train": int(len(s))}
@@ -74,28 +82,40 @@ def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.p
             "forecast_allowed": bool(allowed),
             "market_comparison_allowed": False,
             "betting_recommendation_allowed": False,
-            "calibration_method": "location_and_scale_recalibration" if allowed else None,
+            "calibration_method": "location_recalibration" if allowed else None,
             "calibration_hash": cal_hash if allowed else None,
             "feature_schema": feat_hash,
             "code_commit": commit,
-            "validation_window": "2026 full-season OOF; holdout = latest 25 game-dates",
-            "suppression_reason": "" if allowed else "did not pass corrected forecast gate",
+            "validation_window": "2026 full-season OOF; strictly-prequential 5x5-date holdout",
+            "suppression_reason": "" if allowed else "did not pass corrected prequential forecast gate",
         }
     Path(registry_out).write_text(json.dumps(registry, indent=2))
+    registry_hash = _sha(registry)
+    feature_hash = _sha({"schema": feat_hash})
+    policy_hash = hashlib.sha256(Path(policy_path).read_bytes()).hexdigest()[:16]
 
+    # GITHUB_SHA (set by the validating workflow) supersedes the local build commit.
+    github_sha = os.environ.get("GITHUB_SHA", "") or commit
     manifest = {
-        "champion": "schema_v2_structural + location_and_scale_forecast_calibration",
+        "champion": "schema_v2_structural + location_forecast_calibration",
         "certified_stats": certified_stats,
-        "feature_schema": feat_hash,
+        "github_sha": github_sha,
         "code_commit": commit,
+        "feature_schema": feat_hash,
+        "feature_hash": feature_hash,
+        "model_hash": os.environ.get("MODEL_HASH", "stage_v2_structural"),
         "calibration_artifact": cal_out,
         "calibration_hash": cal_hash,
-        "registry_hash": _sha(registry),
+        "registry_hash": registry_hash,
+        "policy_hash": policy_hash,
+        "ledger_hash": ledger_hash,
+        "split_dates": split_dates,
         "validation": "docs/p3_forecast_gate_result.md",
         "status": "LIVE_VALIDATED_FORECAST_ONLY",
     }
     Path(manifest_out).write_text(json.dumps(manifest, indent=2))
-    typer.echo(f"[P3] certified={certified_stats} cal_hash={cal_hash} registry_hash={manifest['registry_hash']} commit={commit}")
+    typer.echo(f"[P3] certified={certified_stats} cal_hash={cal_hash} registry_hash={registry_hash} "
+               f"policy_hash={policy_hash} ledger_hash={ledger_hash} github_sha={github_sha}")
 
 
 if __name__ == "__main__":
