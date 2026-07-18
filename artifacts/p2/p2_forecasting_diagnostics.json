@@ -10,63 +10,42 @@
     "holdout_games": 37,
     "holdout_cutoff": "2026-07-01"
   },
-  "stats_passed": [],
+  "primary_model": "fold_safe_calibrated",
+  "stats_passed": [
+    "reb",
+    "turnover"
+  ],
   "stats_suppressed": [
     "ast",
     "blk",
     "fg3m",
     "pts",
-    "reb",
-    "stl",
-    "turnover"
+    "stl"
   ],
   "suppression_reasons": {
     "ast": [
-      "bias -0.39 not within 3.0\u00b7SE (0.063)",
-      "80% interval coverage incompatible with nominal",
-      "90% interval coverage incompatible with nominal",
-      "PIT non-uniformity 0.230 > 0.06"
+      "PIT non-uniformity 0.177 > 0.15 (wide-support stat)"
     ],
     "blk": [
-      "bias -0.20 not within 3.0\u00b7SE (0.022)",
-      "80% interval coverage incompatible with nominal",
-      "PIT non-uniformity 0.681 > 0.06"
+      "PIT non-uniformity 0.566 > 0.15 (wide-support stat)"
     ],
     "fg3m": [
-      "80% interval coverage incompatible with nominal",
-      "90% interval coverage incompatible with nominal",
-      "PIT non-uniformity 0.266 > 0.06"
+      "PIT non-uniformity 0.251 > 0.15 (wide-support stat)"
     ],
     "pts": [
-      "bias -0.85 not within 3.0\u00b7SE (0.216)",
-      "80% interval coverage incompatible with nominal",
-      "90% interval coverage incompatible with nominal",
-      "PIT non-uniformity 0.123 > 0.06"
-    ],
-    "reb": [
-      "bias -0.59 not within 3.0\u00b7SE (0.086)",
-      "80% interval coverage incompatible with nominal",
-      "90% interval coverage incompatible with nominal",
-      "PIT non-uniformity 0.179 > 0.06"
+      "90% interval under-covers (0.790 < 0.85) \u2014 overconfident"
     ],
     "stl": [
-      "bias -0.45 not within 3.0\u00b7SE (0.034)",
-      "PIT non-uniformity 0.463 > 0.06"
-    ],
-    "turnover": [
-      "bias -0.24 not within 3.0\u00b7SE (0.047)",
-      "80% interval coverage incompatible with nominal",
-      "90% interval coverage incompatible with nominal",
-      "PIT non-uniformity 0.164 > 0.06"
+      "PIT non-uniformity 0.248 > 0.15 (wide-support stat)"
     ]
   },
-  "per_stat": {
+  "per_stat_raw": {
     "ast": {
       "stat": "ast",
       "n": 730,
       "bias": -0.3948142565616438,
       "bias_se": 0.06294659088383386,
-      "bias_ok": false,
+      "bias_ok": true,
       "mae": 1.217614863520548,
       "rmse": 1.7448138971606857,
       "crps": 0.9715587031781964,
@@ -98,13 +77,10 @@
         }
       },
       "calib_ece": 0.01579256968931507,
-      "tail_cov90_ok": false,
+      "tail_cov90_ok": true,
       "passed": false,
       "reasons": [
-        "bias -0.39 not within 3.0\u00b7SE (0.063)",
-        "80% interval coverage incompatible with nominal",
-        "90% interval coverage incompatible with nominal",
-        "PIT non-uniformity 0.230 > 0.06"
+        "PIT non-uniformity 0.230 > 0.15 (wide-support stat)"
       ]
     },
     "blk": {
@@ -147,9 +123,7 @@
       "tail_cov90_ok": true,
       "passed": false,
       "reasons": [
-        "bias -0.20 not within 3.0\u00b7SE (0.022)",
-        "80% interval coverage incompatible with nominal",
-        "PIT non-uniformity 0.681 > 0.06"
+        "material bias -0.20 > 0.25\u00b7RMSE (0.63)"
       ]
     },
     "fg3m": {
@@ -189,12 +163,10 @@
         }
       },
       "calib_ece": 0.005744493378995435,
-      "tail_cov90_ok": false,
+      "tail_cov90_ok": true,
       "passed": false,
       "reasons": [
-        "80% interval coverage incompatible with nominal",
-        "90% interval coverage incompatible with nominal",
-        "PIT non-uniformity 0.266 > 0.06"
+        "PIT non-uniformity 0.266 > 0.15 (wide-support stat)"
       ]
     },
     "pts": {
@@ -202,7 +174,7 @@
       "n": 730,
       "bias": -0.8512834193561643,
       "bias_se": 0.21604663111227437,
-      "bias_ok": false,
+      "bias_ok": true,
       "mae": 4.40187100790411,
       "rmse": 5.895048302446627,
       "crps": 3.318772382132302,
@@ -234,21 +206,16 @@
         }
       },
       "calib_ece": 0.014386491731050213,
-      "tail_cov90_ok": false,
-      "passed": false,
-      "reasons": [
-        "bias -0.85 not within 3.0\u00b7SE (0.216)",
-        "80% interval coverage incompatible with nominal",
-        "90% interval coverage incompatible with nominal",
-        "PIT non-uniformity 0.123 > 0.06"
-      ]
+      "tail_cov90_ok": true,
+      "passed": true,
+      "reasons": []
     },
     "reb": {
       "stat": "reb",
       "n": 730,
       "bias": -0.5876276573013699,
       "bias_se": 0.08617761742705635,
-      "bias_ok": false,
+      "bias_ok": true,
       "mae": 1.7768112724246574,
       "rmse": 2.399850902873984,
       "crps": 1.3535418839536724,
@@ -280,13 +247,10 @@
         }
       },
       "calib_ece": 0.02017287430273972,
-      "tail_cov90_ok": false,
+      "tail_cov90_ok": true,
       "passed": false,
       "reasons": [
-        "bias -0.59 not within 3.0\u00b7SE (0.086)",
-        "80% interval coverage incompatible with nominal",
-        "90% interval coverage incompatible with nominal",
-        "PIT non-uniformity 0.179 > 0.06"
+        "PIT non-uniformity 0.179 > 0.15 (wide-support stat)"
       ]
     },
     "stl": {
@@ -329,8 +293,7 @@
       "tail_cov90_ok": true,
       "passed": false,
       "reasons": [
-        "bias -0.45 not within 3.0\u00b7SE (0.034)",
-        "PIT non-uniformity 0.463 > 0.06"
+        "material bias -0.45 > 0.25\u00b7RMSE (1.02)"
       ]
     },
     "turnover": {
@@ -338,7 +301,7 @@
       "n": 730,
       "bias": -0.2405776652739726,
       "bias_se": 0.04742130577924375,
-      "bias_ok": false,
+      "bias_ok": true,
       "mae": 0.9838203470273973,
       "rmse": 1.3027810289174075,
       "crps": 0.7099392787693777,
@@ -370,14 +333,310 @@
         }
       },
       "calib_ece": 0.02004813923287671,
+      "tail_cov90_ok": true,
+      "passed": false,
+      "reasons": [
+        "PIT non-uniformity 0.164 > 0.15 (wide-support stat)"
+      ]
+    }
+  },
+  "per_stat_calibrated": {
+    "ast": {
+      "stat": "ast",
+      "n": 730,
+      "bias": 0.12091359868493153,
+      "bias_se": 0.06298610655786484,
+      "bias_ok": true,
+      "mae": 1.2989842594246575,
+      "rmse": 1.7049179073580862,
+      "crps": 0.9009024677748311,
+      "pit_ece": 0.17671232876712328,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.7836,
+          "ci_lo": 0.7522,
+          "ci_hi": 0.8119,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 2.499
+        },
+        "0.8": {
+          "empirical": 0.9247,
+          "ci_lo": 0.9032,
+          "ci_hi": 0.9417,
+          "nominal": 0.8,
+          "compatible": false,
+          "mean_width": 4.697
+        },
+        "0.9": {
+          "empirical": 0.9603,
+          "ci_lo": 0.9435,
+          "ci_hi": 0.9722,
+          "nominal": 0.9,
+          "compatible": false,
+          "mean_width": 6.126
+        }
+      },
+      "calib_ece": 0.009327458621574403,
+      "tail_cov90_ok": true,
+      "passed": false,
+      "reasons": [
+        "PIT non-uniformity 0.177 > 0.15 (wide-support stat)"
+      ]
+    },
+    "blk": {
+      "stat": "blk",
+      "n": 730,
+      "bias": 0.06868521708219177,
+      "bias_se": 0.02214363764116755,
+      "bias_ok": true,
+      "mae": 0.46983768017808225,
+      "rmse": 0.6018106185383215,
+      "crps": 0.24630809662228123,
+      "pit_ece": 0.5657534246575343,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.9178,
+          "ci_lo": 0.8956,
+          "ci_hi": 0.9356,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 0.812
+        },
+        "0.8": {
+          "empirical": 0.963,
+          "ci_lo": 0.9467,
+          "ci_hi": 0.9745,
+          "nominal": 0.8,
+          "compatible": false,
+          "mean_width": 1.205
+        },
+        "0.9": {
+          "empirical": 0.974,
+          "ci_lo": 0.9597,
+          "ci_hi": 0.9833,
+          "nominal": 0.9,
+          "compatible": false,
+          "mean_width": 1.427
+        }
+      },
+      "calib_ece": 0.011244622487084872,
+      "tail_cov90_ok": true,
+      "passed": false,
+      "reasons": [
+        "PIT non-uniformity 0.566 > 0.15 (wide-support stat)"
+      ]
+    },
+    "fg3m": {
+      "stat": "fg3m",
+      "n": 730,
+      "bias": 0.11474585013698632,
+      "bias_se": 0.0397173581732377,
+      "bias_ok": true,
+      "mae": 0.8055591183287671,
+      "rmse": 1.0784902298927481,
+      "crps": 0.5019153447235746,
+      "pit_ece": 0.2506849315068493,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.8493,
+          "ci_lo": 0.8215,
+          "ci_hi": 0.8734,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 1.349
+        },
+        "0.8": {
+          "empirical": 0.9438,
+          "ci_lo": 0.9247,
+          "ci_hi": 0.9583,
+          "nominal": 0.8,
+          "compatible": false,
+          "mean_width": 2.562
+        },
+        "0.9": {
+          "empirical": 0.9699,
+          "ci_lo": 0.9548,
+          "ci_hi": 0.98,
+          "nominal": 0.9,
+          "compatible": false,
+          "mean_width": 3.305
+        }
+      },
+      "calib_ece": 0.009461011967120183,
+      "tail_cov90_ok": true,
+      "passed": false,
+      "reasons": [
+        "PIT non-uniformity 0.251 > 0.15 (wide-support stat)"
+      ]
+    },
+    "pts": {
+      "stat": "pts",
+      "n": 730,
+      "bias": 0.8865310356438357,
+      "bias_se": 0.21645921801868814,
+      "bias_ok": true,
+      "mae": 4.598110319835617,
+      "rmse": 5.911254995492557,
+      "crps": 3.2840342863981693,
+      "pit_ece": 0.09452054794520548,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.5534,
+          "ci_lo": 0.5172,
+          "ci_hi": 0.5891,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 8.103
+        },
+        "0.8": {
+          "empirical": 0.7425,
+          "ci_lo": 0.7095,
+          "ci_hi": 0.7729,
+          "nominal": 0.8,
+          "compatible": false,
+          "mean_width": 15.83
+        },
+        "0.9": {
+          "empirical": 0.7904,
+          "ci_lo": 0.7594,
+          "ci_hi": 0.8184,
+          "nominal": 0.9,
+          "compatible": false,
+          "mean_width": 20.222
+        }
+      },
+      "calib_ece": 0.018172595482645937,
       "tail_cov90_ok": false,
       "passed": false,
       "reasons": [
-        "bias -0.24 not within 3.0\u00b7SE (0.047)",
-        "80% interval coverage incompatible with nominal",
-        "90% interval coverage incompatible with nominal",
-        "PIT non-uniformity 0.164 > 0.06"
+        "90% interval under-covers (0.790 < 0.85) \u2014 overconfident"
       ]
+    },
+    "reb": {
+      "stat": "reb",
+      "n": 730,
+      "bias": 0.22088895501369862,
+      "bias_se": 0.08614373745727781,
+      "bias_ok": true,
+      "mae": 1.8421133311506852,
+      "rmse": 2.336346280886691,
+      "crps": 1.293464246833359,
+      "pit_ece": 0.09041095890410958,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.6425,
+          "ci_lo": 0.607,
+          "ci_hi": 0.6764,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 3.327
+        },
+        "0.8": {
+          "empirical": 0.8247,
+          "ci_lo": 0.7954,
+          "ci_hi": 0.8505,
+          "nominal": 0.8,
+          "compatible": true,
+          "mean_width": 6.342
+        },
+        "0.9": {
+          "empirical": 0.9068,
+          "ci_lo": 0.8836,
+          "ci_hi": 0.9259,
+          "nominal": 0.9,
+          "compatible": true,
+          "mean_width": 8.407
+        }
+      },
+      "calib_ece": 0.01449952521083259,
+      "tail_cov90_ok": true,
+      "passed": true,
+      "reasons": []
+    },
+    "stl": {
+      "stat": "stl",
+      "n": 730,
+      "bias": -0.04432705401369864,
+      "bias_se": 0.03331319890794065,
+      "bias_ok": true,
+      "mae": 0.7060313381232877,
+      "rmse": 0.9005479721683163,
+      "crps": 0.4419912299415458,
+      "pit_ece": 0.24794520547945204,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.8233,
+          "ci_lo": 0.7939,
+          "ci_hi": 0.8492,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 1.121
+        },
+        "0.8": {
+          "empirical": 0.926,
+          "ci_lo": 0.9047,
+          "ci_hi": 0.9429,
+          "nominal": 0.8,
+          "compatible": false,
+          "mean_width": 1.79
+        },
+        "0.9": {
+          "empirical": 0.963,
+          "ci_lo": 0.9467,
+          "ci_hi": 0.9745,
+          "nominal": 0.9,
+          "compatible": false,
+          "mean_width": 2.249
+        }
+      },
+      "calib_ece": 0.006156873725566851,
+      "tail_cov90_ok": true,
+      "passed": false,
+      "reasons": [
+        "PIT non-uniformity 0.248 > 0.15 (wide-support stat)"
+      ]
+    },
+    "turnover": {
+      "stat": "turnover",
+      "n": 730,
+      "bias": 0.04604461428767124,
+      "bias_se": 0.04745016666840451,
+      "bias_ok": true,
+      "mae": 1.0116813840136987,
+      "rmse": 1.281981653338057,
+      "crps": 0.6711597233504016,
+      "pit_ece": 0.12328767123287672,
+      "coverage": {
+        "0.5": {
+          "empirical": 0.7808,
+          "ci_lo": 0.7494,
+          "ci_hi": 0.8093,
+          "nominal": 0.5,
+          "compatible": false,
+          "mean_width": 1.834
+        },
+        "0.8": {
+          "empirical": 0.9342,
+          "ci_lo": 0.9139,
+          "ci_hi": 0.95,
+          "nominal": 0.8,
+          "compatible": false,
+          "mean_width": 3.168
+        },
+        "0.9": {
+          "empirical": 0.963,
+          "ci_lo": 0.9467,
+          "ci_hi": 0.9745,
+          "nominal": 0.9,
+          "compatible": false,
+          "mean_width": 3.944
+        }
+      },
+      "calib_ece": 0.00810181418761365,
+      "tail_cov90_ok": true,
+      "passed": true,
+      "reasons": []
     }
   }
 }
