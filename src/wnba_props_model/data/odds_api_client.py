@@ -336,6 +336,17 @@ class OddsAPIClient:
     # Historical odds (closing lines)
     # -----------------------------------------------------------------------
 
+    def list_historical_events(self, date_str_iso: str) -> dict:
+        """GET /v4/historical/sports/basketball_wnba/events?date=ISO
+
+        Returns the historical events snapshot: {timestamp, previous_timestamp,
+        next_timestamp, data: [ {id, commence_time, home_team, away_team}, ... ]}.
+        Cost: historical surcharge (10× the free events endpoint). Use to obtain
+        event IDs for PAST dates (the live events endpoint does not return them).
+        """
+        params: dict[str, Any] = {"date": date_str_iso, "dateFormat": "iso"}
+        return self._get(f"/v4/historical/sports/{SPORT_KEY}/events", params)
+
     def get_historical_event_odds(
         self,
         event_id: str,
