@@ -187,6 +187,12 @@ def main(
               "stat & side suppression, and publication_mode (abstain/publish) OVERRIDE the "
               "individual flags. The historical replay loads the same file."),
     ),
+    require_policy: bool = typer.Option(
+        False, "--require-policy/--no-require-policy",
+        help=("Fail closed if --policy is missing or invalid. Production invocations MUST set "
+              "this: publication is not authorized under the permissive edge_threshold=0.0 "
+              "default without the canonical policy file."),
+    ),
     game_date: str | None = typer.Option(None, help="ISO date for audit (YYYY-MM-DD)."),
     min_market_prob: float = typer.Option(0.05, help="Skip lines where market no-vig prob < this."),
     max_shin_z: float = typer.Option(
@@ -252,9 +258,22 @@ def main(
     _policy_abstain = False
     _policy_suppress_stats: set = set()
     _policy_suppress_sides: set = set()
+    if require_policy and not policy:
+        typer.echo("[FATAL] --require-policy set but no --policy provided. Production must run "
+                   "under the canonical recommendation policy; refusing to publish under the "
+                   "permissive edge_threshold=0.0 default.", err=True)
+        _write_status(out, STATUS_FAILURE, game_date or date.today().isoformat(),
+                      edge_threshold, error="policy_required_but_missing")
+        raise typer.Exit(1)
     if policy:
-        from wnba_props_model.pipeline.policy import load_policy
-        _policy = load_policy(policy)
+        from wnba_props_model.pipeline.policy import load_policy, PolicyError
+        try:
+            _policy = load_policy(policy)
+        except (PolicyError, FileNotFoundError, OSError) as exc:
+            typer.echo(f"[FATAL] invalid/unreadable policy {policy}: {exc}", err=True)
+            _write_status(out, STATUS_FAILURE, game_date or date.today().isoformat(),
+                          edge_threshold, error=f"policy_invalid:{exc}")
+            raise typer.Exit(1)
         edge_threshold = _policy.edge_threshold
         min_market_prob = _policy.min_market_prob
         max_shin_z = _policy.max_shin_z
