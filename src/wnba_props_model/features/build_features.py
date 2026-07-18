@@ -24,6 +24,13 @@ from wnba_props_model.features.feature_contract import FORBIDDEN_MODEL_FEATURES
 # Constants
 # ---------------------------------------------------------------------------
 
+# Feature-semantics version. Bump when the MEANING of a feature changes (even if its
+# name/schema is unchanged) so downstream artifact validation invalidates models trained
+# on the old semantics.
+#   v2 (2026-07-18): eFG% numerator corrected to (FGM + 0.5*FG3M)/FGA (was FGA in numerator);
+#       shot_quality_delta_l10 and hot/cold flags rebuilt from the corrected eFG.
+FEATURE_SCHEMA_VERSION: str = "2"
+
 STATS: list[str] = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
 ADV_STAT_COLS: list[str] = [
     "usage_percentage", "true_shooting_percentage", "assist_percentage",
@@ -344,9 +351,13 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
     fga_l10_raw = df.get("player_fga_mean_l10", None)
     fta_l10_raw = df.get("player_fta_mean_l10", None)
 
-    # If raw not yet in wide, compute from stats_df
-    if fga_l10_raw is None or fta_l10_raw is None:
-        for col in ["fga", "fta"]:
+    # FGM is REQUIRED for a correct eFG numerator (FGM + 0.5·FG3M). Build a shifted
+    # rolling FGM with the SAME leakage-safe window as FGA/FG3M.
+    fgm_l10_raw = df.get("player_fgm_mean_l10", None)
+
+    # If raw not yet in wide, compute from stats_df (leakage-safe shift(1).rolling(10))
+    if fga_l10_raw is None or fta_l10_raw is None or fgm_l10_raw is None:
+        for col in ["fga", "fta", "fgm"]:
             if col in stats_df.columns:
                 roll_vals = (
                     stats_df.sort_values(["player_id", "game_date"])
@@ -359,16 +370,20 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
                     tmp[f"_roll_{col}_l10"] = roll_vals.values
                     df = df.merge(tmp, on=["player_id", "game_id"], how="left")
                     if col == "fga":
-                        fga_l10_raw = df.pop(f"_roll_fga_l10")
+                        fga_l10_raw = df.pop("_roll_fga_l10")
+                    elif col == "fta":
+                        fta_l10_raw = df.pop("_roll_fta_l10")
                     else:
-                        fta_l10_raw = df.pop(f"_roll_fta_l10")
+                        fgm_l10_raw = df.pop("_roll_fgm_l10")
 
     fga_l10  = fga_l10_raw if fga_l10_raw is not None else pd.Series(np.nan, index=df.index)
     fta_l10  = fta_l10_raw if fta_l10_raw is not None else pd.Series(np.nan, index=df.index)
+    fgm_l10  = fgm_l10_raw if fgm_l10_raw is not None else pd.Series(np.nan, index=df.index)
 
     # Coerce index alignment (merge can produce a new index)
     fga_l10 = fga_l10.reset_index(drop=True) if hasattr(fga_l10, "reset_index") else fga_l10
     fta_l10 = fta_l10.reset_index(drop=True) if hasattr(fta_l10, "reset_index") else fta_l10
+    fgm_l10 = fgm_l10.reset_index(drop=True) if hasattr(fgm_l10, "reset_index") else fgm_l10
     df = df.reset_index(drop=True)
 
     # Guard: only compute shooting-efficiency features when FGA data is valid.
@@ -381,9 +396,10 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
     # ── True Shooting % (TS%) — only valid when FGA data exists ─────────────
     df["player_ts_pct_l10"] = (pts_l10 / (2.0 * tsa.clip(lower=1.0))).where(has_fga)
 
-    # ── Effective FG% (eFG%) — only valid when FGA data exists ─────────────
+    # ── Effective FG% (eFG%) — CORRECT formula: (FGM + 0.5·FG3M) / FGA ─────────
+    # (Was incorrectly using FGA in the numerator.) Only valid when FGA data exists.
     df["player_efg_pct_l10"] = (
-        (fga_l10.fillna(0) + 0.5 * fg3m_l10.fillna(0)) /
+        (fgm_l10.fillna(0) + 0.5 * fg3m_l10.fillna(0)) /
         fga_l10.clip(lower=1.0)
     ).where(has_fga)
 
@@ -398,8 +414,13 @@ def _build_shot_quality_features(wide: pd.DataFrame, stats_df: pd.DataFrame) -> 
 
     # ── Shot quality delta proxy (hot/cold streak signal) ───────────────────
     # Only meaningful when we have valid eFG%; falls back to 0 (neutral) otherwise.
+    # Season eFG% — CORRECT numerator uses season FGM (was season FGA). Fall back to the
+    # leakage-safe rolling FGM when a season FGM column is unavailable.
+    _fgm_season = df.get("player_fgm_mean_season", None)
+    if _fgm_season is None or not _fgm_season.notna().any():
+        _fgm_season = fgm_l10
     efg_season = (
-        (df.get("player_fga_mean_season", pd.Series(np.nan, index=df.index)).fillna(0) +
+        (_fgm_season.fillna(0) +
          0.5 * df.get("player_fg3m_mean_season", pd.Series(np.nan, index=df.index)).fillna(0)) /
         df.get("player_fga_mean_season", pd.Series(1.0, index=df.index)).clip(lower=1.0)
     )
