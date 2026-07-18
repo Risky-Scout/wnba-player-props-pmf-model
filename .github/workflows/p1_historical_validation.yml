@@ -11,7 +11,7 @@ on:
         required: false
         default: "6"
   push:
-    branches: [main, cursor/p1-repair-executable-quotes-06e5]
+    branches: [main]
     paths:
       - .github/p1_run.trigger
 
