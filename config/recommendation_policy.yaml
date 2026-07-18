@@ -44,5 +44,7 @@ forecast:
   prior_unvalidated_gate_pass: [reb, turnover]
   suppress_stats: [pts, ast, fg3m, blk, stl, reb, turnover]
 
-# Final release status determined by the launch gates.
-status: LAUNCH_READY_FORECAST_ONLY
+# Overall release status. MUST be VALIDATION_PENDING while no stat is certified — never
+# expose LAUNCH_READY/LIVE_VALIDATED anywhere until forecast.certified_stats is non-empty
+# and each certified stat has a matching validated registry entry.
+status: VALIDATION_PENDING
