@@ -23,13 +23,23 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-# Stable WNBA full-name -> abbreviation bridge for event->game_id resolution.
+# WNBA team bridge for event->game_id resolution, keyed to the BDL canonical
+# abbreviations actually produced by build_canonical_tables (GS/LV/LA/NY/PHX/WSH,
+# plus 2026 expansion TOR/POR). Match by full name first, then unique nickname
+# (robust to "Los Angeles Sparks" vs "LA Sparks" vs "Sparks"). Exact tokens only.
 WNBA_TEAM_ABBR: dict[str, str] = {
     "atlanta dream": "ATL", "chicago sky": "CHI", "connecticut sun": "CON",
-    "dallas wings": "DAL", "golden state valkyries": "GSV", "indiana fever": "IND",
-    "las vegas aces": "LVA", "los angeles sparks": "LAS", "minnesota lynx": "MIN",
-    "new york liberty": "NYL", "phoenix mercury": "PHO", "seattle storm": "SEA",
-    "washington mystics": "WAS",
+    "dallas wings": "DAL", "golden state valkyries": "GS", "indiana fever": "IND",
+    "las vegas aces": "LV", "los angeles sparks": "LA", "minnesota lynx": "MIN",
+    "new york liberty": "NY", "phoenix mercury": "PHX", "seattle storm": "SEA",
+    "washington mystics": "WSH", "toronto tempo": "TOR", "portland fire": "POR",
+}
+
+# Unique WNBA nickname (last token) -> BDL abbreviation.
+WNBA_NICKNAME_ABBR: dict[str, str] = {
+    "dream": "ATL", "sky": "CHI", "sun": "CON", "wings": "DAL", "valkyries": "GS",
+    "fever": "IND", "aces": "LV", "sparks": "LA", "lynx": "MIN", "liberty": "NY",
+    "mercury": "PHX", "storm": "SEA", "mystics": "WSH", "tempo": "TOR", "fire": "POR",
 }
 
 # Odds API market key -> model stat (direct + combo).
@@ -51,6 +61,9 @@ def team_abbr(team: object) -> str:
     t = str(team).strip().lower()
     if t in WNBA_TEAM_ABBR:
         return WNBA_TEAM_ABBR[t]
+    toks = re.findall(r"[a-z]+", t)
+    if toks and toks[-1] in WNBA_NICKNAME_ABBR:
+        return WNBA_NICKNAME_ABBR[toks[-1]]
     up = str(team).strip().upper()
     return up if 1 <= len(up) <= 4 else ""
 
@@ -322,12 +335,20 @@ def assert_no_lookahead(oof: pd.DataFrame) -> None:
         )
 
 
-def forced_verdict(under: GradeResult) -> str:
+def forced_verdict(under: GradeResult, n_game_clusters: int | None = None,
+                   min_clusters: int = 25) -> str:
     """SUPPORTED / NOT SUPPORTED / INCONCLUSIVE for the Under lean, using the
-    game-clustered ROI 95% interval (price-adjusted, not raw hit rate)."""
+    game-clustered ROI 95% interval (price-adjusted, not raw hit rate).
+
+    Returns INCONCLUSIVE when coverage is too thin to support any conclusion:
+    fewer than 50 Under recommendations, a NaN interval, OR — critically — too
+    few independent game clusters (low event coverage makes multiple props from a
+    handful of games masquerade as a large, significant sample)."""
     lo, hi = under.roi_ci95
     if under.n < 50 or any(map(lambda x: x != x, [lo, hi])):  # nan check / small n
         return "INCONCLUSIVE"
+    if n_game_clusters is not None and n_game_clusters < min_clusters:
+        return "INCONCLUSIVE"  # coverage does not support a conclusion
     if lo > 0:
         return "SUPPORTED"
     if hi < 0:

@@ -31,7 +31,7 @@ evaljob = _load("p1_eval", "scripts/p1_build_evaluation.py")
 # 1. Historical-events -> canonical game mapping
 def test_resolve_game_id_exact():
     events = pd.DataFrame({"game_id": ["G1"], "game_date": ["2026-07-10"],
-                           "home_team_abbreviation": ["NYL"], "visitor_team_abbreviation": ["LVA"]})
+                           "home_team_abbreviation": ["NY"], "visitor_team_abbreviation": ["LV"]})
     assert hm.resolve_game_id(events, "New York Liberty", "Las Vegas Aces", "2026-07-10") == "G1"
     assert hm.resolve_game_id(events, "Chicago Sky", "Las Vegas Aces", "2026-07-10") is None
 
@@ -210,3 +210,20 @@ def test_forced_verdict_mapping():
     g = hm.GradeResult(n=100, roi_ci95=(-0.05, -0.01)); assert hm.forced_verdict(g) == "NOT SUPPORTED"
     g = hm.GradeResult(n=100, roi_ci95=(-0.02, 0.03)); assert hm.forced_verdict(g) == "INCONCLUSIVE"
     g = hm.GradeResult(n=10, roi_ci95=(0.01, 0.05)); assert hm.forced_verdict(g) == "INCONCLUSIVE"  # small n
+
+
+def test_forced_verdict_coverage_gate():
+    # Even with a favorable CI and large n, too few game clusters -> INCONCLUSIVE.
+    g = hm.GradeResult(n=500, roi_ci95=(0.03, 1.9))
+    assert hm.forced_verdict(g, n_game_clusters=23) == "INCONCLUSIVE"  # low coverage
+    assert hm.forced_verdict(g, n_game_clusters=40) == "SUPPORTED"     # adequate coverage
+
+
+def test_team_abbr_matches_bdl_and_nicknames():
+    # Full names and bare nicknames both resolve to BDL abbreviations.
+    assert hm.team_abbr("Las Vegas Aces") == "LV"
+    assert hm.team_abbr("New York Liberty") == "NY"
+    assert hm.team_abbr("Golden State Valkyries") == "GS"
+    assert hm.team_abbr("LA Sparks") == "LA"        # nickname fallback
+    assert hm.team_abbr("Sparks") == "LA"
+    assert hm.team_abbr("Toronto Tempo") == "TOR"   # 2026 expansion

@@ -152,7 +152,11 @@ def main(
     all_res = hm.grade(graded)
     under_res = hm.grade(unders)
     over_res = hm.grade(overs)
-    verdict = hm.forced_verdict(under_res)
+    # Coverage: distinct games backing the Under recommendations. Low coverage
+    # forces INCONCLUSIVE (a handful of games can't support a market verdict).
+    n_under_games = int(unders["game_id"].nunique()) if not unders.empty else 0
+    n_games_total = int(graded["game_id"].nunique())
+    verdict = hm.forced_verdict(under_res, n_game_clusters=n_under_games)
 
     per_stat = {}
     for stat, g in graded.groupby("stat"):
@@ -163,6 +167,8 @@ def main(
         "min_edge": min_edge,
         "n_consensus_observations": n_consensus,
         "n_recommendations": int(len(graded)),
+        "n_distinct_games": n_games_total,
+        "n_distinct_under_games": n_under_games,
         "under_pct": all_res.under_pct,
         "all": _res_to_dict(all_res),
         "under": _res_to_dict(under_res),
@@ -183,7 +189,8 @@ def main(
         "# P1 Historical Validation — WNBA Under Lean", "",
         f"**VERDICT: {verdict}**", "",
         f"- Consensus observations graded: {n_consensus}",
-        f"- Recommendations (|edge| >= {min_edge:.0%}): {len(graded)}",
+        f"- Recommendations (|edge| >= {min_edge:.0%}): {len(graded)} across "
+        f"{n_games_total} distinct games (Under recs span {n_under_games} games)",
         f"- Under share of recommendations: {all_res.under_pct:.1f}%",
         "",
         "## Under recommendations",

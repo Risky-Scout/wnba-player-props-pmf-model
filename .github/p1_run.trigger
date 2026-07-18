@@ -1,2 +1,2 @@
-P1 re-run after consensus median tie-break fix.
-run-request: 2026-07-18T00:55Z
+P1 re-run after BDL-abbrev identity fix + coverage-aware verdict.
+run-request: 2026-07-18T01:15Z
