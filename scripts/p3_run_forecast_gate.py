@@ -34,13 +34,13 @@ def _empirical_baseline(actuals: np.ndarray, max_support: int) -> np.ndarray:
     return pmf / s if s > 0 else pmf
 
 
-def _baseline_metrics(train_actuals, holdout_actuals, cover=0.8):
+def _baseline_metrics(train_actuals, holdout_actuals):
     max_sup = int(max(holdout_actuals.max(), train_actuals.max())) + 5
     b = _empirical_baseline(np.asarray(train_actuals), max_sup)
     crps = float(np.mean([fc.crps_discrete(b, int(y)) for y in holdout_actuals]))
     logs = float(np.mean([fc.log_score(b, int(y)) for y in holdout_actuals]))
-    lo, hi = fc.central_interval(b, cover)
-    return {"crps": crps, "log_score": logs, "mean_width_80": float(hi - lo)}
+    return {"crps": crps, "log_score": logs,
+            "matched_width_80": float(fc.matched_mass_width(b, 0.8))}
 
 
 @app.command()
@@ -58,10 +58,18 @@ def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.p
     dates = np.sort(df["game_date"].dropna().unique())
     if len(dates) < holdout_dates + calib_dates + 1:
         typer.echo(f"[P3] only {len(dates)} unique dates; 2026 alone cannot meet the split.")
-    hold_dates = set(dates[-holdout_dates:])
+    hold_dates_arr = dates[-holdout_dates:]
+    hold_dates = set(hold_dates_arr)
     cal_dates = set(dates[-(holdout_dates + calib_dates):-holdout_dates])
     hold = df[df["game_date"].isin(hold_dates)]
     devcal = df[~df["game_date"].isin(hold_dates)]
+    # Nested prequential: 5 chronological outer blocks of 5 holdout dates; each block's
+    # calibration is fit ONLY on earlier dates (fold_safe_pmf_recalibration already enforces
+    # this via fold_id/date ordering, so concatenated holdout preds are strictly OOS).
+    n_blocks = max(1, holdout_dates // 5)
+    blocks = np.array_split(hold_dates_arr, n_blocks)
+    split_extra = {"n_outer_blocks": len(blocks),
+                   "block_dates": [[str(pd.Timestamp(d).date()) for d in b] for b in blocks]}
 
     split = {
         "holdout_start": str(pd.Timestamp(min(hold_dates)).date()),

@@ -1,0 +1,13 @@
+{
+  "champion": "schema_v2_structural + location_and_scale_forecast_calibration",
+  "certified_stats": [
+    "turnover"
+  ],
+  "feature_schema": "schema_v2",
+  "code_commit": "71154a3bfab6",
+  "calibration_artifact": "config/certified_forecast_calibration.json",
+  "calibration_hash": "18be7257b4ea67e9",
+  "registry_hash": "7f24090dbadf203a",
+  "validation": "docs/p3_forecast_gate_result.md",
+  "status": "LIVE_VALIDATED_FORECAST_ONLY"
+}
