@@ -17,6 +17,12 @@ on:
         required: false
         default: ''
 
+concurrency:
+  # Single-flight: all pregame publishers share ONE group so no two runs mutate
+  # deliveries/tonight or the live pointer concurrently (incident-response #2).
+  group: wnba-pregame-live-publish
+  cancel-in-progress: false
+
 jobs:
   pregame_final:
     runs-on: ubuntu-latest
