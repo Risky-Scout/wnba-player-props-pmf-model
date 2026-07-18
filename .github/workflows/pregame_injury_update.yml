@@ -214,8 +214,10 @@ jobs:
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
+            --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
-            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --policy config/recommendation_policy.yaml
         continue-on-error: true
 
       - name: Format injury-updated JSON output

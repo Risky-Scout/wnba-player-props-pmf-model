@@ -185,8 +185,10 @@ jobs:
             --pmfs deliveries/tonight/full_pmfs_wide.parquet \
             --raw-props data/processed/wnba_player_props.parquet \
             --out-dir deliveries/tonight \
+            --slate-manifest deliveries/tonight/slate_manifest.json \
             --game-date "$GAME_DATE" \
-            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --policy config/recommendation_policy.yaml
           echo "Edge report built at $(date -u)"
         continue-on-error: true
 
@@ -201,6 +203,7 @@ jobs:
           fi
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
           GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
 
           if [ -f "$EDGE_FILE" ]; then
             python scripts/generate_web_pages.py \
@@ -211,7 +214,9 @@ jobs:
               --live-dir tools/odds-scanner/predictions/WNBA/Inplay/Edges \
               --skip-live-html \
               --release-id "$GITHUB_RUN_ID" \
-              --git-commit "$GIT_COMMIT"
+              --git-commit "$GIT_COMMIT" \
+              --policy config/recommendation_policy.yaml \
+              ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
             echo "Pages generated at $(date -u)"
           else
             echo "[WARN] No edge file found — skipping page generation"

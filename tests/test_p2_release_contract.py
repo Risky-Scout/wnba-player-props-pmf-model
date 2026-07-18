@@ -105,6 +105,29 @@ def test_side_and_stat_suppression_applied():
     assert "_policy_suppress_sides" in src and "_policy_suppress_stats" in src
 
 
+# Every workflow that PUBLISHES the Edge board to the custom domain must apply the
+# canonical policy on EVERY run, or a mid-day refresh could overwrite the abstaining
+# board with an unvalidated threshold-0 board.
+def test_all_publishers_apply_policy():
+    publishers = [
+        "pregame_initial.yml", "pregame_final.yml",
+        "pregame_odds_refresh.yml", "pregame_injury_update.yml",
+    ]
+    for wf in publishers:
+        txt = (REPO / ".github/workflows" / wf).read_text()
+        assert "build_edge_report.py" in txt, f"{wf}: no edge build"
+        assert "--policy config/recommendation_policy.yaml" in txt, (
+            f"{wf} builds edges without --policy — would bypass forecast-only abstention")
+
+
+def test_publishers_run_on_daily_schedule():
+    # Each custom-domain publisher must be scheduled (cron) so the board refreshes daily.
+    for wf in ["pregame_initial.yml", "pregame_final.yml", "pregame_odds_refresh.yml",
+               "pregame_injury_update.yml"]:
+        txt = (REPO / ".github/workflows" / wf).read_text()
+        assert "cron:" in txt, f"{wf} has no schedule — board would not refresh daily"
+
+
 # Forecast gate outcome is encoded and total stats reconcile.
 def test_forecast_suppression_encoded():
     p = load_policy(POLICY)
