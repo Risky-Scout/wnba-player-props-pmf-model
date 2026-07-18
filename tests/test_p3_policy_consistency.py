@@ -56,21 +56,25 @@ def test_policy_currently_consistent():
     assert errs == [], f"policy inconsistencies: {errs}"
 
 
-def test_current_status_is_non_launch_with_nothing_certified():
-    # After the bounded evaluation the status is BLOCKED_MODEL (or VALIDATION_PENDING while
-    # running) — never a launch state — and nothing is certified; Edge abstains.
+def test_current_state_forecast_only_turnover_certified():
+    # turnover passed the corrected gate -> LIVE_VALIDATED_FORECAST_ONLY, certified &
+    # published, matching a validated registry entry; Edge still abstains.
     pol = load_policy(POLICY)
-    assert pol.status in ("VALIDATION_PENDING", "BLOCKED_MODEL")
-    assert pol.status not in LAUNCH_STATES
-    assert pol.forecast_certified_stats == []
-    assert pol.forecast_publish_stats == []
-    assert pol.abstain is True
+    assert pol.status == "LIVE_VALIDATED_FORECAST_ONLY"
+    assert pol.forecast_certified_stats == ["turnover"]
+    assert pol.forecast_publish_stats == ["turnover"]
+    assert "turnover" not in pol.forecast_suppress_stats
+    assert pol.abstain is True                      # Edge remains abstaining
+    reg = _registry()
+    assert reg.get("turnover", {}).get("forecast_allowed") is True
+    assert reg.get("turnover", {}).get("betting_recommendation_allowed") is False
 
 
 def test_launch_without_certified_is_flagged():
     pol = load_policy(POLICY)
-    # simulate the contradiction the incident had
+    # simulate the contradiction: launch status but nothing certified
     object.__setattr__(pol, "status", "LAUNCH_READY_FORECAST_ONLY")
+    object.__setattr__(pol, "forecast_certified_stats", [])
     errs = check_policy_consistency(pol, {})
     assert any("certified_stats is empty" in e for e in errs)
 

@@ -141,6 +141,36 @@ def central_interval(pmf: np.ndarray, cover: float) -> tuple[int, int]:
     return lo, hi
 
 
+def interval_residual(pmf: np.ndarray, actual: int, nominal: float) -> tuple[float, float, float, int]:
+    """Discrete interval calibration primitive. Returns (contained_mass, hit, residual, width)
+    where contained_mass is the PMF mass actually inside the (inclusive integer) central
+    interval requested at ``nominal``, hit=1 if the outcome is inside, and residual = hit -
+    contained_mass. A calibrated model has E[residual] ~ 0 REGARDLESS of the requested
+    nominal, because inclusive integer intervals legitimately contain more mass than the
+    continuous nominal (comparing empirical inclusion to the nominal directly is invalid)."""
+    lo, hi = central_interval(pmf, nominal)
+    contained = float(pmf[lo:hi + 1].sum())
+    hit = 1.0 if lo <= actual <= hi else 0.0
+    return contained, hit, hit - contained, hi - lo
+
+
+def matched_mass_width(pmf: np.ndarray, target_mass: float) -> int:
+    """Width of the smallest central interval whose contained mass >= target_mass — used
+    for matched-mass sharpness comparisons (compare widths at the SAME contained mass)."""
+    cdf = _cdf(pmf)
+    alpha = (1.0 - target_mass) / 2.0
+    lo = int(np.searchsorted(cdf, alpha))
+    hi = int(np.searchsorted(cdf, 1.0 - alpha))
+    lo = min(lo, len(pmf) - 1); hi = min(hi, len(pmf) - 1)
+    # expand until contained mass reaches target
+    while float(pmf[lo:hi + 1].sum()) < target_mass - 1e-9 and (lo > 0 or hi < len(pmf) - 1):
+        if lo > 0:
+            lo -= 1
+        if hi < len(pmf) - 1:
+            hi += 1
+    return hi - lo
+
+
 def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     """Wilson score interval for a binomial proportion."""
     if n == 0:
@@ -331,26 +361,36 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
     _hist, _ = np.histogram(_midpit, bins=np.linspace(0, 1, 11))
     r.pit_mid_ece = float(np.abs(_hist / max(len(_midpit), 1) - 0.1).sum() / 2.0)
 
-    # Two-sided coverage with game-date-clustered CI.
+    # CORRECTED discrete interval calibration (residual gate). For each row compare
+    # empirical inclusion to the interval's OWN contained PMF mass; gate on the game-date-
+    # clustered CI of the mean residual. Over-dispersion => residual<0; under-dispersion
+    # => residual>0; a calibrated (even inclusive-integer) interval => residual~0.
+    residual_tol = under_tol  # committed practical tolerance on |mean residual|
     for cl in coverage_levels:
-        hits = np.zeros(r.n); widths = []
+        res = np.zeros(r.n); hits = np.zeros(r.n); masses = np.zeros(r.n); widths = []
         for j, (p, yi) in enumerate(zip(pmfs, y)):
-            lo, hi = central_interval(p, cl); widths.append(hi - lo)
-            hits[j] = 1.0 if lo <= yi <= hi else 0.0
-        emp = float(hits.mean())
-        clo, chi = _clustered_coverage_ci(hits, gdate)
-        excl = bool((clo == clo) and (chi == chi) and not (clo <= cl <= chi))
-        under = emp < cl - under_tol
-        over = emp > cl + over_tol
+            cm, hit, rr, w = interval_residual(p, int(yi), cl)
+            res[j] = rr; hits[j] = hit; masses[j] = cm; widths.append(w)
+        mean_res = float(res.mean())
+        clo, chi = _clustered_coverage_ci(res, gdate)   # clustered CI of the mean residual
+        ci_contains_zero = bool((clo == clo) and (chi == chi) and (clo <= 0.0 <= chi))
+        within_tol = abs(mean_res) <= residual_tol
         r.coverage[str(cl)] = {
-            "empirical": round(emp, 4), "nominal": cl,
-            "clustered_ci_lo": None if clo != clo else round(clo, 4),
-            "clustered_ci_hi": None if chi != chi else round(chi, 4),
-            "ci_excludes_nominal": excl, "coverage_error": round(emp - cl, 4),
+            "nominal": cl,
+            "contained_mass": round(float(masses.mean()), 4),
+            "empirical_inclusion": round(float(hits.mean()), 4),
+            "residual": round(mean_res, 4),
+            "residual_ci_lo": None if clo != clo else round(clo, 4),
+            "residual_ci_hi": None if chi != chi else round(chi, 4),
+            "ci_contains_zero": ci_contains_zero, "within_tol": bool(within_tol),
             "mean_width": round(float(np.mean(widths)), 3),
             "median_width": round(float(np.median(widths)), 3),
-            "materially_under": bool(under), "materially_over": bool(over),
-            "fail": bool((under or over) and excl),
+            # residual = empirical_inclusion - contained_mass:
+            #   > +tol  => outcomes land inside MORE than claimed => OVER-dispersed
+            #   < -tol  => outcomes escape MORE than claimed => UNDER-dispersed (overconfident)
+            "materially_over": bool(mean_res > residual_tol),
+            "materially_under": bool(mean_res < -residual_tol),
+            "fail": bool(not (ci_contains_zero and within_tol)),
         }
 
     # Pooled per-threshold ECE — DIAGNOSTIC ONLY (dependent thresholds; not gated).
@@ -368,10 +408,11 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
             r.crps_vs_baseline = r.crps - float(b_crps)
         if b_log is not None:
             r.log_vs_baseline = r.log_score - float(b_log)
-        b_w = baseline.get("mean_width_80")
-        m_w = r.coverage.get("0.8", {}).get("mean_width")
-        if b_w and m_w is not None and float(b_w) > 0:
-            r.sharpness_ratio = float(m_w) / float(b_w)
+        # Matched-mass sharpness: compare interval widths at the SAME contained mass (0.8).
+        b_mw = baseline.get("matched_width_80")
+        if b_mw and float(b_mw) > 0:
+            m_mw = float(np.mean([matched_mass_width(p, 0.8) for p in pmfs]))
+            r.sharpness_ratio = m_mw / float(b_mw)
 
     # Line-level real-market calibration (separate; >=150 genuine lines required).
     if lines is not None:
@@ -393,9 +434,15 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
     for cl in coverage_levels:
         c = r.coverage[str(cl)]
         if c["fail"]:
-            direction = "under-covers" if c["materially_under"] else "over-covers"
+            if c["materially_over"]:
+                direction = "over-dispersed"
+            elif c["materially_under"]:
+                direction = "under-dispersed"
+            else:
+                direction = "residual CI excludes zero"
             r.reasons.append(f"{int(cl*100)}% interval {direction} "
-                             f"(emp {c['empirical']:.3f} vs {cl}; clustered CI excludes nominal)")
+                             f"(residual {c['residual']:+.3f}, CI [{c['residual_ci_lo']},{c['residual_ci_hi']}]; "
+                             f"contained {c['contained_mass']:.2f} vs inclusion {c['empirical_inclusion']:.2f})")
     # Proper scores MUST affect passage (no worse than baseline).
     if baseline:
         if r.crps_vs_baseline == r.crps_vs_baseline and r.crps_vs_baseline > 0:

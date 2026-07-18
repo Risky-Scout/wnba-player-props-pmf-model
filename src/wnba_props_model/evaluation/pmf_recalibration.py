@@ -43,6 +43,22 @@ def recalibrate_pmf(pmf: np.ndarray, delta: float, scale: float,
     return out[: (nz[-1] + 1)] if len(nz) else out
 
 
+def apply_certified_forecast_calibration(pmf, stat: str, role: str, calib: dict):
+    """Production applier for a CERTIFIED stat's validated forecast calibration. Uses the
+    SAME recalibrate_pmf transform as validation with the persisted (delta, scale) factors
+    (per-role, pooled fallback), so evaluated == deployed by construction. Returns the
+    input unchanged when the stat is not certified in ``calib``."""
+    stats = (calib or {}).get("stats", {})
+    if stat not in stats:
+        return np.asarray(pmf, dtype=float)
+    entry = stats[stat]
+    delta, scale = entry.get("_pooled", [0.0, 1.0])
+    by_role = entry.get("by_role", {})
+    if role is not None and str(role) in by_role:
+        delta, scale = by_role[str(role)]
+    return recalibrate_pmf(np.asarray(pmf, dtype=float), float(delta), float(scale))
+
+
 def _fit_factors(train: pd.DataFrame, min_n: int = 40,
                  dispersion: bool = False) -> tuple[float, float]:
     """(delta, scale). delta = mean(actual - pmf_mean) corrects the systematic
