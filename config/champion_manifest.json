@@ -4,6 +4,8 @@
     "ast",
     "pts",
     "pts_ast",
+    "pts_reb",
+    "pts_reb_ast",
     "reb",
     "stl",
     "stocks",
@@ -13,20 +15,26 @@
     "ast",
     "pts",
     "pts_ast",
+    "pts_reb",
+    "pts_reb_ast",
     "reb",
     "stl",
     "stocks",
     "turnover"
   ],
-  "github_sha": "3d57715fd89d",
-  "code_commit": "3d57715fd89d",
+  "github_sha": "ace75cdf005d",
+  "code_commit": "ace75cdf005d",
   "feature_schema": "schema_v2",
   "feature_hash": "9a21a1d622fbb055",
   "model_hash": "schema_v2_structural",
   "calibration_artifact": "config/certified_forecast_calibration.json",
-  "calibration_hash": "cb9fa7ad3e79379f",
-  "registry_hash": "3267ba5ce966c102",
-  "policy_hash": "769f759b96c58df1",
+  "calibration_hash": "c9438bc6271fb208",
+  "registry_hash": "6091091c99ec7146",
+  "policy_hash": "add5d716b8cf3bfd",
   "ledger_hash": "88e658df9bccdc19",
-  "status": "LIVE_VALIDATED_FORECAST_ONLY"
+  "status": "LIVE_VALIDATED_FORECAST_ONLY",
+  "combo_ledger_hashes": {
+    "pts_reb": "211ea51213eb2ce8",
+    "pts_reb_ast": "0e3361505c6df698"
+  }
 }

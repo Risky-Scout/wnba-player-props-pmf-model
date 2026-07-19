@@ -1,0 +1,176 @@
+{
+  "pts_reb": {
+    "market": "pts_reb",
+    "method": "hierarchical_combo_residual_fallback",
+    "forecast_allowed": true,
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 3.7415,
+    "crps_vs_baseline": -1.5512,
+    "log_vs_baseline": -0.2635,
+    "pit_clustered_dev": 0.0841,
+    "coverage": {
+      "0.5": {
+        "nominal": 0.5,
+        "contained_mass": 0.5547,
+        "empirical_inclusion": 0.5932,
+        "residual": 0.0385,
+        "residual_ci_lo": 0.0128,
+        "residual_ci_hi": 0.0619,
+        "ci_contains_zero": false,
+        "within_tol": true,
+        "mean_width": 10.437,
+        "median_width": 11.0,
+        "materially_over": false,
+        "materially_under": false,
+        "interval_equivalent": true,
+        "fail": false
+      },
+      "0.8": {
+        "nominal": 0.8,
+        "contained_mass": 0.8411,
+        "empirical_inclusion": 0.8479,
+        "residual": 0.0068,
+        "residual_ci_lo": -0.0117,
+        "residual_ci_hi": 0.0236,
+        "ci_contains_zero": true,
+        "within_tol": true,
+        "mean_width": 19.433,
+        "median_width": 19.0,
+        "materially_over": false,
+        "materially_under": false,
+        "interval_equivalent": true,
+        "fail": false
+      },
+      "0.9": {
+        "nominal": 0.9,
+        "contained_mass": 0.9298,
+        "empirical_inclusion": 0.9354,
+        "residual": 0.0056,
+        "residual_ci_lo": -0.0046,
+        "residual_ci_hi": 0.017,
+        "ci_contains_zero": true,
+        "within_tol": true,
+        "mean_width": 24.497,
+        "median_width": 24.0,
+        "materially_over": false,
+        "materially_under": false,
+        "interval_equivalent": true,
+        "fail": false
+      }
+    },
+    "bias": 1.4949,
+    "sharpness_ratio": 0.8449,
+    "reasons": [],
+    "ledger_hash": "211ea51213eb2ce8",
+    "scale_choices": [
+      {
+        "block": 0,
+        "scale": 0.97
+      },
+      {
+        "block": 1,
+        "scale": 0.97
+      },
+      {
+        "block": 2,
+        "scale": 0.97
+      },
+      {
+        "block": 3,
+        "scale": 0.97
+      },
+      {
+        "block": 4,
+        "scale": 0.97
+      }
+    ]
+  },
+  "pts_reb_ast": {
+    "market": "pts_reb_ast",
+    "method": "hierarchical_combo_residual_fallback",
+    "forecast_allowed": true,
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 4.1001,
+    "crps_vs_baseline": -1.8843,
+    "log_vs_baseline": -0.3123,
+    "pit_clustered_dev": 0.0868,
+    "coverage": {
+      "0.5": {
+        "nominal": 0.5,
+        "contained_mass": 0.5383,
+        "empirical_inclusion": 0.5703,
+        "residual": 0.0321,
+        "residual_ci_lo": 0.0068,
+        "residual_ci_hi": 0.0558,
+        "ci_contains_zero": false,
+        "within_tol": true,
+        "mean_width": 11.078,
+        "median_width": 11.0,
+        "materially_over": false,
+        "materially_under": false,
+        "interval_equivalent": true,
+        "fail": false
+      },
+      "0.8": {
+        "nominal": 0.8,
+        "contained_mass": 0.831,
+        "empirical_inclusion": 0.8312,
+        "residual": 0.0002,
+        "residual_ci_lo": -0.0179,
+        "residual_ci_hi": 0.0185,
+        "ci_contains_zero": true,
+        "within_tol": true,
+        "mean_width": 20.997,
+        "median_width": 21.0,
+        "materially_over": false,
+        "materially_under": false,
+        "interval_equivalent": true,
+        "fail": false
+      },
+      "0.9": {
+        "nominal": 0.9,
+        "contained_mass": 0.9269,
+        "empirical_inclusion": 0.9224,
+        "residual": -0.0045,
+        "residual_ci_lo": -0.012,
+        "residual_ci_hi": 0.0048,
+        "ci_contains_zero": true,
+        "within_tol": true,
+        "mean_width": 26.501,
+        "median_width": 26.0,
+        "materially_over": false,
+        "materially_under": false,
+        "interval_equivalent": true,
+        "fail": false
+      }
+    },
+    "bias": 1.61,
+    "sharpness_ratio": 0.7777,
+    "reasons": [],
+    "ledger_hash": "0e3361505c6df698",
+    "scale_choices": [
+      {
+        "block": 0,
+        "scale": 0.95
+      },
+      {
+        "block": 1,
+        "scale": 0.95
+      },
+      {
+        "block": 2,
+        "scale": 0.95
+      },
+      {
+        "block": 3,
+        "scale": 0.95
+      },
+      {
+        "block": 4,
+        "scale": 0.95
+      }
+    ]
+  }
+}

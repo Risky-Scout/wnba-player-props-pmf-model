@@ -21,6 +21,10 @@ _MINLABELS = ["m0", "m1", "m2", "m3"]
 _COMBO_KEY = {"stocks": "stocks", "pts_ast": "pa", "pts_reb": "pr", "pts_reb_ast": "pra"}
 
 
+def _pmf_mean(arr: np.ndarray) -> float:
+    return float((np.arange(len(arr)) * arr).sum())
+
+
 def _minbucket(minutes: float) -> str:
     for i in range(len(_MINBINS) - 1):
         if _MINBINS[i] < minutes <= _MINBINS[i + 1]:
@@ -89,7 +93,31 @@ def apply_multistat_forecast(proj_df: pd.DataFrame, calib: dict, certified: list
             rr = r.copy(); rr["pmf_json"] = _pmf_json(arr); rr["forecast_method"] = spec.get("method")
             out_rows.append(rr)
 
-    # 2) build certified combos per player from calibrated components
+    # 2a) build certified combo-residual markets (hierarchical empirical PMF centered on the
+    #     sum of the validated component expectations; frozen prequential dispersion scale).
+    for combo in [c for c in certified if markets.get(c, {}).get("method") == "combo_residual"]:
+        spec = markets[combo]; parts = spec["parts"]
+        cells = _cells_from_json(spec.get("cells", {}))
+        scale = float(spec.get("scale", 1.0))
+        if not cells:
+            continue
+        for pid, comps in calibrated.items():
+            if not all(p in comps for p in parts):
+                continue
+            point = float(sum(_pmf_mean(comps[p]) for p in parts))
+            meta = df[df["player_id"] == pid].iloc[0]
+            max_sup = max(int(point) + 40, 80)
+            hp = hierarchical_empirical_pmf(
+                point, f"{meta.get('role_bucket', '')}|{_minbucket(float(meta.get('minutes_mean', 0.0)))}",
+                cells, max_sup)
+            if scale != 1.0:
+                hp = recalibrate_pmf(hp, 0.0, scale)
+            rr = meta.copy()
+            rr["stat"] = combo; rr["pmf_json"] = _pmf_json(np.asarray(hp, float))
+            rr["forecast_method"] = "combo_residual"; rr["pmf_mean"] = _pmf_mean(np.asarray(hp, float))
+            out_rows.append(rr)
+
+    # 2b) build certified correlated combos per player from calibrated components
     base_row = df.iloc[0] if len(df) else None
     for combo in [c for c in certified if markets.get(c, {}).get("method") == "combo"]:
         spec = markets[combo]; parts = spec["parts"]; key = _COMBO_KEY.get(combo, combo)

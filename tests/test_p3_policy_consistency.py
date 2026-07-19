@@ -56,11 +56,12 @@ def test_policy_currently_consistent():
     assert errs == [], f"policy inconsistencies: {errs}"
 
 
-def test_current_state_forecast_only_seven_markets_certified():
-    # seven markets passed the corrected gates -> LIVE_VALIDATED_FORECAST_ONLY; Edge abstains.
-    # reb was promoted via Candidate D (empirical residual + frozen dispersion scale 0.9).
+def test_current_state_forecast_only_nine_markets_certified():
+    # nine markets passed the corrected gates -> LIVE_VALIDATED_FORECAST_ONLY; Edge abstains.
+    # reb via Candidate D; pts_reb / pts_reb_ast via the bounded combo-residual fallback.
     pol = load_policy(POLICY)
-    certified = {"turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb"}
+    certified = {"turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb",
+                 "pts_reb", "pts_reb_ast"}
     assert pol.status == "LIVE_VALIDATED_FORECAST_ONLY"
     assert set(pol.forecast_certified_stats) == certified
     assert set(pol.forecast_publish_stats) == certified

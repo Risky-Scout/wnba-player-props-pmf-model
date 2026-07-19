@@ -13,14 +13,16 @@ GEN_PAGES = (REPO / "scripts/generate_web_pages.py").read_text()
 
 
 # ---- Immediate safety correction ----
-def test_forecast_state_seven_certified_rest_suppressed():
+def test_forecast_state_nine_certified_rest_suppressed():
     p = load_policy(POLICY)
     assert p.forecast_status == "LIVE_VALIDATED_FORECAST_ONLY"
-    assert set(p.forecast_certified_stats) == {"turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb"}
-    # the non-passing markets remain suppressed (reb now passes via Candidate D)
-    for s in ("fg3m", "blk", "pts_reb", "pts_reb_ast"):
+    assert set(p.forecast_certified_stats) == {"turnover", "pts", "ast", "stl", "stocks",
+                                               "pts_ast", "reb", "pts_reb", "pts_reb_ast"}
+    # only fg3m/blk remain suppressed (reb via Candidate D; combos via combo-residual fallback)
+    for s in ("fg3m", "blk"):
         assert s in p.forecast_suppress_stats
-    assert "turnover" not in p.forecast_suppress_stats and "reb" not in p.forecast_suppress_stats
+    for s in ("turnover", "reb", "pts_reb", "pts_reb_ast"):
+        assert s not in p.forecast_suppress_stats
 
 
 def test_pages_expose_pending_banner_and_uncertified():

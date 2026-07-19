@@ -46,15 +46,18 @@ forecast:
   # Candidate D (calibrated empirical residual PMF, frozen prequential dispersion scale 0.9):
   # CRPS beats baseline (-0.388), clustered randomized-PIT 0.065<0.10, 50/80/90% interval
   # residuals within tolerance, matched-mass sharpness 0.92. See scripts/p3_reb_repair.py.
-  publish_stats: [turnover, pts, ast, stl, stocks, pts_ast, reb]
-  certified_stats: [turnover, pts, ast, stl, stocks, pts_ast, reb]
+  # pts_reb / pts_reb_ast pass via the bounded hierarchical combo-residual fallback (the
+  # correlated component combo failed material bias from accumulated component bias); their PMFs
+  # are centered on the sum of the validated component expectations with a frozen prequential
+  # dispersion scale (0.97 / 0.95). Components (pts, reb, ast) are unchanged. See
+  # scripts/p3_combo_repair.py.
+  publish_stats: [turnover, pts, ast, stl, stocks, pts_ast, reb, pts_reb, pts_reb_ast]
+  certified_stats: [turnover, pts, ast, stl, stocks, pts_ast, reb, pts_reb, pts_reb_ast]
   pending_banner: ""
-  suppress_stats: [fg3m, blk, pts_reb, pts_reb_ast]
+  suppress_stats: [fg3m, blk]
   suppress_reasons:
     fg3m: "over-broad (sharpness) - awaiting attemptsxconversion retraining"
     blk: "over-broad + log score - awaiting hurdle retraining"
-    pts_reb: "material bias +1.78 > 0.25*RMSE - awaiting structural retraining"
-    pts_reb_ast: "material bias +2.17 > 0.25*RMSE + PIT - awaiting structural retraining"
 
 # Overall release status. LIVE_VALIDATED_FORECAST_ONLY: turnover passed the corrected
 # forecast gate and is certified in config/stat_registry.json; Edge remains abstaining
