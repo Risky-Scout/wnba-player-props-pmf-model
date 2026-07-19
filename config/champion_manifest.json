@@ -1,30 +1,32 @@
 {
   "champion": "schema_v2 multi-stat (location + hierarchical-empirical + correlated-combo)",
   "certified_markets": [
-    "turnover",
-    "pts",
     "ast",
+    "pts",
+    "pts_ast",
+    "reb",
     "stl",
     "stocks",
-    "pts_ast"
+    "turnover"
   ],
   "certified_stats": [
-    "turnover",
-    "pts",
     "ast",
+    "pts",
+    "pts_ast",
+    "reb",
     "stl",
     "stocks",
-    "pts_ast"
+    "turnover"
   ],
-  "github_sha": "2022bc9bb082",
-  "code_commit": "2022bc9bb082",
+  "github_sha": "3d57715fd89d",
+  "code_commit": "3d57715fd89d",
   "feature_schema": "schema_v2",
   "feature_hash": "9a21a1d622fbb055",
   "model_hash": "schema_v2_structural",
   "calibration_artifact": "config/certified_forecast_calibration.json",
-  "calibration_hash": "2c8d7b2cd0ebbe92",
-  "registry_hash": "229a1d515490fd32",
-  "policy_hash": "ebf78f44eb1a86ca",
-  "ledger_hash": "344dec984f88d5f7",
+  "calibration_hash": "cb9fa7ad3e79379f",
+  "registry_hash": "3267ba5ce966c102",
+  "policy_hash": "903781b7ad4dfdc1",
+  "ledger_hash": "88e658df9bccdc19",
   "status": "LIVE_VALIDATED_FORECAST_ONLY"
 }

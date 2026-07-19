@@ -49,7 +49,12 @@ def apply_market(pmf: np.ndarray, point: float, role: str, minutes: float, spec:
         if not cells:
             return pmf
         max_sup = max(len(pmf) - 1, 60)
-        return hierarchical_empirical_pmf(float(point), f"{role}|{_minbucket(minutes)}", cells, max_sup)
+        hp = hierarchical_empirical_pmf(float(point), f"{role}|{_minbucket(minutes)}", cells, max_sup)
+        # Frozen prequential dispersion scale (default 1.0 = identity: existing markets unchanged).
+        scale = float(spec.get("scale", 1.0))
+        if scale != 1.0:
+            hp = recalibrate_pmf(hp, 0.0, scale)
+        return hp
     return pmf
 
 

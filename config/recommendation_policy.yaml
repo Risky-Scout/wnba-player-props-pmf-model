@@ -40,19 +40,21 @@ forecast:
   # interval residuals within tolerance). pts/reb/blk/ast still fail randomized-PIT; fg3m/
   # stl fail marginal interval residuals — all suppressed. See docs/p3_forecast_gate_result.md.
   status: LIVE_VALIDATED_FORECAST_ONLY
-  # Six markets validated under the corrected gates (interval practical-equivalence +
+  # Seven markets validated under the corrected gates (interval practical-equivalence +
   # clustered-PIT envelope), each with its prequentially-selected method (see
-  # config/stat_registry.json + config/certified_forecast_calibration.json).
-  publish_stats: [turnover, pts, ast, stl, stocks, pts_ast]
-  certified_stats: [turnover, pts, ast, stl, stocks, pts_ast]
+  # config/stat_registry.json + config/certified_forecast_calibration.json). reb passes via
+  # Candidate D (calibrated empirical residual PMF, frozen prequential dispersion scale 0.9):
+  # CRPS beats baseline (-0.388), clustered randomized-PIT 0.065<0.10, 50/80/90% interval
+  # residuals within tolerance, matched-mass sharpness 0.92. See scripts/p3_reb_repair.py.
+  publish_stats: [turnover, pts, ast, stl, stocks, pts_ast, reb]
+  certified_stats: [turnover, pts, ast, stl, stocks, pts_ast, reb]
   pending_banner: ""
-  suppress_stats: [reb, fg3m, blk, pts_reb, pts_reb_ast]
+  suppress_stats: [fg3m, blk, pts_reb, pts_reb_ast]
   suppress_reasons:
-    reb: "over-dispersion — awaiting structural HGB/NB retraining"
     fg3m: "over-broad (sharpness) — awaiting attempts×conversion retraining"
     blk: "over-broad + log score — awaiting hurdle retraining"
-    pts_reb: "depends on reb"
-    pts_reb_ast: "depends on reb"
+    pts_reb: "material bias +1.78 > 0.25·RMSE — awaiting structural retraining"
+    pts_reb_ast: "material bias +2.17 > 0.25·RMSE + PIT — awaiting structural retraining"
 
 # Overall release status. LIVE_VALIDATED_FORECAST_ONLY: turnover passed the corrected
 # forecast gate and is certified in config/stat_registry.json; Edge remains abstaining
