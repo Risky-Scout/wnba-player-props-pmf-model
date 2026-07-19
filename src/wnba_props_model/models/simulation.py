@@ -272,30 +272,36 @@ def _build_trivariate_pmf(
     return normalize_pmf(counts)
 
 
-def build_combo_pmfs(component_pmfs: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
+def build_combo_pmfs(component_pmfs: Mapping[str, np.ndarray],
+                     correlations: Mapping[str, float] | None = None) -> dict[str, np.ndarray]:
+    # Optional per-run/per-block correlation override (e.g. pre-block OOF estimates);
+    # falls back to the module defaults. Not a second combo implementation.
+    _corr = dict(_COMBO_CORRELATIONS)
+    if correlations:
+        _corr.update({k: float(v) for k, v in correlations.items() if v is not None})
     out = {}
     if "stl" in component_pmfs and "blk" in component_pmfs:
         out["stocks"] = convolve_pmfs_correlated(
             component_pmfs["stl"], component_pmfs["blk"],
-            correlation=_COMBO_CORRELATIONS.get("stocks", 0.0),
+            correlation=_corr.get("stocks", 0.0),
             domain_max=DOMAIN_MAX["stocks"],
         )
     if "pts" in component_pmfs and "ast" in component_pmfs:
         out["pa"] = convolve_pmfs_correlated(
             component_pmfs["pts"], component_pmfs["ast"],
-            correlation=_COMBO_CORRELATIONS.get("pts_ast", 0.0),
+            correlation=_corr.get("pts_ast", 0.0),
             domain_max=DOMAIN_MAX["pa"],
         )
     if "pts" in component_pmfs and "reb" in component_pmfs:
         out["pr"] = convolve_pmfs_correlated(
             component_pmfs["pts"], component_pmfs["reb"],
-            correlation=_COMBO_CORRELATIONS.get("pts_reb", 0.0),
+            correlation=_corr.get("pts_reb", 0.0),
             domain_max=DOMAIN_MAX["pr"],
         )
     if "reb" in component_pmfs and "ast" in component_pmfs:
         out["ra"] = convolve_pmfs_correlated(
             component_pmfs["reb"], component_pmfs["ast"],
-            correlation=_COMBO_CORRELATIONS.get("reb_ast", 0.0),
+            correlation=_corr.get("reb_ast", 0.0),
             domain_max=DOMAIN_MAX["ra"],
         )
     if all(s in component_pmfs for s in ("pts", "reb", "ast")):

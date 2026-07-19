@@ -193,6 +193,8 @@ def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.p
         typer.echo(f"  {stat}: allowed={r.forecast_allowed} method={method} crps={r.crps:.3f} pit={r.pit_ks_p:.3f}")
 
     # ---- combos from calibrated component ledgers ----
+    # build_combo_pmfs returns keys pr/pa/pra/stocks; map requested market -> that key.
+    COMBO_KEY = {"pts_reb": "pr", "pts_ast": "pa", "pts_reb_ast": "pra", "stocks": "stocks"}
     for combo in COMBOS:
         parts = COMBO_PARTS[combo]
         merged = None
@@ -201,12 +203,14 @@ def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.p
             lp = lp[["game_id", "player_id", "game_date", f"pmf_{pstat}", f"act_{pstat}"]]
             merged = lp if merged is None else merged.merge(lp, on=["game_id", "player_id", "game_date"], how="inner")
         rows = []
-        corr = estimate_oof_correlations(devcal) if len(devcal) else {}
+        key = COMBO_KEY[combo]
         for _, r in merged.iterrows():
             comp = {ps: fc.pmf_to_array(r[f"pmf_{ps}"]) for ps in parts}
+            # pre-block correlations: estimate on dates strictly before this row's date
+            prior = devcal[devcal["game_date"] < r["game_date"]]
+            corr = estimate_oof_correlations(prior) if len(prior) > 200 else estimate_oof_correlations(devcal)
             try:
-                combos_built = build_combo_pmfs(comp)
-                cpmf = combos_built.get(combo)
+                cpmf = build_combo_pmfs(comp, correlations=corr).get(key)
             except Exception:
                 cpmf = None
             if cpmf is None:
@@ -220,7 +224,15 @@ def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.p
         if cl.empty:
             registry[combo] = {"forecast_allowed": False, "suppression_reason": "no combo rows built"}
             continue
-        base = _baseline(cl["actual_outcome"].values, cl["actual_outcome"].values)
+        # combo baseline uses ONLY pre-holdout (dev) combo outcomes, never the evaluated block
+        dev_combo_actuals = None
+        dm = None
+        for ps in parts:
+            dpp = devcal[devcal["stat"] == ps][["game_id", "player_id", "actual_outcome"]].rename(
+                columns={"actual_outcome": f"a_{ps}"})
+            dm = dpp if dm is None else dm.merge(dpp, on=["game_id", "player_id"], how="inner")
+        dev_combo_actuals = dm[[f"a_{ps}" for ps in parts]].sum(axis=1).values if dm is not None and len(dm) else cl["actual_outcome"].values
+        base = _baseline(dev_combo_actuals, cl["actual_outcome"].values)
         rr = fc.evaluate_stat(cl, baseline=base)
         registry[combo] = {"forecast_allowed": bool(rr.forecast_allowed),
                            "market_comparison_allowed": False, "betting_recommendation_allowed": False,

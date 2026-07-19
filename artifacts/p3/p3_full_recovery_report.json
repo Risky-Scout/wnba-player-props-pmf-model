@@ -323,6 +323,42 @@
     "pit_ks_p": 0.0009,
     "suppression_reason": "log score 0.857 worse than baseline by +0.055; 80% interval too broad: sharpness ratio 1.23 > 1.15"
   },
+  "pts_reb": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "method": "correlated_combo",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 3.8482,
+    "crps_vs_baseline": -1.4445,
+    "pit_ks_p": 0.0,
+    "suppression_reason": "material bias +1.78 > 0.25\u00b7RMSE (7.13)"
+  },
+  "pts_ast": {
+    "forecast_allowed": true,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "method": "correlated_combo",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 3.611,
+    "crps_vs_baseline": -1.2987,
+    "pit_ks_p": 0.0,
+    "suppression_reason": ""
+  },
+  "pts_reb_ast": {
+    "forecast_allowed": false,
+    "market_comparison_allowed": false,
+    "betting_recommendation_allowed": false,
+    "method": "correlated_combo",
+    "n": 1315,
+    "n_dates": 25,
+    "crps": 4.2416,
+    "crps_vs_baseline": -1.7428,
+    "pit_ks_p": 0.0,
+    "suppression_reason": "material bias +2.17 > 0.25\u00b7RMSE (7.83); clustered randomized-PIT deviation 0.106 > envelope 0.1 (KS diag p=0.000)"
+  },
   "stocks": {
     "forecast_allowed": true,
     "market_comparison_allowed": false,
@@ -331,8 +367,8 @@
     "n": 1315,
     "n_dates": 25,
     "crps": 0.5937,
-    "crps_vs_baseline": -0.0739,
-    "pit_ks_p": 0.0082,
+    "crps_vs_baseline": -0.0743,
+    "pit_ks_p": 0.0038,
     "suppression_reason": ""
   }
 }
