@@ -1751,3 +1751,5 @@ jobs:
 # P3: publish LIVE_VALIDATED_FORECAST_ONLY (turnover certified; location-and-scale calibration).
 
 # P3: republish with prequential-validated LOCATION calibrator + manifest verification.
+
+# P3: publish six validated markets (turnover,pts,ast,stl,stocks,pts_ast).
