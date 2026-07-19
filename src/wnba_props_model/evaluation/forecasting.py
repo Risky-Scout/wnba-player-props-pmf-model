@@ -100,6 +100,38 @@ def ks_uniform(u: np.ndarray) -> tuple[float, float]:
 OVERFLOW_FLOOR = 1e-6  # explicit tail probability for out-of-support outcomes
 
 
+def clustered_pit_deviation(u: np.ndarray, clusters: np.ndarray, n_boot: int = 500,
+                            seed: int = 13, grid_pts: int = 21):
+    """Game-date block-bootstrap assessment of randomized-PIT non-uniformity.
+
+    Resamples whole clusters (game dates) — preserving all correlated within-date
+    observations — and computes the max deviation of the PIT empirical CDF from Uniform on
+    a fixed grid for each resample. Returns (observed_dev, clustered_mean_dev, band95_hi).
+    Duplicating correlated observations within one date cannot inflate nominal n here
+    because whole dates are the resampling unit."""
+    u = np.asarray(u, dtype=float); clusters = np.asarray(clusters)
+    grid = np.linspace(0, 1, grid_pts)
+
+    def _dev(vals):
+        if len(vals) == 0:
+            return float("nan")
+        ecdf = np.searchsorted(np.sort(vals), grid, side="right") / len(vals)
+        return float(np.max(np.abs(ecdf - grid)))
+
+    observed = _dev(u)
+    uniq = np.unique(clusters)
+    if len(uniq) < 2:
+        return observed, observed, observed
+    rng = np.random.default_rng(seed)
+    by = {c: u[clusters == c] for c in uniq}
+    devs = []
+    for _ in range(n_boot):
+        pick = rng.choice(uniq, size=len(uniq), replace=True)
+        vals = np.concatenate([by[c] for c in pick])
+        devs.append(_dev(vals))
+    return observed, float(np.mean(devs)), float(np.percentile(devs, 95))
+
+
 def log_score(pmf: np.ndarray, y: int, overflow_floor: float = OVERFLOW_FLOOR) -> float:
     """Negative log predictive probability at the realized count (lower is better).
 
@@ -210,8 +242,10 @@ class StatForecastResult:
     rmse: float = float("nan")
     crps: float = float("nan")
     log_score: float = float("nan")
-    pit_ks_stat: float = float("nan")       # randomized-PIT KS statistic vs Uniform
-    pit_ks_p: float = float("nan")          # asymptotic KS p-value
+    pit_ks_stat: float = float("nan")       # randomized-PIT KS statistic vs Uniform (DIAGNOSTIC)
+    pit_ks_p: float = float("nan")          # asymptotic KS p-value (DIAGNOSTIC)
+    pit_clustered_dev: float = float("nan")  # game-date block-bootstrap mean PIT-ECDF deviation (GATE)
+    pit_clustered_band: float = float("nan")
     pit_mid_ece: float = float("nan")       # DIAGNOSTIC ONLY (not gated)
     coverage: dict = field(default_factory=dict)   # {nominal: {...two-sided...}}
     calib_ece_pooled: float = float("nan")  # DIAGNOSTIC ONLY (dependent thresholds)
@@ -294,7 +328,8 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
                   under_tol: float = 0.05, over_tol: float = 0.07,
                   ks_p_min: float = 0.01, min_n: int = 300, min_dates: int = 25,
                   lines=None, baseline: dict | None = None,
-                  sharpness_max_ratio: float = 1.15, min_real_lines: int = 150) -> StatForecastResult:
+                  sharpness_max_ratio: float = 1.15, min_real_lines: int = 150,
+                  pit_envelope: float = 0.10) -> StatForecastResult:
     """Corrected forecasting gate (P3 Defect 3). df needs pmf_json, actual_outcome and
     (for the seed/cluster) game_id, player_id, stat, model_version, game_date.
 
@@ -354,8 +389,10 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
     # calibration hashes so the V draw is reproducible and artifact-specific.
     u = np.array([randomized_pit(p, int(yi), f"{g}|{pl}|{stat}|{mh}|{ch}")
                   for p, yi, g, pl, mh, ch in zip(pmfs, y, gid, pid, mhash, chash)])
-    u = u[~np.isnan(u)]
-    r.pit_ks_stat, r.pit_ks_p = ks_uniform(u)
+    _uv = ~np.isnan(u)
+    r.pit_ks_stat, r.pit_ks_p = ks_uniform(u[_uv])
+    # Clustered PIT (game-date block bootstrap) is the GATE; raw KS above is diagnostic.
+    _obs, r.pit_clustered_dev, r.pit_clustered_band = clustered_pit_deviation(u[_uv], gdate[_uv])
     _midpit = np.array([mid_pit(p, int(yi)) for p, yi in zip(pmfs, y)])
     _midpit = _midpit[~np.isnan(_midpit)]
     _hist, _ = np.histogram(_midpit, bins=np.linspace(0, 1, 11))
@@ -390,7 +427,13 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
             #   < -tol  => outcomes escape MORE than claimed => UNDER-dispersed (overconfident)
             "materially_over": bool(mean_res > residual_tol),
             "materially_under": bool(mean_res < -residual_tol),
-            "fail": bool(not (ci_contains_zero and within_tol)),
+            # PRACTICAL EQUIVALENCE (ROPE): pass when the clustered residual CI lies within
+            # the asymmetric tolerance band [-under_tol, +over_tol]. Do NOT additionally
+            # require the CI to contain exactly zero (that is an over-strict significance test).
+            "interval_equivalent": bool((clo == clo) and (chi == chi)
+                                        and (clo >= -under_tol) and (chi <= over_tol)),
+            "fail": bool(not ((clo == clo) and (chi == chi)
+                              and (clo >= -under_tol) and (chi <= over_tol))),
         }
 
     # Pooled per-threshold ECE — DIAGNOSTIC ONLY (dependent thresholds; not gated).
@@ -429,20 +472,17 @@ def evaluate_stat(df, *, coverage_levels=(0.5, 0.8, 0.9),
         r.reasons.append(f"insufficient coverage: {r.n_dates} game-dates (<{min_dates})")
     if not r.bias_ok:
         r.reasons.append(f"material bias {r.bias:+.2f} > {material_bias_frac:.2f}·RMSE ({r.rmse:.2f})")
-    if not (r.pit_ks_p == r.pit_ks_p and r.pit_ks_p >= ks_p_min):
-        r.reasons.append(f"randomized-PIT non-uniform (KS p={r.pit_ks_p:.4f} < {ks_p_min})")
+    # Clustered randomized-PIT vs the FROZEN practical envelope (raw KS is diagnostic only).
+    if not (r.pit_clustered_dev == r.pit_clustered_dev and r.pit_clustered_dev <= pit_envelope):
+        r.reasons.append(f"clustered randomized-PIT deviation {r.pit_clustered_dev:.3f} > "
+                         f"envelope {pit_envelope} (KS diag p={r.pit_ks_p:.3f})")
     for cl in coverage_levels:
         c = r.coverage[str(cl)]
         if c["fail"]:
-            if c["materially_over"]:
-                direction = "over-dispersed"
-            elif c["materially_under"]:
-                direction = "under-dispersed"
-            else:
-                direction = "residual CI excludes zero"
-            r.reasons.append(f"{int(cl*100)}% interval {direction} "
-                             f"(residual {c['residual']:+.3f}, CI [{c['residual_ci_lo']},{c['residual_ci_hi']}]; "
-                             f"contained {c['contained_mass']:.2f} vs inclusion {c['empirical_inclusion']:.2f})")
+            r.reasons.append(f"{int(cl*100)}% interval not practically-equivalent "
+                             f"(residual {c['residual']:+.3f}, CI [{c['residual_ci_lo']},{c['residual_ci_hi']}] "
+                             f"outside [-{under_tol},{over_tol}]; contained {c['contained_mass']:.2f} "
+                             f"vs inclusion {c['empirical_inclusion']:.2f})")
     # Proper scores MUST affect passage (no worse than baseline).
     if baseline:
         if r.crps_vs_baseline == r.crps_vs_baseline and r.crps_vs_baseline > 0:

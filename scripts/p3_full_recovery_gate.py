@@ -105,13 +105,39 @@ def _prequential_stat(df, stat, blocks):
         max_sup = int(max(before["actual_outcome"].max(), blk["actual_outcome"].max())) + 6
         cands_t, hp = _candidate_pmfs(before, blk, stat)
         cands_b, _ = _candidate_pmfs(before, before, stat)
-        # add hierarchical fallback
-        cands_t["hierarchical"] = _hierarchical(before, blk, max_sup)
-        cands_b["hierarchical"] = _hierarchical(before, before, max_sup)
+        # hierarchical empirical fallback + dispersion-sharpened variants (scale chosen
+        # pre-block); repairs over-dispersion/over-broad sharpness in the empirical fallback.
+        h_t = _hierarchical(before, blk, max_sup)
+        h_b = _hierarchical(before, before, max_sup)
+        for sc in (1.0, 0.85, 0.7):
+            key = "hierarchical" if sc == 1.0 else f"hierarchical_s{int(sc*100)}"
+            cands_t[key] = [recalibrate_pmf(p, 0.0, sc) for p in h_t]
+            cands_b[key] = [recalibrate_pmf(p, 0.0, sc) for p in h_b]
         yb = before["actual_outcome"].astype(float).values
-        # select by pre-block CRPS then log score
-        scored = {m: dc.score_pmfs(cands_b[m], yb) for m in cands_b}
-        variant = min(scored, key=lambda m: scored[m])
+        seeds_b = [_seed(r) for _, r in before.iterrows()]
+        # Calibration-aware selection (multi-criteria, pre-block only): prefer candidates
+        # whose pre-block randomized-PIT is calibrated (KS D <= 0.05), then min CRPS; if
+        # none qualify, use the by-construction-calibrated hierarchical empirical fallback.
+        base_w = float(fc.matched_mass_width(dc.empirical_pmf(yb, int(yb.max()) + 6), 0.8))
+
+        def _ks_d(pmfs):
+            uu = np.array([fc.randomized_pit(p, int(y), k) for p, y, k in zip(pmfs, yb, seeds_b)])
+            uu = uu[~np.isnan(uu)]
+            return fc.ks_uniform(uu)[0] if len(uu) else 1.0
+
+        def _sharp_ok(pmfs):
+            mw = float(np.mean([fc.matched_mass_width(p, 0.8) for p in pmfs]))
+            return (base_w <= 0) or (mw <= 1.15 * base_w)
+        crps = {m: dc.score_pmfs(cands_b[m], yb)[0] for m in cands_b}
+        ksd = {m: _ks_d(cands_b[m]) for m in cands_b}
+        # multi-criteria: calibrated (KS D<=0.05) AND sharp (<=1.15x empirical) -> min CRPS.
+        qualified = [m for m in cands_b if ksd[m] <= 0.05 and _sharp_ok(cands_b[m])]
+        if qualified:
+            variant = min(qualified, key=lambda m: crps[m])
+        elif "hierarchical" in cands_b and ksd["hierarchical"] <= 0.06:
+            variant = "hierarchical"   # trustworthy calibrated+sharp empirical fallback
+        else:
+            variant = min(crps, key=lambda m: crps[m])
         choices.append({"block": k, "variant": variant, "n_before": int(len(before)),
                         "n_block": int(len(blk)), **hp})
         for (_, r), pmf in zip(blk.iterrows(), cands_t[variant]):

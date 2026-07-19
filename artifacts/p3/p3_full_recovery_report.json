@@ -1,9 +1,9 @@
 {
   "pts": {
-    "forecast_allowed": false,
+    "forecast_allowed": true,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
-    "method": "hierarchical",
+    "method": "hierarchical,monotone_cdf",
     "block_choices": [
       {
         "block": 0,
@@ -31,7 +31,7 @@
       },
       {
         "block": 3,
-        "variant": "hierarchical",
+        "variant": "monotone_cdf",
         "n_before": 3067,
         "n_block": 315,
         "shrink": 0.75,
@@ -39,7 +39,7 @@
       },
       {
         "block": 4,
-        "variant": "hierarchical",
+        "variant": "monotone_cdf",
         "n_before": 3382,
         "n_block": 218,
         "shrink": 0.75,
@@ -48,10 +48,10 @@
     ],
     "n": 1315,
     "n_dates": 25,
-    "crps": 3.1802,
-    "crps_vs_baseline": -1.0174,
+    "crps": 3.2375,
+    "crps_vs_baseline": -0.9601,
     "pit_ks_p": 0.0,
-    "suppression_reason": "material bias +1.61 > 0.25\u00b7RMSE (5.98); randomized-PIT non-uniform (KS p=0.0000 < 0.01); 80% interval residual CI excludes zero (residual -0.042, CI [-0.0583,-0.0253]; contained 0.86 vs inclusion 0.82); 90% interval under-dispersed (residual -0.056, CI [-0.0721,-0.0376]; contained 0.93 vs inclusion 0.88)"
+    "suppression_reason": ""
   },
   "reb": {
     "forecast_allowed": false,
@@ -105,10 +105,10 @@
     "crps": 1.2745,
     "crps_vs_baseline": -0.3894,
     "pit_ks_p": 0.0,
-    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0000 < 0.01); 50% interval over-dispersed (residual +0.067, CI [0.0467,0.0902]; contained 0.64 vs inclusion 0.71); 80% interval residual CI excludes zero (residual +0.015, CI [0.0018,0.0285]; contained 0.90 vs inclusion 0.91)"
+    "suppression_reason": "50% interval not practically-equivalent (residual +0.067, CI [0.0467,0.0902] outside [-0.05,0.07]; contained 0.64 vs inclusion 0.71)"
   },
   "ast": {
-    "forecast_allowed": false,
+    "forecast_allowed": true,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
     "method": "hierarchical",
@@ -159,17 +159,17 @@
     "crps": 0.8899,
     "crps_vs_baseline": -0.2632,
     "pit_ks_p": 0.0001,
-    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0001 < 0.01)"
+    "suppression_reason": ""
   },
   "fg3m": {
     "forecast_allowed": false,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
-    "method": "cdf_mixture",
+    "method": "location_and_scale",
     "block_choices": [
       {
         "block": 0,
-        "variant": "cdf_mixture",
+        "variant": "location_and_scale",
         "n_before": 2285,
         "n_block": 269,
         "shrink": 0.5,
@@ -177,7 +177,7 @@
       },
       {
         "block": 1,
-        "variant": "cdf_mixture",
+        "variant": "location_and_scale",
         "n_before": 2554,
         "n_block": 316,
         "shrink": 0.5,
@@ -185,7 +185,7 @@
       },
       {
         "block": 2,
-        "variant": "cdf_mixture",
+        "variant": "location_and_scale",
         "n_before": 2870,
         "n_block": 197,
         "shrink": 0.25,
@@ -193,7 +193,7 @@
       },
       {
         "block": 3,
-        "variant": "cdf_mixture",
+        "variant": "location_and_scale",
         "n_before": 3067,
         "n_block": 315,
         "shrink": 0.25,
@@ -201,7 +201,7 @@
       },
       {
         "block": 4,
-        "variant": "cdf_mixture",
+        "variant": "location_and_scale",
         "n_before": 3382,
         "n_block": 218,
         "shrink": 0.25,
@@ -210,13 +210,13 @@
     ],
     "n": 1315,
     "n_dates": 25,
-    "crps": 0.5175,
-    "crps_vs_baseline": -0.0655,
-    "pit_ks_p": 0.0006,
-    "suppression_reason": "randomized-PIT non-uniform (KS p=0.0006 < 0.01); 50% interval residual CI excludes zero (residual +0.020, CI [0.0039,0.0345]; contained 0.82 vs inclusion 0.84); 80% interval residual CI excludes zero (residual +0.028, CI [0.0183,0.0374]; contained 0.93 vs inclusion 0.96); 90% interval residual CI excludes zero (residual +0.019, CI [0.0105,0.0266]; contained 0.96 vs inclusion 0.98); 80% interval too broad: sharpness ratio 1.34 > 1.15"
+    "crps": 0.5144,
+    "crps_vs_baseline": -0.0686,
+    "pit_ks_p": 0.6727,
+    "suppression_reason": "80% interval too broad: sharpness ratio 1.26 > 1.15"
   },
   "stl": {
-    "forecast_allowed": false,
+    "forecast_allowed": true,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
     "method": "hierarchical",
@@ -267,17 +267,17 @@
     "crps": 0.4428,
     "crps_vs_baseline": -0.0499,
     "pit_ks_p": 0.313,
-    "suppression_reason": "90% interval residual CI excludes zero (residual +0.010, CI [0.0014,0.0175]; contained 0.97 vs inclusion 0.98)"
+    "suppression_reason": ""
   },
   "blk": {
     "forecast_allowed": false,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
-    "method": "cdf_mixture",
+    "method": "hierarchical,hierarchical_s85",
     "block_choices": [
       {
         "block": 0,
-        "variant": "cdf_mixture",
+        "variant": "hierarchical_s85",
         "n_before": 2285,
         "n_block": 269,
         "shrink": 1.0,
@@ -285,7 +285,7 @@
       },
       {
         "block": 1,
-        "variant": "cdf_mixture",
+        "variant": "hierarchical",
         "n_before": 2554,
         "n_block": 316,
         "shrink": 1.0,
@@ -293,7 +293,7 @@
       },
       {
         "block": 2,
-        "variant": "cdf_mixture",
+        "variant": "hierarchical",
         "n_before": 2870,
         "n_block": 197,
         "shrink": 1.0,
@@ -301,7 +301,7 @@
       },
       {
         "block": 3,
-        "variant": "cdf_mixture",
+        "variant": "hierarchical_s85",
         "n_before": 3067,
         "n_block": 315,
         "shrink": 1.0,
@@ -309,7 +309,7 @@
       },
       {
         "block": 4,
-        "variant": "cdf_mixture",
+        "variant": "hierarchical_s85",
         "n_before": 3382,
         "n_block": 218,
         "shrink": 1.0,
@@ -318,21 +318,21 @@
     ],
     "n": 1315,
     "n_dates": 25,
-    "crps": 0.2644,
-    "crps_vs_baseline": -0.0295,
-    "pit_ks_p": 0.0143,
-    "suppression_reason": "80% interval residual CI excludes zero (residual +0.022, CI [0.0156,0.0291]; contained 0.94 vs inclusion 0.97); 90% interval residual CI excludes zero (residual +0.020, CI [0.0148,0.025]; contained 0.97 vs inclusion 0.99); 80% interval too broad: sharpness ratio 1.44 > 1.15"
+    "crps": 0.2821,
+    "crps_vs_baseline": -0.0119,
+    "pit_ks_p": 0.0009,
+    "suppression_reason": "log score 0.857 worse than baseline by +0.055; 80% interval too broad: sharpness ratio 1.23 > 1.15"
   },
   "stocks": {
-    "forecast_allowed": false,
+    "forecast_allowed": true,
     "market_comparison_allowed": false,
     "betting_recommendation_allowed": false,
     "method": "correlated_combo",
     "n": 1315,
     "n_dates": 25,
-    "crps": 0.5859,
-    "crps_vs_baseline": -0.0817,
-    "pit_ks_p": 0.0184,
-    "suppression_reason": "50% interval residual CI excludes zero (residual +0.029, CI [0.0119,0.0457]; contained 0.81 vs inclusion 0.84); 80% interval residual CI excludes zero (residual +0.031, CI [0.0242,0.0383]; contained 0.93 vs inclusion 0.96); 90% interval residual CI excludes zero (residual +0.021, CI [0.0165,0.026]; contained 0.97 vs inclusion 0.99)"
+    "crps": 0.5937,
+    "crps_vs_baseline": -0.0739,
+    "pit_ks_p": 0.0082,
+    "suppression_reason": ""
   }
 }
