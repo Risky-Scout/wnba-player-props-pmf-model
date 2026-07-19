@@ -50,14 +50,14 @@ def test_discrete_interval_calibrated_passes_when_inclusion_matches_mass():
     # A nominal-50% integer interval that CONTAINS ~80% PMF mass must PASS when empirical
     # inclusion is ~80% (residual ~ 0) — NOT fail merely for exceeding the nominal.
     base = np.array([0.05, 0.10, 0.70, 0.10, 0.05])  # concentrated at 2
-    n = 600
+    n = 3000
     rng = np.random.default_rng(11)
     actuals = [int(rng.choice(len(base), p=base)) for _ in range(n)]
-    dates = [f"2026-06-{(i % 30)+1:02d}" for i in range(n)]
+    dates = [f"2026-{6 + (i // 900):02d}-{(i % 28) + 1:02d}" for i in range(n)]  # ~28 dates
     r = fc.evaluate_stat(_build_df([base] * n, actuals, dates), min_n=100, min_dates=20,
                          baseline=_baseline(crps=9, log_score=9, w80=99))
     c50 = r.coverage["0.5"]
-    # the nominal-50% interval contains well over 50% mass, yet the residual is ~0
+    # the nominal-50% interval contains well over 50% mass, yet the residual is ~0 -> PASS
     assert c50["contained_mass"] > 0.5
     assert abs(c50["residual"]) < 0.05 and not c50["fail"]
 
