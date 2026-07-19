@@ -1,0 +1,152 @@
+name: Rebounds Structural Repair (A/B/C/D prequential gate)
+
+# Manually-dispatched Rebounds recovery. Rebuilds the schema-v2 feature matrix so the HGB
+# conditional-mean candidates (A: Poisson loss, B: squared-error loss) can be fit, downloads the
+# champion OOF for candidates C/D and the baseline, then runs the strictly-prequential five-date
+# outer-block gate (scripts/p3_reb_repair.py) over the frozen finite candidate set A/B/C/D.
+# Training/validation only - never deploys pages and never mutates the champion automatically.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git ref to run from (branch or SHA)"
+        required: true
+        default: "cursor/reb-forecast-recovery-06e5"
+
+jobs:
+  reb-repair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 180
+    env:
+      # Bounded native threads BEFORE any scientific import (exit-134 hardening).
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      ARROW_NUM_THREADS: "1"
+      PYTHONUNBUFFERED: "1"
+      PYTHONFAULTHANDLER: "1"
+      FEATURES_WIDE: data/processed/wnba_player_game_features_wide.parquet
+      CHAMPION_OOF: artifacts/models/calibration/oof_predictions.parquet
+
+    steps:
+      - name: Checkout source ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Record source SHA
+        run: |
+          echo "SRC_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "[reb] source_ref=${{ github.event.inputs.source_ref }} sha=$(git rev-parse HEAD)"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Smoke-test reb repair CLI
+        run: python scripts/p3_reb_repair.py --help > /dev/null
+
+      - name: Confirm BDL_API_KEY is present (value never printed)
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          if [ -z "$BDL_API_KEY" ]; then echo "[FATAL] BDL_API_KEY not set" >&2; exit 1; fi
+          echo "[OK] BDL_API_KEY present (${#BDL_API_KEY} chars)"
+
+      # -- Rebuild the schema-v2 feature matrix for Candidates A/B -------------
+      - name: Pull historical BDL data
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/pull_bdl_history.py --start-season 2022 --end-season "$YEAR" --out-dir data/raw/bdl
+
+      - name: Build canonical tables
+        run: python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
+
+      - name: Build schema-v2 features
+        run: |
+          python scripts/build_features.py --data-dir data/processed
+          if [ ! -f "$FEATURES_WIDE" ]; then echo "[FATAL] feature matrix missing: $FEATURES_WIDE" >&2; exit 1; fi
+          echo "[OK] feature matrix built: $FEATURES_WIDE"
+
+      # -- Download the champion OOF (candidates C/D + baseline + reb targets) -
+      - name: Download champion OOF
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p artifacts/models/calibration
+          CAL_AID=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=10&name=calibrators-latest" \
+            --jq '[.artifacts[] | select(.expired==false)] | sort_by(.created_at) | reverse | .[0].id' 2>/dev/null || echo "")
+          if [ -n "$CAL_AID" ] && [ "$CAL_AID" != "null" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$CAL_AID/zip" > /tmp/champ_cal.zip
+            unzip -o /tmp/champ_cal.zip -d artifacts/models/calibration/
+          fi
+          if [ ! -f "$CHAMPION_OOF" ]; then
+            echo "[FATAL] champion OOF not found: $CHAMPION_OOF" >&2; exit 1
+          fi
+          echo "[OK] champion OOF present: $CHAMPION_OOF"
+
+      # -- Strictly-prequential A/B/C/D gate -----------------------------------
+      - name: Run Rebounds A/B/C/D prequential gate
+        run: |
+          python scripts/p3_reb_repair.py \
+            --oof "$CHAMPION_OOF" \
+            --features "$FEATURES_WIDE" \
+            --out-dir artifacts/p3
+          python - <<'PYEOF'
+          import json, sys
+          r = json.load(open("artifacts/p3/p3_reb_repair_result.json"))
+          print("[reb] winner:", r["method"], "block_methods:", r.get("block_methods"))
+          print("[reb] forecast_allowed:", r["forecast_allowed"],
+                "dCRPS:", r["crps_vs_baseline"], "clustered_PIT:", r["pit_clustered_dev"])
+          for cl, c in r["coverage"].items():
+              print(f"   {cl}: residual={c['residual']} within_tol={c['within_tol']} fail={c['fail']}")
+          if not r["forecast_allowed"]:
+              print("[FATAL] Rebounds did NOT pass the corrected gates:", r["reasons"], file=sys.stderr)
+              sys.exit(1)
+          print("[OK] Rebounds PASSES the corrected forecast gates")
+          PYEOF
+
+      # -- Rebuild the champion package + verify parity (no deploy) -------------
+      - name: Rebuild champion package with reb and run parity/contract tests
+        run: |
+          python scripts/p3_add_reb.py || echo "[info] reb already present in package; skipping add"
+          python -m pytest tests/test_p3_multistat_publication.py \
+            tests/test_p3_champion_promotion.py tests/test_p3_policy_consistency.py \
+            tests/test_p3_artifact_contracts.py -q
+
+      - name: Upload Rebounds validation evidence + package
+        uses: actions/upload-artifact@v4
+        with:
+          name: reb-repair-${{ github.run_id }}
+          path: |
+            artifacts/p3/p3_reb_repair_result.json
+            config/certified_forecast_calibration.json
+            config/stat_registry.json
+            config/champion_manifest.json
+          retention-days: 30
+
+      - name: Print summary
+        run: |
+          echo "=================================================="
+          echo "REBOUNDS STRUCTURAL REPAIR COMPLETE - $(date -u)"
+          echo "  source_ref: ${{ github.event.inputs.source_ref }}  sha: $SRC_SHA  run_id: ${{ github.run_id }}"
+          echo "  This workflow validates + packages only; it does NOT deploy or push."
+          echo "=================================================="

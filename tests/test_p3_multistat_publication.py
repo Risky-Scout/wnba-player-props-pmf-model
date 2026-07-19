@@ -1,4 +1,4 @@
-"""P3 — production/validation parity + behavior of the multi-stat forecast publisher."""
+"""P3 - production/validation parity + behavior of the multi-stat forecast publisher."""
 from __future__ import annotations
 
 import json
@@ -38,11 +38,30 @@ def _proj():
 def test_publisher_outputs_only_certified_markets_plus_combos():
     out = apply_multistat_forecast(_proj(), CALIB, CERTIFIED)
     stats = set(out["stat"].unique())
-    assert {"pts", "ast", "stl", "turnover", "stocks", "pts_ast"} <= stats
-    # blk direct and reb are NOT published (blk is only a stocks component; reb not certified)
-    assert "blk" not in stats and "reb" not in stats
+    assert {"pts", "ast", "stl", "turnover", "stocks", "pts_ast", "reb"} <= stats
+    # blk direct is NOT published (blk is only a stocks component); reb IS certified now
+    assert "blk" not in stats
     # combos exist for both players
     assert (out["stat"] == "stocks").sum() == 2 and (out["stat"] == "pts_ast").sum() == 2
+
+
+def test_reb_evaluated_equals_deployed_parity_with_scale():
+    """reb parity: publisher must equal recalibrate(hierarchical(...), 0, scale) exactly."""
+    from wnba_props_model.pipeline.forecast_publication import _cells_from_json, _minbucket
+    spec = CALIB["markets"]["reb"]
+    assert spec["method"] == "hierarchical" and spec.get("scale") == 0.9 and spec["certified"] is True
+    pmf = pmf_to_array(_pmf_json(5))
+    got = apply_market(pmf, 5.0, "starter", 30.0, spec)
+    cells = _cells_from_json(spec["cells"])
+    hp = hierarchical_empirical_pmf(5.0, f"starter|{_minbucket(30.0)}", cells, max(len(pmf) - 1, 60))
+    exp = recalibrate_pmf(hp, 0.0, 0.9)
+    assert np.allclose(got, exp)
+    # dispersion scale 0.9 sharpens: narrower std than the unscaled hierarchical PMF
+    def _sd(p):
+        s = np.arange(len(p)); mu = float((s * p).sum())
+        return float(np.sqrt(((s - mu) ** 2 * p).sum()))
+    assert _sd(got) < _sd(hp)
+    assert abs(got.sum() - 1.0) < 1e-9 and np.all(got >= 0)
 
 
 def test_evaluated_equals_deployed_parity_hierarchical():

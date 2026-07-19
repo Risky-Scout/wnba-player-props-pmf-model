@@ -1,4 +1,4 @@
-"""P2 Phase 1 — blocking tests for the 10 hardened release-contract conditions
+"""P2 Phase 1 - blocking tests for the 10 hardened release-contract conditions
 and the canonical policy loader."""
 from __future__ import annotations
 
@@ -145,7 +145,7 @@ def test_all_publishers_apply_policy():
         txt = (REPO / ".github/workflows" / wf).read_text()
         assert "build_edge_report.py" in txt, f"{wf}: no edge build"
         assert "--policy config/recommendation_policy.yaml" in txt, (
-            f"{wf} builds edges without --policy — would bypass forecast-only abstention")
+            f"{wf} builds edges without --policy - would bypass forecast-only abstention")
 
 
 def test_publishers_run_on_daily_schedule():
@@ -153,7 +153,7 @@ def test_publishers_run_on_daily_schedule():
     for wf in ["pregame_initial.yml", "pregame_final.yml", "pregame_odds_refresh.yml",
                "pregame_injury_update.yml"]:
         txt = (REPO / ".github/workflows" / wf).read_text()
-        assert "cron:" in txt, f"{wf} has no schedule — board would not refresh daily"
+        assert "cron:" in txt, f"{wf} has no schedule - board would not refresh daily"
 
 
 # Forecast gate outcome is encoded and total stats reconcile.
@@ -161,7 +161,8 @@ def test_forecast_suppression_encoded():
     # Under VALIDATION_PENDING nothing is certified/published; all seven stats are
     # suppressed from certified publication until the corrected gate runs.
     p = load_policy(POLICY)
-    # six markets certified (LIVE_VALIDATED_FORECAST_ONLY); reb/fg3m/blk + reb-combos suppressed.
+    # seven markets certified (LIVE_VALIDATED_FORECAST_ONLY); reb now passes via Candidate D.
+    # fg3m/blk + reb-independent combos (pts_reb, pts_reb_ast) remain suppressed.
     assert p.forecast_status == "LIVE_VALIDATED_FORECAST_ONLY"
-    assert set(p.forecast_publish_stats) == {"turnover", "pts", "ast", "stl", "stocks", "pts_ast"}
-    assert {"reb", "fg3m", "blk"} <= set(p.forecast_suppress_stats)
+    assert set(p.forecast_publish_stats) == {"turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb"}
+    assert {"fg3m", "blk", "pts_reb", "pts_reb_ast"} <= set(p.forecast_suppress_stats)

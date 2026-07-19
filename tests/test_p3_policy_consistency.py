@@ -1,4 +1,4 @@
-"""P3 #1 — release-status consistency. The policy must never claim launch-ready while
+"""P3 #1 - release-status consistency. The policy must never claim launch-ready while
 no stat is certified, never certify+suppress the same stat, never publish a stat with no
 registry entry, and never mark Edge publish without a validated betting policy."""
 from __future__ import annotations
@@ -56,17 +56,18 @@ def test_policy_currently_consistent():
     assert errs == [], f"policy inconsistencies: {errs}"
 
 
-def test_current_state_forecast_only_six_markets_certified():
-    # six markets passed the corrected gates -> LIVE_VALIDATED_FORECAST_ONLY; Edge abstains.
+def test_current_state_forecast_only_seven_markets_certified():
+    # seven markets passed the corrected gates -> LIVE_VALIDATED_FORECAST_ONLY; Edge abstains.
+    # reb was promoted via Candidate D (empirical residual + frozen dispersion scale 0.9).
     pol = load_policy(POLICY)
-    six = {"turnover", "pts", "ast", "stl", "stocks", "pts_ast"}
+    certified = {"turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb"}
     assert pol.status == "LIVE_VALIDATED_FORECAST_ONLY"
-    assert set(pol.forecast_certified_stats) == six
-    assert set(pol.forecast_publish_stats) == six
-    assert not (six & set(pol.forecast_suppress_stats))
+    assert set(pol.forecast_certified_stats) == certified
+    assert set(pol.forecast_publish_stats) == certified
+    assert not (certified & set(pol.forecast_suppress_stats))
     assert pol.abstain is True                      # Edge remains abstaining
     reg = _registry()
-    for m in six:
+    for m in certified:
         assert reg.get(m, {}).get("forecast_allowed") is True
         assert reg.get(m, {}).get("betting_recommendation_allowed") is False
 
