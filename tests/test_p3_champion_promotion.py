@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parent.parent
 REGISTRY = json.loads((REPO / "config/stat_registry.json").read_text())
 MANIFEST = json.loads((REPO / "config/champion_manifest.json").read_text())
 CALIB = json.loads((REPO / "config/certified_forecast_calibration.json").read_text())
-CERTIFIED = ["turnover", "pts", "ast", "stl", "stocks", "pts_ast"]
+CERTIFIED = ["turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb"]
 
 
 def test_registry_certified_markets_betting_off():
@@ -24,7 +24,7 @@ def test_registry_certified_markets_betting_off():
         assert REGISTRY[m]["forecast_allowed"] is True
         assert REGISTRY[m]["betting_recommendation_allowed"] is False
         assert REGISTRY[m]["forecast_method"]
-    for s in ("reb", "fg3m", "blk", "pts_reb", "pts_reb_ast"):
+    for s in ("fg3m", "blk", "pts_reb", "pts_reb_ast"):
         assert REGISTRY[s]["forecast_allowed"] is False
 
 
