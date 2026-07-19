@@ -161,8 +161,9 @@ def test_forecast_suppression_encoded():
     # Under VALIDATION_PENDING nothing is certified/published; all seven stats are
     # suppressed from certified publication until the corrected gate runs.
     p = load_policy(POLICY)
-    # seven markets certified (LIVE_VALIDATED_FORECAST_ONLY); reb now passes via Candidate D.
-    # fg3m/blk + reb-independent combos (pts_reb, pts_reb_ast) remain suppressed.
+    # nine markets certified (LIVE_VALIDATED_FORECAST_ONLY); reb via Candidate D, pts_reb /
+    # pts_reb_ast via the bounded combo-residual fallback. fg3m/blk remain suppressed.
     assert p.forecast_status == "LIVE_VALIDATED_FORECAST_ONLY"
-    assert set(p.forecast_publish_stats) == {"turnover", "pts", "ast", "stl", "stocks", "pts_ast", "reb"}
-    assert {"fg3m", "blk", "pts_reb", "pts_reb_ast"} <= set(p.forecast_suppress_stats)
+    assert set(p.forecast_publish_stats) == {"turnover", "pts", "ast", "stl", "stocks",
+                                             "pts_ast", "reb", "pts_reb", "pts_reb_ast"}
+    assert {"fg3m", "blk"} <= set(p.forecast_suppress_stats)
