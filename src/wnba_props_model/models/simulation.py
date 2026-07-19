@@ -323,26 +323,29 @@ def build_combo_pmfs(component_pmfs: Mapping[str, np.ndarray],
         # NOTE: _build_trivariate_pmf (MC) below is a fallback only; the primary PRA
         # path uses sequential bivariate IPF in _build_combo_pmf_rows (predict.py).
         try:
+            # Three-way dependence uses the passed (pre-block-estimated) correlations for ALL
+            # three pairs so the joint construction is consistent with the estimated dependence
+            # -- not the module-level defaults (which would silently ignore the estimates).
             out["pra"] = _build_trivariate_pmf(
                 component_pmfs["pts"],
                 component_pmfs["reb"],
                 component_pmfs["ast"],
-                rho_pts_reb=_COMBO_CORRELATIONS.get("pts_reb", 0.08),
-                rho_pts_ast=_COMBO_CORRELATIONS.get("pts_ast", -0.12),
-                rho_reb_ast=_COMBO_CORRELATIONS.get("reb_ast", -0.05),
+                rho_pts_reb=_corr.get("pts_reb", 0.08),
+                rho_pts_ast=_corr.get("pts_ast", -0.12),
+                rho_reb_ast=_corr.get("reb_ast", -0.05),
             )
             if DOMAIN_MAX.get("pra") is not None:
                 out["pra"] = out["pra"][: DOMAIN_MAX["pra"] + 1]
                 out["pra"] = normalize_pmf(out["pra"])
         except Exception:
-            # Fall back to sequential bivariate on any error
+            # Fall back to sequential bivariate on any error (still using passed correlations).
             _pr_tmp = convolve_pmfs_correlated(
                 component_pmfs["pts"], component_pmfs["reb"],
-                correlation=_COMBO_CORRELATIONS.get("pts_reb", 0.0),
+                correlation=_corr.get("pts_reb", 0.0),
             )
             out["pra"] = convolve_pmfs_correlated(
                 _pr_tmp, component_pmfs["ast"],
-                correlation=_COMBO_CORRELATIONS.get("pts_reb_ast", 0.0),
+                correlation=_corr.get("pts_reb_ast", _corr.get("reb_ast", 0.0)),
                 domain_max=DOMAIN_MAX.get("pra"),
             )
     return out
