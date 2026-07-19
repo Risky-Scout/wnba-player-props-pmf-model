@@ -56,18 +56,19 @@ def test_policy_currently_consistent():
     assert errs == [], f"policy inconsistencies: {errs}"
 
 
-def test_current_state_forecast_only_turnover_certified():
-    # turnover passed the corrected gate -> LIVE_VALIDATED_FORECAST_ONLY, certified &
-    # published, matching a validated registry entry; Edge still abstains.
+def test_current_state_forecast_only_six_markets_certified():
+    # six markets passed the corrected gates -> LIVE_VALIDATED_FORECAST_ONLY; Edge abstains.
     pol = load_policy(POLICY)
+    six = {"turnover", "pts", "ast", "stl", "stocks", "pts_ast"}
     assert pol.status == "LIVE_VALIDATED_FORECAST_ONLY"
-    assert pol.forecast_certified_stats == ["turnover"]
-    assert pol.forecast_publish_stats == ["turnover"]
-    assert "turnover" not in pol.forecast_suppress_stats
+    assert set(pol.forecast_certified_stats) == six
+    assert set(pol.forecast_publish_stats) == six
+    assert not (six & set(pol.forecast_suppress_stats))
     assert pol.abstain is True                      # Edge remains abstaining
     reg = _registry()
-    assert reg.get("turnover", {}).get("forecast_allowed") is True
-    assert reg.get("turnover", {}).get("betting_recommendation_allowed") is False
+    for m in six:
+        assert reg.get(m, {}).get("forecast_allowed") is True
+        assert reg.get(m, {}).get("betting_recommendation_allowed") is False
 
 
 def test_launch_without_certified_is_flagged():

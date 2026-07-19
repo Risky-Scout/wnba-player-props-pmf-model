@@ -40,17 +40,19 @@ forecast:
   # interval residuals within tolerance). pts/reb/blk/ast still fail randomized-PIT; fg3m/
   # stl fail marginal interval residuals — all suppressed. See docs/p3_forecast_gate_result.md.
   status: LIVE_VALIDATED_FORECAST_ONLY
-  publish_stats: [turnover]
-  certified_stats: [turnover]
+  # Six markets validated under the corrected gates (interval practical-equivalence +
+  # clustered-PIT envelope), each with its prequentially-selected method (see
+  # config/stat_registry.json + config/certified_forecast_calibration.json).
+  publish_stats: [turnover, pts, ast, stl, stocks, pts_ast]
+  certified_stats: [turnover, pts, ast, stl, stocks, pts_ast]
   pending_banner: ""
-  suppress_stats: [pts, ast, fg3m, blk, stl, reb]
+  suppress_stats: [reb, fg3m, blk, pts_reb, pts_reb_ast]
   suppress_reasons:
-    pts: "randomized-PIT non-uniform (shape miscalibration)"
-    reb: "randomized-PIT non-uniform (shape miscalibration)"
-    blk: "randomized-PIT non-uniform (shape miscalibration)"
-    ast: "randomized-PIT non-uniform (shape miscalibration)"
-    fg3m: "50% interval residual CI excludes zero"
-    stl: "90% interval residual CI excludes zero"
+    reb: "over-dispersion — awaiting structural HGB/NB retraining"
+    fg3m: "over-broad (sharpness) — awaiting attempts×conversion retraining"
+    blk: "over-broad + log score — awaiting hurdle retraining"
+    pts_reb: "depends on reb"
+    pts_reb_ast: "depends on reb"
 
 # Overall release status. LIVE_VALIDATED_FORECAST_ONLY: turnover passed the corrected
 # forecast gate and is certified in config/stat_registry.json; Edge remains abstaining

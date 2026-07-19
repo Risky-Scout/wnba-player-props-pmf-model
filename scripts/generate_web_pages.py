@@ -2049,38 +2049,36 @@ def main(
     _fc_certified = (_pol.forecast_certified_stats if _pol is not None else []) or []
     _fc_pending_banner = (_pol.forecast_pending_banner if _pol is not None else "")
     _uncertified = _fc_status in ("VALIDATION_PENDING", "BLOCKED_MODEL")
-    if not _uncertified and _fc_certified and proj_df is not None and "stat" in proj_df.columns:
-        _n0 = len(proj_df)
-        proj_df = proj_df[proj_df["stat"].isin(_fc_certified)].copy()
-        typer.echo(f"[policy] PMF page restricted to CERTIFIED stats {sorted(_fc_certified)}: {_n0}→{len(proj_df)} rows")
-    elif _uncertified:
+    if _uncertified:
         typer.echo(f"[policy] forecast {_fc_status} — distributions shown as UNCERTIFIED with banner")
-
-    # Apply the VALIDATED certified-forecast calibration to certified stats so the PUBLISHED
-    # PMF equals the evaluated one (parity by construction — same recalibrate_pmf transform).
-    if _fc_certified and proj_df is not None and "stat" in proj_df.columns and "pmf_json" in proj_df.columns:
+    elif _fc_certified and proj_df is not None and "stat" in proj_df.columns and "pmf_json" in proj_df.columns:
+        # Apply the VALIDATED per-market methods (location / hierarchical / combo) so the
+        # PUBLISHED PMF equals the evaluated one (parity via shared functions), and restrict
+        # the page to the certified markets (+ built combos).
         _cal_path = Path("config/certified_forecast_calibration.json")
         if not _cal_path.exists():
             _cal_path = Path("artifacts/models/calibration/certified_forecast_calibration.json")
         if _cal_path.exists():
             try:
-                from wnba_props_model.evaluation.pmf_recalibration import apply_certified_forecast_calibration
-                from wnba_props_model.evaluation.forecasting import pmf_to_array
                 _calib = json.loads(_cal_path.read_text())
-                _n_cal = 0
-                proj_df = proj_df.copy()
-                for _i, _row in proj_df.iterrows():
-                    if str(_row.get("stat")) in _fc_certified:
-                        _arr = pmf_to_array(_row["pmf_json"])
+                _n0 = len(proj_df)
+                if isinstance(_calib.get("markets"), dict):
+                    from wnba_props_model.pipeline.forecast_publication import apply_multistat_forecast
+                    proj_df = apply_multistat_forecast(proj_df, _calib, list(_fc_certified))
+                else:  # legacy single-method package
+                    from wnba_props_model.evaluation.pmf_recalibration import apply_certified_forecast_calibration
+                    from wnba_props_model.evaluation.forecasting import pmf_to_array
+                    proj_df = proj_df[proj_df["stat"].isin(_fc_certified)].copy()
+                    for _i, _row in proj_df.iterrows():
                         _c = apply_certified_forecast_calibration(
-                            _arr, str(_row["stat"]), str(_row.get("role_bucket", "")), _calib)
+                            pmf_to_array(_row["pmf_json"]), str(_row["stat"]),
+                            str(_row.get("role_bucket", "")), _calib)
                         proj_df.at[_i, "pmf_json"] = json.dumps(
                             {str(k): float(round(v, 8)) for k, v in enumerate(_c) if v > 1e-9})
-                        _n_cal += 1
-                typer.echo(f"[policy] applied certified forecast calibration to {_n_cal} rows "
-                           f"(hash from {_cal_path.name})")
+                typer.echo(f"[policy] applied per-market certified methods; PMF page "
+                           f"{_n0}→{len(proj_df)} rows across {sorted(set(proj_df['stat']))}")
             except Exception as _cexc:
-                typer.echo(f"[FATAL] certified calibration apply failed: {_cexc}", err=True)
+                typer.echo(f"[FATAL] certified forecast application failed: {_cexc}", err=True)
                 raise typer.Exit(1)
 
     # --- Build JSON ---
