@@ -63,6 +63,26 @@ def test_nonempty_output_for_both_combos():
         assert (out["stat"] == c).sum() == 3   # one row per eligible player
 
 
+def test_no_duplicate_combo_rows_when_raw_combo_present():
+    # If the raw projections already contain combo rows, the publisher must emit exactly ONE
+    # (the calibrated combo_residual), never the raw one too (dedup guard).
+    proj = _proj()
+    raw_combos = []
+    for pid in (1, 2, 3):
+        for c in COMBOS:
+            raw_combos.append({"player_id": pid, "player": f"P{pid}", "stat": c,
+                               "pmf_json": _pmf_json(20), "pmf_mean": 20.0,
+                               "role_bucket": "starter", "minutes_mean": 30.0})
+    proj = pd.concat([proj, pd.DataFrame(raw_combos)], ignore_index=True)
+    out = apply_multistat_forecast(proj, CALIB, CERTIFIED)
+    for c in COMBOS:
+        rows = out[out["stat"] == c]
+        assert len(rows) == 3, f"{c} produced {len(rows)} rows (expected one per player)"
+        # the published mean is the calibrated combo_residual, not the raw 20.0
+        assert (rows["pmf_mean"] != 20.0).all()
+        assert rows["forecast_method"].eq("combo_residual").all()
+
+
 def test_exact_combo_actual_outcomes():
     # pts_reb = pts + reb; pts_reb_ast = pts + reb + ast, evaluated on real component actuals.
     import sys
