@@ -1,4 +1,4 @@
-"""P3 — promote validated Rebounds (Candidate D) into the immutable champion package.
+"""P3 - promote validated Rebounds (Candidate D) into the immutable champion package.
 
 Surgical: preserves the six already-validated markets byte-for-byte in
 config/certified_forecast_calibration.json; adds only `reb` (hierarchical empirical residual
@@ -64,7 +64,7 @@ def main(oof: str = typer.Option("artifacts/models/calibration/oof_predictions.p
         "calibration_hash": cal_hash, "suppression_reason": "",
     })
     # Refresh the shared calibration hash for every certified market (artifact changed; PMFs
-    # for the six existing markets are byte-identical — only reb was added).
+    # for the six existing markets are byte-identical - only reb was added).
     for m, e in registry.items():
         if e.get("forecast_allowed"):
             e["calibration_hash"] = cal_hash

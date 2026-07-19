@@ -5,7 +5,7 @@ version: 1
 
 edge:
   # Threshold selected on chronological development folds (see docs/p2_threshold_selection.md),
-  # frozen before the untouched holdout. Nonzero — never publish every prop at 0.0.
+  # frozen before the untouched holdout. Nonzero - never publish every prop at 0.0.
   edge_threshold: 0.04
   min_market_prob: 0.05
   max_shin_z: 0.15
@@ -33,12 +33,12 @@ forecast:
   # (evaluation/forecasting.py: randomized seeded PIT + two-sided coverage + line-level
   # calibration) runs successfully on a sufficient rolling-origin evaluation set.
   # LIVE_VALIDATED_FORECAST_ONLY: with the CORRECTED discrete-interval residual gate
-  # (empirical inclusion vs the interval's own contained PMF mass, clustered-CI gated —
+  # (empirical inclusion vs the interval's own contained PMF mass, clustered-CI gated -
   # not the invalid empirical-vs-nominal comparison), the nested-prequential full-2026
   # evaluation (holdout = latest 25 game-dates, ~1315 obs/stat) certifies TURNOVER under
   # location-and-scale forecast calibration (CRPS beats baseline, randomized-PIT p=0.24,
   # interval residuals within tolerance). pts/reb/blk/ast still fail randomized-PIT; fg3m/
-  # stl fail marginal interval residuals — all suppressed. See docs/p3_forecast_gate_result.md.
+  # stl fail marginal interval residuals - all suppressed. See docs/p3_forecast_gate_result.md.
   status: LIVE_VALIDATED_FORECAST_ONLY
   # Seven markets validated under the corrected gates (interval practical-equivalence +
   # clustered-PIT envelope), each with its prequentially-selected method (see
@@ -51,10 +51,10 @@ forecast:
   pending_banner: ""
   suppress_stats: [fg3m, blk, pts_reb, pts_reb_ast]
   suppress_reasons:
-    fg3m: "over-broad (sharpness) — awaiting attempts×conversion retraining"
-    blk: "over-broad + log score — awaiting hurdle retraining"
-    pts_reb: "material bias +1.78 > 0.25·RMSE — awaiting structural retraining"
-    pts_reb_ast: "material bias +2.17 > 0.25·RMSE + PIT — awaiting structural retraining"
+    fg3m: "over-broad (sharpness) - awaiting attemptsxconversion retraining"
+    blk: "over-broad + log score - awaiting hurdle retraining"
+    pts_reb: "material bias +1.78 > 0.25*RMSE - awaiting structural retraining"
+    pts_reb_ast: "material bias +2.17 > 0.25*RMSE + PIT - awaiting structural retraining"
 
 # Overall release status. LIVE_VALIDATED_FORECAST_ONLY: turnover passed the corrected
 # forecast gate and is certified in config/stat_registry.json; Edge remains abstaining

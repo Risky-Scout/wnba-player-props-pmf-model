@@ -4,7 +4,7 @@ name: Rebounds Structural Repair (A/B/C/D prequential gate)
 # conditional-mean candidates (A: Poisson loss, B: squared-error loss) can be fit, downloads the
 # champion OOF for candidates C/D and the baseline, then runs the strictly-prequential five-date
 # outer-block gate (scripts/p3_reb_repair.py) over the frozen finite candidate set A/B/C/D.
-# Training/validation only — never deploys pages and never mutates the champion automatically.
+# Training/validation only - never deploys pages and never mutates the champion automatically.
 
 on:
   workflow_dispatch:
@@ -69,7 +69,7 @@ jobs:
           if [ -z "$BDL_API_KEY" ]; then echo "[FATAL] BDL_API_KEY not set" >&2; exit 1; fi
           echo "[OK] BDL_API_KEY present (${#BDL_API_KEY} chars)"
 
-      # ── Rebuild the schema-v2 feature matrix for Candidates A/B ─────────────
+      # -- Rebuild the schema-v2 feature matrix for Candidates A/B -------------
       - name: Pull historical BDL data
         env:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
@@ -86,7 +86,7 @@ jobs:
           if [ ! -f "$FEATURES_WIDE" ]; then echo "[FATAL] feature matrix missing: $FEATURES_WIDE" >&2; exit 1; fi
           echo "[OK] feature matrix built: $FEATURES_WIDE"
 
-      # ── Download the champion OOF (candidates C/D + baseline + reb targets) ─
+      # -- Download the champion OOF (candidates C/D + baseline + reb targets) -
       - name: Download champion OOF
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -103,7 +103,7 @@ jobs:
           fi
           echo "[OK] champion OOF present: $CHAMPION_OOF"
 
-      # ── Strictly-prequential A/B/C/D gate ───────────────────────────────────
+      # -- Strictly-prequential A/B/C/D gate -----------------------------------
       - name: Run Rebounds A/B/C/D prequential gate
         run: |
           python scripts/p3_reb_repair.py \
@@ -124,7 +124,7 @@ jobs:
           print("[OK] Rebounds PASSES the corrected forecast gates")
           PYEOF
 
-      # ── Rebuild the champion package + verify parity (no deploy) ─────────────
+      # -- Rebuild the champion package + verify parity (no deploy) -------------
       - name: Rebuild champion package with reb and run parity/contract tests
         run: |
           python scripts/p3_add_reb.py || echo "[info] reb already present in package; skipping add"
@@ -146,7 +146,7 @@ jobs:
       - name: Print summary
         run: |
           echo "=================================================="
-          echo "REBOUNDS STRUCTURAL REPAIR COMPLETE — $(date -u)"
+          echo "REBOUNDS STRUCTURAL REPAIR COMPLETE - $(date -u)"
           echo "  source_ref: ${{ github.event.inputs.source_ref }}  sha: $SRC_SHA  run_id: ${{ github.run_id }}"
           echo "  This workflow validates + packages only; it does NOT deploy or push."
           echo "=================================================="

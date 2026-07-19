@@ -1,4 +1,4 @@
-"""P3 — immediate safety (VALIDATION_PENDING), candidate/publishable artifact
+"""P3 - immediate safety (VALIDATION_PENDING), candidate/publishable artifact
 separation (Defect 1), and fail-closed release-critical workflows (Defect 2)."""
 from __future__ import annotations
 

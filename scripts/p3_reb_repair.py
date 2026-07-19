@@ -1,9 +1,9 @@
-"""P3 — Rebounds structural repair, strictly prequential. Candidate D (calibrated
+"""P3 - Rebounds structural repair, strictly prequential. Candidate D (calibrated
 empirical residual PMF with a frozen dispersion-scale grid) evaluated per five-date outer
 block; the dispersion scale is chosen using ONLY pre-block dates by interval/PIT
 CALIBRATION (not CRPS/ROI). Concatenate + apply the existing corrected gates unchanged.
 
-Candidates A/B/C (HGB Poisson / squared-error conditional-mean, per-minute×fitted-minutes)
+Candidates A/B/C (HGB Poisson / squared-error conditional-mean, per-minutexfitted-minutes)
 require CI retraining on schema-v2 features; Candidate D is the empirical-fallback candidate
 evaluable on the existing OOF and is what the prequential calibration selects for Rebounds.
 """
@@ -112,7 +112,7 @@ def _pooled_role_size(before: pd.DataFrame, pred_col: str):
 
 
 def _cand_AB(before, blk, feat, loss, ms):
-    """Candidates A/B — HGB conditional mean E[REB|X] (Poisson / squared-error), NB dispersion
+    """Candidates A/B - HGB conditional mean E[REB|X] (Poisson / squared-error), NB dispersion
     from pre-fold residuals partially pooled by role. No minutes marginalization, no fixed
     _REB_ROLE_DISPERSION. Requires the schema-v2 feature matrix (available in CI)."""
     from sklearn.ensemble import HistGradientBoostingRegressor

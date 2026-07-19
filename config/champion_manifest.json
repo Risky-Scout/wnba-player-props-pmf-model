@@ -26,7 +26,7 @@
   "calibration_artifact": "config/certified_forecast_calibration.json",
   "calibration_hash": "cb9fa7ad3e79379f",
   "registry_hash": "3267ba5ce966c102",
-  "policy_hash": "903781b7ad4dfdc1",
+  "policy_hash": "769f759b96c58df1",
   "ledger_hash": "88e658df9bccdc19",
   "status": "LIVE_VALIDATED_FORECAST_ONLY"
 }

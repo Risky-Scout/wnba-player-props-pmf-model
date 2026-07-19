@@ -1,4 +1,4 @@
-"""P3 #1 — release-status consistency. The policy must never claim launch-ready while
+"""P3 #1 - release-status consistency. The policy must never claim launch-ready while
 no stat is certified, never certify+suppress the same stat, never publish a stat with no
 registry entry, and never mark Edge publish without a validated betting policy."""
 from __future__ import annotations

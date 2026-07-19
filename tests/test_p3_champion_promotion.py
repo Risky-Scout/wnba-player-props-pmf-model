@@ -1,4 +1,4 @@
-"""P3 — multi-stat champion package: registry, immutable calibration package, manifest
+"""P3 - multi-stat champion package: registry, immutable calibration package, manifest
 hashes, and evaluated-vs-deployed parity (six certified markets)."""
 from __future__ import annotations
 

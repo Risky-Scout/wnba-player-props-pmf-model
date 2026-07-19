@@ -1,4 +1,4 @@
-"""P3 — production/validation parity + behavior of the multi-stat forecast publisher."""
+"""P3 - production/validation parity + behavior of the multi-stat forecast publisher."""
 from __future__ import annotations
 
 import json
