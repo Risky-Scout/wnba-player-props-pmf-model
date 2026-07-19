@@ -84,7 +84,9 @@ def apply_multistat_forecast(proj_df: pd.DataFrame, calib: dict, certified: list
     for _, r in df.iterrows():
         stat = str(r.get("stat"))
         spec = markets.get(stat)
-        if spec is None or spec.get("method") == "combo":
+        if spec is None or spec.get("method") in ("combo", "combo_residual"):
+            # combos (correlated) and combo-residual markets are built from calibrated
+            # components in steps 2a/2b, never emitted from their raw projection row here.
             continue
         arr = apply_market(pmf_to_array(r["pmf_json"]), float(r.get("pmf_mean", 0.0)),
                            str(r.get("role_bucket", "")), float(r.get("minutes_mean", 0.0)), spec)
