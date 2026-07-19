@@ -1,2 +1,2 @@
-Post-merge production publish of combos pts_reb + pts_reb_ast (PR #64, main=c9e1e0e) - 9 certified markets.
-run-request: 2026-07-19T19:27Z
+Republish combos with dedup fix (PR #65, main=9c311cc) - one row per player, 9 markets.
+run-request: 2026-07-19T20:07Z
