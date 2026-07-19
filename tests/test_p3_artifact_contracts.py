@@ -13,13 +13,12 @@ GEN_PAGES = (REPO / "scripts/generate_web_pages.py").read_text()
 
 
 # ---- Immediate safety correction ----
-def test_forecast_state_turnover_certified_rest_suppressed():
+def test_forecast_state_six_certified_rest_suppressed():
     p = load_policy(POLICY)
     assert p.forecast_status == "LIVE_VALIDATED_FORECAST_ONLY"
-    assert p.forecast_certified_stats == ["turnover"]
-    assert p.forecast_publish_stats == ["turnover"]
-    # the six non-passing stats remain suppressed
-    for s in ("pts", "reb", "ast", "fg3m", "blk", "stl"):
+    assert set(p.forecast_certified_stats) == {"turnover", "pts", "ast", "stl", "stocks", "pts_ast"}
+    # the non-passing markets remain suppressed
+    for s in ("reb", "fg3m", "blk", "pts_reb", "pts_reb_ast"):
         assert s in p.forecast_suppress_stats
     assert "turnover" not in p.forecast_suppress_stats
 
