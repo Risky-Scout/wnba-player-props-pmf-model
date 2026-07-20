@@ -67,6 +67,31 @@ class FoldModel:
 
 
 # ---------------------------------------------------------------------------
+# Per-prop feature selection (optional, backward-compatible)
+# ---------------------------------------------------------------------------
+
+def stat_feature_subset(X_played: "pd.DataFrame", stat: str, cfg: dict) -> "pd.DataFrame":
+    """Restrict the training matrix to a stat's optimal feature subset when a prop feature
+    map is configured; otherwise return X_played unchanged (identical to global behavior).
+
+    The map is cfg["prop_feature_map"] = {stat: [feature_cols]}. Inference is automatically
+    aligned because each stat model stores its own trained columns (`_usable_cols`) and
+    reindexes to them at predict time — so subsetting here needs no inference-path change.
+    Non-informative or missing entries fall back to the full feature set (never fewer than a
+    configurable floor) so the map can only help, never silently starve a model.
+    """
+    fmap = cfg.get("prop_feature_map") or {}
+    cols = fmap.get(stat)
+    if not cols:
+        return X_played  # OFF by default: exact global behavior
+    keep = [c for c in X_played.columns if c in set(cols)]
+    floor = int(cfg.get("prop_feature_min_cols", 8))
+    if len(keep) < floor:
+        return X_played  # too aggressive — fall back to the full set
+    return X_played[keep]
+
+
+# ---------------------------------------------------------------------------
 # Feature encoding (shared with pmf_engine.py pattern)
 # ---------------------------------------------------------------------------
 
@@ -227,6 +252,11 @@ def train_fold(
         if n_rows < min_stat:
             continue
 
+        # Optional per-prop feature subset (OFF unless cfg["prop_feature_map"] is set).
+        # Xs replaces X_played in this stat's fit calls; inference aligns via the model's
+        # stored _usable_cols, so no inference-path change is required.
+        Xs = stat_feature_subset(X_played, stat, cfg)
+
         if stat in sparse_stats:
             min_pos = cfg.get("min_sparse_positive_rows", 50)
             if int((y_stat > 0).sum()) < min_pos:
@@ -246,7 +276,7 @@ def train_fold(
                     if "actual_minutes" in train_wide.columns
                     else None
                 )
-                m.fit(X_played, y_stat, sample_weight=sample_weight_played,
+                m.fit(Xs, y_stat, sample_weight=sample_weight_played,
                       actual_minutes=_zinb_actual_min)
             elif stat in {"stl", "blk"}:
                 # Use ZINBHurdleModel for stl/blk: minutes-conditional zero-inflation
@@ -254,11 +284,11 @@ def train_fold(
                 # sparse stats with strong zero-inflation structure.
                 from wnba_props_model.models.zinb_hurdle import ZINBHurdleModel  # noqa: PLC0415
                 m = ZINBHurdleModel(stat=stat)
-                m.fit(X_played, y_stat, sample_weight=sample_weight_played)
+                m.fit(Xs, y_stat, sample_weight=sample_weight_played)
             else:
                 m = HurdleModel(stat, cfg)
                 # Pass context_df so role-stratified Stage B regressors can fire.
-                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
+                m.fit(Xs, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             hurdle_models[stat] = m
             summaries[stat] = m.get_training_summary()
         elif stat == "fg3m" and use_beta_binomial_fg3m:
@@ -268,7 +298,7 @@ def train_fold(
             y_attempts = played_ctx[fg3a_col] if fg3a_col else None
             stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
             bb_m = BetaBinomialStatModel(stat_cfg)
-            bb_m.fit(X_played, y_stat, y_attempts, sample_weight=sample_weight_played)
+            bb_m.fit(Xs, y_stat, y_attempts, sample_weight=sample_weight_played)
             bb_models["fg3m"] = bb_m
             summaries["fg3m_bb"] = {
                 "stat": "fg3m", "model_type": "BetaBinomial",
@@ -277,17 +307,17 @@ def train_fold(
             # Also fit a standard stat model as fallback stored in stat_models
             stat_cfg2 = {**cfg, **stat_overrides_cfg.get(stat, {})}
             m = StatRateModel(stat, stat_cfg2)
-            m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
+            m.fit(Xs, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             stat_models[stat] = m
         else:
             # Merge global config with per-stat overrides (stat_overrides.{stat})
             stat_cfg = {**cfg, **stat_overrides_cfg.get(stat, {})}
             if cfg.get("use_log_linear", False):
                 m = LogLinearStatModel(stat, stat_cfg)
-                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
+                m.fit(Xs, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             else:
                 m = StatRateModel(stat, stat_cfg)
-                m.fit(X_played, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
+                m.fit(Xs, y_stat, context_df=played_ctx, sample_weight=sample_weight_played)
             stat_models[stat] = m
             summaries[stat] = {"stat": stat, "model_type": type(m).__name__}
 

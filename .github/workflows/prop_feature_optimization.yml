@@ -1,0 +1,104 @@
+name: Per-Prop Feature Optimization
+
+# Manually-dispatched. Rebuilds the schema-v2 feature matrix, runs leakage-safe per-prop
+# feature selection (chronological folds only), and publishes the optimal per-stat feature
+# map + importance report as artifacts. This does NOT retrain or promote the champion: the
+# map only affects a model when it is passed as cfg["prop_feature_map"], and any such
+# challenger must still win the prequential gate before promotion. The live pipeline ships
+# no map, so it is unaffected.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git ref to run from"
+        required: true
+        default: "cursor/data-gap-blueprint-06e5"
+
+jobs:
+  select-features:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 120
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      PYTHONUNBUFFERED: "1"
+      FEATURES_WIDE: data/processed/wnba_player_game_features_wide.parquet
+
+    steps:
+      - name: Checkout source ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Smoke-test CLIs
+        run: |
+          python scripts/select_prop_features.py --help > /dev/null
+          python -m pytest tests/test_prop_feature_selection.py -q
+
+      - name: Confirm BDL_API_KEY present (never printed)
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          if [ -z "$BDL_API_KEY" ]; then echo "[FATAL] BDL_API_KEY not set" >&2; exit 1; fi
+          echo "[OK] BDL_API_KEY present"
+
+      - name: Rebuild schema-v2 feature matrix
+        env:
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/pull_bdl_history.py --start-season 2022 --end-season "$YEAR" --out-dir data/raw/bdl
+          python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
+          python scripts/build_features.py --data-dir data/processed
+          test -f "$FEATURES_WIDE" || { echo "[FATAL] feature matrix missing" >&2; exit 1; }
+
+      - name: Run leakage-safe per-prop feature selection
+        run: |
+          python scripts/select_prop_features.py \
+            --features "$FEATURES_WIDE" \
+            --out-map config/prop_feature_map.json \
+            --report-dir artifacts/feature_selection
+          python - <<'PYEOF'
+          import json
+          m = json.load(open("config/prop_feature_map.json"))
+          print("[select] per-prop feature counts:", {k: len(v) for k, v in m.items()})
+          PYEOF
+
+      - name: Upload feature map + importance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: prop-feature-map-${{ github.run_id }}
+          path: |
+            config/prop_feature_map.json
+            artifacts/feature_selection/prop_feature_importance.csv
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "=================================================="
+          echo "PER-PROP FEATURE SELECTION COMPLETE — $(date -u)  run_id=${{ github.run_id }}"
+          echo "Artifact: prop-feature-map-${{ github.run_id }} (config/prop_feature_map.json)"
+          echo "NEXT (validated + gated): pass this map as cfg.prop_feature_map to a challenger"
+          echo "retrain, run the prequential forecast gate, and promote ONLY if proper scores"
+          echo "improve. The champion/live pages are NOT changed by this workflow."
+          echo "=================================================="
