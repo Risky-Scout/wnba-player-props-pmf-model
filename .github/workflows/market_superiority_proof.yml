@@ -1,0 +1,73 @@
+name: Market-Superiority Proof (per-prop features)
+
+# Manually-dispatched. Verifies the market-superiority evaluator mechanics and the
+# candidate feature-map contract, and (when a champion OOF + closing-quotes artifact are
+# available) builds real scored rows and runs the frozen-selection -> untouched-test proof.
+# This never promotes: promotion is gated on a prop's market_superiority_gate == PASS.
+# The full G0/S1-S5 ablation retrain is run via the challenger training path using
+# config/feature_ablation_plan_v1.json + config/prop_feature_map_candidate_v1.json
+# (see docs/FEATURE_OPTIMIZATION_RUNBOOK.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git ref to run from"
+        required: true
+        default: "cursor/prop-feature-market-proof-06e5"
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout source ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Validate candidate map + evaluator mechanics
+        run: |
+          python -m pytest tests/test_prop_feature_market_pack.py -q
+          python scripts/evaluate_market_superiority.py --self-test --bootstrap 800 \
+            --output-dir artifacts/market_feature_proof/selftest
+
+      - name: Upload proof artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-superiority-proof-${{ github.run_id }}
+          path: artifacts/market_feature_proof/
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "=================================================="
+          echo "MARKET-SUPERIORITY PROOF HARNESS VERIFIED -- run_id=${{ github.run_id }}"
+          echo "Candidate map contract + evaluator mechanics pass."
+          echo "Baseline (current model) proof committed at"
+          echo "  artifacts/market_feature_proof/G0_baseline/ (result: FAIL on all quoted props)."
+          echo "To search for a market-beating per-prop feature set, run the G0/S1-S5"
+          echo "ablation via the challenger path (docs/FEATURE_OPTIMIZATION_RUNBOOK.md);"
+          echo "promote a prop ONLY when market_superiority_gate == PASS."
+          echo "=================================================="
