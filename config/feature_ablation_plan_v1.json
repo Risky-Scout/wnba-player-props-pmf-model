@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "baseline_candidate": "G0_current_global_feature_contract",
+  "candidate_maps": {
+    "S1_stat_specific_ex_market": {
+      "source": "prop_feature_map_candidate_v1.json",
+      "transform": "identity"
+    },
+    "S2_stat_specific_plus_lagged_market": {
+      "source": "prop_feature_map_candidate_v1.json",
+      "add": [
+        "player_market_p_over_prev",
+        "player_market_line_prev",
+        "player_line_movement_prev"
+      ]
+    },
+    "S3_minus_game_script": {
+      "source": "prop_feature_map_candidate_v1.json",
+      "remove": [
+        "expected_minutes_given_script",
+        "blowout_probability",
+        "close_game_probability",
+        "implied_team_total",
+        "game_total",
+        "game_spread_home",
+        "close_game_indicator"
+      ]
+    },
+    "S4_minus_injury_role_transfer": {
+      "source": "prop_feature_map_candidate_v1.json",
+      "remove": [
+        "usage_vacated_proxy",
+        "rebound_vacated_proxy",
+        "assist_vacated_proxy",
+        "team_total_usage_of_out_players",
+        "team_top3_scorers_available",
+        "player_role_elevation",
+        "projected_usage_given_absences",
+        "usage_transfer_delta",
+        "teammate_out_count",
+        "team_out_count"
+      ]
+    },
+    "S5_minus_fatigue": {
+      "source": "prop_feature_map_candidate_v1.json",
+      "remove": [
+        "schedule_fatigue_index",
+        "player_load_index",
+        "rest_advantage",
+        "player_games_in_last_7d"
+      ]
+    }
+  },
+  "unavailable_until_engineered": {
+    "S6_plus_minutes_distribution": "add priority_new_features.all_props minutes-distribution fields",
+    "S7_plus_prop_tracking": "add each prop's tracking/opportunity fields",
+    "S8_plus_regularized_player_effect": "add a time-safe hierarchical player effect rebuilt at inference"
+  },
+  "selection_note": "Generate predictions for every candidate with identical production model/distribution/calibration settings; select only on inner prequential data."
+}
