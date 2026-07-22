@@ -32,6 +32,31 @@ import typer
 app = typer.Typer(add_completion=False)
 
 
+def _date_cluster_ci(df: pd.DataFrame, value_col: str, date_col: str,
+                     n_boot: int = 2000, seed: int = 20260722) -> tuple[float, float]:
+    """95% CI for the mean of ``value_col`` using a paired date-block bootstrap.
+
+    Games on the same date share market/league conditions, so a plain row bootstrap
+    understates uncertainty. Resample whole game-dates with replacement instead.
+    Returns (nan, nan) when there are fewer than 2 date clusters.
+    """
+    if date_col not in df.columns or df.empty:
+        return (float("nan"), float("nan"))
+    codes, labels = pd.factorize(df[date_col], sort=True)
+    k = len(labels)
+    if k < 2:
+        return (float("nan"), float("nan"))
+    vals = df[value_col].to_numpy(dtype=float)
+    rng = np.random.default_rng(seed)
+    means = np.empty(n_boot)
+    for b in range(n_boot):
+        counts = rng.multinomial(k, np.full(k, 1.0 / k))
+        w = counts[codes].astype(float)
+        means[b] = float(np.sum(vals * w) / max(np.sum(w), 1e-9))
+    return (round(float(np.percentile(means, 2.5)), 5),
+            round(float(np.percentile(means, 97.5)), 5))
+
+
 def _calibration_curve(
     model_probs: np.ndarray,
     hit_results: np.ndarray,
@@ -229,10 +254,19 @@ def main(
         overall["overall_mean_model_close_edge"] = float(recent["model_close_edge"].mean())
         overall["overall_positive_model_close_edge_pct"] = float((recent["model_close_edge"] > 0).mean())
 
-    # Economic CLV (market movement, outcome-independent)
+    # Economic CLV (market movement, outcome-independent). Signed: can be negative.
     if "price_clv" in recent.columns and recent["price_clv"].notna().any():
-        overall["overall_mean_price_clv"] = float(recent["price_clv"].mean())
-        overall["overall_positive_price_clv_pct"] = float((recent["price_clv"] > 0).mean())
+        _clv = recent.dropna(subset=["price_clv"])
+        overall["overall_mean_price_clv"] = float(_clv["price_clv"].mean())
+        overall["overall_positive_price_clv_pct"] = float((_clv["price_clv"] > 0).mean())
+        overall["overall_n_price_clv"] = int(len(_clv))
+        # 95% date-clustered bootstrap CI (games on a date are not independent).
+        lo, hi = _date_cluster_ci(_clv, "price_clv", "game_date")
+        overall["price_clv_ci95_low"] = lo
+        overall["price_clv_ci95_high"] = hi
+        # Honest gate: positive CLV is only claimable when the clustered lower bound
+        # excludes zero. Otherwise the number is not distinguishable from break-even.
+        overall["positive_clv_established"] = bool(lo == lo and lo > 0.0)
 
     if "logloss_delta" in [r.get("logloss_delta") for r in stat_rows if "logloss_delta" in r]:
         deltas = [r["logloss_delta"] for r in stat_rows if "logloss_delta" in r]
