@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-07-22T20:05:22Z",
+  "game_id": 24950,
+  "game_status": "in_play",
+  "current_period": 1,
+  "current_clock": "10:00",
+  "home_score": 0,
+  "away_score": 0,
+  "elapsed_possessions": 0,
+  "remaining_possessions_est": 60,
+  "players": []
+}
