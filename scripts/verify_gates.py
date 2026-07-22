@@ -326,11 +326,13 @@ def clv_tracking(
         30, help="Rolling window in days for CLV tracking."
     ),
 ) -> None:
-    """P5.2: Verify CLV tracking gate — model must generate positive expected value.
+    """P5.2: Verify CLV tracking gate — model must generate positive closing-line value.
 
-    CLV = edge_over for over bets, edge_under for under bets.
-    Gate: positive_clv_pct >= 0.52 AND mean_clv > 0.0 over rolling 30 days.
-    Hard-fails after 300+ rows per stat exist.
+    CLV = signed price_clv (closing no-vig prob minus opening no-vig prob for the
+    selected side), computed post-game by score_daily_predictions.py. It is
+    outcome-independent and can be negative. Gate: positive_clv_pct >= 0.52 AND
+    mean_clv > 0.0 over the rolling window. Hard-fails after 300+ rows per stat.
+    Fail-closed when no signed CLV column exists (never a nonnegative edge proxy).
     """
     df = pd.read_parquet(predictions)
 
@@ -338,16 +340,22 @@ def clv_tracking(
         typer.echo("[CLV GATE] No predictions loaded — skipping gate.")
         raise typer.Exit(0)
 
-    # Build CLV column: use whichever edge the user would bet (larger absolute edge)
-    if "edge_over" in df.columns and "edge_under" in df.columns:
-        df["clv"] = df[["edge_over", "edge_under"]].abs().max(axis=1)
-        df["clv_positive"] = (df["clv"] > 0).astype(int)
-    elif "edge_over" in df.columns:
-        df["clv"] = df["edge_over"]
-        df["clv_positive"] = (df["clv"] > 0).astype(int)
-    else:
-        typer.echo("[CLV GATE] edge_over column not found — skipping gate.")
+    # TRUE CLV is signed market movement for the SELECTED side (closing minus opening
+    # no-vig prob), written by score_daily_predictions.py as price_clv / line_clv. It is
+    # outcome-independent and CAN be negative. Never use max(|edge_over|, |edge_under|):
+    # that quantity is nonnegative by construction, so it can never represent a losing
+    # close and makes the gate pass trivially (the audited defect).
+    clv_source = next((c for c in ("price_clv", "line_clv")
+                       if c in df.columns and df[c].notna().any()), None)
+    if clv_source is None:
+        typer.echo("[CLV GATE] No signed price_clv/line_clv column present (requires "
+                   "post-game closing-line scoring) — skipping gate. Fail-closed: the "
+                   "CLV gate is never evaluated on a nonnegative-by-construction proxy.")
         raise typer.Exit(0)
+    df = df[df[clv_source].notna()].copy()
+    df["clv"] = df[clv_source].astype(float)
+    df["clv_positive"] = (df["clv"] > 0).astype(int)
+    typer.echo(f"[CLV GATE] Using signed CLV column: {clv_source}")
 
     # Rolling 30-day filter
     if "game_date" in df.columns:
