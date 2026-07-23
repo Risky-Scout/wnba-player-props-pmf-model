@@ -21,7 +21,7 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "scripts" / "verify_feature_matrix_snapshot.py"
-SNAPSHOT = REPO / "data" / "processed" / "feature_matrix_snapshot_v1.json"
+SNAPSHOT = REPO / "artifacts" / "foundation_lock" / "feature_matrix_snapshot_v1.json"
 
 
 def _mod():

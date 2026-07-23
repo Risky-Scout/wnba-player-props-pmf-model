@@ -2333,6 +2333,6 @@
   },
   "infinite_value_count": 0,
   "feature_contract_hash": "7ceacd1423e0ed2267d5e3a0322f1fd8de90db392acd5204c525287f0079201c",
-  "builder_source_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
-  "created_utc": "2026-07-23T02:04:44.710802+00:00"
+  "generated_from_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "created_utc": "2026-07-23T03:10:14.288225+00:00"
 }
