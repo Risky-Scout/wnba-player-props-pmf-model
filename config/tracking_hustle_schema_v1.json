@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "collector_version": "v1",
+  "collector": "scripts/pull_wnba_tracking_local.py",
+  "status": "collector_locked; data_not_landed; canonical_ingestion_not_started; tracking_features_not_started",
+  "promotion_eligible": false,
+  "execution_environment": "LOCAL residential IP only (stats.wnba.com/stats.nba.com block datacenter IPs). Not run in CI or agent VM.",
+  "season_range": {
+    "league_id": "10",
+    "seasons": ["2021", "2022", "2023", "2024", "2025", "2026"],
+    "season_types": ["Regular Season", "Playoffs"],
+    "game_id_source": "nba_api.stats.endpoints.leaguegamelog.LeagueGameLog(league_id='10', season=<s>, season_type_all_star=<t>)"
+  },
+  "outputs": {
+    "tracking": {
+      "filename": "wnba_tracking_2021_2026.parquet",
+      "source_endpoint": "nba_api.stats.endpoints.boxscoreplayertrackv3.BoxScorePlayerTrackV3(game_id=<id>)",
+      "player_frame_selection": "the returned frame that contains a player id column (personId or PLAYER_ID) and the most columns",
+      "primary_key": ["GAME_ID", "player_id_column"],
+      "player_id_column": "personId (V3) or PLAYER_ID (legacy) - whichever is present is retained",
+      "injected_columns": {"GAME_ID": {"type": "string", "source": "injected by collector from the requested game_id"}},
+      "representative_signal_fields": {
+        "touches": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "passes": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "secondaryAssists": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "reboundChancesTotal": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "contestedFieldGoalsMade": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "uncontestedFieldGoalsMade": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "speed": {"source": "BoxScorePlayerTrackV3", "type": "number"},
+        "distance": {"source": "BoxScorePlayerTrackV3", "type": "number"}
+      },
+      "field_set_note": "The full column set is endpoint-defined (nba_api). representative_signal_fields is a non-exhaustive contract of the key playmaking/usage signals; the collector retains the endpoint superset."
+    },
+    "hustle": {
+      "filename": "wnba_hustle_2021_2026.parquet",
+      "source_endpoint": "nba_api.stats.endpoints.hustlestatsboxscore.HustleStatsBoxScore(game_id=<id>)",
+      "player_frame_selection": "the returned frame that contains a DEFLECT* column and a player id column (PLAYER_ID or personId)",
+      "primary_key": ["GAME_ID", "player_id_column"],
+      "player_id_column": "PLAYER_ID or personId - whichever is present is retained",
+      "injected_columns": {"GAME_ID": {"type": "string", "source": "injected by collector from the requested game_id"}},
+      "representative_signal_fields": {
+        "deflections": {"source": "HustleStatsBoxScore", "type": "number"},
+        "contestedShots2pt": {"source": "HustleStatsBoxScore", "type": "number"},
+        "contestedShots3pt": {"source": "HustleStatsBoxScore", "type": "number"},
+        "looseBallsRecoveredTotal": {"source": "HustleStatsBoxScore", "type": "number"},
+        "chargesDrawn": {"source": "HustleStatsBoxScore", "type": "number"},
+        "screenAssists": {"source": "HustleStatsBoxScore", "type": "number"},
+        "boxOuts": {"source": "HustleStatsBoxScore", "type": "number"}
+      },
+      "field_set_note": "Full column set is endpoint-defined; representative_signal_fields is a non-exhaustive contract of the key defensive-intensity/rebounding signals."
+    }
+  },
+  "normalization_rules": [
+    "GAME_ID is stored as a string on every row.",
+    "The player id column is whichever of (personId, PLAYER_ID) the endpoint returns; it is retained verbatim, not renamed.",
+    "Numeric endpoint fields are retained with their native dtypes; no unit conversion is applied by the collector."
+  ],
+  "duplicate_resolution": "On flush the collector drop_duplicates on [GAME_ID, player_id_column]. Re-running is resumable: already-saved GAME_IDs are skipped, and re-merged frames are de-duplicated on the same key (last write for a given key wins within a merge).",
+  "missing_value_semantics": "Endpoint omissions are retained as NaN. A game whose response has no valid player frame is skipped and logged (never written as an empty/garbage row).",
+  "primary_key_note": "Uniqueness is per (GAME_ID, player). The collector helper _dedup_cols returns exactly [GAME_ID, <player id column present>]."
+}
