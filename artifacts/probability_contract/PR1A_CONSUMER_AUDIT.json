@@ -1,0 +1,28 @@
+{
+  "creators_of_model_prob_over_final": 1,
+  "decision_consumers_reading_model_prob_over": 0,
+  "decision_consumers_reconstructing_selected_line_from_pmf": 0,
+  "creator_modules": [
+    "src/wnba_props_model/models/probability_lineage.py"
+  ],
+  "forbidden_legacy_reads": [],
+  "forbidden_selected_line_reconstruction": [],
+  "decision_grade_modules": [
+    "scripts/build_edge_report.py",
+    "scripts/build_scored_candidates.py",
+    "scripts/evaluate_market_superiority.py",
+    "scripts/export_betting_sheet.py",
+    "scripts/generate_clv_report.py",
+    "scripts/generate_web_pages.py",
+    "scripts/score_daily_predictions.py",
+    "src/wnba_props_model/evaluation/historical_market.py",
+    "src/wnba_props_model/pipeline/deliver.py"
+  ],
+  "permitted_diagnostic_modules": [
+    "src/wnba_props_model/evaluation/diagnostics.py",
+    "src/wnba_props_model/evaluation/forecasting.py",
+    "src/wnba_props_model/evaluation/oof_scoring.py",
+    "src/wnba_props_model/models/pmf_grid.py",
+    "src/wnba_props_model/models/pmf_utils.py"
+  ]
+}
