@@ -808,18 +808,29 @@ def predict_player_pmfs(
                     _rate_per_min = _old_means / _safe_feat
                     _new_means = _rate_per_min * np.clip(_model_mins, 0, 45)
 
+                    # Documented rebuild tolerance: if support truncation makes the realized
+                    # PMF mean deviate from the structural target by more than this, we DO NOT
+                    # hide it by silently exporting the truncated mean - we flag the row with a
+                    # non-promotable support_tail_warning and record the exact error.
+                    _MEAN_REBUILD_TOL = 0.05
                     _new_json, _new_mean, _new_var, _new_p0 = [], [], [], []
+                    _tgt_mean, _mean_err, _tail_warn = [], [], []
                     for _ridx, _tgt in zip(_idx, _new_means):
                         _old_pmf = json_to_pmf(pmfs_long.at[_ridx, "pmf_json"])
                         if not np.isfinite(_tgt) or _tgt <= 0:
                             _reb = np.asarray(_old_pmf, dtype=float)
+                            _tgt_val = float("nan")
                         else:
                             _reb = rebuild_count_pmf_at_mean(_old_pmf, float(_tgt))
+                            _tgt_val = float(_tgt)
                         _k = np.arange(len(_reb), dtype=float)
                         _m = float(np.dot(_k, _reb))
                         _v = float(np.dot(_k ** 2, _reb)) - _m ** 2
+                        _err = abs(_m - _tgt_val) if _tgt_val == _tgt_val else 0.0
                         _new_json.append(pmf_to_json(_reb))
                         _new_mean.append(_m); _new_var.append(_v); _new_p0.append(float(_reb[0]))
+                        _tgt_mean.append(_tgt_val); _mean_err.append(_err)
+                        _tail_warn.append(bool(_err > _MEAN_REBUILD_TOL))
                     pmfs_long.loc[_idx, "pmf_json"] = _new_json
                     pmfs_long.loc[_idx, "pmf_mean"] = _new_mean
                     pmfs_long.loc[_idx, "pmf_variance"] = _new_var
@@ -827,10 +838,22 @@ def predict_player_pmfs(
                     pmfs_long.loc[_idx, "stat_variance"] = _new_var
                     if "p0" in pmfs_long.columns:
                         pmfs_long.loc[_idx, "p0"] = _new_p0
+                    # PMF-rebuild integrity diagnostics (never hidden).
+                    pmfs_long.loc[_idx, "structural_target_mean"] = _tgt_mean
+                    pmfs_long.loc[_idx, "final_pmf_mean"] = _new_mean
+                    pmfs_long.loc[_idx, "mean_rebuild_error"] = _mean_err
+                    pmfs_long.loc[_idx, "support_tail_warning"] = _tail_warn
+                    # Fail-closed structural integrity: exported mean must equal the final PMF
+                    # mean within 1e-6 (no detached post-PMF stat_mean adjustment remains).
+                    from wnba_props_model.models.pmf_utils import validate_pmf_row_integrity  # noqa: PLC0415
+                    for _ridx in _idx:
+                        validate_pmf_row_integrity(pmfs_long.loc[_ridx], mean_tol=1e-6)
                     logger.info(
-                        "Minutes-offset fix %s: %d rows rebuilt PMF, old_mean=%.2f → new_mean=%.2f",
+                        "Minutes-offset fix %s: %d rows rebuilt PMF, old_mean=%.2f → new_mean=%.2f, "
+                        "max_rebuild_err=%.4f, tail_warnings=%d",
                         _stat, int(_mask.sum()),
                         float(np.nanmean(_old_means)), float(np.nanmean(_new_mean)),
+                        float(np.nanmax(_mean_err)) if _mean_err else 0.0, int(sum(_tail_warn)),
                     )
                 except Exception as _mof_exc:
                     logger.warning("Minutes-offset fix failed for %s: %s", _stat, _mof_exc)
