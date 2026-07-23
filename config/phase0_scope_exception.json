@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "reason": "Phase-0 correctness PRs (1A probability/delivery correctness, and the subsequent 1B/1C quote+proof PRs) are explicitly authorized to modify these Phase-0 surfaces. The scope guard protected the Foundation Lock PR from touching them; these paths are now under active, approved Phase-0 correctness work.",
+  "approved_by": "program owner (execution contract: 'PR 1A - Probability correctness and delivery parity')",
+  "approved_paths": [
+    "src/wnba_props_model/models/market.py",
+    "src/wnba_props_model/pipeline/deliver.py"
+  ]
+}
