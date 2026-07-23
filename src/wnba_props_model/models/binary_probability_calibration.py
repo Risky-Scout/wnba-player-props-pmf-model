@@ -144,3 +144,78 @@ class BinaryCalibrationRegistry:
             artifacts=cfg.get("artifacts", {}),
             allow_role_fallback_to_prop=bool(cfg.get("allow_role_fallback_to_prop", False)),
         )
+
+
+@dataclass
+class VennAbersBinaryCalibrationRegistry:
+    """Binary-calibration registry backed by the existing per-(stat, role) Venn-Abers
+    artifacts (``venn_abers_{stat}_{role}.pkl``). Implements the same ``apply`` contract as
+    ``BinaryCalibrationRegistry`` so it plugs into build_probability_lineage's binary
+    calibration stage - VA is applied BEFORE model_prob_over_final is created (never as a
+    post-lineage mutation).
+
+    Fail-closed: a NaN/out-of-range input or a calibrator that produces a NaN/out-of-range
+    value is fatal. A missing (stat, role) calibrator uses the declared identity fallback
+    only when ``allow_missing_calibrator_identity`` is True; when ``require`` is True a
+    missing calibrator is fatal. Exceptions during predict are never swallowed into a raw
+    fallback.
+    """
+    cal_dir: str | Path
+    require: bool = False
+    allow_missing_calibrator_identity: bool = True
+    _cache: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def status(self) -> str:
+        return "venn_abers"
+
+    @staticmethod
+    def _role_safe(role: str) -> str:
+        return str(role).replace("/", "_").replace(" ", "_")
+
+    def _artifact_path(self, prop: str, role: str) -> Path:
+        return Path(self.cal_dir) / f"venn_abers_{prop}_{self._role_safe(role)}.pkl"
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    def apply(self, prop: str, role: str, p_over: float) -> CalibrationResult:
+        if not (isinstance(p_over, (int, float)) and math.isfinite(p_over)):
+            raise CalibrationError(f"input probability not finite: {p_over!r}")
+        if not (0.0 <= float(p_over) <= 1.0):
+            raise CalibrationError(f"input probability outside [0,1]: {p_over}")
+
+        path = self._artifact_path(prop, role)
+        if not path.exists():
+            if self.require:
+                raise CalibrationError(f"required Venn-Abers calibrator missing: {path}")
+            if self.allow_missing_calibrator_identity:
+                return CalibrationResult(float(p_over), "identity_no_calibrator", None, None)
+            raise CalibrationError(f"no Venn-Abers calibrator for {prop}|{role} and identity "
+                                   "fallback not permitted")
+        key = path.name
+        cal = self._cache.get(key)
+        if cal is None:
+            from wnba_props_model.calibration.venn_abers import VennAbersCalibrator  # noqa: PLC0415
+            try:
+                cal = VennAbersCalibrator.load(str(path))
+            except Exception as exc:  # noqa: BLE001 - fatal, never silent-fallback
+                raise CalibrationError(f"failed to load VA calibrator {key}: {exc}") from exc
+            self._cache[key] = cal
+        try:
+            import numpy as _np  # noqa: PLC0415
+            pred = cal.predict(_np.array([float(p_over)]))
+            p_cal_arr = pred[0] if isinstance(pred, tuple) else pred
+            out = float(p_cal_arr[0]) if hasattr(p_cal_arr, "__len__") else float(p_cal_arr)
+        except Exception as exc:  # noqa: BLE001
+            raise CalibrationError(f"VA predict failed for {key}: {exc}") from exc
+        if not math.isfinite(out):
+            raise CalibrationError(f"VA calibrator produced non-finite output for {key}: {out}")
+        if not (0.0 <= out <= 1.0):
+            raise CalibrationError(f"VA calibrator output outside [0,1] for {key}: {out}")
+        return CalibrationResult(out, "calibrated", key, self._sha256(path))

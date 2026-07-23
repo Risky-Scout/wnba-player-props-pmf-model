@@ -60,7 +60,6 @@ else:
 from wnba_props_model.pipeline.deliver import build_market_comparison, normalize_player_props_snapshot
 from wnba_props_model.models.market import fair_american
 from wnba_props_model.models.simulation import json_to_pmf
-from wnba_props_model.pipeline.calibrate import apply_venn_abers_calibration
 from wnba_props_model.pipeline.market_integrity import (
     validate_no_duplicate_quotes,
     validate_quote_freshness,
@@ -475,7 +474,15 @@ def main(
                           error=f"game_id_mismatch:pmf={_pmfs_game_ids},market={_props_game_ids}")
             raise typer.Exit(1)
 
-    comp = build_market_comparison(pmfs_df, props_df)
+    # Venn-Abers is applied INSIDE build_probability_lineage (the binary-calibration stage),
+    # so model_prob_over_final is created already calibrated and is never mutated afterward.
+    # require_venn_abers is enforced post-hoc via the emitted calibration_status column.
+    from wnba_props_model.models.binary_probability_calibration import (  # noqa: PLC0415
+        VennAbersBinaryCalibrationRegistry,
+    )
+    _va_registry = VennAbersBinaryCalibrationRegistry(
+        cal_dir=cal_dir, require=False, allow_missing_calibrator_identity=True)
+    comp = build_market_comparison(pmfs_df, props_df, binary_calibration_registry=_va_registry)
 
     # ── Zero-join is fatal when markets are nonempty ───────────────────────────
     if comp.empty:
@@ -539,54 +546,20 @@ def main(
         f"(reconciled: {len(_expected_manifest):,} rows)"
     )
 
-    # Apply Venn-Abers calibration
-    # Venn-Abers is the binary-calibration stage applied to the delivered final probability.
-    # It operates on (and writes) model_prob_over_final - the single decision probability -
-    # and keeps the output-only legacy alias in sync. (In a later PR this VA step folds into
-    # build_probability_lineage's binary-calibration stage.)
-    from wnba_props_model.models.probability_contract import FINAL_PROBABILITY_COLUMN as _FINAL  # noqa: PLC0415
-    va_applied = False
-    if _FINAL in comp.columns and "stat" in comp.columns:
-        try:
-            comp = apply_venn_abers_calibration(comp, cal_dir=cal_dir, model_prob_col=_FINAL)
-            if "p_over_va" in comp.columns:
-                _va_mask = comp["p_over_va"] != comp[_FINAL]
-                if _va_mask.any():
-                    comp.loc[_va_mask, _FINAL] = comp.loc[_va_mask, "p_over_va"]
-                    comp.loc[_va_mask, "edge_over"] = (
-                        comp.loc[_va_mask, _FINAL]
-                        - comp.loc[_va_mask, "market_prob_over_no_vig"]
-                    )
-                    comp.loc[_va_mask, "edge_under"] = (
-                        comp.loc[_va_mask, "market_prob_over_no_vig"]
-                        - comp.loc[_va_mask, _FINAL]
-                    )
-                    if "model_prob_over" in comp.columns:  # keep output-only alias == final
-                        comp.loc[_va_mask, "model_prob_over"] = comp.loc[_va_mask, _FINAL]
-                    typer.echo(f"[venn_abers] Applied VA calibration to {_va_mask.sum()} rows")
-                    va_applied = True
-        except Exception as _va_exc:
-            if require_venn_abers:
-                typer.echo(
-                    f"[FATAL] --require-venn-abers is set but Venn-Abers calibration failed: {_va_exc}. "
-                    f"Status: {STATUS_FAILURE}", err=True
-                )
-                _write_status(out, STATUS_FAILURE, today, edge_threshold,
-                              error=f"venn_abers_required_but_failed:{_va_exc}")
-                raise typer.Exit(1)
-            typer.echo(f"[WARN] Venn-Abers calibration failed (non-fatal): {_va_exc}", err=True)
-    elif require_venn_abers:
-        typer.echo(
-            f"[FATAL] --require-venn-abers is set but model_prob_over or stat column is missing. "
-            f"Status: {STATUS_FAILURE}", err=True
-        )
-        _write_status(out, STATUS_FAILURE, today, edge_threshold,
-                      error="venn_abers_required_but_missing_columns")
-        raise typer.Exit(1)
+    # Venn-Abers was applied INSIDE the lineage (before model_prob_over_final was created).
+    # We do NOT mutate model_prob_over_final here. We only VERIFY, via the emitted
+    # calibration_status column, that VA actually calibrated rows when it is required.
+    va_applied = bool(
+        "calibration_status" in comp.columns
+        and (comp["calibration_status"] == "calibrated").any()
+    )
+    if va_applied:
+        typer.echo(f"[venn_abers] lineage applied VA to "
+                   f"{int((comp['calibration_status'] == 'calibrated').sum())} rows")
 
-    # When --require-venn-abers is set, zero applied rows is also a failure:
-    # it means no calibrators were found and every row fell back to raw model
-    # probability.  Silent no-op is not acceptable when VA is required.
+    # When --require-venn-abers is set, zero calibrated rows is a failure: it means no
+    # calibrators were found and every row fell back to the declared identity. Silent no-op
+    # is not acceptable when VA is required.
     if require_venn_abers and not va_applied:
         typer.echo(
             f"[FATAL] --require-venn-abers is set but no Venn-Abers calibrators were applied "

@@ -237,7 +237,8 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.DataFrame:
+def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame, *,
+                            binary_calibration_registry=None) -> pd.DataFrame:
     # Game_ID integrity guard: projections and market props must share game_ids.
     # Mismatch means market data is from a different slate — producing 100% artificial edges.
     # Guard is skipped when all props are Odds API sourced: their game_id is an Odds API
@@ -343,11 +344,15 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     # never sees NaN.
     from wnba_props_model.models.probability_lineage import build_probability_lineage  # noqa: PLC0415
     from wnba_props_model.models.binary_probability_calibration import BinaryCalibrationRegistry  # noqa: PLC0415
-    _bincal_registry = BinaryCalibrationRegistry(enabled=False)  # identity_disabled in 1A
+    # Binary calibration is applied INSIDE the lineage (before model_prob_over_final exists).
+    # Callers may inject an approved registry (e.g. Venn-Abers); default is identity-disabled.
+    _bincal_registry = binary_calibration_registry or BinaryCalibrationRegistry(enabled=False)
+    # NOTE: model_prob_over_final is intentionally EXCLUDED here and written exactly once
+    # below (the single allowed serialization of lineage.model_prob_over_final).
     _lineage_cols = (
         "model_prob_over_unconditional", "model_prob_under_unconditional", "model_prob_push",
         "model_prob_over_settled_from_final_pmf", "model_prob_over_binary_calibrated",
-        "model_prob_over_market_anchored", "model_prob_over_final", "probability_track",
+        "model_prob_over_market_anchored", "probability_track",
         "probability_lineage_version", "calibration_status", "calibrator_id",
         "calibrator_hash", "structural_model_id", "structural_model_hash",
         "binary_score_eligible",
