@@ -341,7 +341,7 @@ def build_executable_recs(decision_paired: pd.DataFrame, pmf_by_key: dict | None
                 "game_id": str(gid), "player_id": str(pid), "stat": str(stat),
                 "book": r["book"], "line": line, "side": rec.side,
                 "price_american": float(price), "decimal_odds": american_to_decimal(float(price)),
-                "model_prob_over": m_over, "market_prob_over_no_vig": rec.market_prob_over_no_vig,
+                "model_prob_over_final": m_over, "market_prob_over_no_vig": rec.market_prob_over_no_vig,
                 "edge": rec.abs_edge, "snapshot_time": r["snapshot_time"],
                 "commence_time": r.get("commence_time"),
                 "quote_id": quote_id(r.get(eid_col), r["book"], pid, stat, line, rec.side, r["snapshot_time"]),
@@ -438,7 +438,7 @@ def grade(df: pd.DataFrame, cluster_col: str = "game_date", n_boot: int = 2000,
         r.total_profit = float(settled["profit"].sum())
         r.roi = r.total_profit / r.total_staked
         # side-oriented model/market probabilities for scoring
-        mo = settled["model_prob_over"].astype(float)
+        mo = settled["model_prob_over_final"].astype(float)
         ko = settled["market_prob_over_no_vig"].astype(float)
         m_side = np.where(settled["side"] == "over", mo, 1 - mo)
         k_side = np.where(settled["side"] == "over", ko, 1 - ko)

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "authorization_id": "pr73-probability-source-of-truth",
+  "authorized_pr": 73,
+  "authorized_branch": "cursor/probability-delivery-correctness-v1",
+  "authorized_base_sha": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
+  "purpose": "Migrate all decision-grade consumers to model_prob_over_final without changing evaluation, quote, settlement, CLV, or promotion semantics.",
+  "allowed_locked_paths": [
+    "scripts/evaluate_market_superiority.py",
+    "scripts/generate_clv_report.py",
+    "scripts/score_daily_predictions.py",
+    "scripts/verify_gates.py"
+  ],
+  "forbidden_changes": [
+    "market metric formulas",
+    "bootstrap clustering",
+    "bootstrap seed policy",
+    "Holm correction",
+    "minimum sample requirements",
+    "selection or proof date logic",
+    "quote selection",
+    "book averaging",
+    "settlement logic",
+    "CLV sign convention",
+    "CLV thresholds",
+    "recommendation thresholds",
+    "market-comparison permissions",
+    "betting-recommendation permissions"
+  ],
+  "single_use": true,
+  "expires_on_merge": true
+}

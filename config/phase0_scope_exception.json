@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "approved_branch": "cursor/probability-delivery-correctness-v1",
+  "approved_base_sha": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
+  "purpose": "PR 1A probability correctness and delivery parity",
+  "approved_paths": [
+    "src/wnba_props_model/models/market.py",
+    "src/wnba_props_model/pipeline/deliver.py",
+    "scripts/build_scored_candidates.py"
+  ],
+  "expiration": "2026-12-31",
+  "approved_by": "program owner (execution contract: 'PR 1A - Probability correctness and delivery parity')",
+  "reason": "PR 1A is the authorized Phase-0 correctness PR that intentionally edits these Phase-0 surfaces. This exception is single-use: bound to the PR 1A branch and base SHA, an explicit path allowlist (no wildcards), and an expiration. It cannot be reused by a later PR (e.g. cursor/exact-quotes-settlement-v1)."
+}

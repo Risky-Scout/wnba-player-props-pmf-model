@@ -115,7 +115,7 @@ def _compute_clv_rows(edges_df: pd.DataFrame, game_date: str) -> list[dict]:
             stat = row.get("stat", "")
             direction = row.get("direction", "")
             edge_over = float(row.get("edge_over", 0.0) or 0.0)
-            model_p_over = float(row.get("model_prob_over", 0.5) or 0.5)
+            model_p_over = float(row.get("model_prob_over_final", 0.5) or 0.5)
             market_p_over = float(row.get("market_prob_over_no_vig", 0.5) or 0.5)
             line = float(row.get("line", 0.0) or 0.0)
             kelly_fraction = float(row.get("kelly_fraction", 0.0) or 0.0)

@@ -5,7 +5,18 @@ import math
 import numpy as np
 import pandas as pd
 
-from wnba_props_model.models.market import binary_logloss, brier, ignorance_score_binary, prob_over_from_pmf
+from wnba_props_model.models.market import (
+    binary_logloss,
+    brier,
+    ignorance_score_binary,
+    settled_probabilities_from_pmf,
+)
+
+
+def _pmf_over_unconditional(pmf, line: float) -> float:
+    """Diagnostic-only unconditional P(Y > line) (full-PMF/gate diagnostics, not the
+    certified sportsbook proof). Uses the push-safe API directly (no deprecated wrapper)."""
+    return settled_probabilities_from_pmf(pmf, float(line)).p_over_unconditional
 from wnba_props_model.models.simulation import normalize_pmf
 
 
@@ -64,7 +75,7 @@ def _over_half_line_ece(pmfs: list[np.ndarray], outcomes: list[int]) -> float:
     if not pmfs:
         return float("nan")
     lines = [max(0.0, float(np.dot(np.arange(len(p)), normalize_pmf(p))) - 0.5) for p in pmfs]
-    model_probs = np.array([prob_over_from_pmf(normalize_pmf(p), l) for p, l in zip(pmfs, lines)])
+    model_probs = np.array([_pmf_over_unconditional(normalize_pmf(p), l) for p, l in zip(pmfs, lines)])
     hits = np.array([1.0 if float(y) > l else 0.0 for y, l in zip(outcomes, lines)])
     return expected_calibration_error(model_probs, hits)
 
@@ -92,7 +103,7 @@ def calibration_report(rows: pd.DataFrame) -> pd.DataFrame:
         nll_vals = [pmf_nll(p, yy) for p, yy in zip(pmfs, y)]
         rps_vals = [rps(p, yy) for p, yy in zip(pmfs, y)]
         ign_vals = [ignorance_score_binary(
-            prob_over_from_pmf(normalize_pmf(p), max(0.0, float(np.dot(np.arange(len(p)), normalize_pmf(p))) - 0.5)),
+            _pmf_over_unconditional(normalize_pmf(p), max(0.0, float(np.dot(np.arange(len(p)), normalize_pmf(p))) - 0.5)),
             1 if float(yy) > max(0.0, float(np.dot(np.arange(len(p)), normalize_pmf(p))) - 0.5) else 0,
         ) for p, yy in zip(pmfs, y)]
         records.append({
@@ -118,7 +129,9 @@ def build_event_market_loss_rows(market_rows: pd.DataFrame) -> pd.DataFrame:
     Required columns: pmf, line, outcome, market_prob_over_no_vig.
     """
     out = market_rows.copy()
-    out["model_prob_over"] = [prob_over_from_pmf(p, line) for p, line in zip(out["pmf"], out["line"])]
+    out["pmf_prob_over_unconditional"] = [_pmf_over_unconditional(p, line) for p, line in zip(out["pmf"], out["line"])]
+    # Diagnostic gate column (full-PMF market-loss scoring; NOT the delivered final probability).
+    out["model_prob_over"] = out["pmf_prob_over_unconditional"]
     out["hit_result"] = (out["outcome"].astype(float) > out["line"].astype(float)).astype(int)
     out["is_push"] = (out["outcome"].astype(float) == out["line"].astype(float))
     out = out[~out["is_push"]].copy()

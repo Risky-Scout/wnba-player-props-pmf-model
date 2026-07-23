@@ -118,7 +118,7 @@ def main(
         stat = edge.get("stat", "")
         line = edge.get("line", 0)
         direction = "OVER" if float(edge.get("edge_over", 0) or 0) >= 0 else "UNDER"
-        model_p = float(edge.get("model_prob_over", 0.5) or 0.5)
+        model_p = float(edge.get("model_prob_over_final", 0.5) or 0.5)
         market_p = float(edge.get("market_prob_over_no_vig", 0.5) or 0.5)
         kelly = float(edge.get("kelly_fraction", 0) or 0)
 

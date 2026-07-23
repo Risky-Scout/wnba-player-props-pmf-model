@@ -430,7 +430,7 @@ def _make_self_test(seed: int = 20260720) -> pd.DataFrame:
                                 "split": split,
                                 "actual": int(y[j]),
                                 "line": 0.5,
-                                "model_prob_over": float(pred[j]),
+                                "model_prob_over_final": float(pred[j]),
                                 "market_prob_over_no_vig": float(p_market[j]),
                             }
                         )
@@ -459,7 +459,7 @@ def main() -> int:
     ap.add_argument("--date-col", default="game_date")
     ap.add_argument("--actual-col", default="actual")
     ap.add_argument("--line-col", default="line")
-    ap.add_argument("--model-prob-col", default="model_prob_over")
+    ap.add_argument("--model-prob-col", default="model_prob_over_final")
     ap.add_argument("--market-prob-col", default="market_prob_over_no_vig")
     ap.add_argument("--selection-split", default="selection")
     ap.add_argument("--test-split", default="test")
@@ -471,6 +471,13 @@ def main() -> int:
     ap.add_argument("--min-brier-delta", type=float, default=0.0)
     ap.add_argument("--min-auc-delta", type=float, default=0.0)
     args = ap.parse_args()
+
+    # PR 1A source-of-truth: real proof/selection/audit must score the delivered final
+    # probability. The legacy column model_prob_over is rejected (no CLI override to it, no
+    # PMF reconstruction). The synthetic --self-test uses model_prob_over_final too.
+    if not args.self_test and args.model_prob_col == "model_prob_over":
+        ap.error("legacy column 'model_prob_over' is forbidden in real proof mode; "
+                 "the evaluator scores 'model_prob_over_final' (the delivered probability).")
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)

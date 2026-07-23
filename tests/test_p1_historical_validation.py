@@ -186,7 +186,7 @@ def test_profit_and_roi_signs():
         "side": ["under", "under"], "price_american": [150.0, -120.0],
         "decimal_odds": [2.5, 100/120 + 1], "won": [True, False],
         "profit": [1.5, -1.0],
-        "model_prob_over": [0.4, 0.4], "market_prob_over_no_vig": [0.5, 0.5],
+        "model_prob_over_final": [0.4, 0.4], "market_prob_over_no_vig": [0.5, 0.5],
         "game_date": ["2026-07-10", "2026-07-11"],
     })
     r = hm.grade(df, n_boot=200)

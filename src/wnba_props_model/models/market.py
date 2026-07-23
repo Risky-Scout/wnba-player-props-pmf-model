@@ -2,12 +2,145 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Mapping
+from dataclasses import dataclass
+from typing import Mapping, Sequence
 
 import numpy as np
 from scipy import optimize, stats
 
 logger = logging.getLogger(__name__)
+
+# Push-safe settled-probability tolerances (documented, PR 1A B1).
+_PMF_SUM_NORMALIZE_TOL = 1e-3   # |sum-1| within this is silently renormalized
+_PMF_SUM_MATERIAL_TOL = 1e-3    # |sum-1| beyond this is a material error -> raise
+_INTEGER_LINE_TOL = 1e-9        # |line-round(line)| within this counts as an integer line
+_PUSH_DEFINED_TOL = 1e-12       # (1 - p_push) must exceed this for settled probs to exist
+
+
+class UndefinedSettledProbabilityError(ValueError):
+    """Raised when settled over/under probabilities are mathematically undefined.
+
+    This happens when the push mass P(Y == line) is effectively one, so the
+    denominator (1 - p_push) collapses. The caller must mark the row binary-ineligible
+    rather than fabricate a 0.5.
+    """
+
+
+@dataclass(frozen=True)
+class SettledProbabilities:
+    """Push-safe decomposition of a PMF at a prop line.
+
+    Unconditional probabilities always sum with the push mass to one. Settled
+    probabilities condition out the push (integer lines); for half-lines the push is
+    zero so settled == unconditional. Settled values are None only when undefined
+    (all mass on the push).
+    """
+    p_over_unconditional: float
+    p_under_unconditional: float
+    p_push: float
+    p_over_settled: float | None
+    p_under_settled: float | None
+
+
+def _pmf_to_dense_array(pmf: "Mapping[int, float] | Sequence[float]") -> np.ndarray:
+    """Coerce a PMF (dense sequence or {support: mass} mapping, int or str keys) to a
+    dense nonnegative float64 array indexed by integer support, with validation."""
+    if isinstance(pmf, Mapping):
+        pairs = []
+        for k, v in pmf.items():
+            try:
+                ik = int(k)
+            except (TypeError, ValueError):
+                raise ValueError(f"PMF mapping key is not an integer support: {k!r}")
+            if ik < 0:
+                raise ValueError(f"PMF support must be nonnegative integers; got {ik}")
+            pairs.append((ik, float(v)))
+        if not pairs:
+            raise ValueError("PMF mapping is empty")
+        max_k = max(k for k, _ in pairs)
+        arr = np.zeros(max_k + 1, dtype=np.float64)
+        for k, v in pairs:
+            arr[k] += v
+    else:
+        arr = np.asarray(list(pmf), dtype=np.float64)
+        if arr.ndim != 1 or arr.size == 0:
+            raise ValueError("PMF sequence must be a nonempty 1-D array")
+
+    if not np.all(np.isfinite(arr)):
+        raise ValueError("PMF contains non-finite (NaN/inf) values")
+    if np.any(arr < 0):
+        raise ValueError("PMF contains negative probability mass")
+    total = float(arr.sum())
+    if total <= 0:
+        raise ValueError("PMF has non-positive total mass")
+    if abs(total - 1.0) > _PMF_SUM_MATERIAL_TOL:
+        raise ValueError(f"PMF sum {total:.6f} deviates materially from 1.0")
+    if abs(total - 1.0) > 0:
+        # Within material tolerance: renormalize the small drift.
+        arr = arr / total
+    return arr
+
+
+def settled_probabilities_from_pmf(
+    pmf: "Mapping[int, float] | Sequence[float]",
+    line: float,
+) -> SettledProbabilities:
+    """Push-safe over/under/push probabilities for a count PMF at a prop line.
+
+    For any line:
+        p_over_unconditional  = P(Y > line)
+        p_under_unconditional = P(Y < line)
+    Integer line:
+        p_push = P(Y == line)
+        p_over_settled  = P(Y > line) / (1 - p_push)
+        p_under_settled = P(Y < line) / (1 - p_push)
+    Half (non-integer) line:
+        p_push = 0
+        p_over_settled  = p_over_unconditional
+        p_under_settled = p_under_unconditional
+
+    Raises ValueError on malformed PMFs or lines, and
+    UndefinedSettledProbabilityError when (1 - p_push) collapses.
+    """
+    if not math.isfinite(line):
+        raise ValueError(f"line must be finite; got {line!r}")
+    if line < 0:
+        raise ValueError(f"line must be nonnegative; got {line!r}")
+
+    arr = _pmf_to_dense_array(pmf)
+    k = np.arange(arr.size)
+    is_integer_line = abs(line - round(line)) <= _INTEGER_LINE_TOL
+
+    p_over_unc = float(arr[k > line].sum())
+    p_under_unc = float(arr[k < line].sum())
+
+    if is_integer_line:
+        line_idx = int(round(line))
+        p_push = float(arr[line_idx]) if line_idx < arr.size else 0.0
+    else:
+        p_push = 0.0
+
+    denom = 1.0 - p_push
+    if denom <= _PUSH_DEFINED_TOL:
+        raise UndefinedSettledProbabilityError(
+            f"settled probabilities undefined: p_push={p_push:.12f} at line={line}"
+        )
+    p_over_settled = p_over_unc / denom
+    p_under_settled = p_under_unc / denom
+
+    def _clip01(x: float) -> float:
+        # Guard tiny floating error outside [0,1]; a material excursion is a bug.
+        if x < -1e-9 or x > 1.0 + 1e-9:
+            raise ValueError(f"probability {x} outside [0,1]")
+        return float(min(1.0, max(0.0, x)))
+
+    return SettledProbabilities(
+        p_over_unconditional=_clip01(p_over_unc),
+        p_under_unconditional=_clip01(p_under_unc),
+        p_push=_clip01(p_push),
+        p_over_settled=_clip01(p_over_settled),
+        p_under_settled=_clip01(p_under_settled),
+    )
 
 
 def american_to_prob(odds: float | int | None) -> float | None:
@@ -205,9 +338,20 @@ def get_no_vig_prob(
 
 
 def prob_over_from_pmf(pmf: Mapping[int, float] | np.ndarray, line: float) -> float:
-    if isinstance(pmf, np.ndarray):
-        return float(pmf[np.arange(len(pmf)) > float(line)].sum())
-    return float(sum(float(p) for k, p in pmf.items() if int(k) > float(line)))
+    """DEPRECATED: unconditional P(Y > line). Use settled_probabilities_from_pmf.
+
+    Retained only as a thin backward-compatible wrapper preserving the historical
+    UNCONDITIONAL semantics. It must NOT be used for binary sportsbook settlement scoring;
+    new sportsbook code must use settled_probabilities_from_pmf(...).p_over_settled, which
+    conditions out integer-line push mass (intentionally different when push mass is nonzero).
+    """
+    import warnings  # noqa: PLC0415
+    warnings.warn(
+        "prob_over_from_pmf is deprecated; use settled_probabilities_from_pmf(...).p_over_settled "
+        "for binary sportsbook scoring (push-safe) or .p_over_unconditional for full-PMF analysis.",
+        DeprecationWarning, stacklevel=2,
+    )
+    return settled_probabilities_from_pmf(pmf, float(line)).p_over_unconditional
 
 
 def fair_american(prob: float) -> float:

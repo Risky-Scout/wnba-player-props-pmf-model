@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from wnba_props_model.constants import BDL_PROP_TO_STAT, DOMAIN_MAX
-from wnba_props_model.models.market import fair_american, no_vig_two_way, prob_over_from_pmf
+from wnba_props_model.models.market import fair_american, no_vig_two_way
 from wnba_props_model.models.pmf_grid import WNBAPMFGrid, pmfs_df_to_grids
 from wnba_props_model.models.simulation import json_to_pmf
 
@@ -237,7 +237,8 @@ def normalize_player_props_snapshot(raw_props: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.DataFrame:
+def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame, *,
+                            binary_calibration_registry=None) -> pd.DataFrame:
     # Game_ID integrity guard: projections and market props must share game_ids.
     # Mismatch means market data is from a different slate — producing 100% artificial edges.
     # Guard is skipped when all props are Odds API sourced: their game_id is an Odds API
@@ -335,19 +336,59 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     _logger.info("build_market_comparison: %d props with BDL id, %d via name fallback -> %d joined rows",
                  len(props_with_id), len(props_no_id), len(joined))
 
-    model_probs = []
+    # PR 1A B2/B4: the delivered binary probability lineage is created ONLY by
+    # build_probability_lineage (the single source of truth), from the FINAL pmf. PR 1A is
+    # pure-forecast + identity binary calibration + no market anchor. The legacy
+    # model_prob_over column tracks model_prob_over_final (push-safe settled), falling back
+    # to the unconditional value only for binary-ineligible all-push rows so downstream
+    # never sees NaN.
+    from wnba_props_model.models.probability_lineage import build_probability_lineage  # noqa: PLC0415
+    from wnba_props_model.models.binary_probability_calibration import BinaryCalibrationRegistry  # noqa: PLC0415
+    # Binary calibration is applied INSIDE the lineage (before model_prob_over_final exists).
+    # Callers may inject an approved registry (e.g. Venn-Abers); default is identity-disabled.
+    _bincal_registry = binary_calibration_registry or BinaryCalibrationRegistry(enabled=False)
+    # NOTE: model_prob_over_final is intentionally EXCLUDED here and written exactly once
+    # below (the single allowed serialization of lineage.model_prob_over_final).
+    _lineage_cols = (
+        "model_prob_over_unconditional", "model_prob_under_unconditional", "model_prob_push",
+        "model_prob_over_settled_from_final_pmf", "model_prob_over_binary_calibrated",
+        "model_prob_over_market_anchored", "probability_track",
+        "probability_lineage_version", "calibration_status", "calibrator_id",
+        "calibrator_hash", "structural_model_id", "structural_model_hash",
+        "binary_score_eligible",
+    )
+    _lineages = []
     for _, r in joined.iterrows():
-        model_probs.append(prob_over_from_pmf(json_to_pmf(r["pmf_json"]), r["line"]))
-    joined["model_prob_over"] = model_probs
+        _lineages.append(build_probability_lineage(
+            final_pmf=json_to_pmf(r["pmf_json"]),
+            line=float(r["line"]),
+            prop=str(r.get("stat", "")),
+            role=str(r.get("role_bucket", "all")),
+            binary_calibration_registry=_bincal_registry,
+            structural_model_id=(str(r.get("model_version")) if r.get("model_version") else None),
+            structural_model_hash=(str(r.get("model_hash")) if r.get("model_hash") else None),
+            probability_track="pure_forecast",
+        ))
+    for _col in _lineage_cols:
+        joined[_col] = [getattr(_lin, _col) for _lin in _lineages]
+    # Preserve full float64 precision; None (binary-ineligible all-push) -> NaN.
+    joined["model_prob_over_final"] = np.array(
+        [(_lin.model_prob_over_final if _lin.model_prob_over_final is not None else np.nan)
+         for _lin in _lineages], dtype="float64")
+    # LEGACY alias: output-only, DEPRECATED. It must EQUAL model_prob_over_final (never a
+    # push-unsafe or unconditional value). No internal decision-grade consumer may read it.
+    joined["model_prob_over"] = joined["model_prob_over_final"]
+    joined["probability_alias_version"] = "v1"
     # Shared production edge definition (also used by the P1 historical replay).
+    # Decision-grade: read model_prob_over_final (the single source), never the legacy alias.
     from wnba_props_model.pipeline.recommendation import edge_over_under
     _edges = [edge_over_under(mo, mk) for mo, mk in
-              zip(joined["model_prob_over"], joined["market_prob_over_no_vig"])]
+              zip(joined["model_prob_over_final"], joined["market_prob_over_no_vig"])]
     joined["edge_over"] = [e[0] for e in _edges]
     # edge_under: how much the model's under probability exceeds the market's under probability
     joined["edge_under"] = [e[1] for e in _edges]
-    joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
-    joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
+    joined["fair_over_american"] = joined["model_prob_over_final"].map(fair_american)
+    joined["fair_under_american"] = (1 - joined["model_prob_over_final"]).map(fair_american)
 
     # Explicit no-vig probability columns for downstream reporting
     joined["no_vig_over_prob"] = joined["market_prob_over_no_vig"]
@@ -368,11 +409,11 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         ).where(joined["market_implied_mean"].notna(), other=False)
 
     # Enhancement 7: model vs opening line edge and under-bias indicator
-    if "prop_line_open" in joined.columns and "model_prob_over" in joined.columns:
+    if "prop_line_open" in joined.columns and "model_prob_over_final" in joined.columns:
         open_line = joined["prop_line_open"].fillna(joined["line"])
         import numpy as _np  # noqa: PLC0415
         joined["model_vs_opening_edge"] = (
-            (joined["model_prob_over"] - joined["market_prob_over_no_vig"]).abs()
+            (joined["model_prob_over_final"] - joined["market_prob_over_no_vig"]).abs()
         ).where(open_line.notna())
 
     # under_bias_indicator: role-player props (< 25 min) have historical over-bias from books
@@ -438,19 +479,19 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     _CLV_DECAY_RATE = 0.02   # fraction of edge lost per hour (empirical)
     _CLV_DECAY_MAX_HOURS = 24.0
 
-    if "model_prob_over" in joined.columns and "over_odds" in joined.columns:
+    if "model_prob_over_final" in joined.columns and "over_odds" in joined.columns:
         kelly_vals = []
         decay_edges = []
         for _, r in joined.iterrows():
             edge_ov = float(r.get("edge_over", 0.0))
             if edge_ov >= 0:
-                # OVER bet: use model P(over) and over_odds
-                p = float(r["model_prob_over"])
+                # OVER bet: use model P(over) [final, single source] and over_odds
+                p = float(r["model_prob_over_final"])
                 raw_odds = r.get("over_odds")
                 edge = edge_ov
             else:
                 # UNDER bet: use model P(under) = 1 - P(over) and under_odds
-                p = 1.0 - float(r["model_prob_over"])
+                p = 1.0 - float(r["model_prob_over_final"])
                 raw_odds = r.get("under_odds")
                 edge = float(r.get("edge_under", 0.0))
             p = max(1e-6, min(1.0 - 1e-6, p))

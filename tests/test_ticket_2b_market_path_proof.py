@@ -1171,8 +1171,11 @@ class TestFinalWebInputMatchesFinalPMF:
             # Real production probability computation
             p_over, p_push, p_under = compute_pmf_probabilities(pmf_arr, line)
 
-            # Compare against the value stored in market_comparison
-            comp_p_over = float(row["model_prob_over"])
+            # PR 1A: model_prob_over is now the push-safe SETTLED probability, while the
+            # exact unconditional round-trip of the serialized PMF is preserved in
+            # model_prob_over_unconditional. This test verifies the PMF round-trips exactly,
+            # so compare compute's unconditional p_over to that unconditional column.
+            comp_p_over = float(row.get("model_prob_over_unconditional", row["model_prob_over"]))
             err = abs(p_over - comp_p_over)
             max_err = max(max_err, err)
 

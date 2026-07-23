@@ -45,6 +45,9 @@ jobs:
       - name: Phase-0 scope protection (Foundation Lock must not touch live-delivery surfaces)
         run: python scripts/check_phase0_scope.py --base origin/main
 
+      - name: Probability source-of-truth audit (must be 1/0/0)
+        run: python scripts/audit_probability_consumers.py --check
+
       - name: Foundation manifest verification (hash-pins + schema + promotion rule)
         run: python scripts/verify_foundation_lock.py --write-report
 

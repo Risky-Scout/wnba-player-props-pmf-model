@@ -178,7 +178,7 @@ def run_verification(
 
                 # Defect 5: prefer p_over_full_precision, fall back to model_prob_over
                 stored_p_over = float(
-                    e_row.get("p_over_full_precision", e_row.get("model_prob_over", np.nan))
+                    e_row.get("p_over_full_precision", e_row.get("model_prob_over_final", np.nan))
                 )
 
                 if not np.isnan(stored_p_over):

@@ -92,22 +92,22 @@ def _calibration_curve(
 def _kelly_roi_stats(df: pd.DataFrame) -> dict:
     """Compute flat-bet ROI and Kelly-weighted ROI from scored predictions.
 
-    Requires: model_prob_over, hit_result, market_prob_over_no_vig columns.
+    Requires: model_prob_over_final, hit_result, market_prob_over_no_vig columns.
     Kelly ROI uses the quarter-Kelly stake fraction for each bet.
     """
     result: dict = {}
-    required = {"model_prob_over", "hit_result", "market_prob_over_no_vig"}
+    required = {"model_prob_over_final", "hit_result", "market_prob_over_no_vig"}
     if not required.issubset(df.columns) or df.empty:
         return result
 
-    valid = df[["model_prob_over", "hit_result", "market_prob_over_no_vig"]].dropna()
+    valid = df[["model_prob_over_final", "hit_result", "market_prob_over_no_vig"]].dropna()
     if valid.empty:
         return result
 
     # Flat-bet ROI: assume we bet $1 on every model-favored edge
     # Payoff: market implied odds = 1/market_prob_over_no_vig - 1
-    model_bets_over = valid["model_prob_over"] > valid["market_prob_over_no_vig"]
-    p_win    = np.where(model_bets_over, valid["model_prob_over"], 1 - valid["model_prob_over"])
+    model_bets_over = valid["model_prob_over_final"] > valid["market_prob_over_no_vig"]
+    p_win    = np.where(model_bets_over, valid["model_prob_over_final"], 1 - valid["model_prob_over_final"])
     p_mkt    = np.where(model_bets_over, valid["market_prob_over_no_vig"], 1 - valid["market_prob_over_no_vig"])
     hit      = np.where(model_bets_over, valid["hit_result"], 1 - valid["hit_result"])
     b        = np.where(p_mkt > 0, 1.0 / p_mkt - 1.0, 0.0)  # net odds per $1
@@ -189,14 +189,14 @@ def _stat_report(df: pd.DataFrame) -> list[dict]:
             if "line_clv" in gv and gv["line_clv"].notna().any():
                 rec["mean_line_clv"] = float(gv["line_clv"].mean())
 
-            if "hit_result" in gv and "model_prob_over" in gv:
+            if "hit_result" in gv and "model_prob_over_final" in gv:
                 rec["empirical_hit_rate"] = float(gv["hit_result"].mean())
-                rec["mean_model_prob"] = float(gv["model_prob_over"].mean())
+                rec["mean_model_prob"] = float(gv["model_prob_over_final"].mean())
                 rec["mean_market_prob"] = float(gv["market_prob_over_no_vig"].mean())
 
                 # Calibration curve (10-bin)
                 hit_arr   = gv["hit_result"].dropna().values.astype(float)
-                prob_arr  = gv.loc[gv["hit_result"].notna(), "model_prob_over"].values.astype(float)
+                prob_arr  = gv.loc[gv["hit_result"].notna(), "model_prob_over_final"].values.astype(float)
                 if len(hit_arr) >= 20:
                     rec["calibration_curve"] = _calibration_curve(prob_arr, hit_arr)
 

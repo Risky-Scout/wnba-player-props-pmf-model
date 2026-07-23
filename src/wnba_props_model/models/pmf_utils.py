@@ -341,3 +341,106 @@ def dispersion_from_moments(mean: float, var: float) -> float | None:
     if var <= mean or mean <= 0:
         return None
     return float(mean ** 2 / (var - mean))
+
+
+# ---------------------------------------------------------------------------
+# PR 1A B6: structural PMF rebuild + shared row-integrity validator
+# ---------------------------------------------------------------------------
+
+def _pmf_json_to_dense(pmf_json) -> np.ndarray:
+    """Parse a stored PMF (JSON string or {support: mass} mapping) to a dense array.
+
+    Kept local (no simulation import) so pmf_utils stays a leaf module."""
+    if isinstance(pmf_json, str):
+        obj = json.loads(pmf_json)
+    elif isinstance(pmf_json, dict):
+        obj = pmf_json
+    else:
+        arr = np.asarray(list(pmf_json), dtype=np.float64)
+        return arr
+    if not obj:
+        return np.array([1.0])
+    max_k = max(int(k) for k in obj)
+    arr = np.zeros(max_k + 1, dtype=np.float64)
+    for k, v in obj.items():
+        arr[int(k)] += float(v)
+    return arr
+
+
+def rebuild_count_pmf_at_mean(pmf: np.ndarray, target_mean: float) -> np.ndarray:
+    """Regenerate a count PMF at ``target_mean`` using NegBinom moment matching.
+
+    Preserves the distribution family (NegBinom), the dispersion implied by the input
+    PMF's own mean/variance, and the support length. Used to rebuild AST/turnover PMFs
+    after a minutes-offset mean adjustment so the PMF, mean, and line probabilities all
+    move together (never a detached mean-column shift).
+    """
+    arr = np.asarray(pmf, dtype=np.float64)
+    s = arr.sum()
+    arr = arr / s if s > 0 else _degenerate_at_zero(len(arr))
+    n = len(arr)
+    k = np.arange(n, dtype=np.float64)
+    mu = float(np.dot(k, arr))
+    if mu < 0.05 or target_mean < 0.05:
+        # Degenerate/near-zero: NB moment-matching is ill-posed; return input unchanged.
+        return arr
+    var = float(np.dot(k ** 2, arr)) - mu ** 2
+    excess = max(var - mu, 1e-4)
+    r = float(np.clip(mu ** 2 / excess, 0.3, 60.0))
+    tmu = float(max(target_mean, 0.05))
+    out = negbinom_pmf_batch(np.array([tmu]), r, n - 1)[0]
+    out = np.clip(out, 0.0, None)
+    tot = out.sum()
+    return out / tot if tot > 0 else arr
+
+
+def validate_pmf_row_integrity(
+    row,
+    *,
+    mean_key: str = "pmf_mean",
+    var_key: str = "pmf_variance",
+    mean_tol: float = 1e-6,
+    var_tol: float = 1e-2,
+    sum_tol: float = 1e-6,
+) -> None:
+    """Assert a delivery row's PMF is internally consistent.
+
+    Checks (raises ValueError on any failure):
+      * PMF finite, nonnegative, sums to one within ``sum_tol``, support starts at 0;
+      * exported mean (``mean_key``) equals the PMF mean within ``mean_tol``;
+      * exported variance (``var_key``) equals the PMF variance within ``var_tol``.
+
+    Keys that are absent or None are skipped so the validator can be used at multiple
+    pipeline stages. Callers wanting the strict 1e-6 mean invariant must store the
+    full-precision (unrounded) mean.
+    """
+    def _get(key):
+        try:
+            return row[key]
+        except (KeyError, TypeError):
+            return getattr(row, key, None) if not hasattr(row, "get") else row.get(key)
+
+    pmf = _pmf_json_to_dense(_get("pmf_json"))
+    if not np.all(np.isfinite(pmf)):
+        raise ValueError("pmf_json has non-finite values")
+    if np.any(pmf < 0):
+        raise ValueError("pmf_json has negative mass")
+    total = float(pmf.sum())
+    if abs(total - 1.0) > sum_tol:
+        raise ValueError(f"pmf_json sum {total:.8f} not within {sum_tol} of 1.0")
+    k = np.arange(len(pmf), dtype=np.float64)
+    mean = float(np.dot(k, pmf))
+    var = float(np.dot(k ** 2, pmf)) - mean ** 2
+
+    exported_mean = _get(mean_key)
+    if exported_mean is not None and not (isinstance(exported_mean, float) and np.isnan(exported_mean)):
+        if abs(float(exported_mean) - mean) > mean_tol:
+            raise ValueError(
+                f"exported {mean_key}={float(exported_mean):.8f} != pmf mean {mean:.8f} "
+                f"(tol {mean_tol})")
+    exported_var = _get(var_key)
+    if exported_var is not None and not (isinstance(exported_var, float) and np.isnan(exported_var)):
+        if abs(float(exported_var) - var) > var_tol:
+            raise ValueError(
+                f"exported {var_key}={float(exported_var):.6f} != pmf var {var:.6f} "
+                f"(tol {var_tol})")

@@ -32,7 +32,7 @@ EMS = _mod()
 
 _COLS = dict(prop_col="prop", candidate_col="candidate", split_col="split",
              date_col="game_date", actual_col="actual", line_col="line",
-             model_prob_col="model_prob_over", market_prob_col="market_prob_over_no_vig")
+             model_prob_col="model_prob_over_final", market_prob_col="market_prob_over_no_vig")
 
 
 def _prep(df):
@@ -43,7 +43,7 @@ def test_prepare_excludes_push_rows():
     df = pd.DataFrame({
         "prop": ["pts"] * 3, "candidate": ["c"] * 3, "split": ["test"] * 3,
         "game_date": ["2025-07-01"] * 3, "actual": [10, 12, 8], "line": [10, 9.5, 9.5],
-        "model_prob_over": [0.5, 0.6, 0.4], "market_prob_over_no_vig": [0.5, 0.55, 0.45],
+        "model_prob_over_final": [0.5, 0.6, 0.4], "market_prob_over_no_vig": [0.5, 0.55, 0.45],
     })
     out = _prep(df)
     # The actual==line push row (10 vs 10) is dropped; 2 remain.
@@ -53,7 +53,7 @@ def test_prepare_excludes_push_rows():
 
 def test_prepare_fail_closed_on_missing_column():
     df = pd.DataFrame({"prop": ["pts"], "game_date": ["2025-07-01"], "actual": [10],
-                       "line": [9.5], "model_prob_over": [0.6]})  # market col missing
+                       "line": [9.5], "model_prob_over_final": [0.6]})  # market col missing
     with pytest.raises(ValueError):
         _prep(df)
 
@@ -92,11 +92,11 @@ def test_select_candidates_picks_lower_logloss():
             for j in range(60):
                 rows.append({"prop": "pts", "candidate": cand, "split": "selection",
                              "game_date": f"2025-05-{day + 1:02d}", "actual": int(y[j]),
-                             "line": 0.5, "model_prob_over": float(pred[j]),
+                             "line": 0.5, "model_prob_over_final": float(pred[j]),
                              "market_prob_over_no_vig": float(pm[j])})
     df = _prep(pd.DataFrame(rows))
     point = EMS._point_table(df, prop_col="prop", candidate_col="candidate",
-                             date_col="game_date", model_prob_col="model_prob_over",
+                             date_col="game_date", model_prob_col="model_prob_over_final",
                              market_prob_col="market_prob_over_no_vig")
     _, selected = EMS._select_candidates(point)
     assert selected["pts"] == "good"
@@ -105,9 +105,9 @@ def test_select_candidates_picks_lower_logloss():
 def test_bootstrap_requires_two_clusters():
     df = pd.DataFrame({"prop": ["pts"] * 5, "candidate": ["c"] * 5,
                        "game_date": ["2025-07-01"] * 5, "_outcome_over": [1, 0, 1, 0, 1],
-                       "model_prob_over": [0.6] * 5, "market_prob_over_no_vig": [0.5] * 5})
+                       "model_prob_over_final": [0.6] * 5, "market_prob_over_no_vig": [0.5] * 5})
     with pytest.raises(ValueError):
-        EMS._bootstrap_deltas(df, date_col="game_date", model_prob_col="model_prob_over",
+        EMS._bootstrap_deltas(df, date_col="game_date", model_prob_col="model_prob_over_final",
                               market_prob_col="market_prob_over_no_vig", n_boot=10, seed=0)
 
 
@@ -120,10 +120,10 @@ def test_bootstrap_is_deterministic_under_seed():
         y = rng.binomial(1, 1 / (1 + np.exp(-z)))
         frames.append(pd.DataFrame({
             "game_date": [f"2025-07-{d + 1:02d}"] * per, "_outcome_over": y,
-            "model_prob_over": 1 / (1 + np.exp(-(0.9 * z))),
+            "model_prob_over_final": 1 / (1 + np.exp(-(0.9 * z))),
             "market_prob_over_no_vig": 1 / (1 + np.exp(-(0.5 * z)))}))
     g = pd.concat(frames, ignore_index=True)
-    kw = dict(date_col="game_date", model_prob_col="model_prob_over",
+    kw = dict(date_col="game_date", model_prob_col="model_prob_over_final",
               market_prob_col="market_prob_over_no_vig", n_boot=500, seed=123)
     a = EMS._bootstrap_deltas(g, **kw)
     b = EMS._bootstrap_deltas(g, **kw)
@@ -149,11 +149,11 @@ def test_prove_insufficient_below_min_rows():
         for j in range(20):
             rows.append({"prop": "pts", "candidate": "c", "split": "test",
                          "game_date": f"2025-07-{d + 1:02d}", "actual": int(y[j]), "line": 0.5,
-                         "model_prob_over": float(1 / (1 + np.exp(-(0.9 * z[j])))),
+                         "model_prob_over_final": float(1 / (1 + np.exp(-(0.9 * z[j])))),
                          "market_prob_over_no_vig": float(1 / (1 + np.exp(-(0.5 * z[j]))))})
     df = _prep(pd.DataFrame(rows))
     res = EMS._prove(df, {"pts": "c"}, prop_col="prop", candidate_col="candidate",
-                     date_col="game_date", model_prob_col="model_prob_over",
+                     date_col="game_date", model_prob_col="model_prob_over_final",
                      market_prob_col="market_prob_over_no_vig", n_boot=200, seed=0,
                      min_rows=300, alpha=0.05, min_logloss_delta=0.0,
                      min_brier_delta=0.0, min_auc_delta=0.0)
@@ -176,7 +176,7 @@ def test_select_precedes_proof_and_no_leakage(tmp_path):
                 for j in range(45):
                     rows.append({"prop": "pts", "candidate": cand, "split": split,
                                  "game_date": f"2025-{start_day}-{d + 1:02d}", "actual": int(y[j]),
-                                 "line": 0.5, "model_prob_over": float(preds[cand][j]),
+                                 "line": 0.5, "model_prob_over_final": float(preds[cand][j]),
                                  "market_prob_over_no_vig": float(pm[j])})
     block("selection", "05", 10, ["good", "bad"])   # May
     block("test", "07", 12, ["good"])               # July (strictly later)
@@ -203,3 +203,21 @@ def test_select_precedes_proof_and_no_leakage(tmp_path):
     assert res["n_clusters"] == 12
     # Selection dates (May) strictly precede proof dates (July).
     assert "2025-05" < res["date_min"]
+
+
+def test_real_proof_rejects_legacy_model_prob_over(tmp_path):
+    # PR 1A: real proof mode must reject a CLI override selecting the legacy column.
+    src = tmp_path / "s.csv"
+    pd.DataFrame({"prop": ["pts"], "candidate": ["c"], "split": ["test"],
+                  "game_date": ["2025-07-01"], "actual": [1], "line": [0.5],
+                  "model_prob_over_final": [0.6], "market_prob_over_no_vig": [0.5]}).to_csv(src, index=False)
+    r = subprocess.run([sys.executable, str(EVAL), "--mode", "prove", "--input", str(src),
+                        "--model-prob-col", "model_prob_over", "--output-dir", str(tmp_path / "o")],
+                       capture_output=True, text=True, cwd=str(REPO))
+    assert r.returncode != 0
+    assert "model_prob_over" in (r.stdout + r.stderr) and "forbidden" in (r.stdout + r.stderr)
+
+
+def test_real_proof_default_column_is_final():
+    src = EVAL.read_text()
+    assert '--model-prob-col", default="model_prob_over_final"' in src

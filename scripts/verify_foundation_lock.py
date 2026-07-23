@@ -116,20 +116,71 @@ def verify(manifest: dict) -> tuple[list[str], list[str]]:
     return failures, deferrals
 
 
-def update_hashes(manifest: dict) -> dict:
+def authorization_errors(auth: dict | None, *, current_branch: str, base_sha: str,
+                         today: str) -> list[str]:
+    """Fail-closed validation of a Foundation Lock change authorization."""
+    if auth is None:
+        return ["no change-authorization file provided"]
+    errs: list[str] = []
+    if auth.get("schema_version") != 1:
+        errs.append("authorization schema_version must be 1")
+    if auth.get("authorized_branch") != current_branch:
+        errs.append(f"authorized_branch={auth.get('authorized_branch')!r} != current branch "
+                    f"{current_branch!r}")
+    ab = auth.get("authorized_base_sha")
+    if not ab or (base_sha and str(ab) != base_sha and not base_sha.startswith(str(ab)[:12])):
+        errs.append(f"authorized_base_sha={ab!r} != base {base_sha!r}")
+    if not auth.get("single_use"):
+        errs.append("authorization must be single_use")
+    paths = auth.get("allowed_locked_paths")
+    if not isinstance(paths, list) or not paths:
+        errs.append("allowed_locked_paths must be a non-empty list")
+    else:
+        for p in paths:
+            if "*" in str(p) or "?" in str(p) or str(p).endswith("/"):
+                errs.append(f"allowed_locked_paths must not contain wildcards: {p!r}")
+    exp = auth.get("expiration")
+    if exp and str(today) > str(exp):
+        errs.append(f"authorization expired on {exp} (today {today})")
+    return errs
+
+
+def authorized_update(manifest: dict, auth: dict, *, manifest_path: Path,
+                      auth_rel: str, current_branch: str, base_sha: str, today: str):
+    """Controlled, single-use re-pin: only re-pin hashes for explicitly authorized locked
+    paths; refuse any unauthorized (broad) change; increment the lock revision and record the
+    previous manifest hash. Never a blanket re-pin."""
+    errs = authorization_errors(auth, current_branch=current_branch, base_sha=base_sha, today=today)
+    if errs:
+        raise SystemExit("[update] REFUSED - invalid authorization:\n  - " + "\n  - ".join(errs))
+    allowed = set(auth["allowed_locked_paths"])
+    prev_manifest_sha = _sha256(manifest_path)
+    changed: list[tuple[str, str | None, str]] = []
     for item in manifest.get("items", []):
         for entry in item.get("paths", []):
-            p = REPO / entry["path"]
+            rel = entry["path"]
+            p = REPO / rel
             avail = entry.get("availability", "in_repo")
-            if p.exists():
-                entry["sha256"] = _sha256(p)
-            elif avail == "data_artifact_untracked":
-                entry["sha256"] = None
-            else:
-                raise SystemExit(f"[update] cannot hash missing in-repo path: {entry['path']}")
+            if not p.exists():
+                if avail == "data_artifact_untracked":
+                    continue
+                raise SystemExit(f"[update] REFUSED - missing in-repo path: {rel}")
+            new = _sha256(p)
+            old = entry.get("sha256")
+            if new != old:
+                if rel not in allowed:
+                    raise SystemExit(
+                        f"[update] REFUSED - unauthorized change to locked path {rel} "
+                        "(not in allowed_locked_paths); broad/automatic re-pinning is forbidden")
+                entry["sha256"] = new
+                changed.append((rel, old, new))
+    manifest["previous_manifest_sha256"] = prev_manifest_sha
+    manifest["previous_lock_commit"] = base_sha
+    manifest["lock_revision"] = int(manifest.get("lock_revision", 1)) + 1
+    manifest["change_authorization"] = auth_rel
     manifest["generated_from_commit"] = _generated_from_commit()
     manifest["created_utc"] = _dt.datetime.now(_dt.timezone.utc).isoformat()
-    return manifest
+    return manifest, changed, prev_manifest_sha
 
 
 def overall_status(failures: list[str], deferrals: list[str], manifest: dict) -> str:
@@ -182,10 +233,39 @@ def write_report(manifest: dict, failures: list[str], deferrals: list[str]) -> N
     REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _current_branch() -> str:
+    import os
+    env = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME")
+    if env:
+        return env
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                                       cwd=str(REPO)).decode().strip()
+    except Exception:
+        return "unknown"
+
+
+def _rev(ref: str) -> str:
+    try:
+        return subprocess.check_output(["git", "rev-parse", ref], cwd=str(REPO)).decode().strip()
+    except Exception:
+        return ""
+
+
+CHANGELOG_PATH = REPO / "artifacts" / "foundation_lock" / "FOUNDATION_LOCK_CHANGELOG.jsonl"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Verify/update the Foundation Lock manifest.")
     ap.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
-    ap.add_argument("--update", action="store_true", help="Recompute in-repo hashes (maintainer).")
+    ap.add_argument("--update", action="store_true",
+                    help="Controlled re-pin. REQUIRES --authorization; only re-pins authorized "
+                         "locked paths (broad re-pinning is refused).")
+    ap.add_argument("--authorization", default=None, help="Path to a change-authorization JSON.")
+    ap.add_argument("--branch", default=None, help="Override current branch (testing).")
+    ap.add_argument("--base", default="origin/main", help="Base ref for merge-base/base SHA.")
+    ap.add_argument("--base-sha", default=None, help="Override resolved base SHA (testing).")
+    ap.add_argument("--today", default=None, help="Override today YYYY-MM-DD (testing).")
     ap.add_argument("--write-report", action="store_true", help="Regenerate the lock report.")
     args = ap.parse_args()
 
@@ -193,9 +273,39 @@ def main() -> int:
     manifest = json.loads(mpath.read_text())
 
     if args.update:
-        manifest = update_hashes(manifest)
+        if not args.authorization:
+            print("[update] REFUSED - broad/unguarded re-pin is forbidden; pass --authorization "
+                  "<config/foundation_lock_change_*.json>", file=sys.stderr)
+            return 1
+        auth_path = Path(args.authorization)
+        auth = json.loads(auth_path.read_text())
+        branch = args.branch or _current_branch()
+        base_sha = args.base_sha or _rev(args.base)
+        import datetime as _d
+        today = args.today or _d.date.today().isoformat()
+        auth_rel = str(auth_path.relative_to(REPO)) if auth_path.is_absolute() else str(auth_path)
+        manifest, changed, prev_sha = authorized_update(
+            manifest, auth, manifest_path=mpath, auth_rel=auth_rel,
+            current_branch=branch, base_sha=base_sha, today=today)
         mpath.write_text(json.dumps(manifest, indent=2) + "\n")
-        print(f"[foundation-lock] updated hashes in {mpath}")
+        # Append an immutable changelog entry.
+        CHANGELOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "lock_revision": manifest["lock_revision"],
+            "authorization_id": auth.get("authorization_id"),
+            "authorized_pr": auth.get("authorized_pr"),
+            "generated_from_commit": manifest["generated_from_commit"],
+            "previous_lock_commit": manifest["previous_lock_commit"],
+            "previous_manifest_sha256": prev_sha,
+            "repinned_paths": [{"path": r, "old_sha256": o, "new_sha256": n} for r, o, n in changed],
+            "created_utc": manifest["created_utc"],
+        }
+        with open(CHANGELOG_PATH, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+        print(f"[foundation-lock] authorized re-pin: revision {manifest['lock_revision']}, "
+              f"{len(changed)} path(s) re-pinned; changelog -> {CHANGELOG_PATH}")
+        for r, o, n in changed:
+            print(f"  - {r}: {str(o)[:12]} -> {n[:12]}")
         return 0
 
     failures, deferrals = verify(manifest)
