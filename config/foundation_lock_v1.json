@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "foundation_version": "v1",
-  "generated_from_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
-  "created_utc": "2026-07-23T03:34:05.963541+00:00",
+  "generated_from_commit": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
+  "created_utc": "2026-07-23T18:30:34.623712+00:00",
   "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
   "items": [
     {
@@ -15,7 +15,7 @@
         {
           "path": "scripts/evaluate_market_superiority.py",
           "availability": "in_repo",
-          "sha256": "920ea4aab7ef53fe1d196ace3a2d8b5666d875de61a998d4a4859f419dfe1700"
+          "sha256": "6b85ed65d9eea1a6c889a56ac2c44478b78c577e8bf25445aa5358ee435cb412"
         }
       ],
       "invariants": [
@@ -100,12 +100,12 @@
         {
           "path": "scripts/generate_clv_report.py",
           "availability": "in_repo",
-          "sha256": "f26097ab2454e6bfa7d98925edf6d7dfaddd0ea129f02f0235b92c5074d5f1a5"
+          "sha256": "21c483ffec0a041f55cc4aa2b2bb3520989da91d24eb507463e4de80ace2d339"
         },
         {
           "path": "scripts/score_daily_predictions.py",
           "availability": "in_repo",
-          "sha256": "7170cc324d7cc70ebd4bd0a212f7dc464fd6e8a51c029959c4e1651e6c67f757"
+          "sha256": "787027dde0cd52bd41909187497493d69e0fbd42b18a4913da3b3661c52a28b5"
         }
       ],
       "invariants": [
@@ -361,5 +361,9 @@
         "Surrogate model (HGB Poisson -> NB PMF), NOT the signed champion pipeline. Development-only; not proof/certification/promotion evidence."
       ]
     }
-  ]
+  ],
+  "previous_manifest_sha256": "6d642333ad222635cd5aa945a686c91b4ceecf7290a6d8ee05a4fb5effc4b7ed",
+  "previous_lock_commit": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
+  "lock_revision": 2,
+  "change_authorization": "config/foundation_lock_change_pr73.json"
 }

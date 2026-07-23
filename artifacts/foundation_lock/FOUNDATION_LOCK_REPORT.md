@@ -1,8 +1,8 @@
 # Foundation Lock Report
 
 - Foundation version: **v1**
-- Generated from commit: `a66baa7f60403ed4e90dafd537104c6a2f70b936` (base commit; NOT the commit containing this manifest)
-- Generated (manifest): 2026-07-23T03:34:05.963541+00:00
+- Generated from commit: `d8c9681d6a6334ad8b0897b53009fc28d28dd342` (base commit; NOT the commit containing this manifest)
+- Generated (manifest): 2026-07-23T18:30:34.623712+00:00
 - Overall: **PASS_WITH_DECLARED_DEFERRALS**  (failures: 0, deferrals: 2)
 
 This report classifies each locked component by what it does and does not prove.
