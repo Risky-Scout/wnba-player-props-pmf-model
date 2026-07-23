@@ -1,0 +1,379 @@
+{
+  "schema_version": 1,
+  "classification": "surrogate feature-subset ablation",
+  "protocol": "development-only expanding chronological folds; no holdout scored",
+  "promotion_eligible": false,
+  "seed": 0,
+  "dnp_excluded": true,
+  "conditional_on": "played (did_play/actual_minutes > 0)",
+  "reserved_tail_dates": 25,
+  "fold_dates": [
+    {
+      "train_end": "2024-08-18",
+      "valid_end": "2025-06-12"
+    },
+    {
+      "train_end": "2025-06-12",
+      "valid_end": "2025-09-01"
+    },
+    {
+      "train_end": "2025-09-01",
+      "valid_end": "2026-06-25"
+    }
+  ],
+  "props": [
+    "pts",
+    "reb",
+    "ast",
+    "fg3m",
+    "stl",
+    "blk",
+    "turnover"
+  ],
+  "results": {
+    "pts": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 3.0076,
+      "winner_nll": 3.0076,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0487,
+      "winner_rps": 0.0487,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 3.0076,
+          "rps": 0.0487,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 3.0199,
+          "rps": 0.0498,
+          "n": 10373,
+          "n_features": 18
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 3.0199,
+          "rps": 0.0498,
+          "n": 10373,
+          "n_features": 18
+        },
+        "S3_minus_game_script": {
+          "nll": 3.0205,
+          "rps": 0.0499,
+          "n": 10373,
+          "n_features": 12
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 3.0741,
+          "rps": 0.0535,
+          "n": 10373,
+          "n_features": 14
+        },
+        "S5_minus_fatigue": {
+          "nll": 3.0275,
+          "rps": 0.0501,
+          "n": 10373,
+          "n_features": 16
+        }
+      }
+    },
+    "reb": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 2.1652,
+      "winner_nll": 2.1652,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0445,
+      "winner_rps": 0.0445,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 2.1652,
+          "rps": 0.0445,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 2.2607,
+          "rps": 0.0506,
+          "n": 10373,
+          "n_features": 14
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 2.2607,
+          "rps": 0.0506,
+          "n": 10373,
+          "n_features": 14
+        },
+        "S3_minus_game_script": {
+          "nll": 2.2621,
+          "rps": 0.0507,
+          "n": 10373,
+          "n_features": 9
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 2.2647,
+          "rps": 0.0508,
+          "n": 10373,
+          "n_features": 12
+        },
+        "S5_minus_fatigue": {
+          "nll": 2.2702,
+          "rps": 0.0511,
+          "n": 10373,
+          "n_features": 11
+        }
+      }
+    },
+    "ast": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 1.7342,
+      "winner_nll": 1.7342,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0332,
+      "winner_rps": 0.0332,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 1.7342,
+          "rps": 0.0332,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 1.745,
+          "rps": 0.0336,
+          "n": 10373,
+          "n_features": 19
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 1.745,
+          "rps": 0.0336,
+          "n": 10373,
+          "n_features": 19
+        },
+        "S3_minus_game_script": {
+          "nll": 1.7488,
+          "rps": 0.0338,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 1.7607,
+          "rps": 0.0342,
+          "n": 10373,
+          "n_features": 15
+        },
+        "S5_minus_fatigue": {
+          "nll": 1.7501,
+          "rps": 0.0337,
+          "n": 10373,
+          "n_features": 16
+        }
+      }
+    },
+    "fg3m": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 1.161,
+      "winner_nll": 1.161,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0275,
+      "winner_rps": 0.0275,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 1.161,
+          "rps": 0.0275,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 1.1652,
+          "rps": 0.0277,
+          "n": 10373,
+          "n_features": 18
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 1.1652,
+          "rps": 0.0277,
+          "n": 10373,
+          "n_features": 18
+        },
+        "S3_minus_game_script": {
+          "nll": 1.1628,
+          "rps": 0.0276,
+          "n": 10373,
+          "n_features": 12
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 1.1715,
+          "rps": 0.0279,
+          "n": 10373,
+          "n_features": 15
+        },
+        "S5_minus_fatigue": {
+          "nll": 1.1642,
+          "rps": 0.0277,
+          "n": 10373,
+          "n_features": 16
+        }
+      }
+    },
+    "stl": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 1.1419,
+      "winner_nll": 1.1419,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0286,
+      "winner_rps": 0.0286,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 1.1419,
+          "rps": 0.0286,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 1.1465,
+          "rps": 0.0288,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 1.1465,
+          "rps": 0.0288,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S3_minus_game_script": {
+          "nll": 1.1472,
+          "rps": 0.0288,
+          "n": 10373,
+          "n_features": 7
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 1.1465,
+          "rps": 0.0288,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S5_minus_fatigue": {
+          "nll": 1.1501,
+          "rps": 0.0289,
+          "n": 10373,
+          "n_features": 9
+        }
+      }
+    },
+    "blk": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 0.7992,
+      "winner_nll": 0.7992,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0184,
+      "winner_rps": 0.0184,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 0.7992,
+          "rps": 0.0184,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 0.8452,
+          "rps": 0.02,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 0.8452,
+          "rps": 0.02,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S3_minus_game_script": {
+          "nll": 0.8445,
+          "rps": 0.02,
+          "n": 10373,
+          "n_features": 7
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 0.8452,
+          "rps": 0.02,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S5_minus_fatigue": {
+          "nll": 0.8463,
+          "rps": 0.02,
+          "n": 10373,
+          "n_features": 9
+        }
+      }
+    },
+    "turnover": {
+      "winner": "G0",
+      "n_features_winner": 52,
+      "g0_nll": 1.4484,
+      "winner_nll": 1.4484,
+      "nll_delta_vs_g0": 0.0,
+      "g0_rps": 0.0332,
+      "winner_rps": 0.0332,
+      "rps_delta_vs_g0": 0.0,
+      "improves_over_g0": false,
+      "all": {
+        "G0": {
+          "nll": 1.4484,
+          "rps": 0.0332,
+          "n": 10373,
+          "n_features": 52
+        },
+        "S1_stat_specific_ex_market": {
+          "nll": 1.4518,
+          "rps": 0.0334,
+          "n": 10373,
+          "n_features": 16
+        },
+        "S2_stat_specific_plus_lagged_market": {
+          "nll": 1.4518,
+          "rps": 0.0334,
+          "n": 10373,
+          "n_features": 16
+        },
+        "S3_minus_game_script": {
+          "nll": 1.4503,
+          "rps": 0.0333,
+          "n": 10373,
+          "n_features": 10
+        },
+        "S4_minus_injury_role_transfer": {
+          "nll": 1.4681,
+          "rps": 0.034,
+          "n": 10373,
+          "n_features": 13
+        },
+        "S5_minus_fatigue": {
+          "nll": 1.4556,
+          "rps": 0.0335,
+          "n": 10373,
+          "n_features": 13
+        }
+      }
+    }
+  },
+  "conclusion": "None of the tested feature subsets improved the tested surrogate model under the specified development-only protocol. New tracking data is a high-priority next source of information, but this experiment does not prove it is the only possible source of improvement."
+}

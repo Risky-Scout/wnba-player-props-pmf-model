@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "classification": "surrogate feature-subset ablation",
+  "protocol": "development-only expanding chronological folds; no holdout scored",
+  "promotion_eligible": false,
+  "generated_by": "scripts/run_prop_ablation.py",
+  "source_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "created_utc": "2026-07-23T01:57:27.356766+00:00",
+  "seed": 0,
+  "dnp_excluded": true,
+  "conditional_on": "played (did_play/actual_minutes > 0)",
+  "inputs": {
+    "features_path": "data/processed/wnba_player_game_features_wide.parquet",
+    "features_sha256": "d6e62ab6db11b16bf00229d86134b1403487b9c9013b98b508e332636d34575f",
+    "features_rows_raw": 29048,
+    "features_rows_after_dnp_filter": 24237,
+    "features_n_columns": 577,
+    "maps_path": "config/feature_ablation_maps_v1.json",
+    "maps_sha256": "2591c830b5ef73fe447932d96a0403f90ee0224318d5852eab3ccfab37f67b05"
+  },
+  "fold_dates": [
+    {
+      "train_end": "2024-08-18",
+      "valid_end": "2025-06-12"
+    },
+    {
+      "train_end": "2025-06-12",
+      "valid_end": "2025-09-01"
+    },
+    {
+      "train_end": "2025-09-01",
+      "valid_end": "2026-06-25"
+    }
+  ],
+  "reserved_tail_dates": 25,
+  "feature_map_hashes": {
+    "G0/pts": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/pts": "4fd4ba338615f78e486bfc7b50f2c11f3f6bef4d0471f3f0d41d24b9fc1c77ed",
+    "S2_stat_specific_plus_lagged_market/pts": "4fd4ba338615f78e486bfc7b50f2c11f3f6bef4d0471f3f0d41d24b9fc1c77ed",
+    "S3_minus_game_script/pts": "70f6930aa4f723e9d1d0678921d0190ffc242a1df196133ca01a0f98aaf9377a",
+    "S4_minus_injury_role_transfer/pts": "e17f4809a781a428ae59ecf7b433d5f7e1f2b58a811a9165cad3261811796c73",
+    "S5_minus_fatigue/pts": "bf5923dcb65a8e8756c60ffc46bfea6319255e1fae60ef3e8ec530cf92e9a15a",
+    "G0/reb": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/reb": "ebd672afe7514eab38f9cd1b2dac126f235e7faff68f94cc274e091053cff9fb",
+    "S2_stat_specific_plus_lagged_market/reb": "ebd672afe7514eab38f9cd1b2dac126f235e7faff68f94cc274e091053cff9fb",
+    "S3_minus_game_script/reb": "246418a13605cd41a17940a3fc037476b2d789657681c996c7bef9a4b4cc33d5",
+    "S4_minus_injury_role_transfer/reb": "93785af71469f1b740a4a4b81e79eb12bbd5f6399cbb02cefa17f2dd1775fdd5",
+    "S5_minus_fatigue/reb": "ff200dfa2fa754eb67f4a582467dc4c31766f93099043c3da47f42d385be221a",
+    "G0/ast": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/ast": "fc5b89f26a09b796fca7f1d2bfb114bbb0474e14e89e08bc1f6af9525d0376d4",
+    "S2_stat_specific_plus_lagged_market/ast": "fc5b89f26a09b796fca7f1d2bfb114bbb0474e14e89e08bc1f6af9525d0376d4",
+    "S3_minus_game_script/ast": "e38dcf0a7ff46971d58bf17ec7e0e3ccb15993229e39d75d5ee9d54bbb2b91ea",
+    "S4_minus_injury_role_transfer/ast": "bfa469a92ae9d28ee019d935022508d18c11ce04a2c24eb6e0c9befa8678e4e0",
+    "S5_minus_fatigue/ast": "ce226589da92b25a9f1fb7467c97e39d6f51ace256ebfc852c39c94cf2f902c1",
+    "G0/fg3m": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/fg3m": "c5fd4d407844e4f00ef6aa38cf3ed03146976f4ed712fe386f6bb3bb76ff8b66",
+    "S2_stat_specific_plus_lagged_market/fg3m": "c5fd4d407844e4f00ef6aa38cf3ed03146976f4ed712fe386f6bb3bb76ff8b66",
+    "S3_minus_game_script/fg3m": "ca637610d5d44073429d7996739148d2ef010d6eb3d45c16e93759038d5ed072",
+    "S4_minus_injury_role_transfer/fg3m": "c75aeb7319713ea4367d762ab7e1721c64c5ad8c93e53b5661a73f7f8185918e",
+    "S5_minus_fatigue/fg3m": "545fe8ebe81895108e4368f6111461f115b3fed88e094e1f2412ad907c29cfff",
+    "G0/stl": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/stl": "5ca7b9b109e6338565538a5f5d9e81bb6c13bad63cd3e53e978afee8995820f0",
+    "S2_stat_specific_plus_lagged_market/stl": "5ca7b9b109e6338565538a5f5d9e81bb6c13bad63cd3e53e978afee8995820f0",
+    "S3_minus_game_script/stl": "e4ae74ebc5c3f45a126e2baef018307096f9a35f4db70977d8ab5f0038deec5a",
+    "S4_minus_injury_role_transfer/stl": "5ca7b9b109e6338565538a5f5d9e81bb6c13bad63cd3e53e978afee8995820f0",
+    "S5_minus_fatigue/stl": "f90e461cb03b72036c2027a4c6734be4cc633271040f1a68a5a026a80a8bc1a1",
+    "G0/blk": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/blk": "5ca7b9b109e6338565538a5f5d9e81bb6c13bad63cd3e53e978afee8995820f0",
+    "S2_stat_specific_plus_lagged_market/blk": "5ca7b9b109e6338565538a5f5d9e81bb6c13bad63cd3e53e978afee8995820f0",
+    "S3_minus_game_script/blk": "e4ae74ebc5c3f45a126e2baef018307096f9a35f4db70977d8ab5f0038deec5a",
+    "S4_minus_injury_role_transfer/blk": "5ca7b9b109e6338565538a5f5d9e81bb6c13bad63cd3e53e978afee8995820f0",
+    "S5_minus_fatigue/blk": "f90e461cb03b72036c2027a4c6734be4cc633271040f1a68a5a026a80a8bc1a1",
+    "G0/turnover": "36113aeda0fe6cbff36d5cd010f7a882d3576662c8d83ccf8f18894529fa2240",
+    "S1_stat_specific_ex_market/turnover": "d0034cce3762bf111d7237c2ca6baa7aab59979b6fdc25fa89012f84ac3e71b9",
+    "S2_stat_specific_plus_lagged_market/turnover": "d0034cce3762bf111d7237c2ca6baa7aab59979b6fdc25fa89012f84ac3e71b9",
+    "S3_minus_game_script/turnover": "09177240e668b3139efad1dbfded7bd0cb2169558ca2dd616b2debcc06d99243",
+    "S4_minus_injury_role_transfer/turnover": "88101fb56fab814ef75aea22d7c9088df9b0bdc41537b0f260e95853258ec768",
+    "S5_minus_fatigue/turnover": "00e12300cce227b8c5b40ad0482f42fbb3c1ddb64308a8c2e691063c7b5811db"
+  },
+  "package_versions": {
+    "python": "3.12.3",
+    "numpy": "2.4.4",
+    "pandas": "3.0.3",
+    "scipy": "1.18.0",
+    "scikit_learn": "1.9.0"
+  },
+  "outputs": {
+    "ablation_verdict.json": "5623754b3808971b3701fb19676069da309a6e196cf2e672610b57f4877a6949",
+    "ABLATION_VERDICT.md": "bc4ba7804ba616bcf472d088db1cc0ddcc1599fa579a510f78ca299f7d1240aa"
+  }
+}
