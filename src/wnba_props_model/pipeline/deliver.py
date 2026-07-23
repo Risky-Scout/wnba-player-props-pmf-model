@@ -366,10 +366,14 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         ))
     for _col in _lineage_cols:
         joined[_col] = [getattr(_lin, _col) for _lin in _lineages]
-    joined["model_prob_over"] = [
-        (_lin.model_prob_over_final if _lin.model_prob_over_final is not None
-         else _lin.model_prob_over_unconditional) for _lin in _lineages
-    ]
+    # Preserve full float64 precision; None (binary-ineligible all-push) -> NaN.
+    joined["model_prob_over_final"] = np.array(
+        [(_lin.model_prob_over_final if _lin.model_prob_over_final is not None else np.nan)
+         for _lin in _lineages], dtype="float64")
+    # LEGACY alias: output-only, DEPRECATED. It must EQUAL model_prob_over_final (never a
+    # push-unsafe or unconditional value). No internal decision-grade consumer may read it.
+    joined["model_prob_over"] = joined["model_prob_over_final"]
+    joined["probability_alias_version"] = "v1"
     # Shared production edge definition (also used by the P1 historical replay).
     from wnba_props_model.pipeline.recommendation import edge_over_under
     _edges = [edge_over_under(mo, mk) for mo, mk in
