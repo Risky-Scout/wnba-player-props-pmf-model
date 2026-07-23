@@ -340,11 +340,17 @@ def get_no_vig_prob(
 def prob_over_from_pmf(pmf: Mapping[int, float] | np.ndarray, line: float) -> float:
     """DEPRECATED: unconditional P(Y > line). Use settled_probabilities_from_pmf.
 
-    Retained only as a thin backward-compatible wrapper. It returns the UNCONDITIONAL
-    over probability (identical to the historical behavior of this function). Binary
-    sportsbook scoring/calibration must use settled_probabilities_from_pmf(...).p_over_settled,
-    which conditions out integer-line push mass.
+    Retained only as a thin backward-compatible wrapper preserving the historical
+    UNCONDITIONAL semantics. It must NOT be used for binary sportsbook settlement scoring;
+    new sportsbook code must use settled_probabilities_from_pmf(...).p_over_settled, which
+    conditions out integer-line push mass (intentionally different when push mass is nonzero).
     """
+    import warnings  # noqa: PLC0415
+    warnings.warn(
+        "prob_over_from_pmf is deprecated; use settled_probabilities_from_pmf(...).p_over_settled "
+        "for binary sportsbook scoring (push-safe) or .p_over_unconditional for full-PMF analysis.",
+        DeprecationWarning, stacklevel=2,
+    )
     return settled_probabilities_from_pmf(pmf, float(line)).p_over_unconditional
 
 

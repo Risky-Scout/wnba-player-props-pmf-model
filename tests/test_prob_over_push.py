@@ -136,9 +136,32 @@ def test_property_random_pmfs_settled_sum_to_one():
 
 def test_deprecated_wrapper_returns_unconditional():
     pmf = _pmf({0: 0.2, 1: 0.3, 2: 0.5})
-    # Wrapper preserves historical unconditional P(Y>line) behavior.
-    assert prob_over_from_pmf(pmf, 1.0) == pytest.approx(0.5)
-    assert prob_over_from_pmf(pmf, 1.5) == pytest.approx(0.5)
-    # For half-lines, unconditional == settled.
-    assert prob_over_from_pmf(pmf, 1.5) == pytest.approx(
-        settled_probabilities_from_pmf(pmf, 1.5).p_over_settled)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        # Wrapper preserves historical unconditional P(Y>line) behavior.
+        assert prob_over_from_pmf(pmf, 1.0) == pytest.approx(0.5)
+        assert prob_over_from_pmf(pmf, 1.5) == pytest.approx(0.5)
+        # For half-lines, unconditional == settled.
+        assert prob_over_from_pmf(pmf, 1.5) == pytest.approx(
+            settled_probabilities_from_pmf(pmf, 1.5).p_over_settled)
+
+
+def test_deprecated_wrapper_emits_deprecationwarning():
+    pmf = _pmf({0: 0.2, 1: 0.3, 2: 0.5})
+    with pytest.warns(DeprecationWarning):
+        prob_over_from_pmf(pmf, 1.5)
+
+
+def test_wrapper_and_settled_differ_on_integer_line_with_push():
+    # Intentional divergence when push mass is nonzero: the deprecated wrapper returns the
+    # UNCONDITIONAL P(Y>line); settled conditions out the push.
+    pmf = _pmf({0: 0.2, 1: 0.3, 2: 0.5})  # push mass 0.3 at line 1
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        unconditional = prob_over_from_pmf(pmf, 1.0)
+    settled = settled_probabilities_from_pmf(pmf, 1.0).p_over_settled
+    assert unconditional == pytest.approx(0.5)
+    assert settled == pytest.approx(0.5 / 0.7)
+    assert abs(unconditional - settled) > 0.1  # materially different
