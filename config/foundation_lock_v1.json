@@ -2,7 +2,7 @@
   "schema_version": 1,
   "foundation_version": "v1",
   "generated_from_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
-  "created_utc": "2026-07-23T03:14:35.875053+00:00",
+  "created_utc": "2026-07-23T03:34:05.963541+00:00",
   "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
   "items": [
     {
@@ -334,7 +334,7 @@
         {
           "path": "scripts/run_prop_ablation.py",
           "availability": "in_repo",
-          "sha256": "c46b448119706b5c0637b45b7b5557595f8e4c3af0b2181c9e06ed4f96dd27f0"
+          "sha256": "57d572e84e945a832b2d9cc0183aab1defb937443ae7ba3ed27a7356f90f412b"
         },
         {
           "path": "artifacts/feature_ablation/ABLATION_STATUS.json",

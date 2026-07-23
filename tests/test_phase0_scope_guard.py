@@ -53,7 +53,14 @@ def test_violations_respects_approved_exceptions():
 
 
 def test_cli_passes_on_this_branch():
-    # The Foundation Lock branch must not touch protected paths.
+    # The Foundation Lock branch must not touch protected paths. Skip when origin/main is
+    # not present (e.g. the shallow unit-tests CI job); the dedicated foundation-lock CI job
+    # fetches origin/main and runs this guard as a required step.
+    import pytest
+    base = subprocess.run(["git", "rev-parse", "--verify", "origin/main"],
+                          capture_output=True, text=True, cwd=str(REPO))
+    if base.returncode != 0:
+        pytest.skip("origin/main not available in this checkout")
     r = subprocess.run([sys.executable, str(SCRIPT), "--base", "origin/main"],
                        capture_output=True, text=True, cwd=str(REPO))
     assert r.returncode == 0, r.stdout + r.stderr

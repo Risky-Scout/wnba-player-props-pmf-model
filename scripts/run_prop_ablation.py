@@ -43,7 +43,9 @@ import typer
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from wnba_props_model.evaluation.diagnostics import pmf_nll, rps  # noqa: E402
 
-app = typer.Typer(add_completion=False)
+# pretty_exceptions_enable=False: emit plain-text tracebacks so fail-closed AblationError
+# messages are deterministic (no Rich ANSI colorization that can split substrings).
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 SEED = 0  # surrogate model random_state; chronological folds are otherwise deterministic
 CLASSIFICATION = "surrogate feature-subset ablation"
 PROTOCOL = "development-only expanding chronological folds; no holdout scored"
