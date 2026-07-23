@@ -43,7 +43,7 @@ REQUIRED_ITEM_KEYS = {
     "paths", "invariants", "required_tests", "required_ci_job",
     "evidence_artifacts", "limitations",
 }
-REQUIRED_TOP_KEYS = {"schema_version", "foundation_version", "source_commit",
+REQUIRED_TOP_KEYS = {"schema_version", "foundation_version", "generated_from_commit",
                      "created_utc", "items"}
 
 
@@ -55,13 +55,18 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _source_commit() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=str(REPO),
-            stderr=subprocess.DEVNULL).decode().strip()
-    except Exception:
-        return "unknown"
+def _generated_from_commit() -> str:
+    """Base commit the evidence was generated from (merge-base with origin/main).
+
+    Never the commit that will contain this manifest (no self-referential provenance)."""
+    for args in (["git", "merge-base", "origin/main", "HEAD"],
+                 ["git", "merge-base", "origin/HEAD", "HEAD"]):
+        try:
+            return subprocess.check_output(
+                args, cwd=str(REPO), stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            continue
+    return "unknown"
 
 
 def verify(manifest: dict) -> tuple[list[str], list[str]]:
@@ -122,19 +127,30 @@ def update_hashes(manifest: dict) -> dict:
                 entry["sha256"] = None
             else:
                 raise SystemExit(f"[update] cannot hash missing in-repo path: {entry['path']}")
-    manifest["source_commit"] = _source_commit()
+    manifest["generated_from_commit"] = _generated_from_commit()
     manifest["created_utc"] = _dt.datetime.now(_dt.timezone.utc).isoformat()
     return manifest
 
 
+def overall_status(failures: list[str], deferrals: list[str], manifest: dict) -> str:
+    if failures:
+        return "FAIL"
+    has_not_landed = any(it.get("status") == "not_landed" for it in manifest.get("items", []))
+    if deferrals or has_not_landed:
+        return "PASS_WITH_DECLARED_DEFERRALS"
+    return "PASS"
+
+
 def write_report(manifest: dict, failures: list[str], deferrals: list[str]) -> None:
+    status = overall_status(failures, deferrals, manifest)
     lines = [
         "# Foundation Lock Report",
         "",
         f"- Foundation version: **{manifest.get('foundation_version')}**",
-        f"- Source commit: `{manifest.get('source_commit')}`",
+        f"- Generated from commit: `{manifest.get('generated_from_commit')}` "
+        "(base commit; NOT the commit containing this manifest)",
         f"- Generated (manifest): {manifest.get('created_utc')}",
-        f"- Overall: **{'PASS' if not failures else 'FAIL'}**"
+        f"- Overall: **{status}**"
         f"  (failures: {len(failures)}, deferrals: {len(deferrals)})",
         "",
         "This report classifies each locked component by what it does and does not prove.",
@@ -195,7 +211,8 @@ def main() -> int:
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
-    print(f"\n[FOUNDATION LOCK PASS] {len(manifest.get('items', []))} components verified; "
+    status = overall_status(failures, deferrals, manifest)
+    print(f"\n[FOUNDATION LOCK {status}] {len(manifest.get('items', []))} components verified; "
           f"{len(deferrals)} deferred data artifact(s).")
     return 0
 

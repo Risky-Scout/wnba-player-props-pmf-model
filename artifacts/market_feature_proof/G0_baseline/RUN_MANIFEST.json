@@ -8,7 +8,7 @@
     "Reconstructed fields are inferred from scripts/evaluate_market_superiority.py and scripts/build_scored_candidates.py defaults at the source commit and are labeled reconstructed.",
     "Unknown fields (the raw scored-candidates input parquet and its hash/row-count/schema) are recorded as null: that intermediate input was not retained in-repo. Do NOT fabricate it. A future rerun to reconstruct provenance must be stored in a SEPARATE directory and must not overwrite this historical baseline."
   ],
-  "source_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "generated_from_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
   "created_utc": "2026-07-23T00:00:00+00:00",
 
   "command_reconstructed": "python scripts/evaluate_market_superiority.py --mode prove --input <scored_candidates.parquet> --selected-candidates <selected_candidates.json> --output-dir artifacts/market_feature_proof/G0_baseline --min-rows 300 --bootstrap 2000 --alpha 0.05",

@@ -32,7 +32,7 @@ from wnba_props_model.features.feature_contract import MODEL_FEATURES  # noqa: E
 app = typer.Typer(add_completion=False)
 
 DEFAULT_PARQUET = "data/processed/wnba_player_game_features_wide.parquet"
-DEFAULT_SNAPSHOT = "data/processed/feature_matrix_snapshot_v1.json"
+DEFAULT_SNAPSHOT = "artifacts/foundation_lock/feature_matrix_snapshot_v1.json"
 CANONICAL_KEY = ["player_id", "game_id"]
 
 
@@ -48,13 +48,18 @@ def _contract_hash() -> str:
     return hashlib.sha256(json.dumps(sorted(MODEL_FEATURES)).encode()).hexdigest()
 
 
-def _source_commit() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=str(Path(__file__).parent.parent),
-            stderr=subprocess.DEVNULL).decode().strip()
-    except Exception:
-        return "unknown"
+def _generated_from_commit() -> str:
+    """Base commit the evidence was generated from (merge-base with origin/main).
+
+    Never the commit that will contain this snapshot (no self-referential provenance)."""
+    root = str(Path(__file__).parent.parent)
+    for args in (["git", "merge-base", "origin/main", "HEAD"],
+                 ["git", "merge-base", "origin/HEAD", "HEAD"]):
+        try:
+            return subprocess.check_output(args, cwd=root, stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            continue
+    return "unknown"
 
 
 def _schema_hash(ordered_cols_types: list[list[str]]) -> str:
@@ -96,7 +101,7 @@ def compute_snapshot(parquet: Path) -> dict:
         },
         "infinite_value_count": inf_count,
         "feature_contract_hash": _contract_hash(),
-        "builder_source_commit": _source_commit(),
+        "generated_from_commit": _generated_from_commit(),
         "created_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(),
     }
 
