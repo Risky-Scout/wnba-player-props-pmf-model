@@ -8,7 +8,8 @@
   "allowed_locked_paths": [
     "scripts/evaluate_market_superiority.py",
     "scripts/generate_clv_report.py",
-    "scripts/score_daily_predictions.py"
+    "scripts/score_daily_predictions.py",
+    "scripts/verify_gates.py"
   ],
   "forbidden_changes": [
     "market metric formulas",

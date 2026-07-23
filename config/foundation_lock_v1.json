@@ -2,7 +2,7 @@
   "schema_version": 1,
   "foundation_version": "v1",
   "generated_from_commit": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
-  "created_utc": "2026-07-23T18:30:34.623712+00:00",
+  "created_utc": "2026-07-23T19:15:17.701996+00:00",
   "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
   "items": [
     {
@@ -95,7 +95,7 @@
         {
           "path": "scripts/verify_gates.py",
           "availability": "in_repo",
-          "sha256": "f775995eaac00c6635c3f289e5fb918cbfa6b8c50f133156b8846c1ecd8cd8f1"
+          "sha256": "02e1fa1f4ead9f754626d089e47f2d8d60a789a34159e1834a542933f46051c1"
         },
         {
           "path": "scripts/generate_clv_report.py",
@@ -362,8 +362,8 @@
       ]
     }
   ],
-  "previous_manifest_sha256": "6d642333ad222635cd5aa945a686c91b4ceecf7290a6d8ee05a4fb5effc4b7ed",
+  "previous_manifest_sha256": "a7a6ab7d66896a6e48584d9cd5c854127b1770f9ed3001e0492aed6290bb9f36",
   "previous_lock_commit": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
-  "lock_revision": 2,
+  "lock_revision": 3,
   "change_authorization": "config/foundation_lock_change_pr73.json"
 }
