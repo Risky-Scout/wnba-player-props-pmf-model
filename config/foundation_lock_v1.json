@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "foundation_version": "v1",
-  "source_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
-  "created_utc": "2026-07-23T02:14:02.389445+00:00",
+  "generated_from_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "created_utc": "2026-07-23T03:14:35.875053+00:00",
   "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
   "items": [
     {
@@ -63,7 +63,7 @@
         {
           "path": "artifacts/market_feature_proof/G0_baseline/RUN_MANIFEST.json",
           "availability": "in_repo",
-          "sha256": "ba15eed6d431b74d1361ac52bec5313b0ade0573415b7999325453e654a96c2e"
+          "sha256": "7b32fca343e5e6de1368359344f5f055ae4965df4ff66de3eb9376d30e928260"
         }
       ],
       "invariants": [
@@ -179,10 +179,9 @@
       ]
     },
     {
-      "id": "tracking_hustle_collector",
-      "title": "Tracking/hustle collector (infrastructure only)",
-      "status": "not_landed",
-      "component_status": "collector_locked; data_not_landed; canonical_ingestion_not_started; tracking_features_not_started",
+      "id": "tracking_collector",
+      "title": "Tracking/hustle collector (code + schema contract)",
+      "status": "locked",
       "promotion_eligible": false,
       "prohibits_promotion": true,
       "paths": [
@@ -195,16 +194,6 @@
           "path": "config/tracking_hustle_schema_v1.json",
           "availability": "in_repo",
           "sha256": "7ce7613a7ff9a0892d4b27036a007a71e9aa9e0fb8937cf217acb609d1c5f3ff"
-        },
-        {
-          "path": "wnba_tracking_2021_2026.parquet",
-          "availability": "data_artifact_untracked",
-          "sha256": null
-        },
-        {
-          "path": "wnba_hustle_2021_2026.parquet",
-          "availability": "data_artifact_untracked",
-          "sha256": null
         }
       ],
       "invariants": [
@@ -221,27 +210,94 @@
         "config/tracking_hustle_schema_v1.json"
       ],
       "limitations": [
-        "Collector code only. Tracking DATA is NOT landed and tracking FEATURES are NOT built.",
-        "Runs on a LOCAL residential IP only; never in CI/agent VMs (datacenter IPs are blocked).",
+        "Collector CODE only (mocked, no-network tests). Runs on a LOCAL residential IP; never in CI/agent VMs.",
         "This is not Phase B; it proves nothing about discrimination or market edge."
+      ]
+    },
+    {
+      "id": "tracking_data",
+      "title": "Tracking/hustle raw data",
+      "status": "not_landed",
+      "promotion_eligible": false,
+      "prohibits_promotion": true,
+      "paths": [
+        {
+          "path": "wnba_tracking_2021_2026.parquet",
+          "availability": "data_artifact_untracked",
+          "sha256": null
+        },
+        {
+          "path": "wnba_hustle_2021_2026.parquet",
+          "availability": "data_artifact_untracked",
+          "sha256": null
+        }
+      ],
+      "invariants": [
+        "When landed, files must be immutable and hash-pinned in an artifact store retrievable by CI."
+      ],
+      "required_tests": [],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [],
+      "limitations": [
+        "NOT landed. No tracking parquet exists in-repo or in a CI-retrievable store yet.",
+        "Absence is DEFERRED by the verifier, never silently passed."
+      ]
+    },
+    {
+      "id": "tracking_canonical_ingestion",
+      "title": "Tracking/hustle canonical ingestion",
+      "status": "not_landed",
+      "promotion_eligible": false,
+      "prohibits_promotion": true,
+      "paths": [],
+      "invariants": [
+        "When built, canonical tables key on season+game_id+player_id with leakage-audited lags."
+      ],
+      "required_tests": [],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [],
+      "limitations": [
+        "NOT started. No canonical_player_tracking_game / canonical_player_hustle_game tables exist."
+      ]
+    },
+    {
+      "id": "tracking_features",
+      "title": "Tracking-derived model features",
+      "status": "not_landed",
+      "promotion_eligible": false,
+      "prohibits_promotion": true,
+      "paths": [],
+      "invariants": [
+        "When built, features must be strictly lagged and pass the leakage contract."
+      ],
+      "required_tests": [],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [],
+      "limitations": [
+        "NOT started. No tracking features enter any model; this is not Phase B."
       ]
     },
     {
       "id": "feature_matrix_snapshot",
       "title": "Current feature-matrix snapshot",
-      "status": "locked",
+      "status": "not_landed",
+      "substatus": {
+        "snapshot": "locked",
+        "parquet": "local_only",
+        "ci_verifiable": false
+      },
       "promotion_eligible": false,
-      "prohibits_promotion": false,
+      "prohibits_promotion": true,
       "paths": [
         {
-          "path": "data/processed/feature_matrix_snapshot_v1.json",
+          "path": "artifacts/foundation_lock/feature_matrix_snapshot_v1.json",
           "availability": "in_repo",
-          "sha256": "0ccc992917db179fac8a2da3fcf70b95964fab4b0f4e5d3df93a85ad08a64fd2"
+          "sha256": "afcd3cda9d2a494c70aea08b6efa22a7e4bda62bcca77ce195de8f0493bc0b5c"
         },
         {
           "path": "scripts/verify_feature_matrix_snapshot.py",
           "availability": "in_repo",
-          "sha256": "561d2519b9228260403bea1978f3314fae1d0190452b2f926cf81c1852e35463"
+          "sha256": "395f8e9089bf2285451e0973234631d682f113478af183b63f7002fe0661736a"
         },
         {
           "path": "data/processed/wnba_player_game_features_wide.parquet",
@@ -260,45 +316,36 @@
       ],
       "required_ci_job": "foundation-lock",
       "evidence_artifacts": [
-        "data/processed/feature_matrix_snapshot_v1.json"
+        "artifacts/foundation_lock/feature_matrix_snapshot_v1.json"
       ],
       "limitations": [
-        "The wide parquet is git-ignored (large, pipeline-built); the live-parquet drift check is deferred in clean CI checkouts.",
+        "The snapshot descriptor is locked, but the wide parquet is LOCAL-ONLY (git-ignored, not in a CI-retrievable store), so the real feature matrix is NOT reproducible from CI. Status is not_landed; ci_verifiable=false.",
+        "Do not call the feature matrix reproducible from CI until the parquet is uploaded to an immutable, CI-retrievable artifact store.",
         "A snapshot describes the matrix; it does not validate model performance."
       ]
     },
     {
-      "id": "prop_ablation_runner_verdict",
-      "title": "Prop-ablation runner and verdict (corrected, surrogate/dev-only)",
-      "status": "exploratory_locked",
+      "id": "prop_ablation_runner",
+      "title": "Prop-ablation runner (surrogate, fail-closed); prior verdict invalidated",
+      "status": "locked",
       "promotion_eligible": false,
       "prohibits_promotion": true,
       "paths": [
         {
           "path": "scripts/run_prop_ablation.py",
           "availability": "in_repo",
-          "sha256": "6e6b0b293131066b68caa2247f31d5da54d7303d1453d7e1df19308174b3443b"
+          "sha256": "c46b448119706b5c0637b45b7b5557595f8e4c3af0b2181c9e06ed4f96dd27f0"
         },
         {
-          "path": "artifacts/feature_ablation/ablation_verdict.json",
+          "path": "artifacts/feature_ablation/ABLATION_STATUS.json",
           "availability": "in_repo",
-          "sha256": "5623754b3808971b3701fb19676069da309a6e196cf2e672610b57f4877a6949"
-        },
-        {
-          "path": "artifacts/feature_ablation/ABLATION_VERDICT.md",
-          "availability": "in_repo",
-          "sha256": "bc4ba7804ba616bcf472d088db1cc0ddcc1599fa579a510f78ca299f7d1240aa"
-        },
-        {
-          "path": "artifacts/feature_ablation/RUN_MANIFEST.json",
-          "availability": "in_repo",
-          "sha256": "603e6a05c9f817a8932302751a4e4f67e043f6002c186391ddcf9a539c7d52c5"
+          "sha256": "ad97045046200c40e0b78057b87d96e3dc106b0020cf5fa1a547becd5b777e38"
         }
       ],
       "invariants": [
         "Classification is 'surrogate feature-subset ablation'; no final holdout is scored.",
-        "Expanding chronological development folds; reserved tail dates never enter any fold.",
-        "Deterministic ablation_verdict.json under fixed seed; JSON and Markdown generated by the runner.",
+        "FAIL-CLOSED: raises on missing features, missing G0, missing prop map, maps-hash mismatch, unpinned real-data maps hash, no valid folds, or reserved-date leakage.",
+        "Deterministic verdict.json under fixed seed (excluding timestamps); JSON + Markdown generated by the runner.",
         "Each candidate uses exactly its mapped feature list; results are not promotion-eligible."
       ],
       "required_tests": [
@@ -306,12 +353,12 @@
       ],
       "required_ci_job": "foundation-lock",
       "evidence_artifacts": [
-        "artifacts/feature_ablation/RUN_MANIFEST.json"
+        "artifacts/feature_ablation/ABLATION_STATUS.json"
       ],
       "limitations": [
-        "Surrogate model (HGB Poisson -> NB PMF), NOT the signed champion OOF/PMF/calibration/delivery pipeline.",
-        "Development-only exploration; conditional-on-played (DNP excluded). NOT proof, certification, or promotion evidence.",
-        "Conclusion: no tested subset improved the surrogate under this protocol; tracking is a high-priority next source, not proven to be the only one."
+        "Prior verdict INVALIDATED: it was produced by silently discarding 76/128 feature-contract columns absent from the wide parquet. Removed; see ABLATION_STATUS.json.",
+        "No real-data surrogate verdict is produced until an immutable full-feature matrix is landed.",
+        "Surrogate model (HGB Poisson -> NB PMF), NOT the signed champion pipeline. Development-only; not proof/certification/promotion evidence."
       ]
     }
   ]

@@ -12,12 +12,21 @@ drift.
 
 ## Files
 
-- `config/foundation_lock_v1.json` - the manifest (source commit, per-component status,
-  paths + SHA-256, invariants, required tests, required CI job, evidence, limitations,
-  promotion-eligibility).
+- `config/foundation_lock_v1.json` - the manifest (`generated_from_commit` base provenance,
+  per-component status, paths + SHA-256, invariants, required tests, required CI job, evidence,
+  limitations, promotion-eligibility).
 - `scripts/verify_foundation_lock.py` - verifier / updater / report generator.
+- `scripts/check_phase0_scope.py` - Phase-0 scope guard (see below).
 - `docs/FOUNDATION_LOCK.md` - this document.
 - `artifacts/foundation_lock/FOUNDATION_LOCK_REPORT.md` - generated classification report.
+- `artifacts/foundation_lock/feature_matrix_snapshot_v1.json` - feature-matrix snapshot.
+
+## Provenance rule (no self-reference)
+
+Every manifest, run manifest, snapshot, and generated report records
+`generated_from_commit` = the **base commit** the evidence was generated from
+(`git merge-base origin/main HEAD`). It is never set to the commit that contains the manifest,
+and no file hashes itself. The final PR head SHA is reported outside the committed artifacts.
 
 ## Commands
 
@@ -35,7 +44,19 @@ python scripts/verify_foundation_lock.py --update
 
 The verifier FAILS on: a missing in-repo path; a hash mismatch (a changed artifact without an
 explicit manifest update); a missing required test; a manifest/schema mismatch; or a
-component labeled promotion-eligible while its limitations prohibit that status.
+component labeled promotion-eligible while its limitations prohibit that status. When there
+are no failures but declared `not_landed` components or deferred data artifacts exist, the
+overall status is **`PASS_WITH_DECLARED_DEFERRALS`** rather than an unconditional `PASS`.
+
+## Phase-0 scope protection
+
+`scripts/check_phase0_scope.py` (run in the `foundation-lock` job) FAILS the PR if it modifies
+any Phase-0 / live-delivery surface - `src/wnba_props_model/models/market.py`,
+`.../pipeline/deliver.py`, `.../pipeline/calibrate.py`, `scripts/build_scored_candidates.py`,
+`config/recommendation_policy.yaml`, `config/stat_registry.json`, or any live delivery workflow
+(`live_*`, `pregame*`, `daily_pipeline.yml`, `deploy_forecast_shell.yml`,
+`post_game_scoring.yml`) - unless an approved `config/phase0_scope_exception.json`
+(`{"approved_paths": [...]}`) lists the path. Absence of that file means no exceptions.
 
 Data artifacts declared `availability: data_artifact_untracked` (the git-ignored feature
 parquet and the not-yet-landed tracking parquets) are verified when present and reported as
@@ -50,9 +71,12 @@ artifact and required test is always checked and can never be silently skipped.
 | 2 | G0 baseline proof | `locked` | The current model FAILS vs the market on every quoted prop (honest baseline). | Nothing positive. Pre-Phase-0; quote identity / push-safety / parity not fixed. |
 | 3 | Signed-CLV gate | `locked` | CLV is signed, directional, fail-closed; no nonnegative fallback. | Positive CLV (requires post-game closing quotes to evaluate). |
 | 4 | Feature-ablation maps | `locked` | Resolved maps regenerate deterministically; G0 == full contract; no forbidden features. | Any performance claim. |
-| 5 | Tracking/hustle collector | `not_landed` | The collector code + output schema contract are correct (mocked). | Anything about tracking data or features - data is NOT landed, features NOT built. |
-| 6 | Feature-matrix snapshot | `locked` | The current matrix identity/shape is pinned; drift is detectable. | Model performance. |
-| 7 | Prop-ablation runner + verdict | `exploratory_locked` | No tested feature subset improved a **surrogate** model under a **development-only** protocol. | That tracking is the only improvement source; not proof/certification/promotion evidence. |
+| 5 | Tracking collector | `locked` | Collector code + schema contract are correct (mocked, no-network). | Anything about tracking data or features. |
+| 6 | Tracking data | `not_landed` | Nothing (not landed). | Data exists in a CI-retrievable store. |
+| 7 | Tracking canonical ingestion | `not_landed` | Nothing (not started). | Canonical tables exist. |
+| 8 | Tracking features | `not_landed` | Nothing (not started). | Any tracking feature enters a model. |
+| 9 | Feature-matrix snapshot | `not_landed` (snapshot `locked`, parquet `local_only`, `ci_verifiable:false`) | The snapshot descriptor is pinned and drift is detectable. | The real matrix is NOT reproducible from CI (parquet local-only). |
+| 10 | Prop-ablation runner | `locked` | The runner is fail-closed and deterministic on complete-feature inputs. | The prior verdict (INVALIDATED - silent 76/128 feature drop); no real-data verdict is produced. |
 
 ## Required branch-protection checks
 
