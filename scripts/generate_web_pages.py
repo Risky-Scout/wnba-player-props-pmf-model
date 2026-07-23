@@ -403,7 +403,7 @@ def _build_pmf_json(
 
     # Columns to pull from the edge report (market line + edge signal).
     _edge_payload_cols = [
-        "edge_over", "kelly_fraction", "model_prob_over",
+        "edge_over", "kelly_fraction", "model_prob_over_final",
         "market_prob_over_no_vig", "no_vig_over_prob", "no_vig_under_prob",
         "line", "bookmaker", "over_odds", "under_odds",
     ]
@@ -1977,7 +1977,7 @@ def main(
             raise typer.Exit(1)
         typer.echo(f"  [WARN] Could not load edges: {exc} — using empty DataFrame")
         edges_df = pd.DataFrame(columns=["player_name", "player_id", "stat", "line", "edge_over",
-                                          "kelly_fraction", "model_prob_over", "market_prob_over_no_vig"])
+                                          "kelly_fraction", "model_prob_over_final", "market_prob_over_no_vig"])
         edges_df_loaded = False
 
     # --- Apply canonical player identity resolution before building JSON ---

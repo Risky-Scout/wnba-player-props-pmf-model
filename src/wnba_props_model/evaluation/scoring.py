@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from wnba_props_model.evaluation.diagnostics import pmf_nll, rps
-from wnba_props_model.models.market import brier, binary_logloss, prob_over_from_pmf
+from wnba_props_model.models.market import brier, binary_logloss
 from wnba_props_model.models.simulation import json_to_pmf
 
 

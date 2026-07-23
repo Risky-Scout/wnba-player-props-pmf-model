@@ -100,13 +100,13 @@ def _prepare_backtest_df(
     df["date"] = pd.to_datetime(df[date_col], utc=True, errors="coerce").dt.date
 
     # Required bet-decision columns
-    required = {"model_prob_over", "market_prob_over_no_vig", "actual_outcome"}
+    required = {"model_prob_over_final", "market_prob_over_no_vig", "actual_outcome"}
     missing = required - set(df.columns)
     if missing:
         logger.warning("backtest_df missing columns: %s", missing)
         return pd.DataFrame()
 
-    return df.dropna(subset=["date", "model_prob_over", "market_prob_over_no_vig"]).copy()
+    return df.dropna(subset=["date", "model_prob_over_final", "market_prob_over_no_vig"]).copy()
 
 
 def _run_backtest(
@@ -131,7 +131,7 @@ def _run_backtest(
         # --- Over bet ---
         edge_over = float(row.get("edge_over", 0.0) or 0.0)
         if edge_over > edge_threshold:
-            mp = float(row.get("model_prob_over", 0.5))
+            mp = float(row.get("model_prob_over_final", 0.5))
             mkt_p = float(row.get("market_prob_over_no_vig", 0.5))
             over_odds = row.get("over_odds")
             dec = _american_to_decimal(over_odds)
@@ -147,7 +147,7 @@ def _run_backtest(
         # --- Under bet ---
         edge_under = float(row.get("edge_under", 0.0) or 0.0)
         if edge_under > edge_threshold:
-            model_p_under = 1.0 - float(row.get("model_prob_over", 0.5))
+            model_p_under = 1.0 - float(row.get("model_prob_over_final", 0.5))
             mkt_p_under   = 1.0 - float(row.get("market_prob_over_no_vig", 0.5))
             under_odds = row.get("under_odds")
             dec = _american_to_decimal(under_odds)

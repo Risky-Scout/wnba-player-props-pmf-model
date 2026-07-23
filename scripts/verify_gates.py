@@ -221,8 +221,8 @@ def _prepare_market_loss_rows(df: pd.DataFrame) -> pd.DataFrame:
             out["event_logloss_delta"] = float("nan")
 
     if "brier_delta" not in out.columns:
-        if all(c in out.columns for c in ("model_prob_over", "market_prob_over_no_vig", "hit_result")):
-            model_brier = (out["model_prob_over"] - out["hit_result"].astype(float)) ** 2
+        if all(c in out.columns for c in ("model_prob_over_final", "market_prob_over_no_vig", "hit_result")):
+            model_brier = (out["model_prob_over_final"] - out["hit_result"].astype(float)) ** 2
             market_brier = (out["market_prob_over_no_vig"] - out["hit_result"].astype(float)) ** 2
             out["brier_delta"] = model_brier - market_brier
         else:
