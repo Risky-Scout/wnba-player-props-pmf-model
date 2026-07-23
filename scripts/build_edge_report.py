@@ -58,7 +58,7 @@ else:
     SHIN_Z_THRESHOLD = 0.15
 
 from wnba_props_model.pipeline.deliver import build_market_comparison, normalize_player_props_snapshot
-from wnba_props_model.models.market import fair_american, prob_over_from_pmf
+from wnba_props_model.models.market import fair_american
 from wnba_props_model.models.simulation import json_to_pmf
 from wnba_props_model.pipeline.calibrate import apply_venn_abers_calibration
 from wnba_props_model.pipeline.market_integrity import (
@@ -540,22 +540,29 @@ def main(
     )
 
     # Apply Venn-Abers calibration
+    # Venn-Abers is the binary-calibration stage applied to the delivered final probability.
+    # It operates on (and writes) model_prob_over_final - the single decision probability -
+    # and keeps the output-only legacy alias in sync. (In a later PR this VA step folds into
+    # build_probability_lineage's binary-calibration stage.)
+    from wnba_props_model.models.probability_contract import FINAL_PROBABILITY_COLUMN as _FINAL  # noqa: PLC0415
     va_applied = False
-    if "model_prob_over" in comp.columns and "stat" in comp.columns:
+    if _FINAL in comp.columns and "stat" in comp.columns:
         try:
-            comp = apply_venn_abers_calibration(comp, cal_dir=cal_dir)
+            comp = apply_venn_abers_calibration(comp, cal_dir=cal_dir, model_prob_col=_FINAL)
             if "p_over_va" in comp.columns:
-                _va_mask = comp["p_over_va"] != comp["model_prob_over"]
+                _va_mask = comp["p_over_va"] != comp[_FINAL]
                 if _va_mask.any():
-                    comp.loc[_va_mask, "model_prob_over"] = comp.loc[_va_mask, "p_over_va"]
+                    comp.loc[_va_mask, _FINAL] = comp.loc[_va_mask, "p_over_va"]
                     comp.loc[_va_mask, "edge_over"] = (
-                        comp.loc[_va_mask, "model_prob_over"]
+                        comp.loc[_va_mask, _FINAL]
                         - comp.loc[_va_mask, "market_prob_over_no_vig"]
                     )
                     comp.loc[_va_mask, "edge_under"] = (
                         comp.loc[_va_mask, "market_prob_over_no_vig"]
-                        - comp.loc[_va_mask, "model_prob_over"]
+                        - comp.loc[_va_mask, _FINAL]
                     )
+                    if "model_prob_over" in comp.columns:  # keep output-only alias == final
+                        comp.loc[_va_mask, "model_prob_over"] = comp.loc[_va_mask, _FINAL]
                     typer.echo(f"[venn_abers] Applied VA calibration to {_va_mask.sum()} rows")
                     va_applied = True
         except Exception as _va_exc:
@@ -776,8 +783,8 @@ def main(
         )
         comp = comp.merge(_book_counts, on=_id_cols, how="left")
 
-        # Compute EV on preferred side using actual sportsbook odds
-        _p_over = comp["model_prob_over"].fillna(0.5)
+        # Compute EV on preferred side using actual sportsbook odds (decision-grade: final).
+        _p_over = comp["model_prob_over_final"].fillna(0.5)
         _preferred_over = _p_over >= 0.5
         _dec_over  = comp.get("over_odds",  pd.Series([np.nan]*len(comp), index=comp.index)).apply(_american_to_dec)
         _dec_under = comp.get("under_odds", pd.Series([np.nan]*len(comp), index=comp.index)).apply(_american_to_dec)

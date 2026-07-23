@@ -238,7 +238,7 @@ def _build_edge_json(
                 best_odds = best_odds if best_odds is not None else v1_rec.get("odds_american")
 
         # Model vs Market plain-English signal text
-        model_p = float(r.get("model_prob_over", 0) or 0)
+        model_p = float(r.get("model_prob_over_final", 0) or 0)
         market_p_val = float(r.get("market_prob_over_no_vig", 0) or 0)
         model_pct = round(model_p * 100)
         market_pct = round(market_p_val * 100)
@@ -276,10 +276,10 @@ def _build_edge_json(
             "model_mean": round(float(r.get("pmf_mean", 0) or 0), 2),
             "median": round(float(r.get("median", 0) or 0), 1),
             "market_line": round(float(r.get("line", 0) or 0), 1),
-            "model_p_over": round(float(r.get("model_prob_over", 0) or 0), 4),
+            "model_p_over": round(float(r.get("model_prob_over_final", 0) or 0), 4),
             # Compute push-aware under from PMF when available; fallback is 1 - p_over
             "model_p_under": round(
-                (1.0 - float(r.get("model_prob_over", 0) or 0)
+                (1.0 - float(r.get("model_prob_over_final", 0) or 0)
                  - float(r.get("model_prob_push", 0) or 0)), 4
             ),
             "model_p_push": round(float(r.get("model_prob_push", 0) or 0), 4),
@@ -517,7 +517,7 @@ def _build_pmf_json(
             model_p_push = round(float(_p[_k == float(market_line)].sum()), 6) if _is_int_line else 0.0
             model_p_under = round(max(0.0, 1.0 - model_p_over - model_p_push), 6)
         else:
-            model_p_over = round(float(r.get("model_prob_over", 0) or 0), 4)
+            model_p_over = round(float(r.get("model_prob_over_final", 0) or 0), 4)
             model_p_push = 0.0
             model_p_under = round(1.0 - model_p_over, 4)
 

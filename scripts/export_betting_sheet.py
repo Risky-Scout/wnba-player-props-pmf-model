@@ -104,7 +104,7 @@ def main(
     df["kelly_q"] = df.apply(
         lambda r: kelly_from_edge_and_prob(
             edge=float(r["edge_over"]),
-            model_prob=float(r["model_prob_over"]),
+            model_prob=float(r["model_prob_over_final"]),
             fractional_kelly=0.25,
         ),
         axis=1,
@@ -126,12 +126,12 @@ def main(
         "player_name": df.get("player_name", df.get("player_id", "")),
         "stat": df["stat"],
         "line": df["line"],
-        "model_prob_over": df["model_prob_over"].round(4),
+        "model_prob_over_final": df["model_prob_over_final"].round(4),
         "market_prob_over_shin": df["market_prob_over_no_vig"].round(4),
         "edge": df["edge_over"].round(4),
         "edge_pct": (df["edge_over"] * 100).round(2).astype(str) + "%",
-        "fair_over_american": df["model_prob_over"].map(fair_american).round(0).astype(int),
-        "fair_under_american": (1 - df["model_prob_over"]).map(fair_american).round(0).astype(int),
+        "fair_over_american": df["model_prob_over_final"].map(fair_american).round(0).astype(int),
+        "fair_under_american": (1 - df["model_prob_over_final"]).map(fair_american).round(0).astype(int),
         "recommendation": df["edge_over"].map(_recommendation),
         "confidence": df["edge_abs"].map(_confidence),
         "kelly_quarter": df["kelly_q"],
@@ -161,7 +161,7 @@ def main(
         "direction": df["edge_over"].map(_recommendation).values,
         "line": df["line"].values,
         "model_yes_prob": df.apply(
-            lambda r: float(r["model_prob_over"]) if r["edge_over"] > 0 else float(1 - r["model_prob_over"]),
+            lambda r: float(r["model_prob_over_final"]) if r["edge_over"] > 0 else float(1 - r["model_prob_over_final"]),
             axis=1,
         ).round(4).values,
         "market_yes_prob": df.apply(
@@ -227,7 +227,7 @@ def main(
     for _, r in sheet.head(10).iterrows():
         typer.echo(
             f"  {r['recommendation']} {r.get('player_name','?')} {r['stat']} {r['line']} "
-            f"(model={r['model_prob_over']:.3f}, mkt={r['market_prob_over_shin']:.3f}, "
+            f"(model={r['model_prob_over_final']:.3f}, mkt={r['market_prob_over_shin']:.3f}, "
             f"edge={r['edge']:+.3f}, {r['confidence']})"
         )
 

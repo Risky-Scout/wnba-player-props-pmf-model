@@ -35,7 +35,8 @@ import pandas as pd
 import typer
 
 from wnba_props_model.evaluation.diagnostics import pmf_nll, rps
-from wnba_props_model.models.market import binary_logloss, ignorance_score_binary, prob_over_from_pmf
+from wnba_props_model.models.market import binary_logloss, ignorance_score_binary
+from wnba_props_model.models.probability_contract import FINAL_PROBABILITY_COLUMN
 from wnba_props_model.models.simulation import json_to_pmf, normalize_pmf
 
 app = typer.Typer(add_completion=False)
@@ -261,8 +262,9 @@ def main(
         if not mkt.empty and "market_prob_over_no_vig" in mkt.columns:
             # Include vendor and shin_z so per-book CLV analysis works downstream.
             _optional_mkt_cols = ["vendor", "shin_z"]
+            # PR 1A source-of-truth: score the delivered final probability, not the legacy alias.
             _mkt_cols = ["game_id", "player_id", "stat", "line",
-                         "market_prob_over_no_vig", "model_prob_over"] + \
+                         "market_prob_over_no_vig", FINAL_PROBABILITY_COLUMN] + \
                         [c for c in _optional_mkt_cols if c in mkt.columns]
             mkt_sub = mkt[_mkt_cols].copy()
             joined = joined.merge(mkt_sub, on=["game_id", "player_id", "stat"], how="left")
@@ -274,7 +276,7 @@ def main(
             joined.loc[valid, "model_bin_logloss"] = [
                 binary_logloss(p, y)
                 for p, y in zip(
-                    joined.loc[valid, "model_prob_over"],
+                    joined.loc[valid, FINAL_PROBABILITY_COLUMN],
                     joined.loc[valid, "hit_result"],
                 )
             ]
@@ -288,7 +290,7 @@ def main(
             joined.loc[valid, "model_ignorance_score"] = [
                 ignorance_score_binary(p, y)
                 for p, y in zip(
-                    joined.loc[valid, "model_prob_over"],
+                    joined.loc[valid, FINAL_PROBABILITY_COLUMN],
                     joined.loc[valid, "hit_result"],
                 )
             ]
@@ -303,7 +305,7 @@ def main(
             # It is the model's probability minus the open no-vig market probability
             # for the OVER; it is never multiplied by the game result.
             joined.loc[valid, "model_edge_open"] = (
-                joined.loc[valid, "model_prob_over"] - joined.loc[valid, "market_prob_over_no_vig"]
+                joined.loc[valid, FINAL_PROBABILITY_COLUMN] - joined.loc[valid, "market_prob_over_no_vig"]
             )
 
     # Closing-line edge + CLV (OUTCOME-INDEPENDENT). Requires a CANONICAL closing
@@ -357,7 +359,7 @@ def main(
                     if pd.notna(me):
                         side = "over" if float(me) > 0 else "under"
                     else:
-                        side = "over" if float(row.get("model_prob_over", 0.5)) >= 0.5 else "under"
+                        side = "over" if float(row.get(FINAL_PROBABILITY_COLUMN, 0.5)) >= 0.5 else "under"
                     if side == "over":
                         m_side, close_side = m_over_close, close_p_over
                     else:
