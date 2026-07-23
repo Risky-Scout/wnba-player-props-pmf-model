@@ -29,9 +29,18 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "src" / "wnba_props_model"
 
-# Modules already migrated to the single-source contract in PR 1A.
+# All decision-grade modules migrated to the single-source contract in PR 1A.
+REPO_ROOT = REPO
 APPROVED_DECISION_GRADE_MODULES = [
     SRC / "pipeline" / "deliver.py",
+    SRC / "evaluation" / "historical_market.py",
+    REPO_ROOT / "scripts" / "build_scored_candidates.py",
+    REPO_ROOT / "scripts" / "evaluate_market_superiority.py",
+    REPO_ROOT / "scripts" / "generate_clv_report.py",
+    REPO_ROOT / "scripts" / "score_daily_predictions.py",
+    REPO_ROOT / "scripts" / "build_edge_report.py",
+    REPO_ROOT / "scripts" / "export_betting_sheet.py",
+    REPO_ROOT / "scripts" / "generate_web_pages.py",
 ]
 LINEAGE_MODULE = SRC / "models" / "probability_lineage.py"
 

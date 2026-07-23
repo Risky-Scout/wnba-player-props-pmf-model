@@ -89,6 +89,18 @@ def test_scalar_validator_fail_closed():
     assert np.isnan(validate_final_probability(None, consumer="c", allow_none=True))
 
 
+def test_machine_audit_reports_one_zero_zero():
+    # Machine proof across ALL decision-grade consumers (item 8/10): creators=1, reads=0, recon=0.
+    import subprocess
+    import sys
+    from pathlib import Path
+    repo = Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(repo / "scripts" / "audit_probability_consumers.py"),
+                        "--check"], capture_output=True, text=True, cwd=str(repo))
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "PASS 1/0/0" in r.stdout
+
+
 def test_forbidden_get_fallback_pattern_absent_in_contract_source():
     import inspect
     from wnba_props_model.models import probability_contract as m

@@ -143,7 +143,7 @@ def test_pnl_roi_reconciliation():
         "decimal_odds": [1 + 100/110, 2.5, 1 + 100/120],
         "won": [True, False, True],
         "profit": [100/110, -1.0, 100/120],
-        "model_prob_over": [0.4, 0.4, 0.6], "market_prob_over_no_vig": [0.5, 0.5, 0.5],
+        "model_prob_over_final": [0.4, 0.4, 0.6], "market_prob_over_no_vig": [0.5, 0.5, 0.5],
         "game_date": ["2026-07-10", "2026-07-11", "2026-07-12"],
     })
     r = hm.grade(df, n_boot=100)

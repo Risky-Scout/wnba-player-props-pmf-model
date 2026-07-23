@@ -203,3 +203,21 @@ def test_select_precedes_proof_and_no_leakage(tmp_path):
     assert res["n_clusters"] == 12
     # Selection dates (May) strictly precede proof dates (July).
     assert "2025-05" < res["date_min"]
+
+
+def test_real_proof_rejects_legacy_model_prob_over(tmp_path):
+    # PR 1A: real proof mode must reject a CLI override selecting the legacy column.
+    src = tmp_path / "s.csv"
+    pd.DataFrame({"prop": ["pts"], "candidate": ["c"], "split": ["test"],
+                  "game_date": ["2025-07-01"], "actual": [1], "line": [0.5],
+                  "model_prob_over_final": [0.6], "market_prob_over_no_vig": [0.5]}).to_csv(src, index=False)
+    r = subprocess.run([sys.executable, str(EVAL), "--mode", "prove", "--input", str(src),
+                        "--model-prob-col", "model_prob_over", "--output-dir", str(tmp_path / "o")],
+                       capture_output=True, text=True, cwd=str(REPO))
+    assert r.returncode != 0
+    assert "model_prob_over" in (r.stdout + r.stderr) and "forbidden" in (r.stdout + r.stderr)
+
+
+def test_real_proof_default_column_is_final():
+    src = EVAL.read_text()
+    assert '--model-prob-col", default="model_prob_over_final"' in src

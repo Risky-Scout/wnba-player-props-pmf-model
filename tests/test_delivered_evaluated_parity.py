@@ -133,6 +133,48 @@ def test_missing_final_column_fails_closed(tmp_path):
         _consume_like_candidate_and_evaluator(pq)
 
 
+def _oof_and_quotes(tmp_path, line, mu=10.0, r=6.0):
+    """Build tiny OOF + quotes parquets for a real build_scored_candidates run."""
+    from wnba_props_model.models.pmf_utils import negbinom_pmf_batch
+    from wnba_props_model.models.simulation import pmf_to_json
+    pmf = negbinom_pmf_batch(np.array([mu]), r, 40)[0]
+    oof = pd.DataFrame([{
+        "game_id": "G1", "player_id": "P1", "stat": "pts", "game_date": "2026-06-20",
+        "pmf_json": pmf_to_json(pmf), "actual_outcome": 12.0, "role_bucket": "starter",
+    }])
+    quotes = pd.DataFrame([{
+        "game_id": "G1", "player_id": "P1", "stat": "pts", "line": float(line),
+        "market_prob_over_no_vig": 0.5,
+    }])
+    op = tmp_path / "oof.parquet"; qp = tmp_path / "quotes.parquet"
+    oof.to_parquet(op, index=False); quotes.to_parquet(qp, index=False)
+    return op, qp, pmf
+
+
+@pytest.mark.parametrize("line", [10.0, 6.5])  # integer(push) + half line
+def test_real_build_scored_candidates_preserves_final(tmp_path, line):
+    import subprocess
+    import sys
+    op, qp, pmf = _oof_and_quotes(tmp_path, line)
+    scored = tmp_path / "scored.parquet"
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "build_scored_candidates.py"),
+         "--oof", str(op), "--quotes", str(qp), "--out", str(scored), "--candidate", "T"],
+        capture_output=True, text=True, cwd=str(REPO))
+    assert r.returncode == 0, r.stdout + r.stderr
+    df = pd.read_parquet(scored)
+    assert len(df) == 1
+    lineage_final = build_probability_lineage(
+        final_pmf=pmf, line=float(line), prop="pts", role="starter").model_prob_over_final
+    # Real candidate builder preserves the sole-creator final probability within 1e-12.
+    assert abs(float(df[FINAL_PROBABILITY_COLUMN].iloc[0]) - lineage_final) <= TOL
+    # It emits the final column, not the legacy alias.
+    assert LEGACY_PROBABILITY_COLUMN not in df.columns
+
+
+REPO = __import__("pathlib").Path(__file__).resolve().parent.parent
+
+
 def test_rounded_serialized_probability_would_break_parity(tmp_path):
     # Proof that rounding the proof probability violates the 1e-12 parity contract.
     pmf = _final_pmf(mu=7.3137, r=4.11)
