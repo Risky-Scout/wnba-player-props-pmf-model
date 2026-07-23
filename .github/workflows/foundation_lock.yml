@@ -1,0 +1,68 @@
+name: foundation-lock
+
+# Mandatory, fail-closed Foundation Lock gate. Verifies that every locked foundational
+# component is reproducible, hash-pinned, and regression-tested. It must NOT use
+# continue-on-error and must NOT silently skip a locked check because a file is missing:
+# every in-repo locked artifact and required test is present in a clean checkout, so their
+# absence is a hard failure. Git-ignored data artifacts (feature parquet, not-yet-landed
+# tracking parquets) are explicitly reported as DEFERRED by the verifier, not skipped.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  foundation-lock:
+    name: foundation-lock
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Foundation manifest verification (hash-pins + schema + promotion rule)
+        run: python scripts/verify_foundation_lock.py --write-report
+
+      - name: Feature-ablation maps regeneration check (byte-for-byte)
+        run: python scripts/build_feature_ablation_maps.py check
+
+      - name: Feature-matrix snapshot verification (self-consistency; parquet drift deferred in CI)
+        run: python scripts/verify_feature_matrix_snapshot.py verify
+
+      - name: Locked regression tests
+        run: |
+          python -m pytest -q --tb=short \
+            tests/test_foundation_lock_verifier.py \
+            tests/test_foundation_g0_baseline.py \
+            tests/test_market_superiority_evaluator.py \
+            tests/test_clv_tracking_gate.py \
+            tests/test_foundation_ablation_maps_check.py \
+            tests/test_feature_ablation_maps.py \
+            tests/test_tracking_collector.py \
+            tests/test_foundation_feature_matrix_snapshot.py \
+            tests/test_prop_ablation_runner.py
+
+      - name: Upload Foundation Lock report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-lock-report-${{ github.run_id }}
+          path: artifacts/foundation_lock/FOUNDATION_LOCK_REPORT.md
+          retention-days: 30

@@ -1,0 +1,318 @@
+{
+  "schema_version": 1,
+  "foundation_version": "v1",
+  "source_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "created_utc": "2026-07-23T02:14:02.389445+00:00",
+  "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
+  "items": [
+    {
+      "id": "market_superiority_evaluator",
+      "title": "Market-superiority evaluator",
+      "status": "locked",
+      "promotion_eligible": false,
+      "prohibits_promotion": false,
+      "paths": [
+        {
+          "path": "scripts/evaluate_market_superiority.py",
+          "availability": "in_repo",
+          "sha256": "920ea4aab7ef53fe1d196ace3a2d8b5666d875de61a998d4a4859f419dfe1700"
+        }
+      ],
+      "invariants": [
+        "Selection uses only the selection split; proof uses only the test split.",
+        "Date-clustered bootstrap; requires >= 2 clusters; deterministic under a fixed seed.",
+        "Signs: challenger-minus-market; logloss/Brier negative is better, AUC positive is better.",
+        "Pushes (actual == line) are excluded from binary metrics.",
+        "PASS requires ci bound past zero AND Holm-adjusted p <= alpha AND n >= min_rows.",
+        "Fail-closed: missing required columns raise; multiple candidates require a frozen map in prove mode."
+      ],
+      "required_tests": [
+        "tests/test_market_superiority_evaluator.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "artifacts/market_feature_proof/G0_baseline/"
+      ],
+      "limitations": [
+        "The synthetic --self-test validates evaluator MECHANICS only; it is NOT real market evidence.",
+        "A PASS is evidence only for the exact frozen candidate, book, timestamps, dates, and population."
+      ]
+    },
+    {
+      "id": "g0_baseline_proof",
+      "title": "G0 baseline proof (historical, pre-Phase-0)",
+      "status": "locked",
+      "promotion_eligible": false,
+      "prohibits_promotion": true,
+      "paths": [
+        {
+          "path": "artifacts/market_feature_proof/G0_baseline/market_superiority_proof.json",
+          "availability": "in_repo",
+          "sha256": "44558d4651aeff7ab97627a3106d34383f11d2db32b3300008f1f48659c6f471"
+        },
+        {
+          "path": "artifacts/market_feature_proof/G0_baseline/market_superiority_proof.csv",
+          "availability": "in_repo",
+          "sha256": "42e994dc5f331669e29fc05ca87b254a75f02e1b6c4c49003038f45d9db72432"
+        },
+        {
+          "path": "artifacts/market_feature_proof/G0_baseline/MARKET_SUPERIORITY_REPORT.md",
+          "availability": "in_repo",
+          "sha256": "034d70e47aff00cc0be6455d8e326fde9330c863be10300dfc4889f20d2f0827"
+        },
+        {
+          "path": "artifacts/market_feature_proof/G0_baseline/RUN_MANIFEST.json",
+          "availability": "in_repo",
+          "sha256": "ba15eed6d431b74d1361ac52bec5313b0ade0573415b7999325453e654a96c2e"
+        }
+      ],
+      "invariants": [
+        "all_props_pass is false; no primary prop is recorded as PASS.",
+        "JSON, CSV, and Markdown renderings agree on per-prop n and gate.",
+        "RUN_MANIFEST per-prop counts and date ranges match the machine-readable proof.",
+        "Output artifact hashes are pinned; any change breaks verification."
+      ],
+      "required_tests": [
+        "tests/test_foundation_g0_baseline.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "artifacts/market_feature_proof/G0_baseline/RUN_MANIFEST.json"
+      ],
+      "limitations": [
+        "Historical pre-Phase-0 baseline. Not promotion-eligible.",
+        "Push-safe integer-line handling, exact quote identity, and evaluated-versus-deployed parity are NOT yet fixed.",
+        "Books were averaged in the input, so exact quote identity was not preserved."
+      ]
+    },
+    {
+      "id": "signed_clv_gate",
+      "title": "Signed-CLV gate",
+      "status": "locked",
+      "promotion_eligible": false,
+      "prohibits_promotion": false,
+      "paths": [
+        {
+          "path": "scripts/verify_gates.py",
+          "availability": "in_repo",
+          "sha256": "f775995eaac00c6635c3f289e5fb918cbfa6b8c50f133156b8846c1ecd8cd8f1"
+        },
+        {
+          "path": "scripts/generate_clv_report.py",
+          "availability": "in_repo",
+          "sha256": "f26097ab2454e6bfa7d98925edf6d7dfaddd0ea129f02f0235b92c5074d5f1a5"
+        },
+        {
+          "path": "scripts/score_daily_predictions.py",
+          "availability": "in_repo",
+          "sha256": "7170cc324d7cc70ebd4bd0a212f7dc464fd6e8a51c029959c4e1651e6c67f757"
+        }
+      ],
+      "invariants": [
+        "CLV is signed and directional for the selected side (close minus open no-vig).",
+        "No max(|edge_over|,|edge_under|) nonnegative fallback is permitted.",
+        "Negative signed CLV cannot pass; missing closing quotes fail closed.",
+        "Ambiguous/many-to-many quote joins fail closed (duplicated-subset guard).",
+        "Confidence intervals are clustered by game date; insufficient clusters cannot pass."
+      ],
+      "required_tests": [
+        "tests/test_clv_tracking_gate.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "tests/test_clv_tracking_gate.py"
+      ],
+      "limitations": [
+        "Requires post-game closing quotes to evaluate; without them the gate fail-closes (skips), it does not pass.",
+        "CLV thresholds are unchanged by Foundation Lock v1."
+      ]
+    },
+    {
+      "id": "feature_ablation_maps",
+      "title": "Feature-ablation maps",
+      "status": "locked",
+      "promotion_eligible": false,
+      "prohibits_promotion": false,
+      "paths": [
+        {
+          "path": "config/feature_ablation_maps_v1.json",
+          "availability": "in_repo",
+          "sha256": "2591c830b5ef73fe447932d96a0403f90ee0224318d5852eab3ccfab37f67b05"
+        },
+        {
+          "path": "config/feature_ablation_plan_v1.json",
+          "availability": "in_repo",
+          "sha256": "7b97ded8add391226a82123245a9f5f393614c5702ce15075b190978eee701bc"
+        },
+        {
+          "path": "config/prop_feature_map_candidate_v1.json",
+          "availability": "in_repo",
+          "sha256": "2f5a4f819242ece619f72fb3429f8d9843a5dbbd50e18be0a9e839612cd8cf52"
+        },
+        {
+          "path": "scripts/build_feature_ablation_maps.py",
+          "availability": "in_repo",
+          "sha256": "66c7f7ce7c0db77fad3ff912267bd155dd367b67a09beb4b2a9d1024b62aab76"
+        },
+        {
+          "path": "src/wnba_props_model/features/feature_contract.py",
+          "availability": "in_repo",
+          "sha256": "66b5aafb4c680b65aab60978159c2ddf2c5cf00b0f9d6fd57948bc04b2167e87"
+        }
+      ],
+      "invariants": [
+        "check regenerates the resolved map and compares canonicalized JSON byte-for-byte.",
+        "G0 equals the full current feature contract for every direct prop.",
+        "Unknown or forbidden features are a hard error; duplicates are rejected.",
+        "Resolution is deterministic (stable ordering)."
+      ],
+      "required_tests": [
+        "tests/test_foundation_ablation_maps_check.py",
+        "tests/test_feature_ablation_maps.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "config/feature_ablation_maps_v1.json"
+      ],
+      "limitations": [
+        "Resolves feature lists only; it does not train models or prove anything about performance."
+      ]
+    },
+    {
+      "id": "tracking_hustle_collector",
+      "title": "Tracking/hustle collector (infrastructure only)",
+      "status": "not_landed",
+      "component_status": "collector_locked; data_not_landed; canonical_ingestion_not_started; tracking_features_not_started",
+      "promotion_eligible": false,
+      "prohibits_promotion": true,
+      "paths": [
+        {
+          "path": "scripts/pull_wnba_tracking_local.py",
+          "availability": "in_repo",
+          "sha256": "2b3b61b77638d28bdc2fb45121a4f1ecb058ae7fbca3712a86ac9bd6d224bbf1"
+        },
+        {
+          "path": "config/tracking_hustle_schema_v1.json",
+          "availability": "in_repo",
+          "sha256": "7ce7613a7ff9a0892d4b27036a007a71e9aa9e0fb8937cf217acb609d1c5f3ff"
+        },
+        {
+          "path": "wnba_tracking_2021_2026.parquet",
+          "availability": "data_artifact_untracked",
+          "sha256": null
+        },
+        {
+          "path": "wnba_hustle_2021_2026.parquet",
+          "availability": "data_artifact_untracked",
+          "sha256": null
+        }
+      ],
+      "invariants": [
+        "Output filenames, season range, and league id match the versioned schema contract.",
+        "Player frame selection keeps the id-bearing frame with the most columns; empty responses skipped.",
+        "GAME_ID is injected as string; player id column (personId or PLAYER_ID) is retained.",
+        "Duplicate (GAME_ID, player) rows are de-duplicated; the collector is resumable."
+      ],
+      "required_tests": [
+        "tests/test_tracking_collector.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "config/tracking_hustle_schema_v1.json"
+      ],
+      "limitations": [
+        "Collector code only. Tracking DATA is NOT landed and tracking FEATURES are NOT built.",
+        "Runs on a LOCAL residential IP only; never in CI/agent VMs (datacenter IPs are blocked).",
+        "This is not Phase B; it proves nothing about discrimination or market edge."
+      ]
+    },
+    {
+      "id": "feature_matrix_snapshot",
+      "title": "Current feature-matrix snapshot",
+      "status": "locked",
+      "promotion_eligible": false,
+      "prohibits_promotion": false,
+      "paths": [
+        {
+          "path": "data/processed/feature_matrix_snapshot_v1.json",
+          "availability": "in_repo",
+          "sha256": "0ccc992917db179fac8a2da3fcf70b95964fab4b0f4e5d3df93a85ad08a64fd2"
+        },
+        {
+          "path": "scripts/verify_feature_matrix_snapshot.py",
+          "availability": "in_repo",
+          "sha256": "561d2519b9228260403bea1978f3314fae1d0190452b2f926cf81c1852e35463"
+        },
+        {
+          "path": "data/processed/wnba_player_game_features_wide.parquet",
+          "availability": "data_artifact_untracked",
+          "sha256": "d6e62ab6db11b16bf00229d86134b1403487b9c9013b98b508e332636d34575f"
+        }
+      ],
+      "invariants": [
+        "Snapshot is self-consistent (schema_hash == hash(ordered_schema)) and pins the feature-contract hash.",
+        "Verifier detects parquet drift (sha/rows/cols/schema/date-range/duplicate-key).",
+        "A changed matrix requires snapshot regeneration or a new versioned snapshot; silent replacement is rejected.",
+        "Missing parquet fail-closes under --require-parquet; otherwise reports DEFERRED (not a silent skip)."
+      ],
+      "required_tests": [
+        "tests/test_foundation_feature_matrix_snapshot.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "data/processed/feature_matrix_snapshot_v1.json"
+      ],
+      "limitations": [
+        "The wide parquet is git-ignored (large, pipeline-built); the live-parquet drift check is deferred in clean CI checkouts.",
+        "A snapshot describes the matrix; it does not validate model performance."
+      ]
+    },
+    {
+      "id": "prop_ablation_runner_verdict",
+      "title": "Prop-ablation runner and verdict (corrected, surrogate/dev-only)",
+      "status": "exploratory_locked",
+      "promotion_eligible": false,
+      "prohibits_promotion": true,
+      "paths": [
+        {
+          "path": "scripts/run_prop_ablation.py",
+          "availability": "in_repo",
+          "sha256": "6e6b0b293131066b68caa2247f31d5da54d7303d1453d7e1df19308174b3443b"
+        },
+        {
+          "path": "artifacts/feature_ablation/ablation_verdict.json",
+          "availability": "in_repo",
+          "sha256": "5623754b3808971b3701fb19676069da309a6e196cf2e672610b57f4877a6949"
+        },
+        {
+          "path": "artifacts/feature_ablation/ABLATION_VERDICT.md",
+          "availability": "in_repo",
+          "sha256": "bc4ba7804ba616bcf472d088db1cc0ddcc1599fa579a510f78ca299f7d1240aa"
+        },
+        {
+          "path": "artifacts/feature_ablation/RUN_MANIFEST.json",
+          "availability": "in_repo",
+          "sha256": "603e6a05c9f817a8932302751a4e4f67e043f6002c186391ddcf9a539c7d52c5"
+        }
+      ],
+      "invariants": [
+        "Classification is 'surrogate feature-subset ablation'; no final holdout is scored.",
+        "Expanding chronological development folds; reserved tail dates never enter any fold.",
+        "Deterministic ablation_verdict.json under fixed seed; JSON and Markdown generated by the runner.",
+        "Each candidate uses exactly its mapped feature list; results are not promotion-eligible."
+      ],
+      "required_tests": [
+        "tests/test_prop_ablation_runner.py"
+      ],
+      "required_ci_job": "foundation-lock",
+      "evidence_artifacts": [
+        "artifacts/feature_ablation/RUN_MANIFEST.json"
+      ],
+      "limitations": [
+        "Surrogate model (HGB Poisson -> NB PMF), NOT the signed champion OOF/PMF/calibration/delivery pipeline.",
+        "Development-only exploration; conditional-on-played (DNP excluded). NOT proof, certification, or promotion evidence.",
+        "Conclusion: no tested subset improved the surrogate under this protocol; tracking is a high-priority next source, not proven to be the only one."
+      ]
+    }
+  ]
+}
