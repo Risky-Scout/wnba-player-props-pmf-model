@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "label": "Historical pre-Phase-0 baseline. Not promotion-eligible. Push-safe integer-line handling, exact quote identity, and evaluated-versus-deployed parity are not yet fixed.",
+  "promotion_eligible": false,
+  "provenance": "reconstructed_from_committed_artifacts",
+  "provenance_notes": [
+    "Authoritative fields are read directly from the committed market_superiority_proof.json.",
+    "Reconstructed fields are inferred from scripts/evaluate_market_superiority.py and scripts/build_scored_candidates.py defaults at the source commit and are labeled reconstructed.",
+    "Unknown fields (the raw scored-candidates input parquet and its hash/row-count/schema) are recorded as null: that intermediate input was not retained in-repo. Do NOT fabricate it. A future rerun to reconstruct provenance must be stored in a SEPARATE directory and must not overwrite this historical baseline."
+  ],
+  "source_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "created_utc": "2026-07-23T00:00:00+00:00",
+
+  "command_reconstructed": "python scripts/evaluate_market_superiority.py --mode prove --input <scored_candidates.parquet> --selected-candidates <selected_candidates.json> --output-dir artifacts/market_feature_proof/G0_baseline --min-rows 300 --bootstrap 2000 --alpha 0.05",
+  "command_field_status": "reconstructed",
+
+  "bootstrap_replicates": 2000,
+  "alpha": 0.05,
+  "minimum_rows": 300,
+  "seed_reconstructed": 20260720,
+  "seed_field_status": "reconstructed_from_evaluator_default",
+  "bootstrap_cluster_key": "game_date",
+
+  "selection_date_range_reconstructed": "earliest 60% of scored dates (build_scored_candidates --selection-frac 0.6 default)",
+  "proof_date_range": {"date_min": "2026-06-20", "date_max": "2026-07-15"},
+  "props_evaluated": ["ast", "fg3m", "pts", "reb"],
+  "candidate_map": {"ast": "G0_current", "fg3m": "G0_current", "pts": "G0_current", "reb": "G0_current"},
+
+  "input_scored_candidates": {
+    "path": null,
+    "sha256": null,
+    "row_count": null,
+    "schema_hash": null,
+    "status": "not_retained_in_repo"
+  },
+  "input_schema_reconstructed": [
+    "game_date", "game_id", "player_id", "prop", "candidate", "split",
+    "actual", "line", "model_prob_over", "market_prob_over_no_vig"
+  ],
+  "quote_identity_fields_available": ["line"],
+  "quote_identity_fields_missing": ["book", "over_odds", "under_odds", "line_timestamp"],
+  "quote_identity_note": "build_scored_candidates.py averaged market_prob_over_no_vig across books (groupby mean), so exact book/price/timestamp identity was NOT preserved. This is a known Phase 0.4 limitation and one reason this baseline is not promotion-eligible.",
+
+  "package_env_lock_hash": "185c71a6d84c4c44bdb963c52b5fb8629d8fff080168d918cc74f0ebb42d9375",
+  "package_env_lock_source": "pyproject.toml",
+
+  "per_prop": [
+    {"prop": "ast",  "n_settled": 291, "n_clusters": 21, "date_min": "2026-06-20", "date_max": "2026-07-15", "gate": "INSUFFICIENT"},
+    {"prop": "fg3m", "n_settled": 296, "n_clusters": 21, "date_min": "2026-06-20", "date_max": "2026-07-15", "gate": "INSUFFICIENT"},
+    {"prop": "pts",  "n_settled": 545, "n_clusters": 21, "date_min": "2026-06-20", "date_max": "2026-07-15", "gate": "FAIL"},
+    {"prop": "reb",  "n_settled": 434, "n_clusters": 21, "date_min": "2026-06-20", "date_max": "2026-07-15", "gate": "FAIL"}
+  ],
+
+  "all_props_pass": false,
+
+  "output_artifacts": {
+    "market_superiority_proof.json": "44558d4651aeff7ab97627a3106d34383f11d2db32b3300008f1f48659c6f471",
+    "market_superiority_proof.csv": "42e994dc5f331669e29fc05ca87b254a75f02e1b6c4c49003038f45d9db72432",
+    "MARKET_SUPERIORITY_REPORT.md": "034d70e47aff00cc0be6455d8e326fde9330c863be10300dfc4889f20d2f0827"
+  }
+}
