@@ -65,8 +65,12 @@ def test_evaluator_metrics_direction():
 
 
 def test_scored_bridge_p_over():
-    mod = _load("scored", REPO / "scripts/build_scored_candidates.py")
-    # pmf mass 0..4; P(over 2.5) = mass at k>=3
-    pmf = json.dumps({"0": 0.1, "1": 0.2, "2": 0.3, "3": 0.25, "4": 0.15})
-    assert abs(mod._p_over(pmf, 2.5) - 0.40) < 1e-9
-    assert abs(mod._p_over(pmf, 0.5) - 0.90) < 1e-9
+    # PR 1A: build_scored_candidates no longer reconstructs P(over); it uses the sole creator
+    # build_probability_lineage (push-safe settled probability) at the quote line.
+    from wnba_props_model.models.probability_lineage import build_probability_lineage
+    pmf = np.array([0.1, 0.2, 0.3, 0.25, 0.15])  # mass 0..4
+    # Half line 2.5: no push -> settled == unconditional P(Y>=3) = 0.40.
+    lin = build_probability_lineage(final_pmf=pmf, line=2.5, prop="pts", role="all")
+    assert abs(lin.model_prob_over_final - 0.40) < 1e-9
+    lin2 = build_probability_lineage(final_pmf=pmf, line=0.5, prop="pts", role="all")
+    assert abs(lin2.model_prob_over_final - 0.90) < 1e-9
