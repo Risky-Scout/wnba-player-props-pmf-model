@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from wnba_props_model.constants import BDL_PROP_TO_STAT, DOMAIN_MAX
-from wnba_props_model.models.market import fair_american, no_vig_two_way, prob_over_from_pmf
+from wnba_props_model.models.market import fair_american, no_vig_two_way
 from wnba_props_model.models.pmf_grid import WNBAPMFGrid, pmfs_df_to_grids
 from wnba_props_model.models.simulation import json_to_pmf
 
@@ -335,10 +335,41 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     _logger.info("build_market_comparison: %d props with BDL id, %d via name fallback -> %d joined rows",
                  len(props_with_id), len(props_no_id), len(joined))
 
-    model_probs = []
+    # PR 1A B2/B4: the delivered binary probability lineage is created ONLY by
+    # build_probability_lineage (the single source of truth), from the FINAL pmf. PR 1A is
+    # pure-forecast + identity binary calibration + no market anchor. The legacy
+    # model_prob_over column tracks model_prob_over_final (push-safe settled), falling back
+    # to the unconditional value only for binary-ineligible all-push rows so downstream
+    # never sees NaN.
+    from wnba_props_model.models.probability_lineage import build_probability_lineage  # noqa: PLC0415
+    from wnba_props_model.models.binary_probability_calibration import BinaryCalibrationRegistry  # noqa: PLC0415
+    _bincal_registry = BinaryCalibrationRegistry(enabled=False)  # identity_disabled in 1A
+    _lineage_cols = (
+        "model_prob_over_unconditional", "model_prob_under_unconditional", "model_prob_push",
+        "model_prob_over_settled_from_final_pmf", "model_prob_over_binary_calibrated",
+        "model_prob_over_market_anchored", "model_prob_over_final", "probability_track",
+        "probability_lineage_version", "calibration_status", "calibrator_id",
+        "calibrator_hash", "structural_model_id", "structural_model_hash",
+        "binary_score_eligible",
+    )
+    _lineages = []
     for _, r in joined.iterrows():
-        model_probs.append(prob_over_from_pmf(json_to_pmf(r["pmf_json"]), r["line"]))
-    joined["model_prob_over"] = model_probs
+        _lineages.append(build_probability_lineage(
+            final_pmf=json_to_pmf(r["pmf_json"]),
+            line=float(r["line"]),
+            prop=str(r.get("stat", "")),
+            role=str(r.get("role_bucket", "all")),
+            binary_calibration_registry=_bincal_registry,
+            structural_model_id=(str(r.get("model_version")) if r.get("model_version") else None),
+            structural_model_hash=(str(r.get("model_hash")) if r.get("model_hash") else None),
+            probability_track="pure_forecast",
+        ))
+    for _col in _lineage_cols:
+        joined[_col] = [getattr(_lin, _col) for _lin in _lineages]
+    joined["model_prob_over"] = [
+        (_lin.model_prob_over_final if _lin.model_prob_over_final is not None
+         else _lin.model_prob_over_unconditional) for _lin in _lineages
+    ]
     # Shared production edge definition (also used by the P1 historical replay).
     from wnba_props_model.pipeline.recommendation import edge_over_under
     _edges = [edge_over_under(mo, mk) for mo, mk in
