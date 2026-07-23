@@ -5,12 +5,10 @@ evaluation, reporting, recommendation inputs) must consume the immutable deliver
 probability ``model_prob_over_final`` and nothing else. This module centralizes the column
 names and the fail-closed validators so no consumer invents its own fallback.
 
-Explicitly forbidden anywhere in decision-grade code:
-
-    row.get("model_prob_over_final", row.get("model_prob_over"))   # silent legacy fallback
-
-There is no silent clipping, no fallback to the legacy column, and no fallback to PMF
-reconstruction. Missing/NaN/inf/out-of-range values fail closed with the consumer named.
+Explicitly forbidden anywhere in decision-grade code: chaining a dict-get default from the
+final column to the legacy column (a silent legacy fallback). There is no silent clipping,
+no fallback to the legacy column, and no fallback to PMF reconstruction. Missing / NaN / inf
+/ out-of-range values fail closed, with the consumer named in the error.
 """
 from __future__ import annotations
 

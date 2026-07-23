@@ -375,14 +375,15 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     joined["model_prob_over"] = joined["model_prob_over_final"]
     joined["probability_alias_version"] = "v1"
     # Shared production edge definition (also used by the P1 historical replay).
+    # Decision-grade: read model_prob_over_final (the single source), never the legacy alias.
     from wnba_props_model.pipeline.recommendation import edge_over_under
     _edges = [edge_over_under(mo, mk) for mo, mk in
-              zip(joined["model_prob_over"], joined["market_prob_over_no_vig"])]
+              zip(joined["model_prob_over_final"], joined["market_prob_over_no_vig"])]
     joined["edge_over"] = [e[0] for e in _edges]
     # edge_under: how much the model's under probability exceeds the market's under probability
     joined["edge_under"] = [e[1] for e in _edges]
-    joined["fair_over_american"] = joined["model_prob_over"].map(fair_american)
-    joined["fair_under_american"] = (1 - joined["model_prob_over"]).map(fair_american)
+    joined["fair_over_american"] = joined["model_prob_over_final"].map(fair_american)
+    joined["fair_under_american"] = (1 - joined["model_prob_over_final"]).map(fair_american)
 
     # Explicit no-vig probability columns for downstream reporting
     joined["no_vig_over_prob"] = joined["market_prob_over_no_vig"]
@@ -403,11 +404,11 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
         ).where(joined["market_implied_mean"].notna(), other=False)
 
     # Enhancement 7: model vs opening line edge and under-bias indicator
-    if "prop_line_open" in joined.columns and "model_prob_over" in joined.columns:
+    if "prop_line_open" in joined.columns and "model_prob_over_final" in joined.columns:
         open_line = joined["prop_line_open"].fillna(joined["line"])
         import numpy as _np  # noqa: PLC0415
         joined["model_vs_opening_edge"] = (
-            (joined["model_prob_over"] - joined["market_prob_over_no_vig"]).abs()
+            (joined["model_prob_over_final"] - joined["market_prob_over_no_vig"]).abs()
         ).where(open_line.notna())
 
     # under_bias_indicator: role-player props (< 25 min) have historical over-bias from books
@@ -473,19 +474,19 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame) -> pd.D
     _CLV_DECAY_RATE = 0.02   # fraction of edge lost per hour (empirical)
     _CLV_DECAY_MAX_HOURS = 24.0
 
-    if "model_prob_over" in joined.columns and "over_odds" in joined.columns:
+    if "model_prob_over_final" in joined.columns and "over_odds" in joined.columns:
         kelly_vals = []
         decay_edges = []
         for _, r in joined.iterrows():
             edge_ov = float(r.get("edge_over", 0.0))
             if edge_ov >= 0:
-                # OVER bet: use model P(over) and over_odds
-                p = float(r["model_prob_over"])
+                # OVER bet: use model P(over) [final, single source] and over_odds
+                p = float(r["model_prob_over_final"])
                 raw_odds = r.get("over_odds")
                 edge = edge_ov
             else:
                 # UNDER bet: use model P(under) = 1 - P(over) and under_odds
-                p = 1.0 - float(r["model_prob_over"])
+                p = 1.0 - float(r["model_prob_over_final"])
                 raw_odds = r.get("under_odds")
                 edge = float(r.get("edge_under", 0.0))
             p = max(1e-6, min(1.0 - 1e-6, p))
