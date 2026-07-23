@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "verdict_invalidated",
+  "promotion_eligible": false,
+  "generated_from_commit": "a66baa7f60403ed4e90dafd537104c6a2f70b936",
+  "classification": "surrogate feature-subset ablation",
+  "summary": "The prior committed ablation verdict (ablation_verdict.json / ABLATION_VERDICT.md / RUN_MANIFEST.json) was produced by a runner that SILENTLY discarded requested features absent from the input matrix. Under the corrected fail-closed runner (PR-0 0.4) that verdict is invalidated and has been removed.",
+  "root_cause": "data/processed/wnba_player_game_features_wide.parquet contains only 52 of the 128 feature-contract columns (MODEL_FEATURES). The G0 candidate requests all 128; 76 were silently dropped, so the prior 'G0 optimal for every prop' numbers were computed on a 52-feature subset, not the feature contract.",
+  "current_behavior": "scripts/run_prop_ablation.py now raises AblationError when any requested feature is absent (and on missing G0, missing prop map, hash mismatch, unpinned real-data maps hash, no valid folds, or reserved-date leakage). A real-data run against the current wide parquet fails closed with 'G0/ast requests 76 feature(s) absent'.",
+  "reproduce_failure": "python scripts/run_prop_ablation.py --expected-maps-sha256 2591c830b5ef73fe447932d96a0403f90ee0224318d5852eab3ccfab37f67b05  # exits 1",
+  "what_is_locked": "The runner logic itself is locked and unit-tested on synthetic COMPLETE-feature inputs (tests/test_prop_ablation_runner.py): chronology, determinism (excluding timestamps), feature-map consumption, no-holdout-leakage, and fail-closed conditions.",
+  "what_is_not_produced": "No real-data surrogate verdict is produced until an immutable feature matrix that satisfies the full feature contract is landed (a later PR). No feature-subset conclusion is drawn from real data in Foundation Lock v1.",
+  "not_promotion_evidence": "This runner is a development-only surrogate. It is not proof, certification, or promotion evidence under any circumstances."
+}
