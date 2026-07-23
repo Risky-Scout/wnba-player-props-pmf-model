@@ -21,6 +21,11 @@ jobs:
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch for scope diff
+        run: git fetch origin main --quiet || true
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -36,6 +41,9 @@ jobs:
 
       - name: Install package
         run: pip install -e ".[dev]"
+
+      - name: Phase-0 scope protection (Foundation Lock must not touch live-delivery surfaces)
+        run: python scripts/check_phase0_scope.py --base origin/main
 
       - name: Foundation manifest verification (hash-pins + schema + promotion rule)
         run: python scripts/verify_foundation_lock.py --write-report
@@ -57,7 +65,8 @@ jobs:
             tests/test_feature_ablation_maps.py \
             tests/test_tracking_collector.py \
             tests/test_foundation_feature_matrix_snapshot.py \
-            tests/test_prop_ablation_runner.py
+            tests/test_prop_ablation_runner.py \
+            tests/test_phase0_scope_guard.py
 
       - name: Upload Foundation Lock report
         uses: actions/upload-artifact@v4
