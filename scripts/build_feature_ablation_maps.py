@@ -40,10 +40,9 @@ def resolve_candidate(prop_map: dict, spec: dict) -> dict:
     return out
 
 
-@app.command()
-def main(plan: str = typer.Option("config/feature_ablation_plan_v1.json", "--plan"),
-         candidate_map: str = typer.Option("config/prop_feature_map_candidate_v1.json", "--candidate-map"),
-         out: str = typer.Option("config/feature_ablation_maps_v1.json", "--out")) -> None:
+def build_resolved(plan: str, candidate_map: str) -> dict:
+    """Deterministically resolve the full candidate map. Raises ValueError on any
+    non-contract / forbidden / duplicate feature so a bad map can never be produced."""
     plan_d = json.loads(Path(plan).read_text())
     prop_map = json.loads(Path(candidate_map).read_text())
     valid, forb = set(MODEL_FEATURES), set(FORBIDDEN_MODEL_FEATURES)
@@ -69,7 +68,23 @@ def main(plan: str = typer.Option("config/feature_ablation_plan_v1.json", "--pla
         resolved["candidates"][name] = cand
 
     if errors:
-        for e in errors:
+        raise ValueError("; ".join(errors))
+    return resolved
+
+
+def _canonical(obj: dict) -> str:
+    """Canonical JSON for deterministic byte-comparison (sorted keys, fixed separators)."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+@app.command()
+def main(plan: str = typer.Option("config/feature_ablation_plan_v1.json", "--plan"),
+         candidate_map: str = typer.Option("config/prop_feature_map_candidate_v1.json", "--candidate-map"),
+         out: str = typer.Option("config/feature_ablation_maps_v1.json", "--out")) -> None:
+    try:
+        resolved = build_resolved(plan, candidate_map)
+    except ValueError as exc:
+        for e in str(exc).split("; "):
             typer.echo(f"[FATAL] {e}", err=True)
         raise typer.Exit(1)
 
@@ -78,6 +93,39 @@ def main(plan: str = typer.Option("config/feature_ablation_plan_v1.json", "--pla
     typer.echo(f"[ablation] resolved {len(resolved['candidates'])} candidates -> {out}")
     for c, pc in counts.items():
         typer.echo(f"  {c}: " + ", ".join(f"{p}={n}" for p, n in list(pc.items())[:7]))
+
+
+@app.command()
+def check(plan: str = typer.Option("config/feature_ablation_plan_v1.json", "--plan"),
+          candidate_map: str = typer.Option("config/prop_feature_map_candidate_v1.json", "--candidate-map"),
+          out: str = typer.Option("config/feature_ablation_maps_v1.json", "--out")) -> None:
+    """Regenerate the resolved map in memory and compare (canonicalized JSON) against the
+    committed file. Exit 1 on any drift, unknown/forbidden feature, or G0 != full contract."""
+    try:
+        resolved = build_resolved(plan, candidate_map)
+    except ValueError as exc:
+        typer.echo(f"[CHECK FAIL] resolution error: {exc}", err=True)
+        raise typer.Exit(1)
+
+    out_p = Path(out)
+    if not out_p.exists():
+        typer.echo(f"[CHECK FAIL] committed map missing: {out}", err=True)
+        raise typer.Exit(1)
+    committed = json.loads(out_p.read_text())
+
+    # G0 must equal the full current feature contract, byte-for-byte per prop.
+    for prop in DIRECT_PROPS:
+        if committed.get("candidates", {}).get("G0", {}).get(prop) != list(MODEL_FEATURES):
+            typer.echo(f"[CHECK FAIL] G0/{prop} != full feature contract "
+                       "(regenerate config/feature_ablation_maps_v1.json)", err=True)
+            raise typer.Exit(1)
+
+    if _canonical(resolved) != _canonical(committed):
+        typer.echo("[CHECK FAIL] resolved map differs from committed "
+                   "config/feature_ablation_maps_v1.json - regenerate after any input change.",
+                   err=True)
+        raise typer.Exit(1)
+    typer.echo("[CHECK PASS] feature-ablation maps match committed artifact (canonicalized).")
 
 
 if __name__ == "__main__":
