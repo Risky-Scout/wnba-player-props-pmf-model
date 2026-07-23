@@ -105,6 +105,35 @@ def test_nan_or_oob_input_is_fatal():
         reg.apply("pts", "starter", 1.5)
 
 
+def test_venn_abers_registry_inside_lineage_nonidentity(tmp_path):
+    # Build a NONIDENTITY Venn-Abers calibrator and prove: raw settled != calibrated,
+    # calibrated == final, final == binary_calibrated, provenance recorded, no later mutation.
+    from wnba_props_model.calibration.venn_abers import VennAbersCalibrator
+    from wnba_props_model.models.binary_probability_calibration import (
+        VennAbersBinaryCalibrationRegistry,
+    )
+    rng = np.random.default_rng(3)
+    scores = rng.uniform(0, 1, 4000)
+    labels = (rng.uniform(0, 1, 4000) < np.clip(scores * 0.6 + 0.1, 0, 1)).astype(float)
+    va = VennAbersCalibrator().fit(scores, labels)
+    (tmp_path / "venn_abers_pts_starter.pkl").write_bytes(b"")  # placeholder to ensure dir
+    va.save(str(tmp_path / "venn_abers_pts_starter.pkl"))
+
+    from wnba_props_model.models.market import settled_probabilities_from_pmf
+    reg = VennAbersBinaryCalibrationRegistry(cal_dir=str(tmp_path), require=True)
+    pmf = np.array([0.05, 0.10, 0.15, 0.30, 0.40])  # settled over(1.5)=0.85
+    raw = settled_probabilities_from_pmf(pmf, 1.5).p_over_settled
+    lin = build_probability_lineage(final_pmf=pmf, line=1.5, prop="pts", role="starter",
+                                    binary_calibration_registry=reg)
+    assert lin.calibration_status == "calibrated"
+    assert lin.calibrator_id == "venn_abers_pts_starter.pkl"
+    assert lin.calibrator_hash is not None
+    assert lin.model_prob_over_settled_from_final_pmf == pytest.approx(raw)
+    assert lin.model_prob_over_binary_calibrated != pytest.approx(raw)   # nonidentity
+    assert lin.model_prob_over_final == lin.model_prob_over_binary_calibrated  # pure track
+    assert lin.model_prob_over_market_anchored is None
+
+
 def test_no_silent_raw_fallback_source():
     # Guard: the registry module must never swallow a failure and return the raw prob.
     import inspect

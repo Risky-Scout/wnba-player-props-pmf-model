@@ -173,6 +173,86 @@ def test_real_build_scored_candidates_preserves_final(tmp_path, line):
 
 
 REPO = __import__("pathlib").Path(__file__).resolve().parent.parent
+EVAL = REPO / "scripts" / "evaluate_market_superiority.py"
+BSC = REPO / "scripts" / "build_scored_candidates.py"
+
+
+def _multi_row_oof_quotes(tmp_path, line):
+    from wnba_props_model.models.pmf_utils import negbinom_pmf_batch
+    from wnba_props_model.models.simulation import pmf_to_json
+    rng = np.random.default_rng(11)
+    oof_rows, q_rows = [], []
+    for i in range(16):
+        mu = float(rng.uniform(4.0, 10.0))
+        pmf = negbinom_pmf_batch(np.array([mu]), 6.0, 40)[0]
+        actual = int(rng.integers(0, 16))
+        oof_rows.append({"game_id": f"G{i}", "player_id": f"P{i}", "stat": "pts",
+                         "game_date": "2026-06-20", "pmf_json": pmf_to_json(pmf),
+                         "actual_outcome": float(actual), "role_bucket": "starter"})
+        q_rows.append({"game_id": f"G{i}", "player_id": f"P{i}", "stat": "pts",
+                       "line": float(line), "market_prob_over_no_vig": 0.5})
+    op = tmp_path / "oof.parquet"; qp = tmp_path / "quotes.parquet"
+    pd.DataFrame(oof_rows).to_parquet(op, index=False)
+    pd.DataFrame(q_rows).to_parquet(qp, index=False)
+    return op, qp
+
+
+def test_full_path_metric_parity_through_real_evaluator(tmp_path):
+    """final PMF -> real build_scored_candidates -> real evaluator audit -> metrics equal
+    metrics computed manually from the lineage final probability (1e-12)."""
+    import subprocess
+    import sys
+    line = 6.5
+    op, qp = _multi_row_oof_quotes(tmp_path, line)
+    scored = tmp_path / "scored.parquet"
+    r = subprocess.run([sys.executable, str(BSC), "--oof", str(op), "--quotes", str(qp),
+                        "--out", str(scored), "--candidate", "T", "--selection-frac", "0.0"],
+                       capture_output=True, text=True, cwd=str(REPO))
+    assert r.returncode == 0, r.stdout + r.stderr
+    outdir = tmp_path / "eval"
+    r2 = subprocess.run([sys.executable, str(EVAL), "--mode", "audit", "--input", str(scored),
+                         "--output-dir", str(outdir), "--model-prob-col", "model_prob_over_final"],
+                        capture_output=True, text=True, cwd=str(REPO))
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+    metrics = pd.read_csv(outdir / "exploratory_candidate_metrics.csv")
+    row = metrics[metrics["prop"] == "pts"].iloc[0]
+
+    # Manual metrics from the delivered final probability, replicating the evaluator exactly.
+    sc = pd.read_parquet(scored)
+    sc = sc[sc["actual"] != sc["line"]]  # exclude pushes (half line: none)
+    p = np.clip(sc[FINAL_PROBABILITY_COLUMN].to_numpy(float), 1e-6, 1 - 1e-6)
+    y = (sc["actual"].to_numpy(float) > sc["line"].to_numpy(float)).astype(int)
+    manual_ll = float(np.mean(-(y * np.log(p) + (1 - y) * np.log(1 - p))))
+    manual_brier = float(np.mean((p - y) ** 2))
+    assert abs(float(row["model_logloss"]) - manual_ll) <= 1e-12
+    assert abs(float(row["model_brier"]) - manual_brier) <= 1e-12
+
+
+def test_full_path_negative_mutation_breaks_metric_parity(tmp_path):
+    import subprocess
+    import sys
+    line = 6.5
+    op, qp = _multi_row_oof_quotes(tmp_path, line)
+    scored = tmp_path / "scored.parquet"
+    subprocess.run([sys.executable, str(BSC), "--oof", str(op), "--quotes", str(qp),
+                    "--out", str(scored), "--candidate", "T", "--selection-frac", "0.0"],
+                   capture_output=True, text=True, cwd=str(REPO))
+    sc = pd.read_parquet(scored)
+    manual_ll = float(np.mean(-(
+        (sc["actual"].to_numpy(float) > sc["line"].to_numpy(float)).astype(int)
+        * np.log(np.clip(sc[FINAL_PROBABILITY_COLUMN].to_numpy(float), 1e-6, 1 - 1e-6))
+        + (1 - (sc["actual"].to_numpy(float) > sc["line"].to_numpy(float)).astype(int))
+        * np.log(1 - np.clip(sc[FINAL_PROBABILITY_COLUMN].to_numpy(float), 1e-6, 1 - 1e-6)))))
+    # Mutate the serialized final after the fact.
+    sc[FINAL_PROBABILITY_COLUMN] = 0.5
+    sc.to_parquet(scored, index=False)
+    outdir = tmp_path / "eval"
+    subprocess.run([sys.executable, str(EVAL), "--mode", "audit", "--input", str(scored),
+                    "--output-dir", str(outdir), "--model-prob-col", "model_prob_over_final"],
+                   capture_output=True, text=True, cwd=str(REPO))
+    row = pd.read_csv(outdir / "exploratory_candidate_metrics.csv")
+    mutated_ll = float(row[row["prop"] == "pts"]["model_logloss"].iloc[0])
+    assert abs(mutated_ll - manual_ll) > 1e-9  # mutation is detectable
 
 
 def test_rounded_serialized_probability_would_break_parity(tmp_path):

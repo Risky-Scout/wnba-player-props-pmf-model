@@ -14,10 +14,9 @@ Allowed:
   * diagnostic PMF computations outside decision-grade paths;
   * test fixtures.
 
-Scope note: PR 1A migrates the LIVE delivery creation site (deliver.py) to the single
-source. The historical/evaluator/report consumers are migrated together with the PR 1B/1C
-quote+proof paths (several are Foundation-Lock hash-pinned); this guard locks the delivery
-side established in PR 1A and is designed to extend to each consumer as it is migrated.
+All current decision-grade consumers have now been migrated to model_prob_over_final in
+PR 1A; this guard covers every one of them and rejects any post-lineage write to the final
+column (the pattern the former build_edge_report Venn-Abers mutation used).
 """
 from __future__ import annotations
 
@@ -122,3 +121,46 @@ def test_guard_flags_pmf_to_over_calls():
     )
     v = _violations(mutated)
     assert any("prob_over_from_pmf" in m for m in v)
+
+
+# ---- final-column write detection (post-lineage mutation must be rejected) ----
+
+def _final_write_lines(source: str) -> list[int]:
+    """Detect assignment/mutation of an existing model_prob_over_final column."""
+    tree = ast.parse(source)
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for t in targets:
+                if isinstance(t, ast.Subscript):
+                    sl = t.slice
+                    def _is_final(n):
+                        return (isinstance(n, ast.Constant) and n.value == _FINAL_COL) or \
+                               (isinstance(n, ast.Name) and n.id == "FINAL_PROBABILITY_COLUMN")
+                    if _is_final(sl) or (isinstance(sl, ast.Tuple) and any(_is_final(e) for e in sl.elts)):
+                        out.append(node.lineno)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr == "assign" and any(kw.arg == _FINAL_COL for kw in node.keywords):
+            out.append(node.lineno)
+    return sorted(set(out))
+
+
+@pytest.mark.parametrize("snippet", [
+    'df["model_prob_over_final"] = other_probability\n',
+    'df.loc[mask, "model_prob_over_final"] = calibrated_probability\n',
+    'df = df.assign(model_prob_over_final=some_series)\n',
+    'row["model_prob_over_final"] = row["p_over_va"]\n',   # the former build_edge_report VA mutation
+])
+def test_guard_rejects_post_lineage_final_writes(snippet):
+    assert _final_write_lines(snippet), f"guard must flag: {snippet!r}"
+
+
+def test_no_post_lineage_final_write_in_decision_consumers():
+    # Real decision consumers (excluding the declared serializers) must not write the final column.
+    from pathlib import Path as _P
+    serializers = {"deliver.py", "build_scored_candidates.py", "probability_lineage.py"}
+    for p in APPROVED_DECISION_GRADE_MODULES:
+        if _P(p).name in serializers:
+            continue
+        assert _final_write_lines(_P(p).read_text()) == [], f"post-lineage final write in {p}"
