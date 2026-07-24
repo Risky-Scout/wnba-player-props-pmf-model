@@ -23,7 +23,8 @@ def test_registry_schema_valid():
     for name, d in reg["datasets"].items():
         for k in ("path", "release_tag", "asset"):
             assert d.get(k), f"{name} missing required field {k}"
-        assert d["path"].endswith(".parquet"), f"{name} path should be a parquet"
+        # Datasets are parquet, except the JSON feature-schema manifest (a registered artifact).
+        assert d["path"].endswith((".parquet", ".json")), f"{name} path should be parquet or json"
         if d.get("sha256") is not None:
             assert len(d["sha256"]) == 64, f"{name} sha256 must be a full hex digest"
 

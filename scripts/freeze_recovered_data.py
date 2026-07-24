@@ -18,7 +18,10 @@ from pathlib import Path
 import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent
-PROC = REPO / "data" / "processed"
+# Recovered baseline data is preserved in a sidecar dir so data/processed stays a clean
+# checkout (Foundation Lock defers absent gitignored artifacts); the sidecar holds the exact
+# recovered copies while durable publication is owner-gated.
+PROC = REPO / "data" / "recovered_v2_preserved"
 OUT = REPO / "artifacts" / "data_bootstrap" / "RECOVERED_DATA_MANIFEST.json"
 
 FILES = {
