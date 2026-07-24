@@ -75,6 +75,7 @@ CLASSIFICATION: dict[str, str] = {
     "src/wnba_props_model/pipeline/recommendation.py": "permitted_pmf_diagnostic",
     "scripts/verify_combo_roundtrip.py": "permitted_pmf_diagnostic",
     "scripts/build_market_superiority_input.py": "permitted_pmf_diagnostic",
+    "scripts/fit_binary_prob_calibrators.py": "permitted_pmf_diagnostic",
     "scripts/predict_today.py": "permitted_pmf_diagnostic",
     "scripts/export_html_report.py": "permitted_pmf_diagnostic",
     "scripts/build_historical_review.py": "permitted_pmf_diagnostic",
