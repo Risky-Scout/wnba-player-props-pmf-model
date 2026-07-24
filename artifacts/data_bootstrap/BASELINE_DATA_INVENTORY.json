@@ -1,0 +1,243 @@
+{
+  "version": "baseline-data-inventory-v1",
+  "generated_utc": "2026-07-24T22:42:07.743129+00:00",
+  "approved_locations": [
+    "/home/ubuntu/lane2/data/processed",
+    "/home/ubuntu/lane2/data/oof",
+    "/home/ubuntu/lane2/data/raw"
+  ],
+  "local_parquet_found": {
+    "wnba_hustle_2021_2026": {
+      "path": "/home/ubuntu/lane2/data/processed/wnba_hustle_2021_2026.parquet",
+      "bytes": 18486,
+      "sha256": "a1e75c65cc23a5b57c145895bb59183b576f7c070fa2768d665a236350eb96e4",
+      "rows": 171,
+      "columns": [
+        "GAME_ID",
+        "TEAM_ID",
+        "TEAM_ABBREVIATION",
+        "TEAM_CITY",
+        "PLAYER_ID",
+        "PLAYER_NAME",
+        "START_POSITION",
+        "COMMENT",
+        "MINUTES",
+        "PTS",
+        "CONTESTED_SHOTS",
+        "CONTESTED_SHOTS_2PT",
+        "CONTESTED_SHOTS_3PT",
+        "DEFLECTIONS",
+        "CHARGES_DRAWN",
+        "SCREEN_ASSISTS",
+        "SCREEN_AST_PTS",
+        "OFF_LOOSE_BALLS_RECOVERED",
+        "DEF_LOOSE_BALLS_RECOVERED",
+        "LOOSE_BALLS_RECOVERED",
+        "OFF_BOXOUTS",
+        "DEF_BOXOUTS",
+        "BOX_OUT_PLAYER_TEAM_REBS",
+        "BOX_OUT_PLAYER_REBS",
+        "BOX_OUTS"
+      ],
+      "n_columns": 25,
+      "unique_games": 171,
+      "unique_players": 1,
+      "duplicate_canonical_keys": 0
+    },
+    "wnba_tracking_2021_2026": {
+      "path": "/home/ubuntu/lane2/data/processed/wnba_tracking_2021_2026.parquet",
+      "bytes": 393427,
+      "sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
+      "rows": 33259,
+      "columns": [
+        "gameId",
+        "teamId",
+        "teamCity",
+        "teamName",
+        "teamTricode",
+        "teamSlug",
+        "personId",
+        "firstName",
+        "familyName",
+        "nameI",
+        "playerSlug",
+        "position",
+        "comment",
+        "jerseyNum",
+        "minutes",
+        "speed",
+        "distance",
+        "reboundChancesOffensive",
+        "reboundChancesDefensive",
+        "reboundChancesTotal",
+        "touches",
+        "secondaryAssists",
+        "freeThrowAssists",
+        "passes",
+        "assists",
+        "contestedFieldGoalsMade",
+        "contestedFieldGoalsAttempted",
+        "contestedFieldGoalPercentage",
+        "uncontestedFieldGoalsMade",
+        "uncontestedFieldGoalsAttempted",
+        "uncontestedFieldGoalsPercentage",
+        "fieldGoalPercentage",
+        "defendedAtRimFieldGoalsMade",
+        "defendedAtRimFieldGoalsAttempted",
+        "defendedAtRimFieldGoalPercentage",
+        "GAME_ID"
+      ],
+      "n_columns": 36,
+      "unique_games": 1476,
+      "unique_players": 386,
+      "duplicate_canonical_keys": 0
+    }
+  },
+  "registry": {
+    "wnba_tracking": {
+      "path": "data/processed/wnba_tracking_2021_2026.parquet",
+      "sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
+      "published": true,
+      "release": "tracking-data-v1"
+    },
+    "wnba_hustle": {
+      "path": "data/processed/wnba_hustle_2021_2026.parquet",
+      "sha256": "a1e75c65cc23a5b57c145895bb59183b576f7c070fa2768d665a236350eb96e4",
+      "published": true,
+      "release": "tracking-data-v1"
+    },
+    "wnba_games": {
+      "path": "data/processed/wnba_games.parquet",
+      "sha256": null,
+      "published": false,
+      "release": "processed-data-v1"
+    },
+    "wnba_player_game_stats": {
+      "path": "data/processed/wnba_player_game_stats.parquet",
+      "sha256": null,
+      "published": false,
+      "release": "processed-data-v1"
+    },
+    "oof_player_stat_pmfs": {
+      "path": "data/oof/oof_player_stat_pmfs.parquet",
+      "sha256": null,
+      "published": false,
+      "release": "oof-data-v1"
+    }
+  },
+  "required_for_w1": {
+    "wnba_games": {
+      "role": "canonical",
+      "status": "MISSING",
+      "registry": {
+        "path": "data/processed/wnba_games.parquet",
+        "sha256": null,
+        "published": false,
+        "release": "processed-data-v1"
+      }
+    },
+    "wnba_player_game_stats": {
+      "role": "canonical",
+      "status": "MISSING",
+      "registry": {
+        "path": "data/processed/wnba_player_game_stats.parquet",
+        "sha256": null,
+        "published": false,
+        "release": "processed-data-v1"
+      }
+    },
+    "wnba_player_game_features_wide": {
+      "role": "generated",
+      "status": "MISSING",
+      "registry": null
+    },
+    "wnba_player_game_features_long": {
+      "role": "generated",
+      "status": "MISSING",
+      "registry": null
+    },
+    "feature_schema_manifest": {
+      "role": "generated",
+      "status": "MISSING",
+      "registry": null
+    }
+  },
+  "blockers": [
+    {
+      "dataset": "wnba_games",
+      "expected_path": "data/processed/wnba_games.parquet",
+      "role": "canonical",
+      "registry_entry_present": true,
+      "registry_hash_present": false,
+      "affected_props": "ALL (features cannot be rebuilt)",
+      "api_redownload_possible": true,
+      "owner_action": "Provide/publish canonical source via scripts/publish_data.py, or run the ingestion (BDL/nba_api) in an env with network+credentials, then re-fetch."
+    },
+    {
+      "dataset": "wnba_player_game_stats",
+      "expected_path": "data/processed/wnba_player_game_stats.parquet",
+      "role": "canonical",
+      "registry_entry_present": true,
+      "registry_hash_present": false,
+      "affected_props": "ALL (features cannot be rebuilt)",
+      "api_redownload_possible": true,
+      "owner_action": "Provide/publish canonical source via scripts/publish_data.py, or run the ingestion (BDL/nba_api) in an env with network+credentials, then re-fetch."
+    },
+    {
+      "dataset": "wnba_player_game_features_wide",
+      "expected_path": "data/processed/wnba_player_game_features_wide.parquet",
+      "role": "generated",
+      "registry_entry_present": false,
+      "registry_hash_present": false,
+      "affected_props": [
+        "pts",
+        "reb",
+        "ast",
+        "fg3m",
+        "stl",
+        "blk",
+        "turnover"
+      ],
+      "api_redownload_possible": false,
+      "owner_action": "Provide/publish canonical source via scripts/publish_data.py, or run the ingestion (BDL/nba_api) in an env with network+credentials, then re-fetch."
+    },
+    {
+      "dataset": "wnba_player_game_features_long",
+      "expected_path": "data/processed/wnba_player_game_features_long.parquet",
+      "role": "generated",
+      "registry_entry_present": false,
+      "registry_hash_present": false,
+      "affected_props": [
+        "pts",
+        "reb",
+        "ast",
+        "fg3m",
+        "stl",
+        "blk",
+        "turnover"
+      ],
+      "api_redownload_possible": false,
+      "owner_action": "Provide/publish canonical source via scripts/publish_data.py, or run the ingestion (BDL/nba_api) in an env with network+credentials, then re-fetch."
+    },
+    {
+      "dataset": "feature_schema_manifest",
+      "expected_path": "artifacts/models/stage4_baseline/feature_manifest.json",
+      "role": "generated",
+      "registry_entry_present": false,
+      "registry_hash_present": false,
+      "affected_props": [
+        "pts",
+        "reb",
+        "ast",
+        "fg3m",
+        "stl",
+        "blk",
+        "turnover"
+      ],
+      "api_redownload_possible": false,
+      "owner_action": "Provide/publish canonical source via scripts/publish_data.py, or run the ingestion (BDL/nba_api) in an env with network+credentials, then re-fetch."
+    }
+  ],
+  "w1_ready": false,
+  "note": "A feature matrix may be published only when it exactly satisfies its declared versioned contract; the old invalid 52-of-128 matrix must NOT be published as a complete matrix. A corrected sub-128 baseline needs a NEW contract version."
+}

@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from wnba_props_model.features.feature_contract import assert_no_forbidden_features
 from wnba_props_model.models.oof_engine import generate_oof_folds, make_prior_only_pmfs
-from wnba_props_model.models.training import encode_features, train_fold, generate_fold_pmfs
+from wnba_props_model.models.training import train_fold, generate_fold_pmfs
 from wnba_props_model.models.svd_bridge import SVDBridgeEstimator
 
 app = typer.Typer(add_completion=False)
@@ -76,6 +76,12 @@ def build(
         "", "--svd-bridge",
         help="Path to trained SVDBridgeEstimator pkl. When provided, predicts SVD dims "
              "from leak-free features instead of dropping them from OOF folds.",
+    ),
+    strict_baseline: bool = typer.Option(
+        False, "--strict-baseline",
+        help="TRUSTED baseline (Phase 5.3): a prior_only or failed_model_fit fold is FATAL "
+             "(the run aborts) instead of silently emitting prior PMFs. Leave off only for a "
+             "clearly-labeled diagnostic run.",
     ),
 ) -> None:
     t0 = time.time()
@@ -144,12 +150,14 @@ def build(
     print("  Leakage guard: PASS")
 
     # ------------------------------------------------------------------
-    # 2. Fit global position encoder (on all data for category discovery)
+    # 2. Fold-safe encoding (Phase 5.1)
     # ------------------------------------------------------------------
-    # We fit the encoder once globally so each fold knows all categories.
-    # The actual model fitting uses per-fold training data only.
-    _, global_pos_encoder = encode_features(wide, model_cols, fit_encoder=True)
-    print(f"\nGlobal pos_encoder fitted on {len(wide):,} rows")
+    # NO global encoder fitted on all dates: fitting on the full dataset leaks FUTURE
+    # validation categories into the training encoding. Each fold fits its position encoder
+    # on TRAINING dates only (inside train_fold); encode_features uses
+    # OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), so an unseen
+    # validation category maps to the explicit UNKNOWN code (-1) rather than a leaked ordinal.
+    print("\nFold-safe encoding: per-fold train-only position encoders (no global leak).")
 
     # ------------------------------------------------------------------
     # 3. Generate folds
@@ -249,6 +257,11 @@ def build(
 
         # --- Check eligibility ---
         if n_train_long < min_train:
+            if strict_baseline:
+                raise RuntimeError(
+                    f"[strict-baseline] fold {fid}: insufficient training data "
+                    f"({n_train_long} < {min_train}). A trusted baseline may not emit prior_only "
+                    "PMFs; aborting (use a diagnostic run without --strict-baseline).")
             print(f"    → insufficient training data ({n_train_long} < {min_train}) → prior_only")
             fold_meta = {**fold_meta_base, "oof_prediction_type": "prior_only"}
             pmf_frame = make_prior_only_pmfs(val_wide_df, val_long_df, fold_meta, cfg)
@@ -257,11 +270,9 @@ def build(
                 "validation_long_rows": len(val_long_df)})
         else:
             try:
-                # --- Train fold models ---
+                # --- Train fold models (encoder fitted on TRAIN dates only; Phase 5.1) ---
                 fold_model = train_fold(train_wide_df, train_long_df, model_cols, cfg)
-                # Override encoder with global one (has all categories)
-                fold_model.pos_encoder = global_pos_encoder
-                fold_model.minutes_model._pos_encoder = global_pos_encoder
+                # NO global-encoder override: the fold keeps its train-only, unknown-safe encoder.
 
                 fold_meta = {
                     **fold_meta_base,
@@ -292,6 +303,11 @@ def build(
                 import traceback as _tb
                 print(f"    → FAILED: {e}")
                 _tb.print_exc()  # full stack trace so CI logs show exact cause
+                if strict_baseline:
+                    raise RuntimeError(
+                        f"[strict-baseline] fold {fid}: model fit failed ({e}). A trusted "
+                        "baseline may not convert a fit failure into a prior_only PMF; aborting."
+                    ) from e
                 fold_meta = {**fold_meta_base, "oof_prediction_type": "failed_model_fit"}
                 pmf_frame = make_prior_only_pmfs(
                     val_wide_df, val_long_df, fold_meta, cfg, error_msg=str(e)
@@ -315,6 +331,20 @@ def build(
     print("\nConcatenating OOF frames...")
     oof_df = pd.concat(all_pmf_frames, ignore_index=True)
     print(f"  Total OOF rows: {len(oof_df):,}")
+
+    # Phase 5.3/5.5: trusted-baseline completeness — no prior_only/failed rows and every
+    # direct prop present. (Diagnostic runs skip this and remain explicitly labeled.)
+    if strict_baseline:
+        _bad_types = oof_df["oof_prediction_type"].isin(["prior_only", "failed_model_fit"])
+        if bool(_bad_types.any()):
+            raise RuntimeError(
+                f"[strict-baseline] {int(_bad_types.sum())} OOF rows are prior_only/failed_model_fit "
+                "— a trusted baseline must be 100% model_oof.")
+        _required = set(cfg.get("stats", ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]))
+        _present = set(oof_df["stat"].astype(str).unique())
+        _missing = sorted(_required - _present)
+        if _missing:
+            raise RuntimeError(f"[strict-baseline] missing direct prop(s) in OOF: {_missing}")
 
     # Duplicate key check
     dup_count = oof_df.duplicated(subset=["player_id", "game_id", "stat"]).sum()
