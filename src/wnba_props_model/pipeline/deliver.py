@@ -379,6 +379,12 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame, *,
     # push-unsafe or unconditional value). No internal decision-grade consumer may read it.
     joined["model_prob_over"] = joined["model_prob_over_final"]
     joined["probability_alias_version"] = "v1"
+    # A5: persist the calibration POLICY provenance on every delivered row so delivery and
+    # proof can be audited to the exact same resolver (calibrator_id/hash already come from
+    # the lineage above). policy_id/policy_hash/mode are properties of the resolver instance.
+    joined["calibration_policy_id"] = getattr(_bincal_registry, "policy_id", None)
+    joined["calibration_policy_hash"] = getattr(_bincal_registry, "policy_hash", None)
+    joined["calibration_mode"] = getattr(_bincal_registry, "mode", "disabled")
     # Shared production edge definition (also used by the P1 historical replay).
     # Decision-grade: read model_prob_over_final (the single source), never the legacy alias.
     from wnba_props_model.pipeline.recommendation import edge_over_under
@@ -695,7 +701,18 @@ def write_delivery(
         paths["narratives"] = narratives_path
 
     if raw_props is not None and not raw_props.empty:
-        comp = build_market_comparison(pmfs, raw_props)
+        # A5: delivery loads the SAME common resolver the proof harness uses, so proof and
+        # delivery can never diverge once a policy is activated. Production stays identity by
+        # default (mode 'disabled', no policy) via env; setting BINARY_CALIBRATION_POLICY +
+        # BINARY_CALIBRATION_MODE activates a certified policy identically in both paths.
+        import os as _os  # noqa: PLC0415
+        from wnba_props_model.models.binary_probability_calibration import (  # noqa: PLC0415
+            load_binary_calibration_registry,
+        )
+        _policy_path = _os.environ.get("BINARY_CALIBRATION_POLICY") or None
+        _cal_mode = _os.environ.get("BINARY_CALIBRATION_MODE", "disabled")
+        _registry = load_binary_calibration_registry(_policy_path, _cal_mode)
+        comp = build_market_comparison(pmfs, raw_props, binary_calibration_registry=_registry)
         comp_path = out / "market_comparison.parquet"
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path

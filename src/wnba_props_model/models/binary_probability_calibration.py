@@ -274,7 +274,7 @@ class PolicyBinaryCalibrationRegistry:
         self._cache[key] = model
         return model
 
-    def apply(self, prop: str, role: str, p_over: float) -> CalibrationResult:  # noqa: ARG002
+    def apply(self, prop: str, role: str, p_over: float) -> CalibrationResult:
         if not (isinstance(p_over, (int, float)) and math.isfinite(p_over)):
             raise CalibrationError(f"input probability not finite: {p_over!r}")
         if not (0.0 <= float(p_over) <= 1.0):
@@ -288,13 +288,23 @@ class PolicyBinaryCalibrationRegistry:
                 raise CalibrationError(f"required policy has no entry for prop {prop!r}")
             return CalibrationResult(float(p_over), "identity_no_policy_entry", None, None)
 
-        method = entry.get("method", "identity")
+        # A4/A5 hierarchy: prop x role -> prop -> identity. A role override is used only when
+        # the policy explicitly declares a non-identity role calibrator for this (prop, role).
+        roles = entry.get("roles") or {}
+        role_entry = roles.get(str(role))
+        if role_entry is not None and role_entry.get("method", "identity") != "identity":
+            spec, key_prefix = role_entry, f"{prop}/{role}"
+        else:
+            spec, key_prefix = entry, f"{prop}"
+
+        method = spec.get("method", "identity")
         if method == "identity":
-            return CalibrationResult(float(p_over), "identity", f"identity:{prop}", None)
+            return CalibrationResult(float(p_over), "identity", f"identity:{key_prefix}", None)
 
         # Non-identity: load and apply the calibrator (fail-closed in required mode).
+        key = f"{key_prefix}:{method}"
         try:
-            model = self._load_calibrator(entry, f"{prop}:{method}")
+            model = self._load_calibrator(spec, key)
             out = float(model.predict([[float(p_over)]])[0])
         except CalibrationError:
             if self.mode == "required":
@@ -302,11 +312,11 @@ class PolicyBinaryCalibrationRegistry:
             return CalibrationResult(float(p_over), "identity_calibrator_unavailable", None, None)
         except Exception as exc:  # noqa: BLE001
             if self.mode == "required":
-                raise CalibrationError(f"calibrator predict failed for {prop}:{method}: {exc}") from exc
+                raise CalibrationError(f"calibrator predict failed for {key}: {exc}") from exc
             return CalibrationResult(float(p_over), "identity_calibrator_error", None, None)
         if not math.isfinite(out) or not (0.0 <= out <= 1.0):
-            raise CalibrationError(f"calibrator output invalid for {prop}:{method}: {out}")
-        return CalibrationResult(out, "calibrated", f"{method}:{prop}", entry.get("sha256"))
+            raise CalibrationError(f"calibrator output invalid for {key}: {out}")
+        return CalibrationResult(out, "calibrated", f"{method}:{key_prefix}", spec.get("sha256"))
 
 
 def load_binary_calibration_registry(policy_path, mode: str = "required"):
