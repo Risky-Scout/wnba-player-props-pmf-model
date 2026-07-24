@@ -424,11 +424,20 @@ def validate_provider_quotes(
 
     errors: list[str] = []
 
-    if source == "oddsapi":
+    # Normalise source aliases so callers can pass the policy/source string directly
+    # (e.g. `_load_props` returns "odds_api"; policies use "odds_api_v4" /
+    # "odds_api_then_bdl"). Without this, "odds_api" matched neither branch and
+    # silently skipped provider-native validation.
+    _oddsapi_sources = {"oddsapi", "odds_api", "odds_api_v4"}
+    _bdl_sources = {"bdl", "bdl_required", "odds_api_then_bdl", "none"}
+
+    if source in _oddsapi_sources:
         # Odds API uses internal UUIDs for games and plain-text player names.
-        # Require the provider-native identity columns, not canonical IDs.
+        # Require the provider-native identity columns, not canonical IDs. Accept
+        # event_id (raw Odds API UUID) OR game_id (already normalized/reconciled
+        # rows carry game_id directly) as the game identity.
         required: list[tuple[str, list[str]]] = [
-            ("event_id",            ["event_id"]),
+            ("event_id or game_id", ["event_id", "game_id"]),
             ("player_name",         ["player_name"]),
             ("vendor/bookmaker",    ["vendor", "bookmaker"]),
             ("stat",                ["stat"]),
@@ -453,7 +462,7 @@ def validate_provider_quotes(
             if bad_line.any():
                 errors.append(f"{int(bad_line.sum())} Odds API quote(s) have invalid line value")
 
-    elif source in ("bdl", "bdl_required", "odds_api_then_bdl"):
+    elif source in _bdl_sources:
         for col in ("game_id", "player_id"):
             if col not in quotes_df.columns:
                 errors.append(f"BDL quotes missing required column {col!r}")

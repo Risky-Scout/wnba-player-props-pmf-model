@@ -92,3 +92,33 @@ def test_provider_quotes_bdl_null_player_id_fatal():
     df = pd.DataFrame([{"game_id": 24931, "player_id": None, "stat": "pts"}])
     with pytest.raises(UnmatchedIdentityError, match="player_id"):
         validate_provider_quotes(df, source="bdl")
+
+
+# ─── Source-alias normalization (regression for the "odds_api" routing gap) ──────
+
+@pytest.mark.parametrize("alias", ["odds_api", "odds_api_v4", "oddsapi"])
+def test_provider_quotes_oddsapi_aliases_route_to_validation(alias):
+    """`_load_props` returns "odds_api"; policies use "odds_api_v4". All Odds API
+    aliases must reach provider-native validation (previously "odds_api" silently
+    skipped it)."""
+    df = pd.DataFrame([{
+        "vendor": "fanduel", "event_id": "", "player_name": "Player A",
+        "stat": "pts", "line": 18.5,
+    }])
+    with pytest.raises(UnmatchedIdentityError, match="event_id"):
+        validate_provider_quotes(df, source=alias)
+
+
+def test_provider_quotes_oddsapi_accepts_game_id_without_event_id():
+    """Reconciled Odds API rows may carry game_id instead of event_id."""
+    df = pd.DataFrame([{
+        "vendor": "fanduel", "game_id": 24931, "player_name": "Player A",
+        "stat": "pts", "line": 18.5,
+    }])
+    validate_provider_quotes(df, source="odds_api")  # must not raise
+
+
+def test_provider_quotes_odds_api_then_bdl_routes_to_bdl():
+    df = pd.DataFrame([{"game_id": 24931, "player_id": None, "stat": "pts"}])
+    with pytest.raises(UnmatchedIdentityError, match="player_id"):
+        validate_provider_quotes(df, source="odds_api_then_bdl")
