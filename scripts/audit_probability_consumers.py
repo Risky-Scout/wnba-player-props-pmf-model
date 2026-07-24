@@ -59,6 +59,7 @@ CLASSIFICATION: dict[str, str] = {
     "scripts/build_edge_report.py": "final_probability_decision_consumer",
     "scripts/export_betting_sheet.py": "final_probability_decision_consumer",
     "scripts/generate_web_pages.py": "final_probability_decision_consumer",
+    "scripts/generate_distributions_page.py": "final_probability_decision_consumer",
     "src/wnba_props_model/evaluation/historical_market.py": "final_probability_decision_consumer",
     "scripts/backtest_strategy.py": "final_probability_decision_consumer",
     "scripts/score_outcomes.py": "final_probability_decision_consumer",
@@ -88,6 +89,7 @@ CLASSIFICATION: dict[str, str] = {
     "scripts/audit_probability_semantics.py": "permitted_pmf_diagnostic",
     "scripts/phase3_a4_feature_residual.py": "permitted_pmf_diagnostic",
     "scripts/verify_delivered_lineage.py": "permitted_pmf_diagnostic",
+    "scripts/validate_forecast_pages.py": "permitted_pmf_diagnostic",
     # the audit itself references the symbols as detection strings
     "scripts/audit_probability_consumers.py": "audit_tool",
 }
