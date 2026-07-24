@@ -43,21 +43,67 @@ def test_capability_matrix_classifies_from_real_assets():
 
 # ---------------------------------------------------------------- game crosswalk
 
-def test_game_crosswalk_exact_and_failclosed():
-    prov = pd.DataFrame({"gameId": ["1", "2", "3"]})
-    canon = pd.DataFrame({"game_id": ["1", "2", "3"]})
-    out = build_game_crosswalk(prov, canon, min_coverage=0.98)
+def _prov_games():
+    return pd.DataFrame({
+        "gameId": ["p1", "p2"], "season": ["2026", "2026"],
+        "gdate": ["2026-07-20", "2026-07-21"],
+        "home": ["Aces", "Liberty"], "away": ["Liberty", "Aces"]})
+
+
+def _canon_games():
+    return pd.DataFrame({
+        "game_id": ["c1", "c2"], "season": ["2026", "2026"],
+        "game_date": ["2026-07-20", "2026-07-21"],
+        "home_team": ["Aces", "Liberty"], "away_team": ["Liberty", "Aces"]})
+
+
+def test_game_crosswalk_exact_date_team():
+    # Real matcher: exact (season, date, team-set) - NOT identical-id.
+    out = build_game_crosswalk(
+        _prov_games(), _canon_games(),
+        provider_season_col="season", canonical_season_col="season",
+        provider_date_col="gdate", canonical_date_col="game_date",
+        provider_home_col="home", provider_away_col="away",
+        canonical_home_col="home_team", canonical_away_col="away_team", min_coverage=0.98)
     assert (out["status"] == "RESOLVED").all()
-    # One unmatched -> coverage 2/3 < 0.98 -> fail closed.
+    assert set(out["match_method"]) == {"exact_date_team"}
+    assert dict(zip(out["provider_game_id"], out["canonical_game_id"])) == {"p1": "c1", "p2": "c2"}
+
+
+def test_game_crosswalk_no_silent_identical_id_and_failclosed():
+    # Identical ids are NOT auto-resolved without a reviewed map -> fails closed.
     with pytest.raises(CrosswalkCoverageError):
-        build_game_crosswalk(pd.DataFrame({"gameId": ["1", "2", "x"]}), canon, min_coverage=0.98)
+        build_game_crosswalk(pd.DataFrame({"gameId": ["1", "2"]}),
+                             pd.DataFrame({"game_id": ["1", "2"]}), min_coverage=0.98)
+    # A reviewed id map resolves them explicitly.
+    out = build_game_crosswalk(pd.DataFrame({"gameId": ["1", "2"]}),
+                               pd.DataFrame({"game_id": ["1", "2"]}),
+                               reviewed_id_map={"1": "1", "2": "2"}, min_coverage=0.98)
+    assert (out["status"] == "RESOLVED").all()
+    assert set(out["match_method"]) == {"reviewed_id_map"}
+
+
+def test_game_crosswalk_conflict_not_guessed():
+    # Two canonical games with the same (date, team-set) -> CONFLICT, never guessed.
+    prov = pd.DataFrame({"gameId": ["p1"], "season": ["2026"], "gdate": ["2026-07-20"],
+                         "home": ["Aces"], "away": ["Liberty"]})
+    canon = pd.DataFrame({"game_id": ["c1", "c2"], "season": ["2026", "2026"],
+                          "game_date": ["2026-07-20", "2026-07-20"],
+                          "home_team": ["Aces", "Aces"], "away_team": ["Liberty", "Liberty"]})
+    out = build_game_crosswalk(
+        prov, canon, provider_season_col="season", canonical_season_col="season",
+        provider_date_col="gdate", canonical_date_col="game_date",
+        provider_home_col="home", provider_away_col="away",
+        canonical_home_col="home_team", canonical_away_col="away_team", min_coverage=0.0)
+    assert out.iloc[0]["status"] == "CONFLICT_GAME"
 
 
 # ---------------------------------------------------------------- player crosswalk
 
 def test_player_crosswalk_exact_no_fuzzy():
     gcw = build_game_crosswalk(pd.DataFrame({"gameId": ["g1"]}),
-                               pd.DataFrame({"game_id": ["g1"]}), min_coverage=0.5)
+                               pd.DataFrame({"game_id": ["g1"]}),
+                               reviewed_id_map={"g1": "g1"}, min_coverage=0.5)
     prov = pd.DataFrame({"gameId": ["g1", "g1"], "personId": ["101", "102"],
                          "player_name": ["A'ja Wilson", "Kelsey Plum"]})
     canon = pd.DataFrame({"game_id": ["g1", "g1"], "player_id": ["c1", "c2"],
@@ -69,7 +115,8 @@ def test_player_crosswalk_exact_no_fuzzy():
 
 def test_player_crosswalk_ambiguous_is_not_guessed():
     gcw = build_game_crosswalk(pd.DataFrame({"gameId": ["g1"]}),
-                               pd.DataFrame({"game_id": ["g1"]}), min_coverage=0.5)
+                               pd.DataFrame({"game_id": ["g1"]}),
+                               reviewed_id_map={"g1": "g1"}, min_coverage=0.5)
     prov = pd.DataFrame({"gameId": ["g1"], "personId": ["101"], "player_name": ["Alyssa Thomas"]})
     # Two canonical players share the same normalized name in the same game -> AMBIGUOUS.
     canon = pd.DataFrame({"game_id": ["g1", "g1"], "player_id": ["c1", "c2"],
@@ -81,7 +128,8 @@ def test_player_crosswalk_ambiguous_is_not_guessed():
 
 def test_player_crosswalk_fails_closed_on_low_coverage():
     gcw = build_game_crosswalk(pd.DataFrame({"gameId": ["g1"]}),
-                               pd.DataFrame({"game_id": ["g1"]}), min_coverage=0.5)
+                               pd.DataFrame({"game_id": ["g1"]}),
+                               reviewed_id_map={"g1": "g1"}, min_coverage=0.5)
     prov = pd.DataFrame({"gameId": ["g1", "g1"], "personId": ["1", "2"],
                          "player_name": ["Known Player", "Ghost Player"]})
     canon = pd.DataFrame({"game_id": ["g1"], "player_id": ["c1"], "player_name": ["Known Player"]})
