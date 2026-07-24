@@ -147,6 +147,8 @@ class ZINBStatModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
+        from wnba_props_model.features.feature_contract import capture_feature_dtype_kinds
+        self._feature_dtype_kinds = capture_feature_dtype_kinds(X, self._usable_cols)
 
         y_arr = y.fillna(0).values.astype(float)
         is_zero = (y_arr == 0).astype(int)
@@ -219,6 +221,8 @@ class ZINBStatModel:
         """
         if not self._fitted:
             raise RuntimeError("ZINBStatModel not fitted")
+        from wnba_props_model.features.feature_contract import assert_inference_parity
+        assert_inference_parity(X, self, "ZINBStatModel.predict")
         X_aligned = X.reindex(columns=self._usable_cols)
         if self._pi_model is not None:
             pi = self._pi_model.predict_proba(X_aligned)[:, 1]

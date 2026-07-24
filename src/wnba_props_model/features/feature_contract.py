@@ -512,6 +512,55 @@ def assert_feature_artifact_parity(
                     f"{bad[:8]}")
 
 
+FEATURE_ARTIFACT_BUILDER_VERSION = "w0.3-a3-v1"
+
+
+def capture_feature_dtype_kinds(frame, features: "list[str]") -> "dict[str, str]":
+    """Capture the numpy dtype-KIND ('f','i','O','b',...) of each trained feature, so an
+    inference frame that arrives with an unexpectedly categorical/object column (where the
+    artifact trained on numeric) fails closed instead of silently corrupting the model."""
+    import pandas as pd
+    if not isinstance(frame, pd.DataFrame):
+        return {}
+    return {c: str(frame[c].dtype.kind) for c in features if c in frame.columns}
+
+
+def build_feature_artifact_metadata(frame, ordered_features: "list[str]", *,
+                                    builder_version: str = FEATURE_ARTIFACT_BUILDER_VERSION,
+                                    training_data_hash: "str | None" = None,
+                                    encoder_version: "str | None" = None) -> dict:
+    """A3: persistable, self-describing feature-artifact metadata captured at FIT time.
+
+    Every trained inference artifact should store this alongside its estimator so that every
+    inference path can enforce identical feature parity (names, order, dtype kinds) and so
+    lineage (encoder/category version, training-data hash, builder version) is auditable."""
+    ordered = list(ordered_features)
+    return {
+        "ordered_feature_names": ordered,
+        "feature_schema_hash": feature_schema_hash(ordered),
+        "dtype_kinds": capture_feature_dtype_kinds(frame, ordered),
+        "encoder_version": encoder_version,
+        "training_data_hash": training_data_hash,
+        "builder_version": builder_version,
+    }
+
+
+def assert_inference_parity(frame, model, context: str) -> None:
+    """A3 shared fail-closed validator wired into EVERY inference reindex path.
+
+    Uses the artifact's own trained feature list (`_usable_cols`) and, when present, its
+    captured dtype-kind map (`_feature_dtype_kinds`). No inference component may silently
+    reindex a missing feature to NaN or run on an unexpectedly-typed column."""
+    usable = getattr(model, "_usable_cols", None)
+    if not usable:
+        return
+    assert_feature_artifact_parity(
+        frame, list(usable), context=context,
+        dtype_map=getattr(model, "_feature_dtype_kinds", None) or None,
+        check_all_null=False,
+    )
+
+
 def assert_no_market_columns(columns: list[str]) -> None:
     """Raise ValueError if any market/evaluation-only column is present."""
     overlap = sorted(set(columns) & _MARKET_LEAKAGE)

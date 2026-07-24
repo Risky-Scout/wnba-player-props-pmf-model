@@ -140,6 +140,8 @@ class BetaBinomialStatModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
+        from wnba_props_model.features.feature_contract import capture_feature_dtype_kinds
+        self._feature_dtype_kinds = capture_feature_dtype_kinds(X, self._usable_cols)
 
         if y_attempts is not None and y_attempts.notna().sum() >= _MIN_SAMPLES:
             # Stage 1: HGB regressor for expected fg3a
@@ -193,6 +195,9 @@ class BetaBinomialStatModel:
         if not self._fitted:
             raise RuntimeError("BetaBinomialStatModel not fitted")
 
+        from wnba_props_model.features.feature_contract import assert_inference_parity
+        if self._attempts_model is not None:
+            assert_inference_parity(X, self, "BetaBinomialStatModel.predict_pmf_matrix")
         X_aligned = X.reindex(columns=self._usable_cols)
         n_players = len(X_aligned)
 
@@ -215,6 +220,9 @@ class BetaBinomialStatModel:
         """Expected fg3m = E[fg3a] * alpha/(alpha+beta)."""
         if not self._fitted:
             raise RuntimeError("BetaBinomialStatModel not fitted")
+        from wnba_props_model.features.feature_contract import assert_inference_parity
+        if self._attempts_model is not None:
+            assert_inference_parity(X, self, "BetaBinomialStatModel.predict_mean")
         X_aligned = X.reindex(columns=self._usable_cols)
         if self._attempts_model is not None:
             exp_n = np.clip(self._attempts_model.predict(X_aligned), 0.0, 15.0)

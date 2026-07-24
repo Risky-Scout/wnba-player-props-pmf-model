@@ -125,6 +125,8 @@ class StatRateModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
+        from wnba_props_model.features.feature_contract import capture_feature_dtype_kinds
+        self._feature_dtype_kinds = capture_feature_dtype_kinds(X, self._usable_cols)
 
         # Minutes-offset mode: fit on per-minute rate; scale at prediction time
         if use_offset and context_df is not None and "actual_minutes" in context_df.columns:
@@ -318,14 +320,8 @@ class StatRateModel:
         # W0.3 fail-closed feature-artifact parity: the inference frame must supply every
         # feature this artifact was trained on BEFORE the reindex silently NaN-fills gaps
         # (the 52-of-128 failure). Extra columns are allowed.
-        _usable = getattr(self, "_usable_cols", None)
-        if _usable:
-            from wnba_props_model.features.feature_contract import (  # noqa: PLC0415
-                assert_feature_artifact_parity,
-            )
-            assert_feature_artifact_parity(
-                X, _usable, context=f"StatRateModel({self.stat}).predict_mean",
-                check_all_null=False)
+        from wnba_props_model.features.feature_contract import assert_inference_parity  # noqa: PLC0415
+        assert_inference_parity(X, self, f"StatRateModel({self.stat}).predict_mean")
         X_pred = X.reindex(columns=getattr(self, "_usable_cols", X.columns))
         min_mean = self.cfg.get("min_stat_mean", 0.01)
 
@@ -515,6 +511,8 @@ class HurdleModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
+        from wnba_props_model.features.feature_contract import capture_feature_dtype_kinds
+        self._feature_dtype_kinds = capture_feature_dtype_kinds(X, self._usable_cols)
 
         # Stage A: binary classifier P(Y > 0)
         y_binary = (y > 0).astype(int)
@@ -593,9 +591,10 @@ class HurdleModel:
         if not self._fitted or self._clf is None:
             raise RuntimeError(f"HurdleModel({self.stat}) not fitted")
 
-        # Align inference to the exact column set used at fit time.
-        # Missing columns are filled with NaN — HGB handles NaN natively.
+        # A3: fail-closed parity BEFORE the align (no silent NaN-fill of a missing feature).
         if hasattr(self, "_usable_cols"):
+            from wnba_props_model.features.feature_contract import assert_inference_parity
+            assert_inference_parity(X, self, f"HurdleModel({self.stat}).predict")
             X = X.reindex(columns=self._usable_cols)
 
         # P(Y > 0)

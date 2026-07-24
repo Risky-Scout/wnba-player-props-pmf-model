@@ -805,6 +805,10 @@ def _build_pmf_matrix(
     # giving player-specific, context-specific NegBinom tails.
     if (X_stat_df is not None
             and getattr(model, "dispersion_model", None) is not None):
+        # A3: fail-closed parity OUTSIDE the try so a truncated matrix cannot be silently
+        # swallowed into the fallback dispersion path (no silent NaN-fill of a missing feature).
+        from wnba_props_model.features.feature_contract import assert_inference_parity
+        assert_inference_parity(X_stat_df, model, "dispersion_model.predict")
         try:
             _usable = getattr(model, "_usable_cols", None)
             _X_disp = X_stat_df.reindex(columns=_usable) if _usable else X_stat_df

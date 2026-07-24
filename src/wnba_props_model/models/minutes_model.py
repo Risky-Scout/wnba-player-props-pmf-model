@@ -66,6 +66,9 @@ class MinutesModel:
         if all_nan:
             X = X.drop(columns=all_nan)
         self._usable_cols = list(X.columns)
+        # A3: capture trained dtype kinds so inference fails closed on unexpectedly-typed columns.
+        from wnba_props_model.features.feature_contract import capture_feature_dtype_kinds
+        self._feature_dtype_kinds = capture_feature_dtype_kinds(X, self._usable_cols)
 
         # --- Mean regressor --------------------------------------------------
         self._model = HistGradientBoostingRegressor(
@@ -158,6 +161,8 @@ class MinutesModel:
         """Return (n, 5) array of quantile minute predictions [q10..q90], clipped to minutes_clip_max."""
         if not self._fitted:
             raise RuntimeError("MinutesModel not fitted")
+        from wnba_props_model.features.feature_contract import assert_inference_parity
+        assert_inference_parity(X, self, "MinutesModel.predict_quantiles")
         X_aligned = X.reindex(columns=self._usable_cols)
         # Use full clip_max from config (no 42.0 hard cap — stars in OT can play 43-48 min).
         clip_max = self.cfg.get("minutes_clip_max", 48.0)
@@ -188,6 +193,9 @@ class MinutesModel:
             raise RuntimeError("MinutesModel not fitted")
 
         if hasattr(self, "_usable_cols"):
+            from wnba_props_model.features.feature_contract import assert_inference_parity
+            # A3: covers BOTH the minutes mean/quantile regressors and the shared-X DNP model.
+            assert_inference_parity(X, self, "MinutesModel.predict (minutes+DNP)")
             X = X.reindex(columns=self._usable_cols)
 
         y_pred = np.clip(
