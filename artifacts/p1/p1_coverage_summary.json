@@ -1,0 +1,33 @@
+{
+  "min_date": "2023-05-03",
+  "eligible_dates": 68,
+  "preflight_date": "2026-05-08",
+  "http": "200",
+  "event_count": 7,
+  "snapshot_timestamp": "2026-05-08T11:55:38Z",
+  "requests_used": 444799,
+  "requests_remaining": 4555201,
+  "preflight_bookmaker_count": 5,
+  "preflight_market_count": 26,
+  "eligible_dates_run": 68,
+  "unique_events_seen": 188,
+  "matched_events": 103,
+  "unmatched_events": 85,
+  "event_match_rate": 0.5479,
+  "quotes": 76620,
+  "paired_rows": 35289,
+  "closing_consensus_rows": 5753,
+  "matched_games": 103,
+  "distinct_unmatched_players": 9,
+  "top_unmatched_players": {
+    "Skylar Diggins-Smith": 1245,
+    "Le\u00efla Lacan": 1048,
+    "Megan Gustafson": 380,
+    "Sabrina Ionescu": 160,
+    "A'ja Wilson": 156,
+    "Angel Reese": 58,
+    "Rhyne Howard": 54,
+    "Satou Sabally": 25,
+    "Chennedy Carter": 2
+  }
+}
