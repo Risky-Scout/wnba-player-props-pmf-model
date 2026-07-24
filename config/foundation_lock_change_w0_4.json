@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authorization_id": "FL-W0.4-pure-vs-market-anchored-contracts",
+  "authorized_pr": "phase-b W0.4 information contracts",
+  "authorized_branch": "cursor/phase-b-w0-correctness-06e5",
+  "authorized_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
+  "single_use": true,
+  "allowed_locked_paths": ["src/wnba_props_model/features/feature_contract.py"],
+  "expiration": "2026-12-31",
+  "rationale": "W0.4 adds explicit PURE_FORECAST_FEATURES (MODEL_FEATURES minus same-game Vegas features and lagged prior-game market features) and MARKET_ANCHORED_FEATURES contracts plus assert_pure_forecast. Additive; existing MODEL_FEATURES/forbidden sets unchanged."
+}

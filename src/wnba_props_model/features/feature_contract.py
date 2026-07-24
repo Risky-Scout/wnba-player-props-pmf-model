@@ -282,6 +282,52 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
 MODEL_FEATURES: list[str] = [f for family in FEATURE_FAMILIES.values() for f in family]
 
 # ---------------------------------------------------------------------------
+# W0.4: PURE vs MARKET-ANCHORED information contracts
+# ---------------------------------------------------------------------------
+# Same-game sportsbook-derived features (the current game's Vegas total/spread and
+# everything derived from them). These are market information and MUST NOT enter an
+# independently-evaluated pure_forecast candidate. (The model-derived game-script
+# features -- pregame_win_probability etc. -- come from a net-rating spread, NOT Vegas,
+# and remain pure-eligible.)
+SAME_GAME_MARKET_FEATURES: list[str] = [
+    "implied_team_total", "game_total", "game_spread_home",
+    "blowout_risk", "predicted_spread_abs", "close_game_indicator",
+]
+# Lagged prior-game market features: a SEPARATE preregistered family. They are NOT part of
+# the primary pure forecast (W0.4); include only via an explicit, preregistered analysis.
+LAGGED_MARKET_FEATURES: list[str] = list(MARKET_PRIOR_FEATURES)
+
+_PURE_EXCLUDED_MARKET: frozenset = frozenset(SAME_GAME_MARKET_FEATURES) | frozenset(LAGGED_MARKET_FEATURES)
+
+# The PURE forecast contract: model features with ALL market-derived features removed.
+PURE_FORECAST_FEATURES: list[str] = [f for f in MODEL_FEATURES if f not in _PURE_EXCLUDED_MARKET]
+# The MARKET-ANCHORED contract: may use market information available by the decision
+# timestamp (pre-tip Vegas game context + lagged prior-game market). Never described as an
+# independent pure forecast.
+MARKET_ANCHORED_FEATURES: list[str] = list(MODEL_FEATURES)
+
+
+def pure_forecast_features() -> list[str]:
+    return list(PURE_FORECAST_FEATURES)
+
+
+def market_anchored_features() -> list[str]:
+    return list(MARKET_ANCHORED_FEATURES)
+
+
+def assert_pure_forecast(features: "list[str] | pd.DataFrame") -> None:
+    """Raise if a pure_forecast candidate contains ANY same-game sportsbook or lagged-market
+    feature. The pure track must be independent of market information (W0.4)."""
+    import pandas as pd  # local import
+    cols = list(features.columns) if isinstance(features, pd.DataFrame) else list(features)
+    overlap = sorted(set(cols) & _PURE_EXCLUDED_MARKET)
+    if overlap:
+        raise ValueError(
+            f"pure_forecast candidate contains market-derived features (forbidden on the "
+            f"pure track; use the market_anchored contract instead): {overlap}")
+
+
+# ---------------------------------------------------------------------------
 # Forbidden columns  (market / post-game leakage)
 # ---------------------------------------------------------------------------
 
