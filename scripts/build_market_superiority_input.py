@@ -4,8 +4,11 @@ Bridges three sources into the one table `evaluate_market_superiority.py` scores
 
   * MARKET  — p1_closing_consensus.parquet (no-vig closing P(over) at the modal line);
   * OUTCOME — OOF table `actual_outcome` (the realized stat), keyed to the same game;
-  * MODEL   — P(over) at the closing line from the OOF PMF, then fold-safe calibrated
-              (walk-forward, no lookahead) so it is production-equivalent.
+  * MODEL   — model_prob_over_final computed by the SAME function production delivery
+              uses (build_probability_lineage): push-safe settled P(over) -> binary
+              calibration registry (identity unless a policy file is present). This
+              guarantees EVALUATED == DEPLOYED: the proof scores the exact shipped
+              probability, so a PASS is directly promotable.
 
 Output columns match the evaluator contract:
   game_date, prop, candidate, split, actual, line, model_prob_over_final,
@@ -34,6 +37,11 @@ import typer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from wnba_props_model.evaluation import historical_market as hm  # noqa: E402
+from wnba_props_model.models.binary_probability_calibration import (  # noqa: E402
+    BinaryCalibrationRegistry,
+)
+from wnba_props_model.models.probability_lineage import build_probability_lineage  # noqa: E402
+from wnba_props_model.models.simulation import json_to_pmf  # noqa: E402
 
 app = typer.Typer(add_completion=False)
 KEYS = ["game_id", "player_id", "stat"]
@@ -86,8 +94,10 @@ def build(
                                    help="YYYY-MM-DD; games before = selection, on/after = test."),
     test_frac: float = typer.Option(0.4, "--test-frac",
                                     help="If no --split-date, fraction of latest dates used as test."),
-    calibrate: bool = typer.Option(True, "--calibrate/--no-calibrate",
-                                   help="Fold-safe (walk-forward) calibration of model P(over)."),
+    calibration_policy: str = typer.Option(
+        "config/binary_calibration_policy_v1.json", "--calibration-policy",
+        help="Binary calibration policy file (the SAME one delivery loads). Absent -> "
+             "identity, matching current production. Guarantees evaluated == deployed."),
     candidate: str = typer.Option("production", "--candidate"),
     run_eval: bool = typer.Option(False, "--run-eval", help="Invoke the evaluator (prove mode)."),
     eval_output_dir: str = typer.Option("artifacts/market_feature_proof/from_archive", "--eval-output-dir"),
@@ -120,7 +130,9 @@ def build(
         oofd[k] = oofd[k].astype("string")
 
     gd_col = "game_date" if "game_date" in oofd.columns else None
-    keep = KEYS + ["actual_outcome", "pmf_json"] + ([gd_col] if gd_col else [])
+    # Carry role_bucket + model_version so the lineage matches delivery's inputs exactly.
+    optional = [c for c in ("role_bucket", "model_version") if c in oofd.columns]
+    keep = KEYS + ["actual_outcome", "pmf_json"] + ([gd_col] if gd_col else []) + optional
     df = cc.merge(oofd[keep], on=KEYS, how="inner")
     if df.empty:
         typer.echo("[FATAL] no (game,player,stat) overlap between closing consensus and OOF. "
@@ -130,18 +142,36 @@ def build(
     if gd_col is None:
         df["game_date"] = pd.to_datetime(df["commence_time"], errors="coerce").dt.strftime("%Y-%m-%d")
 
-    # Model P(over) at the exact closing line, then fold-safe calibrate (no lookahead).
-    df["raw_p_over"] = [
-        hm.p_over_conditional(_pmf_array(pj), float(ln))
-        for pj, ln in zip(df["pmf_json"], df["line"])
-    ]
-    df = df[df["raw_p_over"].notna()].copy()
-    df["over_outcome"] = (df["actual_outcome"].astype(float) > df["line"].astype(float)).astype(int)
-    if calibrate:
-        model_p_over = hm.fold_safe_calibrated_prob_over(
-            df, prob_col="raw_p_over", outcome_col="over_outcome").to_numpy()
-    else:
-        model_p_over = df["raw_p_over"].to_numpy()
+    # MODEL P(over) — produced by the SAME function delivery uses (build_probability_lineage):
+    # push-safe settled P(over) -> binary calibration registry (identity unless a policy file
+    # is present) -> model_prob_over_final. Evaluated == deployed. The PMF is decoded with the
+    # same json_to_pmf delivery uses. Binary-ineligible (all-push) rows have no defined P(over)
+    # and are dropped (they cannot be scored and are never shipped).
+    registry = BinaryCalibrationRegistry.from_policy(calibration_policy or None)
+    roles = (df["role_bucket"].astype(str) if "role_bucket" in df.columns
+             else pd.Series(["all"] * len(df), index=df.index))
+    versions = (df["model_version"] if "model_version" in df.columns
+                else pd.Series([None] * len(df), index=df.index))
+    finals: list[float | None] = []
+    for pj, ln, stat_, role_, ver_ in zip(df["pmf_json"], df["line"], df["stat"], roles, versions):
+        lineage = build_probability_lineage(
+            final_pmf=json_to_pmf(pj),
+            line=float(ln),
+            prop=str(stat_),
+            role=str(role_) if role_ is not None else "all",
+            binary_calibration_registry=registry,
+            structural_model_id=(str(ver_) if ver_ not in (None, "None", "") else None),
+            probability_track="pure_forecast",
+        )
+        finals.append(lineage.model_prob_over_final)
+    df["_final"] = finals
+    n_before = len(df)
+    df = df[df["_final"].notna()].copy()
+    n_ineligible = n_before - len(df)
+    if df.empty:
+        typer.echo("[FATAL] no binary-eligible rows after lineage (all rows all-push?).", err=True)
+        raise typer.Exit(1)
+    model_p_over = df["_final"].astype(float).to_numpy()
     split = np.asarray(_chronological_split(df["game_date"], split_date or None, test_frac))
 
     # Build the evaluator input as a NEW frame (never a post-lineage mutation of an
@@ -164,7 +194,9 @@ def build(
     by_split = result["split"].value_counts().to_dict()
     typer.echo(f"[market-input] wrote {len(result):,} rows -> {out_p}")
     typer.echo(f"  splits: {by_split} | props: {sorted(result['prop'].unique())}")
-    typer.echo(f"  calibrated={calibrate} | date range {result['game_date'].min()} .. {result['game_date'].max()}")
+    typer.echo(f"  probability=delivery-lineage(parity) | calibration={registry.status} "
+               f"| binary_ineligible_dropped={n_ineligible} "
+               f"| date range {result['game_date'].min()} .. {result['game_date'].max()}")
 
     if run_eval:
         cmd = [sys.executable, str(Path(__file__).parent / "evaluate_market_superiority.py"),
