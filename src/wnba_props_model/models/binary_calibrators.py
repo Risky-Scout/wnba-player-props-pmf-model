@@ -41,17 +41,26 @@ class IdentityCalibrator:
         return _as_p(X)
 
 
+# A4: preregistered FINITE regularization grid (L2 inverse-strength C). The default fit is
+# REGULARIZED (C=1.0), never the previous near-unregularized very-large-C fit. The grid is
+# selected only inside rolling-origin training folds by the fitter.
+PLATT_C_GRID = (0.03, 0.1, 0.3, 1.0, 3.0)
+BETA_C_GRID = (0.03, 0.1, 0.3, 1.0, 3.0)
+_DEFAULT_C = 1.0
+
+
 class PlattCalibrator:
-    """Platt scaling: sigmoid(a * logit(p) + b), fit by logistic regression."""
+    """Platt scaling: sigmoid(a * logit(p) + b), fit by REGULARIZED logistic regression."""
     family = "platt"
 
-    def __init__(self):
+    def __init__(self, C: float = _DEFAULT_C):
+        self.C = float(C)
         self._lr = None
 
     def fit(self, p, y):
         from sklearn.linear_model import LogisticRegression
         z = _logit(_as_p(p)).reshape(-1, 1)
-        self._lr = LogisticRegression(C=1e6, solver="lbfgs", max_iter=1000)
+        self._lr = LogisticRegression(C=self.C, solver="lbfgs", max_iter=1000)
         self._lr.fit(z, np.asarray(y, dtype=int))
         return self
 
@@ -61,17 +70,18 @@ class PlattCalibrator:
 
 
 class BetaCalibrator:
-    """Beta calibration (Kull, Silva Filho, Flach 2017): logistic on [log p, log(1-p)]."""
+    """Beta calibration (Kull, Silva Filho, Flach 2017): REGULARIZED logistic on [log p, log(1-p)]."""
     family = "beta"
 
-    def __init__(self):
+    def __init__(self, C: float = _DEFAULT_C):
+        self.C = float(C)
         self._lr = None
 
     def fit(self, p, y):
         from sklearn.linear_model import LogisticRegression
         pp = _as_p(p)
         feats = np.column_stack([np.log(pp), np.log(1.0 - pp)])
-        self._lr = LogisticRegression(C=1e6, solver="lbfgs", max_iter=1000)
+        self._lr = LogisticRegression(C=self.C, solver="lbfgs", max_iter=1000)
         self._lr.fit(feats, np.asarray(y, dtype=int))
         return self
 

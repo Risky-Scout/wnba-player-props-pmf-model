@@ -89,6 +89,7 @@ def _run_fitter(tmp, cc_p, oof_p):
     policy, sel = tmp / "policy.json", tmp / "sel.json"
     r = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "fit_binary_prob_calibrators.py"),
+         "--mode", "development-diagnostic",
          "--oof", str(oof_p), "--closing", str(cc_p), "--split-date", "2026-08-01",
          "--out-dir", str(tmp / "cal"), "--policy-out", str(policy),
          "--selection-out", str(sel), "--min-rows", "60"],
@@ -110,3 +111,79 @@ def test_fitter_ships_calibrator_on_miscalibrated_and_identity_on_clean(tmp_path
     assert pol_bad["enabled"] is True
     pol_ok, sel_ok = _run_fitter(tmp_path / "b", *_synth_inputs(tmp_path / "b", lambda p: p, seed=2))
     assert sel_ok["reb"]["decision"] in ("identity_no_improvement", "identity_insufficient_data")
+
+
+# --------------------------------------------------------------------------- A4
+
+def test_platt_beta_are_regularized_not_1e6():
+    # A4: default fit must be REGULARIZED (finite grid), never the old near-unregularized C=1e6.
+    from wnba_props_model.models.binary_calibrators import BETA_C_GRID, PLATT_C_GRID
+    assert PlattCalibrator().C <= 3.0 and BetaCalibrator().C <= 3.0
+    assert max(PLATT_C_GRID) <= 10.0 and max(BETA_C_GRID) <= 10.0
+    src = (ROOT / "src" / "wnba_props_model" / "models" / "binary_calibrators.py").read_text()
+    assert "C=1e6" not in src
+
+
+def test_development_diagnostic_is_labeled_nondeployable(tmp_path):
+    policy, _ = _run_fitter(tmp_path, *_synth_inputs(tmp_path, lambda p: p ** 2))
+    assert policy["mode"] == "development-diagnostic"
+    assert "NOT_EXACT_QUOTE_PROOF" in policy["labels"]
+    assert "NOT_DEPLOYABLE_POLICY" in policy["labels"]
+    assert policy["deployable"] is False
+    assert policy["regularization"]["platt_C_grid"]           # grid preregistered in policy
+    assert "worst_fold_tolerance" in policy
+
+
+def _certified_scored(tmp: Path, exact=True, n=900, seed=0):
+    tmp.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(seed)
+    base = pd.Timestamp("2026-05-01")
+    rows = []
+    for i in range(n):
+        p = float(rng.uniform(0.05, 0.95))
+        y = int(rng.uniform(0, 1) < p ** 2)              # miscalibrated -> calibrator should ship
+        gd = (base + pd.Timedelta(days=int(i % 60))).strftime("%Y-%m-%d")
+        rows.append({"game_id": str(i), "player_id": str(i), "stat": "reb", "line": 0.5,
+                     "actual_outcome": float(y), "model_prob_over_final": p,
+                     "game_date": gd, "role_bucket": "starter" if i % 2 else "bench",
+                     "quote_pair_status": "EXACT_PAIR" if exact else "ONE_SIDED",
+                     "binary_score_eligible": True, "oof_prediction_type": "model_oof",
+                     "fit_status": "ok"})
+    sp = tmp / "scored.parquet"; pd.DataFrame(rows).to_parquet(sp)
+    man = tmp / "split.json"
+    man.write_text(json.dumps({"proof_date_min": "2026-08-01", "selection_date_max": "2026-08-01",
+                               "previous_access_count": 0}))
+    return sp, man
+
+
+def test_certified_rejects_closing_consensus(tmp_path):
+    # A certified fit against a closing-consensus table (no EXACT_PAIR/eligibility columns) must fail.
+    cc_p, _ = _synth_inputs(tmp_path, lambda p: p ** 2)
+    man = tmp_path / "split.json"; man.write_text(json.dumps({"proof_date_min": "2026-08-01"}))
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "fit_binary_prob_calibrators.py"),
+         "--mode", "certified", "--scored-input", str(cc_p), "--split-manifest", str(man),
+         "--out-dir", str(tmp_path / "c"), "--policy-out", str(tmp_path / "p.json"),
+         "--selection-out", str(tmp_path / "s.json")],
+        capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "certified" in (r.stdout + r.stderr).lower()
+
+
+def test_certified_mode_ships_deployable_policy(tmp_path):
+    sp, man = _certified_scored(tmp_path)
+    policy = tmp_path / "p.json"; sel = tmp_path / "s.json"
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "fit_binary_prob_calibrators.py"),
+         "--mode", "certified", "--scored-input", str(sp), "--split-manifest", str(man),
+         "--out-dir", str(tmp_path / "cal"), "--policy-out", str(policy),
+         "--selection-out", str(sel), "--min-rows", "60", "--role-min-rows", "120",
+         "--role-min-dates", "10"],
+        capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    pol = json.loads(policy.read_text())
+    assert pol["mode"] == "certified" and pol["deployable"] is True
+    assert pol["hierarchy"] == "prop_x_role -> prop -> identity"
+    assert json.loads(sel.read_text())["reb"]["decision"].startswith("ship_")
+    # role hierarchy present under the prop
+    assert "roles" in pol["props"]["reb"]
