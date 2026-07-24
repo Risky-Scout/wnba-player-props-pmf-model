@@ -26,6 +26,7 @@
     "scripts/evaluate_market_superiority.py": "final_probability_decision_consumer",
     "scripts/export_betting_sheet.py": "final_probability_decision_consumer",
     "scripts/export_html_report.py": "permitted_pmf_diagnostic",
+    "scripts/fit_binary_prob_calibrators.py": "permitted_pmf_diagnostic",
     "scripts/generate_clv_report.py": "final_probability_decision_consumer",
     "scripts/generate_web_pages.py": "final_probability_decision_consumer",
     "scripts/predict_today.py": "permitted_pmf_diagnostic",
