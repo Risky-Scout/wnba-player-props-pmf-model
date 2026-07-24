@@ -200,7 +200,7 @@ def test_select_precedes_proof_and_no_leakage(tmp_path):
         {"proof_date_min": "2025-07-01", "proof_date_max": "2025-07-31"}))
     r2 = subprocess.run([sys.executable, str(EVAL), "--mode", "prove", "--input", str(src),
                          "--selected-candidates", str(out / "selected_candidates.json"),
-                         "--split-manifest", str(split_manifest),
+                         "--split-manifest", str(split_manifest), "--no-require-manifest-integrity",
                          "--output-dir", str(out), "--min-rows", "300", "--bootstrap", "600"],
                         capture_output=True, text=True, cwd=str(REPO))
     assert r2.returncode == 0, r2.stdout + r2.stderr
@@ -252,3 +252,105 @@ def test_prove_emits_both_gates_and_cluster_floor():
     assert "proper_score_market_superiority_gate" in src
     assert "strict_market_superiority_gate" in src
     assert "max(30, int(args.min_clusters))" in src
+
+
+def test_prove_reports_all_seven_target_props(tmp_path):
+    # A1: only 'pts' has a candidate/rows, but ALL 7 target props must appear with a status.
+    rows = []
+    for d in range(4):
+        for j in range(20):
+            rows.append({"prop": "pts", "candidate": "c", "split": "test",
+                         "game_date": f"2026-07-{d + 1:02d}", "actual": j % 3, "line": 0.5,
+                         "model_prob_over_final": 0.5, "market_prob_over_no_vig": 0.5})
+    src = tmp_path / "s.csv"; pd.DataFrame(rows).to_csv(src, index=False)
+    sel = tmp_path / "sel.json"; sel.write_text(json.dumps({"selected_candidates": {"pts": "c"}}))
+    man = tmp_path / "split.json"
+    man.write_text(json.dumps({"proof_date_min": "2026-07-01", "proof_date_max": "2026-07-31"}))
+    out = tmp_path / "o"
+    r = subprocess.run([sys.executable, str(EVAL), "--mode", "prove", "--input", str(src),
+                        "--selected-candidates", str(sel), "--split-manifest", str(man),
+                        "--no-require-manifest-integrity",
+                        "--output-dir", str(out), "--min-rows", "300"],
+                       capture_output=True, text=True, cwd=str(REPO))
+    assert r.returncode == 0, r.stdout + r.stderr
+    proof = json.loads((out / "market_superiority_proof.json").read_text())
+    status = proof["status_by_prop"]
+    assert set(status) == {"pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"}  # all 7 present
+    assert status["pts"] in ("INSUFFICIENT", "FAIL", "PASS")   # pts had rows (n<300 -> INSUFFICIENT)
+    for p in ("reb", "ast", "fg3m", "stl", "blk", "turnover"):
+        assert status[p] == "MISSING_CANDIDATE"                # never dropped
+    # Holm family stays fixed at 14 (7 props x 2 proper-score metrics).
+    assert len(proof["results"]) == 7
+
+
+# --------------------------------------------------------------------------- A2
+
+def _write_input(tmp_path):
+    src = tmp_path / "scored.csv"
+    pd.DataFrame({"prop": ["pts"], "candidate": ["c"], "game_date": ["2026-07-10"],
+                  "actual": [1], "line": [0.5], "model_prob_over_final": [0.6],
+                  "market_prob_over_no_vig": [0.5]}).to_csv(src, index=False)
+    return src
+
+
+def _good_candidate(prop="pts"):
+    return {prop: {"candidate_id": "c", "probability_track": "pure", "model_hash": "m",
+                   "feature_schema_hash": "f", "calibration_policy_hash": "p",
+                   "calibrator_hash": "k", "training_date_max": "2026-06-01",
+                   "selection_date_max": "2026-06-15", "proof_date_min": "2026-07-01"}}
+
+
+def _good_split(input_hash):
+    return {"proof_date_min": "2026-07-01", "proof_date_max": "2026-07-31",
+            "input_dataset_hash": input_hash, "quote_policy_hash": "q",
+            "settlement_policy_hash": "s", "creation_timestamp": "2026-07-01T00:00:00Z",
+            "previous_access_count": 0}
+
+
+def test_a2_manifest_integrity_passes_clean(tmp_path):
+    m = _mod()
+    src = _write_input(tmp_path)
+    h = m._sha256_file(str(src))
+    contaminated = m._verify_manifests(_good_candidate(), _good_split(h),
+                                       input_path=str(src), target_props=["pts"])
+    assert contaminated == set()
+
+
+def test_a2_missing_hash_is_fatal(tmp_path):
+    m = _mod()
+    src = _write_input(tmp_path); h = m._sha256_file(str(src))
+    cand = _good_candidate(); cand["pts"]["model_hash"] = None
+    with pytest.raises(ValueError, match="model_hash"):
+        m._verify_manifests(cand, _good_split(h), input_path=str(src), target_props=["pts"])
+
+
+def test_a2_input_hash_mismatch_is_fatal(tmp_path):
+    m = _mod()
+    src = _write_input(tmp_path)
+    with pytest.raises(ValueError, match="input-dataset hash mismatch"):
+        m._verify_manifests(_good_candidate(), _good_split("deadbeef"),
+                            input_path=str(src), target_props=["pts"])
+
+
+def test_a2_previous_access_is_fatal(tmp_path):
+    m = _mod()
+    src = _write_input(tmp_path); h = m._sha256_file(str(src))
+    split = _good_split(h); split["previous_access_count"] = 3
+    with pytest.raises(ValueError, match="already accessed"):
+        m._verify_manifests(_good_candidate(), split, input_path=str(src), target_props=["pts"])
+
+
+def test_a2_date_overlap_marks_contaminated(tmp_path):
+    m = _mod()
+    src = _write_input(tmp_path); h = m._sha256_file(str(src))
+    cand = _good_candidate(); cand["pts"]["selection_date_max"] = "2026-07-05"  # inside proof window
+    contaminated = m._verify_manifests(cand, _good_split(h), input_path=str(src), target_props=["pts"])
+    assert contaminated == {"pts"}
+
+
+def test_a2_missing_split_field_is_fatal(tmp_path):
+    m = _mod()
+    src = _write_input(tmp_path); h = m._sha256_file(str(src))
+    split = _good_split(h); del split["settlement_policy_hash"]
+    with pytest.raises(ValueError, match="settlement_policy_hash"):
+        m._verify_manifests(_good_candidate(), split, input_path=str(src), target_props=["pts"])

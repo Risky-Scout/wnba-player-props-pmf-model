@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authorization_id": "FL-A1A2-eval-market-superiority-coverage-and-manifest-integrity",
+  "authorized_pr": "PR #80 amendment A1+A2 (mandatory 7-prop proof coverage + manifest integrity)",
+  "authorized_branch": "cursor/phase-b-w0-correctness-06e5",
+  "authorized_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
+  "single_use": true,
+  "allowed_locked_paths": ["scripts/evaluate_market_superiority.py"],
+  "expiration": "2026-12-31",
+  "rationale": "A1: prove mode now requires the full frozen target-prop list and emits exactly one explicit status per prop (PASS/FAIL/INSUFFICIENT/MISSING_CANDIDATE/MISSING_PROOF_ROWS/CONTAMINATED); missing props are never dropped and Holm is applied over the fixed 14-claim family with missing claims treated as non-passing. A2: prove mode performs fail-closed verification of the candidate manifest (per-prop candidate_id/probability_track/model_hash/feature_schema_hash/calibration_policy_hash/calibrator_hash/training_date_max/selection_date_max/proof_date_min) and split manifest (proof dates, input_dataset_hash, quote/settlement policy hashes, creation timestamp, previous_access_count==0) before touching proof rows, marking per-prop chronology overlap CONTAMINATED. Strengthens the bar only."
+}

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "foundation_version": "v1",
   "generated_from_commit": "63265773f2c9408ad494e5a5b509a0273a79efc3",
-  "created_utc": "2026-07-24T18:40:55.881284+00:00",
+  "created_utc": "2026-07-24T19:44:14.755194+00:00",
   "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
   "items": [
     {
@@ -15,7 +15,7 @@
         {
           "path": "scripts/evaluate_market_superiority.py",
           "availability": "in_repo",
-          "sha256": "397b685cb290f09afd167b7cdf51249e8279e746eae95b0b60c1aec9a9aa83c7"
+          "sha256": "7f283731168aaeb2f43d713a57d35a208ab7817d18193edb91ea5301133b3e71"
         }
       ],
       "invariants": [
@@ -362,8 +362,8 @@
       ]
     }
   ],
-  "previous_manifest_sha256": "7701c3305fab5f45731d8edc6662fa39870702dea9fdf1d25fc4f764288a994c",
+  "previous_manifest_sha256": "c67ba3a8f651b8462c1c9ab0e5ad66bcf3742b5ac1daa57e76b94bf93f36790b",
   "previous_lock_commit": "63265773f2c9408ad494e5a5b509a0273a79efc3",
-  "lock_revision": 6,
-  "change_authorization": "config/foundation_lock_change_w0_4.json"
+  "lock_revision": 7,
+  "change_authorization": "config/foundation_lock_change_a1a2.json"
 }
