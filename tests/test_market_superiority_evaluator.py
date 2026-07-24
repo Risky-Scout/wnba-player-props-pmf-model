@@ -155,9 +155,11 @@ def test_prove_insufficient_below_min_rows():
     res = EMS._prove(df, {"pts": "c"}, prop_col="prop", candidate_col="candidate",
                      date_col="game_date", model_prob_col="model_prob_over_final",
                      market_prob_col="market_prob_over_no_vig", n_boot=200, seed=0,
-                     min_rows=300, alpha=0.05, min_logloss_delta=0.0,
+                     min_rows=300, min_clusters=30, alpha=0.05, min_logloss_delta=0.0,
                      min_brier_delta=0.0, min_auc_delta=0.0)
     assert (res["market_superiority_gate"] == "INSUFFICIENT").all()
+    assert (res["proper_score_market_superiority_gate"] == "INSUFFICIENT").all()
+    assert (res["strict_market_superiority_gate"] == "INSUFFICIENT").all()
 
 
 def test_select_precedes_proof_and_no_leakage(tmp_path):
@@ -191,14 +193,20 @@ def test_select_precedes_proof_and_no_leakage(tmp_path):
     sel = json.loads((out / "selected_candidates.json").read_text())["selected_candidates"]
     assert sel["pts"] == "good"
 
+    # W0.1: prove mode requires a FROZEN split manifest (no automatic splitting).
+    split_manifest = out / "split_manifest.json"
+    split_manifest.parent.mkdir(parents=True, exist_ok=True)
+    split_manifest.write_text(json.dumps(
+        {"proof_date_min": "2025-07-01", "proof_date_max": "2025-07-31"}))
     r2 = subprocess.run([sys.executable, str(EVAL), "--mode", "prove", "--input", str(src),
                          "--selected-candidates", str(out / "selected_candidates.json"),
+                         "--split-manifest", str(split_manifest),
                          "--output-dir", str(out), "--min-rows", "300", "--bootstrap", "600"],
                         capture_output=True, text=True, cwd=str(REPO))
     assert r2.returncode == 0, r2.stdout + r2.stderr
     proof = json.loads((out / "market_superiority_proof.json").read_text())
     res = {r["prop"]: r for r in proof["results"]}["pts"]
-    # Proof scored only the 12 July test dates (never the 10 May selection dates).
+    # Proof scored only the 12 July frozen-window dates (never the 10 May selection dates).
     assert res["date_min"].startswith("2025-07")
     assert res["n_clusters"] == 12
     # Selection dates (May) strictly precede proof dates (July).
@@ -221,3 +229,26 @@ def test_real_proof_rejects_legacy_model_prob_over(tmp_path):
 def test_real_proof_default_column_is_final():
     src = EVAL.read_text()
     assert '--model-prob-col", default="model_prob_over_final"' in src
+
+
+def test_prove_requires_frozen_split_manifest(tmp_path):
+    # W0.1: prove mode must refuse to run without a frozen split manifest (no auto-splitting).
+    src = tmp_path / "s.csv"
+    pd.DataFrame({"prop": ["pts"], "candidate": ["c"], "split": ["test"],
+                  "game_date": ["2025-07-01"], "actual": [1], "line": [0.5],
+                  "model_prob_over_final": [0.6], "market_prob_over_no_vig": [0.5]}).to_csv(src, index=False)
+    sel = tmp_path / "sel.json"
+    sel.write_text(json.dumps({"selected_candidates": {"pts": "c"}}))
+    r = subprocess.run([sys.executable, str(EVAL), "--mode", "prove", "--input", str(src),
+                        "--selected-candidates", str(sel), "--output-dir", str(tmp_path / "o")],
+                       capture_output=True, text=True, cwd=str(REPO))
+    assert r.returncode != 0
+    assert "split-manifest" in (r.stdout + r.stderr)
+
+
+def test_prove_emits_both_gates_and_cluster_floor():
+    # Two separate gates exist; min_clusters hard floor is 30 in prove mode.
+    src = EVAL.read_text()
+    assert "proper_score_market_superiority_gate" in src
+    assert "strict_market_superiority_gate" in src
+    assert "max(30, int(args.min_clusters))" in src

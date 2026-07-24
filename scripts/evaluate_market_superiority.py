@@ -272,6 +272,7 @@ def _prove(
     n_boot: int,
     seed: int,
     min_rows: int,
+    min_clusters: int,
     alpha: float,
     min_logloss_delta: float,
     min_brier_delta: float,
@@ -331,11 +332,23 @@ def _prove(
         rows.append(row)
 
     result = pd.DataFrame(rows)
-    for key in ["logloss_delta", "brier_delta", "auc_delta"]:
-        pcol = f"{key}_p_one_sided"
-        result[f"{key}_p_holm"] = _holm_adjust(result[pcol])
+    # Holm across the 14 co-primary PROPER-SCORE claims (n_props x {log loss, Brier}) as ONE
+    # family, per W0.1. AUC is adjusted in its own family (strict-gate only, not co-primary).
+    proper_stack = pd.concat([
+        pd.DataFrame({"prop": result["prop"], "_metric": "logloss",
+                      "_p": result["logloss_delta_p_one_sided"]}),
+        pd.DataFrame({"prop": result["prop"], "_metric": "brier",
+                      "_p": result["brier_delta_p_one_sided"]}),
+    ], ignore_index=True)
+    proper_stack["_p_holm"] = _holm_adjust(proper_stack["_p"])
+    ll_holm = proper_stack[proper_stack["_metric"] == "logloss"].set_index("prop")["_p_holm"]
+    br_holm = proper_stack[proper_stack["_metric"] == "brier"].set_index("prop")["_p_holm"]
+    result["logloss_delta_p_holm"] = result["prop"].map(ll_holm).to_numpy()
+    result["brier_delta_p_holm"] = result["prop"].map(br_holm).to_numpy()
+    result["auc_delta_p_holm"] = _holm_adjust(result["auc_delta_p_one_sided"])
 
-    enough = result["n_settled"] >= min_rows
+    # Enough evidence requires BOTH a row floor AND a date-cluster floor (W0.1).
+    enough = (result["n_settled"] >= min_rows) & (result["n_clusters"] >= min_clusters)
     ll_pass = (
         result["logloss_delta_ci_high"] < -abs(min_logloss_delta)
     ) & (result["logloss_delta_p_holm"] <= alpha)
@@ -345,14 +358,17 @@ def _prove(
     auc_pass = (
         result["auc_delta_ci_low"] > abs(min_auc_delta)
     ) & (result["auc_delta_p_holm"] <= alpha)
+    proper = ll_pass & br_pass
     result["gate_logloss"] = np.where(enough, ll_pass, False)
     result["gate_brier"] = np.where(enough, br_pass, False)
     result["gate_auc"] = np.where(enough, auc_pass, False)
-    result["market_superiority_gate"] = np.where(
-        ~enough,
-        "INSUFFICIENT",
-        np.where(ll_pass & br_pass & auc_pass, "PASS", "FAIL"),
-    )
+    # Proper-score gate: log loss AND Brier superiority. Strict gate: proper-score AND AUC.
+    result["proper_score_market_superiority_gate"] = np.where(
+        ~enough, "INSUFFICIENT", np.where(proper, "PASS", "FAIL"))
+    result["strict_market_superiority_gate"] = np.where(
+        ~enough, "INSUFFICIENT", np.where(proper & auc_pass, "PASS", "FAIL"))
+    # Back-compat alias: the historical single gate == the strict gate.
+    result["market_superiority_gate"] = result["strict_market_superiority_gate"]
     return result.sort_values("prop").reset_index(drop=True)
 
 
@@ -407,8 +423,8 @@ def _make_self_test(seed: int = 20260720) -> pd.DataFrame:
     props = DEFAULT_PROPS
     for prop_i, prop in enumerate(props):
         for split_i, split in enumerate(["selection", "test"]):
-            start = pd.Timestamp("2025-05-01") + pd.Timedelta(days=60 * split_i)
-            for day in range(24):
+            start = pd.Timestamp("2025-05-01") + pd.Timedelta(days=90 * split_i)
+            for day in range(40):
                 date = start + pd.Timedelta(days=day)
                 n = 55
                 z = rng.normal(0, 1.25, size=n)
@@ -446,6 +462,22 @@ def _load_selected(path: str) -> Dict[str, str]:
     return {str(k): str(v) for k, v in raw.items()}
 
 
+def _proof_mask(df: pd.DataFrame, date_col: str, manifest_path: str) -> "pd.Series":
+    """Boolean mask of rows inside the FROZEN proof window (W0.1). Supports either an
+    explicit date list ('proof_dates') or an inclusive range ('proof_date_min/max').
+    No automatic test-fraction splitting is permitted in prove mode."""
+    man = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    d = pd.to_datetime(df[date_col], errors="coerce").dt.strftime("%Y-%m-%d")
+    if man.get("proof_dates"):
+        allowed = {str(x)[:10] for x in man["proof_dates"]}
+        return d.isin(allowed)
+    lo, hi = man.get("proof_date_min"), man.get("proof_date_max")
+    if not (lo and hi):
+        raise ValueError("split-manifest must define 'proof_dates' or both "
+                         "'proof_date_min' and 'proof_date_max'.")
+    return (d >= str(lo)[:10]) & (d <= str(hi)[:10])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", help="CSV or Parquet with settled prop probabilities.")
@@ -466,18 +498,30 @@ def main() -> int:
     ap.add_argument("--bootstrap", type=int, default=5000)
     ap.add_argument("--seed", type=int, default=20260720)
     ap.add_argument("--min-rows", type=int, default=300)
+    ap.add_argument("--min-clusters", type=int, default=30,
+                    help="Minimum distinct game-date clusters (hard floor 30 in prove mode).")
+    ap.add_argument("--split-manifest",
+                    help="Frozen proof-window manifest (JSON) REQUIRED in prove mode: "
+                         "{'proof_date_min','proof_date_max'} or {'proof_dates':[...]}. "
+                         "Removes automatic test-fraction splitting.")
     ap.add_argument("--alpha", type=float, default=0.05)
     ap.add_argument("--min-logloss-delta", type=float, default=0.0)
     ap.add_argument("--min-brier-delta", type=float, default=0.0)
     ap.add_argument("--min-auc-delta", type=float, default=0.0)
     args = ap.parse_args()
 
-    # PR 1A source-of-truth: real proof/selection/audit must score the delivered final
-    # probability. The legacy column model_prob_over is rejected (no CLI override to it, no
-    # PMF reconstruction). The synthetic --self-test uses model_prob_over_final too.
+    # PR 1A source-of-truth: proof/selection/audit score the delivered final probability.
+    # The legacy column model_prob_over is rejected. W0.1: prove mode REQUIRES
+    # model_prob_over_final explicitly (no other column, no reconstruction).
     if not args.self_test and args.model_prob_col == "model_prob_over":
-        ap.error("legacy column 'model_prob_over' is forbidden in real proof mode; "
-                 "the evaluator scores 'model_prob_over_final' (the delivered probability).")
+        ap.error("legacy column 'model_prob_over' is forbidden; the evaluator scores "
+                 "'model_prob_over_final' (the delivered probability).")
+    if args.mode == "prove" and not args.self_test and args.model_prob_col != "model_prob_over_final":
+        ap.error("prove mode requires --model-prob-col model_prob_over_final "
+                 f"(got {args.model_prob_col!r}).")
+    # Hard floor on the date-cluster minimum in prove mode.
+    if args.mode == "prove":
+        args.min_clusters = max(30, int(args.min_clusters))
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -541,27 +585,23 @@ def main() -> int:
         if args.mode == "select" and not args.self_test:
             print(json.dumps(selected, indent=2))
             return 0
+    if args.self_test:
+        # Mechanics validation only: use the synthetic selection/test split column.
+        test = df[df[args.split_col].astype(str) == str(args.test_split)]
     else:
-        if args.selected_candidates:
-            selected = _load_selected(args.selected_candidates)
-        else:
-            unique_counts = df.groupby(args.prop_col)[args.candidate_col].nunique()
-            if (unique_counts > 1).any():
-                raise ValueError(
-                    "Prove mode found multiple candidates per prop. Supply "
-                    "--selected-candidates frozen on a separate selection period."
-                )
-            selected = (
-                df[[args.prop_col, args.candidate_col]]
-                .drop_duplicates()
-                .set_index(args.prop_col)[args.candidate_col]
-                .astype(str)
-                .to_dict()
-            )
-
-    test = df[df[args.split_col].astype(str) == str(args.test_split)]
+        # W0.1 prove mode: FROZEN candidate manifest + FROZEN split manifest; no auto-derive,
+        # no automatic test-fraction splitting (that lives only in development/audit mode).
+        if not args.selected_candidates:
+            ap.error("prove mode requires --selected-candidates (a candidate manifest frozen "
+                     "on a separate selection period).")
+        if not args.split_manifest:
+            ap.error("prove mode requires --split-manifest (the frozen untouched proof window). "
+                     "Automatic test-fraction splitting is disabled in prove mode.")
+        selected = _load_selected(args.selected_candidates)
+        mask = _proof_mask(df, args.date_col, args.split_manifest)
+        test = df[mask]
     if test.empty:
-        raise ValueError(f"No rows found for test split {args.test_split!r}.")
+        raise ValueError("No rows found in the frozen proof window / test split.")
     result = _prove(
         test,
         selected,
@@ -573,6 +613,7 @@ def main() -> int:
         n_boot=args.bootstrap,
         seed=args.seed,
         min_rows=args.min_rows,
+        min_clusters=args.min_clusters,
         alpha=args.alpha,
         min_logloss_delta=args.min_logloss_delta,
         min_brier_delta=args.min_brier_delta,
@@ -582,13 +623,21 @@ def main() -> int:
     (outdir / "market_superiority_proof.json").write_text(
         json.dumps(
             {
-                "test_split": args.test_split,
+                "mode": "prove",
+                "self_test": bool(args.self_test),
+                "split_manifest": args.split_manifest,
+                "candidate_manifest": args.selected_candidates,
                 "bootstrap_replicates": args.bootstrap,
                 "alpha": args.alpha,
                 "minimum_rows": args.min_rows,
-                "all_props_pass": bool(
+                "minimum_clusters": args.min_clusters,
+                "all_props_proper_score_pass": bool(
                     len(result) > 0
-                    and (result["market_superiority_gate"] == "PASS").all()
+                    and (result["proper_score_market_superiority_gate"] == "PASS").all()
+                ),
+                "all_props_strict_pass": bool(
+                    len(result) > 0
+                    and (result["strict_market_superiority_gate"] == "PASS").all()
                 ),
                 "results": result.replace({np.nan: None}).to_dict(orient="records"),
             },
@@ -604,8 +653,9 @@ def main() -> int:
         n_boot=args.bootstrap,
     )
     print(result[[
-        "prop", "candidate", "n_settled", "logloss_delta",
-        "brier_delta", "auc_delta", "market_superiority_gate"
+        "prop", "candidate", "n_settled", "n_clusters", "logloss_delta",
+        "brier_delta", "auc_delta", "proper_score_market_superiority_gate",
+        "strict_market_superiority_gate"
     ]].to_string(index=False))
 
     if args.self_test:

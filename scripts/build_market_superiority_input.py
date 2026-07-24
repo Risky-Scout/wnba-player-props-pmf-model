@@ -198,14 +198,20 @@ def build(
                f"| binary_ineligible_dropped={n_ineligible} "
                f"| date range {result['game_date'].min()} .. {result['game_date'].max()}")
 
+    typer.echo("[market-input] NOTE: this closing-consensus archive is DEVELOPMENT_DIAGNOSTIC / "
+               "NOT_EXACT_QUOTE_PROOF / NOT_UNTOUCHED / NOT_PROMOTION_ELIGIBLE. Promotion proof "
+               "requires atomic decision-time same-book quotes and a frozen split manifest (W0.7/W12).")
     if run_eval:
+        # Diagnostic only -> AUDIT mode (never prove; prove requires frozen split + candidate
+        # manifests). Pass the delivered-probability column explicitly and PROPAGATE failure.
         cmd = [sys.executable, str(Path(__file__).parent / "evaluate_market_superiority.py"),
-               "--input", str(out_p), "--output-dir", eval_output_dir, "--mode", "prove"]
-        typer.echo(f"[market-input] running verdict: {' '.join(cmd)}")
-        subprocess.run(cmd, check=False)
+               "--input", str(out_p), "--output-dir", eval_output_dir, "--mode", "audit",
+               "--model-prob-col", "model_prob_over_final"]
+        typer.echo(f"[market-input] running DIAGNOSTIC audit: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
     else:
-        typer.echo("Next: python3 scripts/evaluate_market_superiority.py "
-                   f"--input {out_p} --mode prove")
+        typer.echo("Next (diagnostic): python3 scripts/evaluate_market_superiority.py "
+                   f"--input {out_p} --mode audit --model-prob-col model_prob_over_final")
 
 
 if __name__ == "__main__":
