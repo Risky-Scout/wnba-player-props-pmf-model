@@ -138,19 +138,25 @@ def build(
     df = df[df["raw_p_over"].notna()].copy()
     df["over_outcome"] = (df["actual_outcome"].astype(float) > df["line"].astype(float)).astype(int)
     if calibrate:
-        df["model_prob_over_final"] = hm.fold_safe_calibrated_prob_over(
+        model_p_over = hm.fold_safe_calibrated_prob_over(
             df, prob_col="raw_p_over", outcome_col="over_outcome").to_numpy()
     else:
-        df["model_prob_over_final"] = df["raw_p_over"].to_numpy()
+        model_p_over = df["raw_p_over"].to_numpy()
+    split = np.asarray(_chronological_split(df["game_date"], split_date or None, test_frac))
 
-    df["split"] = _chronological_split(df["game_date"], split_date or None, test_frac)
-    df["prop"] = df["stat"]
-    df["candidate"] = candidate
-    df["actual"] = df["actual_outcome"].astype(float)
-
-    cols = ["game_date", "prop", "candidate", "split", "actual", "line",
-            "model_prob_over_final", "market_prob_over_no_vig"]
-    result = df[cols].reset_index(drop=True)
+    # Build the evaluator input as a NEW frame (never a post-lineage mutation of an
+    # existing decision-grade column): the delivered probability's SOLE creator is the
+    # production lineage, not this offline evaluation assembler.
+    result = pd.DataFrame({
+        "game_date": df["game_date"].to_numpy(),
+        "prop": df["stat"].to_numpy(),
+        "candidate": candidate,
+        "split": split,
+        "actual": df["actual_outcome"].astype(float).to_numpy(),
+        "line": df["line"].astype(float).to_numpy(),
+        "model_prob_over_final": model_p_over,
+        "market_prob_over_no_vig": df["market_prob_over_no_vig"].astype(float).to_numpy(),
+    })
     out_p = Path(out)
     out_p.parent.mkdir(parents=True, exist_ok=True)
     result.to_parquet(out_p, index=False)
