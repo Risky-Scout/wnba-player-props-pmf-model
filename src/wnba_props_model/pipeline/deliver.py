@@ -695,19 +695,7 @@ def write_delivery(
         paths["narratives"] = narratives_path
 
     if raw_props is not None and not raw_props.empty:
-        # W0.6: load the binary-calibration registry through the ONE shared resolver so the
-        # delivered probability's calibration matches proof/OOF exactly. 'optional' mode ->
-        # identity when no policy file is present (current production), never fatal. Certified
-        # runs set BINARY_CALIBRATION_MODE=required.
-        import os as _os  # noqa: PLC0415
-        from wnba_props_model.models.binary_probability_calibration import (  # noqa: PLC0415
-            load_binary_calibration_registry,
-        )
-        _cal_mode = _os.environ.get("BINARY_CALIBRATION_MODE", "optional")
-        _cal_policy = _os.environ.get(
-            "BINARY_CALIBRATION_POLICY", "config/binary_calibration_policy_v1.json")
-        _bincal = load_binary_calibration_registry(_cal_policy, mode=_cal_mode)
-        comp = build_market_comparison(pmfs, raw_props, binary_calibration_registry=_bincal)
+        comp = build_market_comparison(pmfs, raw_props)
         comp_path = out / "market_comparison.parquet"
         comp.to_parquet(comp_path, index=False)
         paths["market_comparison"] = comp_path
