@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "note": "Status ledger ONLY (not a lock framework). Preserves completed PR 1A / Foundation Lock state so downstream branches do not repeat it. Verify against Foundation Lock (config/foundation_lock_v1.json) and the probability audit, which are the enforcement mechanisms.",
+  "generated_utc": "2026-07-23T23:01:18.253389+00:00",
+  "current_main_sha": "574a87a6b71cef6dc2b66b74643f20cd6d7a6420",
+  "tags": {
+    "foundation-lock-v1": {
+      "target": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
+      "immutable": true
+    },
+    "foundation-lock-v1.1": {
+      "target": "574a87a6b71cef6dc2b66b74643f20cd6d7a6420"
+    }
+  },
+  "pr73_merge_sha": "574a87a6b71cef6dc2b66b74643f20cd6d7a6420",
+  "probability_consumer_audit": {
+    "creators_of_model_prob_over_final": 1,
+    "decision_consumers_reading_model_prob_over": 0,
+    "decision_consumers_reconstructing_selected_line_from_pmf": 0,
+    "post_lineage_writes_to_model_prob_over_final": 0,
+    "unclassified_probability_modules": 0,
+    "gate": "scripts/audit_probability_consumers.py --check (wired into foundation-lock CI)"
+  },
+  "foundation_lock_revision": 3,
+  "completed_scripts_and_modules_sha256": {
+    "src/wnba_props_model/models/probability_lineage.py": "06bf0f165d5d6714eac82fd2e834059667ced61fadd7006aec4dac7e90cb2f64",
+    "src/wnba_props_model/models/probability_contract.py": "9345082ae1b5eb632b498af465c276046ea71bf923ffcb4d2583dcc8338350bd",
+    "src/wnba_props_model/models/binary_probability_calibration.py": "c18a10474260dfae3851f1c280d27d3584b09a4fc262edc2fe4a4677f9e123b2",
+    "src/wnba_props_model/models/market.py": "d897e09478c2c1a78e3e833d33cfde71c32ecec59f44e96af090ce952b58ff45",
+    "src/wnba_props_model/models/pmf_utils.py": "95e4ce6811b2237901b16cc0bef765c8e4069bd186d6d401e53221061c4c96c5",
+    "src/wnba_props_model/pipeline/deliver.py": "a56ced3eaa2645164d69b1803880d7fd24565bf55aaeccacfdaedb3c766ff999",
+    "src/wnba_props_model/pipeline/predict.py": "a67821bbcc425c243074914e60c5c753ef0e78f6605f08eb3f9890c02abaaf6c",
+    "scripts/audit_probability_consumers.py": "05027319fee74f9b24b455a1a598781cdc8bba6463810cbf069f62d3a34dd81b",
+    "scripts/verify_foundation_lock.py": "3339622357c9897eabf4729fb03042a96786d355a21dff084199c0bda2de7cea",
+    "scripts/check_phase0_scope.py": "63907057bf5e0add072737cc7a1cc7f412697507be5ce3f7cca4563b35b8b654",
+    "scripts/verify_feature_matrix_snapshot.py": "395f8e9089bf2285451e0973234631d682f113478af183b63f7002fe0661736a",
+    "scripts/build_feature_ablation_maps.py": "66c7f7ce7c0db77fad3ff912267bd155dd367b67a09beb4b2a9d1024b62aab76",
+    "scripts/run_prop_ablation.py": "57d572e84e945a832b2d9cc0183aab1defb937443ae7ba3ed27a7356f90f412b",
+    "scripts/build_scored_candidates.py": "0e8fec27fce23592b494ce69dff891bedceb0474c7c6c5175e53ee4aa14a5468",
+    "scripts/evaluate_market_superiority.py": "6b85ed65d9eea1a6c889a56ac2c44478b78c577e8bf25445aa5358ee435cb412",
+    "scripts/generate_clv_report.py": "21c483ffec0a041f55cc4aa2b2bb3520989da91d24eb507463e4de80ace2d339",
+    "scripts/score_daily_predictions.py": "787027dde0cd52bd41909187497493d69e0fbd42b18a4913da3b3661c52a28b5",
+    "scripts/verify_gates.py": "02e1fa1f4ead9f754626d089e47f2d8d60a789a34159e1834a542933f46051c1"
+  },
+  "completed_tests_sha256": {
+    "tests/test_prob_over_push.py": "ccae01130eb4d9f6682972952bd7cbdf38fb95a0ffeff17be6396cb42e3207be",
+    "tests/test_probability_source_of_truth.py": "22c93f084808a62a23b0ed57c7ca73b97e3735c91163c4ccaa520a4686501a7a",
+    "tests/test_deliver_calibration_wiring.py": "e41fc691c5a80fa6acad1e54b338f4fefdf595995b8d095c600bc7b02d4a42cb",
+    "tests/test_delivered_evaluated_parity.py": "79e23b93e2483ffe4ed72dff7108f3ceb013408487eb73c1bb8b1969a99848f8",
+    "tests/test_decision_grade_probability_consumers.py": "5f3bcbb7a096bf830af82a0ae57954c702abef2c0cc616675ca24356eed6d671",
+    "tests/test_decision_grade_probability_source_guard.py": "ac254ceee2a7ba90f66d2de522d7f1d73458a941fff7787184221a0e9c169676",
+    "tests/test_pmf_mean_consistency.py": "de5185c803b80fa28eb54db72811a8a000c1e2dd577b960eed977c28ff570eb2",
+    "tests/test_ast_tov_minutes_offset.py": "8a073434f96f615e9dd8fb21ebc921c21d07329971c9a18ddb1b9d7f11eed4f6",
+    "tests/test_phase0_scope_guard.py": "9d2731c5a007124e09dd26b5137deb91884bb49f7c84305a5299e64c269e4393",
+    "tests/test_foundation_lock_verifier.py": "95df2dbe0ac0f236f9b460b33fd3d5393e5d255bc2afecaeead40227ae07a067",
+    "tests/test_no_bidi_controls.py": "257b4f49020596aada00abae1281861a1dce66fb6db746d47c76fbbd75532eb1"
+  },
+  "completed_tests_last_passing": {
+    "full_suite": "1572 passed, 3 skipped",
+    "named": [
+      "test_prob_over_push",
+      "test_probability_source_of_truth",
+      "test_deliver_calibration_wiring",
+      "test_delivered_evaluated_parity",
+      "test_decision_grade_probability_consumers",
+      "test_decision_grade_probability_source_guard",
+      "test_pmf_mean_consistency",
+      "test_ast_tov_minutes_offset",
+      "test_phase0_scope_guard",
+      "test_foundation_lock_verifier",
+      "test_no_bidi_controls"
+    ]
+  },
+  "existing_immutable_artifacts_sha256": {
+    "config/foundation_lock_v1.json": "a67eacbab05c323ee35554fce7f63d380ba987414637555e287e34e45f0aca59",
+    "config/foundation_lock_change_pr73.json": "54774bf59fb8a1f9e629da2338d3b5b82cc08114d1a4fdc954140d10ec8c6f20",
+    "config/phase0_scope_exception.json": "a88bddb942ca99a90eeb06025249121f9f202b0eab4e221829ebe3ed9f54519c",
+    "artifacts/foundation_lock/FOUNDATION_LOCK_CHANGELOG.jsonl": "f7f16cacdb27b5c6e73cc26a5b9daa9cbd23e71743963e722ae31da9fc0a6739",
+    "artifacts/foundation_lock/feature_matrix_snapshot_v1.json": "afcd3cda9d2a494c70aea08b6efa22a7e4bda62bcca77ce195de8f0493bc0b5c",
+    "artifacts/probability_contract/PR1A_CONSUMER_AUDIT.json": "51449bcc22479d5b09423d2b1ef0fb0ae598906ced4d32f5396b3670937d06d0",
+    "artifacts/feature_ablation/ABLATION_STATUS.json": "ad97045046200c40e0b78057b87d96e3dc106b0020cf5fa1a547becd5b777e38",
+    "artifacts/market_feature_proof/G0_baseline/market_superiority_proof.json": "44558d4651aeff7ab97627a3106d34383f11d2db32b3300008f1f48659c6f471",
+    "artifacts/market_feature_proof/G0_baseline/RUN_MANIFEST.json": "7b32fca343e5e6de1368359344f5f055ae4965df4ff66de3eb9376d30e928260"
+  },
+  "ablation_status": {
+    "ABLATION_MAPS_ALL_SEVEN_PROPS": "COMPLETE",
+    "VALID_REAL_DATA_ABLATION_ALL_SEVEN_PROPS": "NOT_COMPLETE",
+    "PRIOR_ABLATION_VERDICT": "INVALIDATED",
+    "CURRENT_FEATURE_MATRIX": "52_OF_128",
+    "PRODUCTION_ABLATION_STATUS": "BLOCKED_ON_COMPLETE_MATRIX",
+    "note": "Do NOT state 'G0 wins every prop'. Do NOT reuse the invalidated surrogate result (see artifacts/feature_ablation/ABLATION_STATUS.json)."
+  },
+  "do_not_repeat": [
+    "push-safe settled probability implementation (settled_probabilities_from_pmf in models/market.py)",
+    "probability_lineage.py (sole creator of model_prob_over_final)",
+    "probability_contract.py (require/validate/alias-invariant)",
+    "Venn-Abers lineage integration (VennAbersBinaryCalibrationRegistry)",
+    "AST/TOV PMF rebuilding (rebuild_count_pmf_at_mean + validate_pmf_row_integrity)",
+    "final-probability consumer migration (all decision-grade consumers read model_prob_over_final)",
+    "Foundation Lock v1/v1.1 work (config/foundation_lock_v1.json, verifier, revision 3 re-pin)",
+    "probability source audit (scripts/audit_probability_consumers.py, 5-count 1/0/0/0/0)"
+  ],
+  "pending_work": [
+    "PR 1B: exact quote identity + settlement truth (decision/closing_quotes_by_book, book_quote_priority_v1.json) - NOT STARTED",
+    "config/promotion_contract_v1.json (frozen 7-prop contract) - NOT STARTED",
+    "G0-v2 trusted deficit table (artifacts/market_feature_proof/G0_v2/) - BLOCKED on PR 1B",
+    "Low-cost candidates C0-C7 (pure calibration + market-identity + regularized market-residual), select where both selection deltas < 0 - NOT STARTED",
+    "Complete 128/128 feature matrix (or versioned contract with removals), immutable + hash-pinned - NOT STARTED (currently 52/128)",
+    "scripts/run_production_prop_ablation.py (production-equivalent OOF/PMF/calibration/delivery) - NOT STARTED (blocked on complete matrix)",
+    "Structural (opportunity x conversion) + tracking challengers for props failing after calibration - NOT STARTED",
+    "Freeze one candidate per prop on selection data - NOT STARTED",
+    "Untouched forward proof (5000 date-cluster bootstrap, Holm over 14 hypotheses, n>=300, dates>=30) - NOT READY",
+    "Per-prop production enablement (market_comparison_allowed, then betting_recommendation_allowed after signed-CLV + full-PMF cert + live-shadow) - NOT STARTED"
+  ],
+  "new_branch_protocol": "Every new branch starts from current main and runs `git diff --name-status foundation-lock-v1.1...HEAD` before opening a PR."
+}
