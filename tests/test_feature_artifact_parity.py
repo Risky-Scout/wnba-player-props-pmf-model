@@ -82,7 +82,7 @@ def test_a3_shared_validator_unexpected_categorical_is_fatal():
     art = _Artifact(["a", "b"], dtype_kinds=kinds)
     frame = pd.DataFrame({"a": [1.0, 2.0], "b": ["x", "y"]})  # b arrives object/categorical
     with pytest.raises(FeatureArtifactParityError):
-        assert_inference_parity(frame, art, "unit")
+        assert_inference_parity(frame, art, "unit", strict_dtype=True)
 
 
 def test_a3_shared_validator_reordered_is_ok():

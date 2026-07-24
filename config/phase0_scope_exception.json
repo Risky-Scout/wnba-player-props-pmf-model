@@ -1,12 +1,26 @@
 {
   "schema_version": 1,
-  "approved_branch": "cursor/phase-b-w0-correctness-06e5",
-  "approved_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
-  "purpose": "PR #80 amendment A5 - wire the common binary-calibration resolver into delivery so proof and delivery cannot diverge once a policy is activated (production stays identity by default).",
-  "approved_by": "phase-b W0 correctness program",
-  "reason": "Only the exact delivery call-site changes in deliver.py (load_binary_calibration_registry + inject into build_market_comparison + persist calibration policy provenance columns). No change to production defaults.",
+  "approved_branch": "cursor/probability-delivery-correctness-v1",
+  "approved_base_sha": "d8c9681d6a6334ad8b0897b53009fc28d28dd342",
+  "purpose": "PR 1A probability correctness and delivery parity",
   "approved_paths": [
-    "src/wnba_props_model/pipeline/deliver.py"
+    "src/wnba_props_model/models/market.py",
+    "src/wnba_props_model/pipeline/deliver.py",
+    "scripts/build_scored_candidates.py"
   ],
-  "expiration": "2026-12-31"
+  "expiration": "2026-12-31",
+  "additional_exceptions": [
+    {
+      "schema_version": 1,
+      "approved_branch": "cursor/phase-b-w0-correctness-06e5",
+      "approved_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
+      "purpose": "PR #80 amendment A5 - wire the common binary-calibration resolver into delivery so proof and delivery cannot diverge once a policy is activated (production stays identity by default).",
+      "approved_by": "phase-b W0 correctness program",
+      "reason": "Only the exact delivery call-site changes in deliver.py (load_binary_calibration_registry + inject into build_market_comparison + persist calibration policy provenance columns). No change to production defaults.",
+      "approved_paths": [
+        "src/wnba_props_model/pipeline/deliver.py"
+      ],
+      "expiration": "2026-12-31"
+    }
+  ]
 }

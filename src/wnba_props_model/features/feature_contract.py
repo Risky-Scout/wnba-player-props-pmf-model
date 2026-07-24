@@ -545,18 +545,21 @@ def build_feature_artifact_metadata(frame, ordered_features: "list[str]", *,
     }
 
 
-def assert_inference_parity(frame, model, context: str) -> None:
+def assert_inference_parity(frame, model, context: str, *, strict_dtype: bool = False) -> None:
     """A3 shared fail-closed validator wired into EVERY inference reindex path.
 
-    Uses the artifact's own trained feature list (`_usable_cols`) and, when present, its
-    captured dtype-kind map (`_feature_dtype_kinds`). No inference component may silently
-    reindex a missing feature to NaN or run on an unexpectedly-typed column."""
+    Always enforces the CRITICAL guard: the frame must supply every trained feature
+    (`_usable_cols`) so no component silently reindexes a missing feature to NaN (the
+    52-of-128 failure). When ``strict_dtype`` is set it also enforces the artifact's captured
+    dtype-kind map (`_feature_dtype_kinds`) so an unexpectedly-categorical column is fatal;
+    this is opt-in because benign int/float/bool drift between fit and inference frames is
+    common and must not false-positive the live path."""
     usable = getattr(model, "_usable_cols", None)
     if not usable:
         return
     assert_feature_artifact_parity(
         frame, list(usable), context=context,
-        dtype_map=getattr(model, "_feature_dtype_kinds", None) or None,
+        dtype_map=(getattr(model, "_feature_dtype_kinds", None) or None) if strict_dtype else None,
         check_all_null=False,
     )
 

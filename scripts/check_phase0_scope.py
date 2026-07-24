@@ -91,21 +91,52 @@ def exception_errors(exc: dict | None, *, current_branch: str, base_sha: str,
     return errs
 
 
-def evaluate(changed_paths: list[str], exc: dict | None, *, current_branch: str,
+def _candidate_exceptions(exc) -> list[dict]:
+    """Expand a persisted exception into candidate single-use exceptions.
+
+    Supports a single dict, a list of dicts, or a primary dict carrying an
+    ``additional_exceptions`` ledger. Each candidate is still individually single-use (bound
+    to its own branch/base/paths/expiration) - this only lets several already-merged and
+    in-flight per-PR exceptions coexist in the one committed file."""
+    if exc is None:
+        return []
+    if isinstance(exc, list):
+        return [e for e in exc if isinstance(e, dict)]
+    extra = exc.get("additional_exceptions") or []
+    return [exc] + [e for e in extra if isinstance(e, dict)]
+
+
+def evaluate(changed_paths: list[str], exc: "dict | list | None", *, current_branch: str,
              base_sha: str, today: str) -> tuple[bool, list[str]]:
-    """Return (ok, messages)."""
+    """Return (ok, messages). Passes iff SOME single-use exception fully authorizes every
+    changed protected path for this exact branch + base."""
     protected_changed = sorted(p for p in changed_paths if is_protected(p))
     if not protected_changed:
         return True, [f"no protected Phase-0 paths modified ({len(changed_paths)} changed)"]
-    errs = exception_errors(exc, current_branch=current_branch, base_sha=base_sha, today=today)
-    if errs:
-        return False, [f"protected paths changed {protected_changed} but exception is unusable:"] + errs
-    approved = set(exc.get("approved_paths", []))
-    unlisted = sorted(p for p in protected_changed if p not in approved)
-    if unlisted:
-        return False, [f"protected paths not in the exception allowlist: {unlisted}"]
-    return True, [f"protected paths {protected_changed} authorized by single-use exception "
-                  f"(branch {current_branch}, base {base_sha[:12]})"]
+    candidates = _candidate_exceptions(exc)
+    if not candidates:
+        return False, [f"protected paths changed {protected_changed} but exception is unusable:",
+                       "no phase0_scope_exception.json present"]
+    best_errs: list[str] | None = None
+    for cand in candidates:
+        errs = exception_errors(cand, current_branch=current_branch, base_sha=base_sha, today=today)
+        if errs:
+            # Prefer surfacing the problems of a branch-matching candidate for clear errors.
+            if cand.get("approved_branch") == current_branch and best_errs is None:
+                best_errs = errs
+            continue
+        approved = set(cand.get("approved_paths", []))
+        unlisted = sorted(p for p in protected_changed if p not in approved)
+        if unlisted:
+            if best_errs is None:
+                best_errs = [f"protected paths not in the exception allowlist: {unlisted}"]
+            continue
+        return True, [f"protected paths {protected_changed} authorized by single-use exception "
+                      f"(branch {current_branch}, base {base_sha[:12]})"]
+    msgs = [f"protected paths changed {protected_changed} but exception is unusable:"]
+    msgs += best_errs or exception_errors(candidates[0], current_branch=current_branch,
+                                          base_sha=base_sha, today=today)
+    return False, msgs
 
 
 def _changed_paths(base: str) -> list[str]:

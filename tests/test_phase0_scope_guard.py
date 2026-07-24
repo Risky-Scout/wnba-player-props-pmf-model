@@ -110,8 +110,18 @@ def test_cli_passes_on_this_branch():
                           capture_output=True, text=True, cwd=str(REPO))
     if base.returncode != 0:
         pytest.skip("origin/main not available in this checkout")
-    r = subprocess.run([sys.executable, str(SCRIPT), "--base", "origin/main",
-                        "--branch", PR1A_BRANCH],
+    # Auto-detect the ACTUAL current branch: the committed exception ledger must authorize any
+    # protected change on whatever branch is checked out (branch-agnostic, not hard-coded).
+    r = subprocess.run([sys.executable, str(SCRIPT), "--base", "origin/main"],
                        capture_output=True, text=True, cwd=str(REPO))
     assert r.returncode == 0, r.stdout + r.stderr
     assert "SCOPE PASS" in r.stdout
+
+
+def test_exception_ledger_supports_multiple_single_use_exceptions():
+    # A primary exception plus an additional_exceptions ledger: each candidate is still bound
+    # to its own branch/base/paths, and only the matching one authorizes.
+    cands = CPS._candidate_exceptions(COMMITTED_EXC)
+    assert len(cands) >= 2
+    branches = {c.get("approved_branch") for c in cands}
+    assert PR1A_BRANCH in branches
