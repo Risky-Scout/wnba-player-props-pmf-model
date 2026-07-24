@@ -1,0 +1,31 @@
+{
+  "ast": {
+    "n_selection": 108,
+    "positives": 46,
+    "cv_logloss_identity": 0.7204112946751671,
+    "cv_logloss_isotonic": 1.024759581606748,
+    "decision": "identity_no_improvement"
+  },
+  "fg3m": {
+    "n_selection": 114,
+    "positives": 45,
+    "cv_logloss_identity": 0.7076362059678074,
+    "cv_logloss_isotonic": 1.001951730736819,
+    "decision": "identity_no_improvement"
+  },
+  "pts": {
+    "n_selection": 170,
+    "positives": 71,
+    "cv_logloss_identity": 0.7261937856054372,
+    "cv_logloss_isotonic": 0.7640983955176684,
+    "decision": "identity_no_improvement"
+  },
+  "reb": {
+    "n_selection": 154,
+    "positives": 76,
+    "cv_logloss_identity": 0.7868360706666637,
+    "cv_logloss_isotonic": 0.7484434096099778,
+    "decision": "ship_isotonic",
+    "artifact": "artifacts/models/calibration/binary_iso_reb.pkl"
+  }
+}
