@@ -403,7 +403,7 @@ def _build_pmf_json(
 
     # Columns to pull from the edge report (market line + edge signal).
     _edge_payload_cols = [
-        "edge_over", "kelly_fraction", "model_prob_over_final",
+        "edge_over", "kelly_fraction", "model_prob_over_final", "model_prob_push",
         "market_prob_over_no_vig", "no_vig_over_prob", "no_vig_under_prob",
         "line", "bookmaker", "over_odds", "under_odds",
     ]
@@ -498,28 +498,34 @@ def _build_pmf_json(
         _display_mean = round(float(_cal_mean), 2) if _cal_mean is not None and float(_cal_mean) > 0 else round(mu, 2)
         market_line = round(float(r.get("line", 0) or 0), 1)
 
-        # Compute push-aware model probabilities from the full PMF
-        # For integer lines: p_push > 0; p_under = P(X < line) not 1-p_over
+        # B1 PROBABILITY CONTRACT: the bettor-facing selected-line probability is the single
+        # decision-grade source model_prob_over_final (push-safe + binary-calibrated). It is
+        # NEVER recomputed from PMF mass. The PMF is used ONLY for distribution-shape mass,
+        # exposed under clearly-labeled *unconditional* fields so the two concepts never mix.
         _pmf_arr_raw = {}
         try:
             import json as _j
             _pmf_arr_raw = _j.loads(pmf_str) if pmf_str and pmf_str != "{}" else {}
         except Exception:
             pass
+        pmf_p_over_unconditional = None
+        pmf_p_under_unconditional = None
+        pmf_p_push = None
         if _pmf_arr_raw and market_line > 0:
             _k = np.array([int(kk) for kk in _pmf_arr_raw.keys()], dtype=float)
             _p = np.array(list(_pmf_arr_raw.values()), dtype=float)
             _tot = _p.sum()
             if _tot > 0:
                 _p = _p / _tot
-            model_p_over = round(float(_p[_k > float(market_line)].sum()), 6)
             _is_int_line = (float(market_line) == math.floor(float(market_line)))
-            model_p_push = round(float(_p[_k == float(market_line)].sum()), 6) if _is_int_line else 0.0
-            model_p_under = round(max(0.0, 1.0 - model_p_over - model_p_push), 6)
-        else:
-            model_p_over = round(float(r.get("model_prob_over_final", 0) or 0), 4)
-            model_p_push = 0.0
-            model_p_under = round(1.0 - model_p_over, 4)
+            pmf_p_over_unconditional = round(float(_p[_k > float(market_line)].sum()), 6)
+            pmf_p_push = round(float(_p[_k == float(market_line)].sum()), 6) if _is_int_line else 0.0
+            pmf_p_under_unconditional = round(float(_p[_k < float(market_line)].sum()), 6)
+        # Bettor-facing settled probabilities come from the lineage's final value only.
+        model_prob_over_final = float(r.get("model_prob_over_final", 0) or 0)
+        model_p_over = round(model_prob_over_final, 6)
+        model_p_push = round(float(r.get("model_prob_push", 0) or 0), 6)
+        model_p_under = round(max(0.0, 1.0 - model_p_over), 6)   # settled Under = 1 - final
 
         market_p_over = round(float(r.get("market_prob_over_no_vig", 0) or 0), 4)
         no_vig_over = round(float(r.get("no_vig_over_prob", market_p_over) or market_p_over), 4)
@@ -554,6 +560,12 @@ def _build_pmf_json(
             "model_p_push": model_p_push,
             "model_p_over_pct": round(model_p_over * 100, 1),
             "model_p_under_pct": round(model_p_under * 100, 1),
+            # B1: decision-grade final (bettor-facing) kept distinct from PMF-shape mass.
+            "model_prob_over_final": round(model_prob_over_final, 6),
+            "model_prob_under_final": round(max(0.0, 1.0 - model_prob_over_final), 6),
+            "pmf_p_over_unconditional": pmf_p_over_unconditional,
+            "pmf_p_under_unconditional": pmf_p_under_unconditional,
+            "pmf_p_push": pmf_p_push,
             "market_p_over": market_p_over,
             "no_vig_over_prob": no_vig_over,
             "no_vig_under_prob": no_vig_under,
