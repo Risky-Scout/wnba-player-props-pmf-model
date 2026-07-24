@@ -315,6 +315,17 @@ class StatRateModel:
         """
         if not self._fitted or self._model is None:
             raise RuntimeError(f"StatRateModel({self.stat}) not fitted")
+        # W0.3 fail-closed feature-artifact parity: the inference frame must supply every
+        # feature this artifact was trained on BEFORE the reindex silently NaN-fills gaps
+        # (the 52-of-128 failure). Extra columns are allowed.
+        _usable = getattr(self, "_usable_cols", None)
+        if _usable:
+            from wnba_props_model.features.feature_contract import (  # noqa: PLC0415
+                assert_feature_artifact_parity,
+            )
+            assert_feature_artifact_parity(
+                X, _usable, context=f"StatRateModel({self.stat}).predict_mean",
+                check_all_null=False)
         X_pred = X.reindex(columns=getattr(self, "_usable_cols", X.columns))
         min_mean = self.cfg.get("min_stat_mean", 0.01)
 

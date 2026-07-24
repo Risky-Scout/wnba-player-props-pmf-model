@@ -405,6 +405,67 @@ def assert_no_forbidden_features(features: "list[str] | pd.DataFrame") -> None:
         )
 
 
+class FeatureArtifactParityError(ValueError):
+    """Fatal: the inference frame does not match the trained artifact's feature contract."""
+
+
+def feature_schema_hash(ordered_feature_names: "list[str]") -> str:
+    """Deterministic sha256 over the ORDERED feature list (order is part of the contract)."""
+    import hashlib
+    payload = "\n".join(str(f) for f in ordered_feature_names)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def assert_feature_artifact_parity(
+    frame,
+    expected_features: "list[str]",
+    *,
+    context: str = "",
+    dtype_map: "dict[str, str] | None" = None,
+    check_all_null: bool = True,
+) -> None:
+    """Fail-closed W0.3 parity: the inference frame MUST supply every feature the trained
+    artifact expects, so training/OOF/delivery never silently run on a truncated matrix
+    (the invalidated 52-of-128 failure).
+
+    Raises FeatureArtifactParityError when:
+      * any expected feature is ABSENT from the frame (missing -> fatal, no silent drop);
+      * an expected feature is present but ENTIRELY null (no silent all-null substitution);
+      * dtype kind mismatches a provided dtype_map.
+    Extra columns beyond the contract are permitted (ignored after leakage validation).
+    """
+    import pandas as pd  # local import to avoid module-level cycle
+    cols = set(frame.columns) if isinstance(frame, pd.DataFrame) else set(frame)
+    expected = list(expected_features)
+    missing = [f for f in expected if f not in cols]
+    if missing:
+        raise FeatureArtifactParityError(
+            f"{context or 'feature parity'}: {len(missing)}/{len(expected)} expected features "
+            f"absent from the inference frame (silent truncation forbidden). "
+            f"First missing: {missing[:12]}")
+    if isinstance(frame, pd.DataFrame):
+        if check_all_null:
+            all_null = [f for f in expected if len(frame) > 0 and frame[f].isna().all()]
+            if all_null:
+                raise FeatureArtifactParityError(
+                    f"{context or 'feature parity'}: {len(all_null)} expected features are "
+                    f"ENTIRELY null (silent all-null substitution forbidden). "
+                    f"First: {all_null[:12]}")
+        if dtype_map:
+            bad = []
+            for f in expected:
+                want = dtype_map.get(f)
+                if want is not None:
+                    got = frame[f].dtype
+                    # Compare by numpy kind (numeric vs object/bool) to tolerate int/float width.
+                    if str(getattr(got, "kind", "")) and want and got.kind != str(want)[0]:
+                        bad.append((f, str(got), want))
+            if bad:
+                raise FeatureArtifactParityError(
+                    f"{context or 'feature parity'}: dtype-kind mismatch on {len(bad)} features: "
+                    f"{bad[:8]}")
+
+
 def assert_no_market_columns(columns: list[str]) -> None:
     """Raise ValueError if any market/evaluation-only column is present."""
     overlap = sorted(set(columns) & _MARKET_LEAKAGE)
