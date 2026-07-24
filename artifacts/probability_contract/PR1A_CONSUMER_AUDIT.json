@@ -21,6 +21,7 @@
     "scripts/backtest_strategy.py": "final_probability_decision_consumer",
     "scripts/build_edge_report.py": "final_probability_decision_consumer",
     "scripts/build_historical_review.py": "permitted_pmf_diagnostic",
+    "scripts/build_market_superiority_input.py": "permitted_pmf_diagnostic",
     "scripts/build_scored_candidates.py": "lineage_output_serializer",
     "scripts/evaluate_market_superiority.py": "final_probability_decision_consumer",
     "scripts/export_betting_sheet.py": "final_probability_decision_consumer",

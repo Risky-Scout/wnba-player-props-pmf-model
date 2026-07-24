@@ -41,6 +41,36 @@ BACKFILL_MARKETS = list(hm.MARKET_TO_STAT.keys())
 DECISION_LEAD_HOURS = 12  # decision snapshot = tip - 12h (production morning publish)
 
 
+def classify_coverage(
+    n_events: int,
+    matched_events: int,
+    quotes_empty: bool,
+    event_match_rate: float,
+    min_event_match_rate: float,
+    allow_empty: bool,
+) -> tuple[str, str | None]:
+    """Pure decision for the fail-closed identity/coverage gate.
+
+    Returns (severity, table_kind):
+      - 'fatal_no_events'      : provider returned no events at all.
+      - 'fatal_stale'          : events exist but ZERO usable quotes -> stale table.
+                                 table_kind is 'games' (no game_id resolved) or
+                                 'roster' (games matched but no player_id resolved).
+      - 'warn_empty_allowed'   : zero quotes but --allow-empty set.
+      - 'warn_low'             : non-empty but event_match_rate below threshold.
+      - 'ok'                   : healthy.
+    """
+    if n_events == 0:
+        return ("fatal_no_events", None)
+    if quotes_empty:
+        if allow_empty:
+            return ("warn_empty_allowed", None)
+        return ("fatal_stale", "games" if matched_events == 0 else "roster")
+    if event_match_rate < min_event_match_rate:
+        return ("warn_low", None)
+    return ("ok", None)
+
+
 def _read_json(p: Path):
     try:
         return json.loads(p.read_text())
@@ -96,6 +126,13 @@ def main(
     cache_dir: str = typer.Option("artifacts/p1_cache"),
     pilot_dates: int = typer.Option(0, help="If >0, limit to the first N eligible dates (pilot)."),
     preflight_only: bool = typer.Option(False, help="Run only the sanitized API preflight."),
+    min_event_match_rate: float = typer.Option(
+        0.5, "--min-event-match-rate",
+        help="Fail-closed guard: fraction of provider events that MUST resolve to a "
+             "canonical game. Below this, the games/roster tables are treated as stale."),
+    allow_empty: bool = typer.Option(
+        False, "--allow-empty",
+        help="Bypass the stale-table safety gate and permit empty/low-coverage output."),
 ) -> None:
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
     cache = Path(cache_dir)
@@ -209,14 +246,73 @@ def main(
         typer.echo(f"[P1] {gd}: events={len(events)} quotes_so_far={len(all_quotes)} "
                    f"remaining={client.quota_remaining}")
 
+    # ── Identity / coverage gate (FAIL-CLOSED) ────────────────────────────────
+    # Events found but resolution collapsing is the classic symptom of STALE
+    # games/roster tables (wrong team-abbrev convention or game_id vintage). That
+    # used to write empty outputs and exit 0 silently — costing hours. Now it
+    # fails loudly with the exact match rate and where to look.
+    matched_events_count = n_events - len(unmatched_events)
+    event_match_rate = round(matched_events_count / n_events, 4) if n_events else 0.0
+
+    # Always persist the unmatched-event audit so any failure is inspectable.
+    audit_cols = ["game_date", "odds_event_id", "home_team", "away_team", "reason"]
+    (pd.DataFrame(unmatched_events) if unmatched_events
+     else pd.DataFrame(columns=audit_cols)).to_parquet(out / "p1_unmatched_audit.parquet", index=False)
+
     quotes = pd.DataFrame(all_quotes)
-    if quotes.empty:
-        summary = {**pf, "unique_events": n_events, "quotes": 0,
-                   "note": "no quotes matched — provider coverage or identity gap"}
+
+    def _write_coverage_summary(extra: dict) -> None:
+        summary = {**pf, "eligible_dates_run": len(eligible_dates),
+                   "unique_events_seen": n_events, "matched_events": int(matched_events_count),
+                   "unmatched_events": len(unmatched_events), "event_match_rate": event_match_rate,
+                   "distinct_unmatched_players": len(unmatched_players),
+                   "top_unmatched_players": dict(sorted(unmatched_players.items(), key=lambda kv: -kv[1])[:15]),
+                   "requests_used": client.quota_used, "requests_remaining": client.quota_remaining,
+                   **extra}
         (out / "p1_coverage_summary.json").write_text(json.dumps(summary, indent=2))
-        (out / "p1_quotes.parquet").write_text("") if False else pd.DataFrame().to_parquet(out / "p1_quotes.parquet")
-        typer.echo("[P1] No quotes collected; wrote empty outputs + summary.")
+
+    severity, table_kind = classify_coverage(
+        n_events, matched_events_count, quotes.empty,
+        event_match_rate, min_event_match_rate, allow_empty)
+
+    if severity == "fatal_no_events":
+        _write_coverage_summary({"quotes": 0, "note": "provider returned no historical events"})
+        typer.echo("[P1][FATAL] No historical events returned for any requested date. "
+                   "Check the dates and Odds API historical entitlement.", err=True)
+        raise typer.Exit(1)
+
+    # The catastrophic, hours-costing symptom is ZERO usable quotes despite events
+    # existing — always a STALE/mismatched games (no game_id) or roster (no player_id)
+    # table. Fail loudly and say exactly where to look. (A wide commence window +
+    # cross-date dedup makes a fractional event-match threshold noisy, so we gate on
+    # the unambiguous total-collapse signal, not a fraction.)
+    if severity == "fatal_stale":
+        top = dict(sorted(unmatched_players.items(), key=lambda kv: -kv[1])[:10])
+        detail = "0 events resolved to a canonical game_id" if table_kind == "games" \
+            else f"events matched but 0 player_ids resolved; top unmatched: {top}"
+        _write_coverage_summary({"quotes": 0, "note": f"zero usable quotes — stale {table_kind} table"})
+        typer.echo(
+            f"[P1][FATAL] Found {n_events} events but produced 0 usable quotes. Your {table_kind} "
+            f"table ({detail}) is STALE or on a different convention than the current code "
+            f"({matched_events_count}/{n_events} events = {event_match_rate:.1%} matched). Refusing to "
+            f"write empty outputs. Inspect {out}/p1_unmatched_audit.parquet, then regenerate canonical "
+            "tables (scripts/build_canonical_tables.py) or fetch current ones (scripts/fetch_data.py). "
+            "Override with --allow-empty only if the gap is expected.", err=True)
+        raise typer.Exit(1)
+
+    if severity == "warn_empty_allowed":
+        _write_coverage_summary({"quotes": 0, "note": "events matched but no player quotes resolved"})
+        pd.DataFrame().to_parquet(out / "p1_quotes.parquet")
+        typer.echo("[P1][WARN] No quotes collected; --allow-empty set, wrote empty outputs.", err=True)
         return
+
+    # Non-empty but low coverage: loud WARN (not fatal — partial staleness or normal
+    # cross-date window artifacts shouldn't block a run that produced real quotes).
+    if severity == "warn_low":
+        typer.echo(
+            f"[P1][WARN] Only {event_match_rate:.1%} of events ({matched_events_count}/{n_events}) resolved "
+            f"to a canonical game. If you expected full coverage your tables may be partially stale — "
+            f"inspect {out}/p1_unmatched_audit.parquet.", err=True)
 
     quotes = quotes[quotes["american_odds"].notna() & quotes["line"].notna()].copy()
     quotes["decimal_odds"] = quotes["american_odds"].map(hm.american_to_decimal)
@@ -238,17 +334,14 @@ def main(
     opening_consensus.to_parquet(out / "p1_opening_consensus.parquet", index=False)
     closing_consensus.to_parquet(out / "p1_closing_consensus.parquet", index=False)
 
-    audit = pd.DataFrame(unmatched_events)
-    audit.to_parquet(out / "p1_unmatched_audit.parquet", index=False) if not audit.empty else \
-        pd.DataFrame(columns=["game_date", "odds_event_id", "home_team", "away_team", "reason"]).to_parquet(out / "p1_unmatched_audit.parquet", index=False)
-
     matched_events = quotes["game_id"].nunique()
     summary = {
         **pf,
         "eligible_dates_run": len(eligible_dates),
         "unique_events_seen": n_events,
+        "matched_events": int(matched_events_count),
         "unmatched_events": len(unmatched_events),
-        "event_match_rate": round(1 - len(unmatched_events) / max(n_events, 1), 4),
+        "event_match_rate": event_match_rate,
         "quotes": int(len(quotes)),
         "paired_rows": int(len(paired)),
         "closing_consensus_rows": int(len(closing_consensus)),
