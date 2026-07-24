@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "description": "Canonical registry of large/gitignored datasets. The parquet files themselves live in GitHub Releases (durable, immutable, off your laptop). This JSON records where each one lives and its sha256 so any clone can pull + verify it with `python3 scripts/fetch_data.py --all`. Populate/refresh entries with `python3 scripts/publish_data.py`.",
+  "repo": "Risky-Scout/wnba-player-props-pmf-model",
+  "datasets": {
+    "wnba_tracking": {
+      "path": "data/processed/wnba_tracking_2021_2026.parquet",
+      "release_tag": "tracking-data-v1",
+      "asset": "wnba_tracking_2021_2026.parquet",
+      "sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
+      "bytes": 393427,
+      "updated_utc": "2026-07-24T00:26:02Z"
+    },
+    "wnba_hustle": {
+      "path": "data/processed/wnba_hustle_2021_2026.parquet",
+      "release_tag": "tracking-data-v1",
+      "asset": "wnba_hustle_2021_2026.parquet",
+      "sha256": "a1e75c65cc23a5b57c145895bb59183b576f7c070fa2768d665a236350eb96e4",
+      "bytes": 18486,
+      "updated_utc": "2026-07-24T00:26:02Z"
+    },
+    "wnba_games": {
+      "path": "data/processed/wnba_games.parquet",
+      "release_tag": "processed-data-v1",
+      "asset": "wnba_games.parquet",
+      "sha256": null,
+      "bytes": null,
+      "updated_utc": null
+    },
+    "wnba_player_game_stats": {
+      "path": "data/processed/wnba_player_game_stats.parquet",
+      "release_tag": "processed-data-v1",
+      "asset": "wnba_player_game_stats.parquet",
+      "sha256": null,
+      "bytes": null,
+      "updated_utc": null
+    },
+    "oof_player_stat_pmfs": {
+      "path": "data/oof/oof_player_stat_pmfs.parquet",
+      "release_tag": "oof-data-v1",
+      "asset": "oof_player_stat_pmfs.parquet",
+      "sha256": null,
+      "bytes": null,
+      "updated_utc": null
+    }
+  }
+}
