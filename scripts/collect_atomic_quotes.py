@@ -2,8 +2,11 @@
 
 Pulls decision-time (tip - lead) and closing (tip - 5m) per-book player-prop quotes from
 The Odds API historical endpoints and APPENDS them to data/atomic_quotes/atomic_quotes.parquet.
-Books are never averaged. Settlement/outcome is joined from canonical player-game stats when
-available; unresolved games are recorded with exact_quote_status=BLOCKED_EXACT_QUOTES.
+Books are never averaged. This collector captures RAW side snapshots only; every row is
+recorded settlement_status='pending'. Settlement is a SEPARATE explicit job
+(wnba_props_model.data.settlement) and pairing into validated Over/Under pairs is done by
+wnba_props_model.data.quote_pairs. We NEVER substitute an assumed tip time: an event whose
+commence_time cannot be parsed is skipped (its pair would be BLOCKED_INVALID_TIP downstream).
 
 Run this EARLY and often so no future proof observation is lost. It is additive/idempotent
 (dedup by quote_id), so re-running never corrupts previously captured evidence.
@@ -36,11 +39,15 @@ app = typer.Typer(add_completion=False)
 DECISION_LEAD_HOURS = 12
 
 
-def _snapshots(commence: str, gd: str) -> dict[str, str]:
+def _snapshots(commence: str, gd: str):
+    """Return (snapshots, tip_iso) or (None, None) when commence_time cannot be parsed.
+
+    A6: we do NOT substitute an assumed tip (e.g. 23:00 UTC); an unparseable commence time
+    means the event is skipped so no fabricated tip can leak into proof evidence."""
     try:
-        tip = datetime.fromisoformat(commence.replace("Z", "+00:00"))
-    except Exception:
-        tip = datetime.fromisoformat(f"{gd}T23:00:00+00:00")
+        tip = datetime.fromisoformat(str(commence).replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001
+        return None, None
     return {
         "decision": (tip - timedelta(hours=DECISION_LEAD_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "closing": (tip - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -78,6 +85,10 @@ def collect(
             gid = hm.resolve_game_id(day_games, e.get("home_team", ""), e.get("away_team", ""), gd) \
                 if not day_games.empty else None
             snaps, tip = _snapshots(e.get("commence_time", ""), gd)
+            if snaps is None:
+                typer.echo(f"[atomic] {gd} event {eid}: unparseable commence_time -> SKIPPED "
+                           "(no tip substitution).", err=True)
+                continue
             for label, snap in snaps.items():
                 try:
                     odds = client.get_historical_event_odds(eid, snap, markets=markets)
