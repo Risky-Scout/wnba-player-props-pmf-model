@@ -1,0 +1,83 @@
+name: forecast-pages-smoke
+
+# B7 - manual smoke workflow for the forecast-only launch. A dry run generates and validates
+# all public payloads WITHOUT publishing; deploy is opt-in and only runs when dry_run=false and
+# deploy=true. This is the operator boundary for the forecast-only Distributions page + the
+# explicit abstaining Edge Board (no unproven edges, no Kelly).
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: "Slate date (YYYY-MM-DD)"
+        required: true
+        type: string
+      dry_run:
+        description: "Generate + validate only; never publish"
+        required: true
+        type: boolean
+        default: true
+      deploy:
+        description: "Deploy (only honored when dry_run=false)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      GAME_DATE: ${{ github.event.inputs.game_date }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Generate forecast pages (Distributions + abstaining Edge Board + PMF payloads)
+        run: |
+          PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
+          EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+          EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
+          GIT_COMMIT=$(git rev-parse HEAD)
+          python scripts/generate_web_pages.py \
+            --game-date "$GAME_DATE" \
+            ${PROJ_FILE:+--projections "$PROJ_FILE"} \
+            ${EDGE_FILE:+--edges "$EDGE_FILE"} \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
+            --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT" \
+            --policy config/recommendation_policy.yaml \
+            ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
+          GIT_COMMIT=$(git rev-parse HEAD)
+          python scripts/generate_distributions_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir tools/odds-scanner/predictions/WNBA \
+            --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT" || true
+
+      - name: Validate forecast pages (fail-closed B5/B6 + abstention/no-Kelly)
+        run: |
+          python scripts/validate_forecast_pages.py \
+            --pre-game-dir tools/odds-scanner/predictions/WNBA/Pre-Game
+
+      - name: Dry-run summary (no publish)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "DRY RUN complete for ${GAME_DATE}: pages generated + validated, NOT published."
+          echo "Edge/latest.json:";        cat tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/latest.json | head -40 || true
+
+      - name: Deploy to gh-pages (only when explicitly requested)
+        if: ${{ github.event.inputs.dry_run == 'false' && github.event.inputs.deploy == 'true' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game
+          publish_branch: gh-pages
+          destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game
+          keep_files: true
