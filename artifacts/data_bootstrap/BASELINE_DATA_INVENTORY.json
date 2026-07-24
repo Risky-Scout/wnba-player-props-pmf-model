@@ -1,6 +1,6 @@
 {
   "version": "baseline-data-inventory-v1",
-  "generated_utc": "2026-07-24T23:02:26.480342+00:00",
+  "generated_utc": "2026-07-24T23:40:35.855991+00:00",
   "approved_locations": [
     "/home/ubuntu/lane2/data/processed",
     "/home/ubuntu/lane2/data/oof",
@@ -1819,14 +1819,14 @@
     },
     "wnba_games": {
       "path": "data/processed/wnba_games.parquet",
-      "sha256": null,
-      "published": false,
+      "sha256": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+      "published": true,
       "release": "processed-data-v1"
     },
     "wnba_player_game_stats": {
       "path": "data/processed/wnba_player_game_stats.parquet",
-      "sha256": null,
-      "published": false,
+      "sha256": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+      "published": true,
       "release": "processed-data-v1"
     },
     "oof_player_stat_pmfs": {
@@ -1860,8 +1860,8 @@
       "status": "PRESENT_LOCAL",
       "registry": {
         "path": "data/processed/wnba_games.parquet",
-        "sha256": null,
-        "published": false,
+        "sha256": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+        "published": true,
         "release": "processed-data-v1"
       }
     },
@@ -1870,8 +1870,8 @@
       "status": "PRESENT_LOCAL",
       "registry": {
         "path": "data/processed/wnba_player_game_stats.parquet",
-        "sha256": null,
-        "published": false,
+        "sha256": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+        "published": true,
         "release": "processed-data-v1"
       }
     },

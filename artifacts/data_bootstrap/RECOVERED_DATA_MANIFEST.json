@@ -1,0 +1,125 @@
+{
+  "version": "recovered-data-manifest-v1",
+  "generated_at_utc": "2026-07-24T23:38:19.188847+00:00",
+  "feature_contract_id": "wnba-baseline-features-v2-410col",
+  "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+  "builder_commit": "1cf28b3",
+  "contract_separation": {
+    "model_features": 410,
+    "identifier_columns": 12,
+    "target_columns": 9,
+    "role_metadata_columns": 8,
+    "forbidden_columns": 114,
+    "temporal_policy": "strict_pregame_shifted"
+  },
+  "files": {
+    "wnba_games": {
+      "approved_path": "/home/ubuntu/lane2/data/processed/wnba_games.parquet",
+      "sha256": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+      "bytes": 42267,
+      "feature_contract_id": "wnba-baseline-features-v2-410col",
+      "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "builder_commit": "1cf28b3",
+      "source_data_hashes": {
+        "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+        "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+        "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+        "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+      },
+      "generated_at_utc": "2026-07-24T23:38:19.188847+00:00",
+      "rows": 1624,
+      "columns": 20,
+      "unique_games": 1624,
+      "unique_players": null,
+      "min_game_date": "2021-05-14 23:00:00+00:00",
+      "max_game_date": "2026-09-25 02:00:00+00:00"
+    },
+    "wnba_player_game_stats": {
+      "approved_path": "/home/ubuntu/lane2/data/processed/wnba_player_game_stats.parquet",
+      "sha256": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+      "bytes": 584070,
+      "feature_contract_id": "wnba-baseline-features-v2-410col",
+      "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "builder_commit": "1cf28b3",
+      "source_data_hashes": {
+        "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+        "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+        "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+        "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+      },
+      "generated_at_utc": "2026-07-24T23:38:19.188847+00:00",
+      "rows": 33722,
+      "columns": 44,
+      "unique_games": 1493,
+      "unique_players": 389,
+      "min_game_date": "2021-05-14 00:00:00",
+      "max_game_date": "2026-07-23 00:00:00",
+      "canonical_duplicate_count": 0
+    },
+    "wnba_player_game_features_wide": {
+      "approved_path": "/home/ubuntu/lane2/data/processed/wnba_player_game_features_wide.parquet",
+      "sha256": "4fca72c3ff4627f6043c1a4e35f9878afe0791322c8176511bd5fa7159ae5603",
+      "bytes": 42544219,
+      "feature_contract_id": "wnba-baseline-features-v2-410col",
+      "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "builder_commit": "1cf28b3",
+      "source_data_hashes": {
+        "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+        "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+        "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+        "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+      },
+      "generated_at_utc": "2026-07-24T23:38:19.188847+00:00",
+      "rows": 33722,
+      "columns": 577,
+      "unique_games": 1493,
+      "unique_players": 389,
+      "min_game_date": "2021-05-14 00:00:00",
+      "max_game_date": "2026-07-23 00:00:00",
+      "canonical_duplicate_count": 0
+    },
+    "wnba_player_game_features_long": {
+      "approved_path": "/home/ubuntu/lane2/data/processed/wnba_player_game_features_long.parquet",
+      "sha256": "4d04129348771f0af39f53c4a3e06e7017c529e0eb8b68de9a15638cdea1016e",
+      "bytes": 88240479,
+      "feature_contract_id": "wnba-baseline-features-v2-410col",
+      "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "builder_commit": "1cf28b3",
+      "source_data_hashes": {
+        "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+        "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+        "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+        "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+      },
+      "generated_at_utc": "2026-07-24T23:38:19.188847+00:00",
+      "rows": 236054,
+      "columns": 579,
+      "unique_games": 1493,
+      "unique_players": 389,
+      "min_game_date": "2021-05-14 00:00:00",
+      "max_game_date": "2026-07-23 00:00:00",
+      "canonical_duplicate_count": 202332
+    },
+    "feature_schema_manifest": {
+      "approved_path": "/home/ubuntu/lane2/data/processed/feature_schema_manifest.json",
+      "sha256": "089d3f607769fd19bdcc419bde93c50c2468930a880afc00a75c04f8f568c81d",
+      "bytes": 30576,
+      "feature_contract_id": "wnba-baseline-features-v2-410col",
+      "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "builder_commit": "1cf28b3",
+      "source_data_hashes": {
+        "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+        "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+        "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+        "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+      },
+      "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
+    }
+  },
+  "all_hashes_present": true,
+  "contract_valid": true,
+  "errors": [],
+  "warnings": [
+    "model features also listed as identifiers (benign, pregame-known): ['is_home']"
+  ]
+}
