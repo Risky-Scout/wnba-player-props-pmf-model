@@ -448,3 +448,53 @@ class TestHTTPErrorHandling:
 
         assert client.quota_remaining == 4850
         assert client.quota_used == 150
+
+
+# ---------------------------------------------------------------------------
+# get_closing_lines_for_date — historical endpoint + pre-tip snapshot cap
+# ---------------------------------------------------------------------------
+
+class TestGetClosingLinesForDate:
+    """Regression: closing lines MUST use the historical events endpoint (the live
+    endpoint returns nothing for past dates -> silent 0 rows -> broken CLV), and the
+    per-event snapshot MUST be capped to just before tip (post-tip requests 404)."""
+
+    LIVE_EVENTS_PATH = "/v4/sports/basketball_wnba/events"
+
+    def _dispatch(self, path, params=None):
+        if "/historical/" in path and path.endswith("/events"):
+            return {"data": [dict(FAKE_EVENTS[0])]}
+        if "/historical/" in path and "/events/" in path and path.endswith("/odds"):
+            return {"data": FAKE_PROPS_DATA}
+        raise AssertionError(f"unexpected path requested: {path}")
+
+    def test_uses_historical_endpoint_and_caps_snapshot(self):
+        mock_get = MagicMock(side_effect=self._dispatch)
+        client = _make_client(mock_get)
+        rows = client.get_closing_lines_for_date(
+            "2026-06-24", close_time_utc="2026-06-24T23:00:00Z")
+        # 2 markets x 2 sides from the fixture
+        assert len(rows) == 4
+        paths = [c.args[0] for c in mock_get.call_args_list]
+        assert any("/historical/" in p and p.endswith("/events") for p in paths)
+        # The live events endpoint must NOT be used for a past date.
+        assert self.LIVE_EVENTS_PATH not in paths
+        # tip=23:00 -> requested 23:00 capped to 22:55 (5 min pre-tip)
+        assert {r["snapshot_time"] for r in rows} == {"2026-06-24T22:55:00Z"}
+
+    def test_returns_empty_when_no_historical_events(self):
+        def dispatch(path, params=None):
+            if path.endswith("/events"):
+                return {"data": []}
+            raise AssertionError("must not fetch odds when there are no events")
+        client = _make_client(MagicMock(side_effect=dispatch))
+        assert client.get_closing_lines_for_date(
+            "2020-01-01", close_time_utc="2020-01-01T23:00:00Z") == []
+
+    def test_pre_tip_snapshot_kept_uncapped(self):
+        mock_get = MagicMock(side_effect=self._dispatch)
+        client = _make_client(mock_get)
+        # requested well before tip -> kept as-is (no cap)
+        rows = client.get_closing_lines_for_date(
+            "2026-06-24", close_time_utc="2026-06-24T14:00:00Z")
+        assert {r["snapshot_time"] for r in rows} == {"2026-06-24T14:00:00Z"}

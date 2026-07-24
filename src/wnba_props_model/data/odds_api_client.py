@@ -489,15 +489,41 @@ class OddsAPIClient:
         if close_time_utc is None:
             close_time_utc = f"{date_str}T23:00:00Z"
 
-        events = self.list_events_for_date(date_str)
+        # Event discovery MUST use the historical events endpoint: the live
+        # /events endpoint returns nothing for past dates, which silently yields
+        # zero closing-line rows (and breaks nightly CLV). Restrict to events
+        # commencing in this game-date's UTC window.
+        from datetime import datetime, timedelta  # noqa: PLC0415
+
+        next_day = (datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        ev_payload = self.list_historical_events(
+            f"{date_str}T12:00:00Z",
+            commence_time_from=f"{date_str}T00:00:00Z",
+            commence_time_to=f"{next_day}T12:00:00Z",
+        )
+        events = (ev_payload or {}).get("data", []) or []
         if not events:
             return []
 
         rows: list[dict] = []
         for event in events:
             event_id = event.get("id", "")
+            # The historical event-odds endpoint returns 404 for any snapshot at or
+            # after tip-off (the event drops from the odds feed). Cap the requested
+            # snapshot to 5 minutes before tip so a "closing" pull always lands on
+            # the last real pre-tip quote instead of 404-ing to nothing.
+            eff_snapshot = close_time_utc
+            commence = event.get("commence_time")
             try:
-                data = self.get_historical_event_odds(event_id, close_time_utc)
+                tip = datetime.fromisoformat(str(commence).replace("Z", "+00:00"))
+                req = datetime.fromisoformat(str(close_time_utc).replace("Z", "+00:00"))
+                cap = tip - timedelta(minutes=5)
+                if req > cap:
+                    eff_snapshot = cap.strftime("%Y-%m-%dT%H:%M:%SZ")
+            except (TypeError, ValueError):
+                pass
+            try:
+                data = self.get_historical_event_odds(event_id, eff_snapshot)
             except OddsAPIError as exc:
                 log.warning(
                     "[OddsAPI] Historical props failed for event %s: %s", event_id, exc
@@ -514,7 +540,7 @@ class OddsAPIClient:
                         rows.append({
                             "event_id": event_id,
                             "game_date": date_str,
-                            "snapshot_time": close_time_utc,
+                            "snapshot_time": eff_snapshot,
                             "home_team": event.get("home_team", ""),
                             "away_team": event.get("away_team", ""),
                             "bookmaker": bookmaker,
