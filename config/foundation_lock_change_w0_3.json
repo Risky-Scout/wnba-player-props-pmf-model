@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authorization_id": "FL-W0.3-feature-artifact-parity",
+  "authorized_pr": "phase-b W0.3 feature-artifact parity",
+  "authorized_branch": "cursor/phase-b-w0-correctness-06e5",
+  "authorized_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
+  "single_use": true,
+  "allowed_locked_paths": ["src/wnba_props_model/features/feature_contract.py"],
+  "expiration": "2026-12-31",
+  "rationale": "W0.3 adds fail-closed feature-artifact parity (assert_feature_artifact_parity, feature_schema_hash, FeatureArtifactParityError) so training/OOF/delivery require the exact artifact feature list and can never silently run on a truncated 52-of-128 matrix. Additive functions only; existing contract lists and forbidden sets unchanged."
+}

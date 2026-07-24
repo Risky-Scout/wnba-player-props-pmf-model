@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Tuple
 
@@ -272,87 +273,101 @@ def _prove(
     n_boot: int,
     seed: int,
     min_rows: int,
+    min_clusters: int,
     alpha: float,
     min_logloss_delta: float,
     min_brier_delta: float,
     min_auc_delta: float,
+    target_props: "List[str] | None" = None,
+    contaminated_props: "set | None" = None,
 ) -> pd.DataFrame:
-    filtered_parts = []
-    for prop, candidate in selected.items():
-        part = df[
-            (df[prop_col].astype(str) == str(prop))
-            & (df[candidate_col].astype(str) == str(candidate))
-        ]
-        if len(part):
-            filtered_parts.append(part)
-    if not filtered_parts:
-        raise ValueError("No proof rows matched the selected candidate map.")
-    proof_df = pd.concat(filtered_parts, ignore_index=True)
+    # A1: the target-prop list is MANDATORY and complete. Every target prop yields exactly one
+    # row with an explicit status; a missing prop is reported (MISSING_*), never dropped.
+    targets = list(target_props) if target_props else sorted(set(str(p) for p in selected))
+    contaminated = set(contaminated_props or set())
 
     rows: List[Dict[str, object]] = []
-    for i, (prop, g) in enumerate(proof_df.groupby(prop_col, sort=True)):
-        candidate = selected[str(prop)]
-        point = _metrics(
-            g["_outcome_over"].to_numpy(),
-            g[model_prob_col].to_numpy(),
-            g[market_prob_col].to_numpy(),
-        )
-        row: Dict[str, object] = {
-            "prop": str(prop),
-            "candidate": str(candidate),
-            "n_settled": int(len(g)),
-            "n_clusters": int(g[date_col].nunique()),
-            "date_min": str(g[date_col].min()),
-            "date_max": str(g[date_col].max()),
-            **point,
+    for i, prop in enumerate(sorted(targets)):
+        candidate = selected.get(prop)
+        base = {
+            "prop": prop, "candidate": str(candidate) if candidate else "",
+            "n_settled": 0, "n_clusters": 0, "date_min": "", "date_max": "",
+            "model_logloss": float("nan"), "market_logloss": float("nan"),
+            "model_brier": float("nan"), "market_brier": float("nan"),
+            "logloss_delta": float("nan"), "brier_delta": float("nan"),
+            "model_auc": float("nan"), "market_auc": float("nan"), "auc_delta": float("nan"),
+            "logloss_delta_ci_low": float("nan"), "logloss_delta_ci_high": float("nan"),
+            "logloss_delta_p_one_sided": float("nan"),
+            "brier_delta_ci_low": float("nan"), "brier_delta_ci_high": float("nan"),
+            "brier_delta_p_one_sided": float("nan"),
+            "auc_delta_ci_low": float("nan"), "auc_delta_ci_high": float("nan"),
+            "auc_delta_p_one_sided": float("nan"),
+            "data_state": "evaluated",
         }
+        if candidate is None:
+            base["data_state"] = "MISSING_CANDIDATE"; rows.append(base); continue
+        g = df[(df[prop_col].astype(str) == prop) & (df[candidate_col].astype(str) == str(candidate))]
+        if prop in contaminated:
+            base["data_state"] = "CONTAMINATED"; base["n_settled"] = int(len(g)); rows.append(base); continue
+        if len(g) == 0:
+            base["data_state"] = "MISSING_PROOF_ROWS"; rows.append(base); continue
+        point = _metrics(g["_outcome_over"].to_numpy(), g[model_prob_col].to_numpy(),
+                         g[market_prob_col].to_numpy())
+        base.update(point)
+        base["n_settled"] = int(len(g)); base["n_clusters"] = int(g[date_col].nunique())
+        base["date_min"] = str(g[date_col].min()); base["date_max"] = str(g[date_col].max())
         if len(g) >= min_rows and g[date_col].nunique() >= 2:
-            boot = _bootstrap_deltas(
-                g,
-                date_col=date_col,
-                model_prob_col=model_prob_col,
-                market_prob_col=market_prob_col,
-                n_boot=n_boot,
-                seed=seed + 1009 * i,
-            )
-            for key, direction in [
-                ("logloss_delta", "negative"),
-                ("brier_delta", "negative"),
-                ("auc_delta", "positive"),
-            ]:
-                row[f"{key}_ci_low"] = _quantile(boot[key], 0.025)
-                row[f"{key}_ci_high"] = _quantile(boot[key], 0.975)
-                row[f"{key}_p_one_sided"] = _one_sided_p(boot[key], direction)
-        else:
-            for key in ["logloss_delta", "brier_delta", "auc_delta"]:
-                row[f"{key}_ci_low"] = float("nan")
-                row[f"{key}_ci_high"] = float("nan")
-                row[f"{key}_p_one_sided"] = float("nan")
-        rows.append(row)
+            boot = _bootstrap_deltas(g, date_col=date_col, model_prob_col=model_prob_col,
+                                     market_prob_col=market_prob_col, n_boot=n_boot, seed=seed + 1009 * i)
+            for key, direction in [("logloss_delta", "negative"), ("brier_delta", "negative"),
+                                   ("auc_delta", "positive")]:
+                base[f"{key}_ci_low"] = _quantile(boot[key], 0.025)
+                base[f"{key}_ci_high"] = _quantile(boot[key], 0.975)
+                base[f"{key}_p_one_sided"] = _one_sided_p(boot[key], direction)
+        rows.append(base)
 
     result = pd.DataFrame(rows)
-    for key in ["logloss_delta", "brier_delta", "auc_delta"]:
-        pcol = f"{key}_p_one_sided"
-        result[f"{key}_p_holm"] = _holm_adjust(result[pcol])
+    # Holm across the FROZEN 14-claim family (len(targets) x {log loss, Brier}) as ONE family.
+    # Missing/insufficient claims are non-passing (p filled to 1.0) - they are NEVER removed to
+    # shrink the testing family (A1). AUC keeps its own family (strict-gate only).
+    ll_p = result["logloss_delta_p_one_sided"].fillna(1.0)
+    br_p = result["brier_delta_p_one_sided"].fillna(1.0)
+    proper_stack = pd.concat([
+        pd.DataFrame({"prop": result["prop"], "_metric": "logloss", "_p": ll_p}),
+        pd.DataFrame({"prop": result["prop"], "_metric": "brier", "_p": br_p}),
+    ], ignore_index=True)
+    proper_stack["_p_holm"] = _holm_adjust(proper_stack["_p"])
+    ll_holm = proper_stack[proper_stack["_metric"] == "logloss"].set_index("prop")["_p_holm"]
+    br_holm = proper_stack[proper_stack["_metric"] == "brier"].set_index("prop")["_p_holm"]
+    result["logloss_delta_p_holm"] = result["prop"].map(ll_holm).to_numpy()
+    result["brier_delta_p_holm"] = result["prop"].map(br_holm).to_numpy()
+    result["auc_delta_p_holm"] = _holm_adjust(result["auc_delta_p_one_sided"].fillna(1.0))
 
-    enough = result["n_settled"] >= min_rows
-    ll_pass = (
-        result["logloss_delta_ci_high"] < -abs(min_logloss_delta)
-    ) & (result["logloss_delta_p_holm"] <= alpha)
-    br_pass = (
-        result["brier_delta_ci_high"] < -abs(min_brier_delta)
-    ) & (result["brier_delta_p_holm"] <= alpha)
-    auc_pass = (
-        result["auc_delta_ci_low"] > abs(min_auc_delta)
-    ) & (result["auc_delta_p_holm"] <= alpha)
+    enough = (result["n_settled"] >= min_rows) & (result["n_clusters"] >= min_clusters) \
+        & (result["data_state"] == "evaluated")
+    ll_pass = (result["logloss_delta_ci_high"] < -abs(min_logloss_delta)) & (result["logloss_delta_p_holm"] <= alpha)
+    br_pass = (result["brier_delta_ci_high"] < -abs(min_brier_delta)) & (result["brier_delta_p_holm"] <= alpha)
+    auc_pass = (result["auc_delta_ci_low"] > abs(min_auc_delta)) & (result["auc_delta_p_holm"] <= alpha)
+    proper = ll_pass & br_pass
     result["gate_logloss"] = np.where(enough, ll_pass, False)
     result["gate_brier"] = np.where(enough, br_pass, False)
     result["gate_auc"] = np.where(enough, auc_pass, False)
-    result["market_superiority_gate"] = np.where(
-        ~enough,
-        "INSUFFICIENT",
-        np.where(ll_pass & br_pass & auc_pass, "PASS", "FAIL"),
-    )
+    result["proper_score_market_superiority_gate"] = np.where(
+        ~enough, "INSUFFICIENT", np.where(proper, "PASS", "FAIL"))
+    result["strict_market_superiority_gate"] = np.where(
+        ~enough, "INSUFFICIENT", np.where(proper & auc_pass, "PASS", "FAIL"))
+    result["market_superiority_gate"] = result["strict_market_superiority_gate"]
+
+    # A1: single explicit per-prop status. Missing/contaminated states override the gate;
+    # otherwise PASS iff the STRICT gate passes, INSUFFICIENT if under-powered, else FAIL.
+    def _status(r):
+        ds = r["data_state"]
+        if ds in ("MISSING_CANDIDATE", "MISSING_PROOF_ROWS", "CONTAMINATED"):
+            return ds
+        if r["strict_market_superiority_gate"] == "INSUFFICIENT":
+            return "INSUFFICIENT"
+        return "PASS" if r["strict_market_superiority_gate"] == "PASS" else "FAIL"
+    result["status"] = result.apply(_status, axis=1)
     return result.sort_values("prop").reset_index(drop=True)
 
 
@@ -407,8 +422,8 @@ def _make_self_test(seed: int = 20260720) -> pd.DataFrame:
     props = DEFAULT_PROPS
     for prop_i, prop in enumerate(props):
         for split_i, split in enumerate(["selection", "test"]):
-            start = pd.Timestamp("2025-05-01") + pd.Timedelta(days=60 * split_i)
-            for day in range(24):
+            start = pd.Timestamp("2025-05-01") + pd.Timedelta(days=90 * split_i)
+            for day in range(40):
                 date = start + pd.Timedelta(days=day)
                 n = 55
                 z = rng.normal(0, 1.25, size=n)
@@ -437,13 +452,117 @@ def _make_self_test(seed: int = 20260720) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _load_selected(path: str) -> Dict[str, str]:
+def _load_candidate_manifest(path: str) -> "tuple[Dict[str, str], dict]":
+    """Return (selection map prop->candidate_id, full per-prop manifest dict).
+
+    Supports the simple form {prop: candidate} and the rich A2 form
+    {prop: {candidate_id, model_hash, ...}} (also under a 'selected_candidates' key)."""
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     if "selected_candidates" in raw:
         raw = raw["selected_candidates"]
     if not isinstance(raw, dict):
-        raise ValueError("Selected-candidate file must be a JSON object.")
-    return {str(k): str(v) for k, v in raw.items()}
+        raise ValueError("Candidate manifest must be a JSON object.")
+    selection: Dict[str, str] = {}
+    full: dict = {}
+    for k, v in raw.items():
+        if isinstance(v, dict):
+            selection[str(k)] = str(v.get("candidate_id", v.get("candidate", k)))
+            full[str(k)] = v
+        else:
+            selection[str(k)] = str(v)
+            full[str(k)] = {"candidate_id": str(v)}
+    return selection, full
+
+
+def _load_selected(path: str) -> Dict[str, str]:
+    return _load_candidate_manifest(path)[0]
+
+
+def _sha256_file(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+_CANDIDATE_REQUIRED_FIELDS = (
+    "candidate_id", "probability_track", "model_hash", "feature_schema_hash",
+    "calibration_policy_hash", "calibrator_hash", "training_date_max",
+    "selection_date_max", "proof_date_min",
+)
+_SPLIT_REQUIRED_FIELDS = (
+    "input_dataset_hash", "quote_policy_hash", "settlement_policy_hash",
+    "creation_timestamp", "previous_access_count",
+)
+
+
+def _verify_manifests(candidate_manifest: dict, split_manifest: dict, *, input_path: str,
+                      target_props: "List[str]") -> set:
+    """A2: fail-closed verification of the FROZEN candidate + split manifests before proof.
+
+    Hard-fails (ValueError) on: missing split-manifest integrity fields; input-dataset hash
+    mismatch; any development access to proof rows (previous_access_count != 0); a present
+    candidate entry missing a required hash/field. Per-prop chronology overlap
+    (training/selection_date_max >= proof_date_min) marks that prop CONTAMINATED (returned).
+    """
+    errs: list[str] = []
+    for k in _SPLIT_REQUIRED_FIELDS:
+        if split_manifest.get(k) in (None, ""):
+            errs.append(f"split-manifest missing required field {k!r}")
+    if not (split_manifest.get("proof_dates") or
+            (split_manifest.get("proof_date_min") and split_manifest.get("proof_date_max"))):
+        errs.append("split-manifest missing proof dates")
+    # Zero development access to proof rows.
+    pac = split_manifest.get("previous_access_count")
+    if pac is not None and int(pac) != 0:
+        errs.append(f"proof rows already accessed {pac} time(s) during development "
+                    "(previous_access_count must be 0)")
+    # Input-dataset hash must match the scored input actually being proven.
+    exp_hash = split_manifest.get("input_dataset_hash")
+    if exp_hash and input_path:
+        actual = _sha256_file(input_path)
+        if actual != exp_hash:
+            errs.append(f"input-dataset hash mismatch (manifest {str(exp_hash)[:12]} "
+                        f"!= actual {actual[:12]})")
+    proof_min = split_manifest.get("proof_date_min") or (
+        min(split_manifest["proof_dates"]) if split_manifest.get("proof_dates") else None)
+    contaminated: set = set()
+    for prop in target_props:
+        entry = candidate_manifest.get(prop)
+        if entry is None:
+            continue  # A1: reported MISSING_CANDIDATE downstream (not an integrity failure)
+        if not isinstance(entry, dict):
+            errs.append(f"candidate entry for {prop!r} must be an object with hashes/dates")
+            continue
+        for f in _CANDIDATE_REQUIRED_FIELDS:
+            if entry.get(f) in (None, ""):
+                errs.append(f"candidate[{prop}] missing required field {f!r}")
+        if proof_min:
+            for dk in ("training_date_max", "selection_date_max"):
+                dv = entry.get(dk)
+                if dv and str(dv)[:10] >= str(proof_min)[:10]:
+                    contaminated.add(prop)
+    if errs:
+        raise ValueError("[MANIFEST INTEGRITY FAIL]\n  - " + "\n  - ".join(errs))
+    return contaminated
+
+
+def _proof_mask(df: pd.DataFrame, date_col: str, manifest_path: str) -> "pd.Series":
+    """Boolean mask of rows inside the FROZEN proof window (W0.1). Supports either an
+    explicit date list ('proof_dates') or an inclusive range ('proof_date_min/max').
+    No automatic test-fraction splitting is permitted in prove mode."""
+    man = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    d = pd.to_datetime(df[date_col], errors="coerce").dt.strftime("%Y-%m-%d")
+    if man.get("proof_dates"):
+        allowed = {str(x)[:10] for x in man["proof_dates"]}
+        return d.isin(allowed)
+    lo, hi = man.get("proof_date_min"), man.get("proof_date_max")
+    if not (lo and hi):
+        raise ValueError("split-manifest must define 'proof_dates' or both "
+                         "'proof_date_min' and 'proof_date_max'.")
+    return (d >= str(lo)[:10]) & (d <= str(hi)[:10])
 
 
 def main() -> int:
@@ -466,18 +585,40 @@ def main() -> int:
     ap.add_argument("--bootstrap", type=int, default=5000)
     ap.add_argument("--seed", type=int, default=20260720)
     ap.add_argument("--min-rows", type=int, default=300)
+    ap.add_argument("--min-clusters", type=int, default=30,
+                    help="Minimum distinct game-date clusters (hard floor 30 in prove mode).")
+    ap.add_argument("--split-manifest",
+                    help="Frozen proof-window manifest (JSON) REQUIRED in prove mode: "
+                         "{'proof_date_min','proof_date_max'} or {'proof_dates':[...]}. "
+                         "Removes automatic test-fraction splitting.")
     ap.add_argument("--alpha", type=float, default=0.05)
     ap.add_argument("--min-logloss-delta", type=float, default=0.0)
     ap.add_argument("--min-brier-delta", type=float, default=0.0)
     ap.add_argument("--min-auc-delta", type=float, default=0.0)
+    ap.add_argument("--target-props", default="pts,reb,ast,fg3m,stl,blk,turnover",
+                    help="Mandatory target props (prove mode emits one status per prop; "
+                         "missing props become MISSING_CANDIDATE/MISSING_PROOF_ROWS, never dropped).")
+    ap.add_argument("--require-manifest-integrity", dest="require_manifest_integrity",
+                    action="store_true", default=True,
+                    help="A2: fail-closed verify of candidate/split manifest hashes + chronology "
+                         "before proof (default; certified proof MUST keep this on).")
+    ap.add_argument("--no-require-manifest-integrity", dest="require_manifest_integrity",
+                    action="store_false",
+                    help="Development/mechanics only: skip A2 manifest-integrity verification.")
     args = ap.parse_args()
 
-    # PR 1A source-of-truth: real proof/selection/audit must score the delivered final
-    # probability. The legacy column model_prob_over is rejected (no CLI override to it, no
-    # PMF reconstruction). The synthetic --self-test uses model_prob_over_final too.
+    # PR 1A source-of-truth: proof/selection/audit score the delivered final probability.
+    # The legacy column model_prob_over is rejected. W0.1: prove mode REQUIRES
+    # model_prob_over_final explicitly (no other column, no reconstruction).
     if not args.self_test and args.model_prob_col == "model_prob_over":
-        ap.error("legacy column 'model_prob_over' is forbidden in real proof mode; "
-                 "the evaluator scores 'model_prob_over_final' (the delivered probability).")
+        ap.error("legacy column 'model_prob_over' is forbidden; the evaluator scores "
+                 "'model_prob_over_final' (the delivered probability).")
+    if args.mode == "prove" and not args.self_test and args.model_prob_col != "model_prob_over_final":
+        ap.error("prove mode requires --model-prob-col model_prob_over_final "
+                 f"(got {args.model_prob_col!r}).")
+    # Hard floor on the date-cluster minimum in prove mode.
+    if args.mode == "prove":
+        args.min_clusters = max(30, int(args.min_clusters))
 
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -541,27 +682,42 @@ def main() -> int:
         if args.mode == "select" and not args.self_test:
             print(json.dumps(selected, indent=2))
             return 0
+    if args.self_test:
+        # Mechanics validation only: use the synthetic selection/test split column.
+        test = df[df[args.split_col].astype(str) == str(args.test_split)]
     else:
-        if args.selected_candidates:
-            selected = _load_selected(args.selected_candidates)
-        else:
-            unique_counts = df.groupby(args.prop_col)[args.candidate_col].nunique()
-            if (unique_counts > 1).any():
-                raise ValueError(
-                    "Prove mode found multiple candidates per prop. Supply "
-                    "--selected-candidates frozen on a separate selection period."
-                )
-            selected = (
-                df[[args.prop_col, args.candidate_col]]
-                .drop_duplicates()
-                .set_index(args.prop_col)[args.candidate_col]
-                .astype(str)
-                .to_dict()
-            )
-
-    test = df[df[args.split_col].astype(str) == str(args.test_split)]
+        # W0.1 prove mode: FROZEN candidate manifest + FROZEN split manifest; no auto-derive,
+        # no automatic test-fraction splitting (that lives only in development/audit mode).
+        if not args.selected_candidates:
+            ap.error("prove mode requires --selected-candidates (a candidate manifest frozen "
+                     "on a separate selection period).")
+        if not args.split_manifest:
+            ap.error("prove mode requires --split-manifest (the frozen untouched proof window). "
+                     "Automatic test-fraction splitting is disabled in prove mode.")
+        selected = _load_selected(args.selected_candidates)
+        mask = _proof_mask(df, args.date_col, args.split_manifest)
+        test = df[mask]
     if test.empty:
-        raise ValueError(f"No rows found for test split {args.test_split!r}.")
+        raise ValueError("No rows found in the frozen proof window / test split.")
+    # A1: mandatory complete target-prop coverage. Self-test derives targets from its synthetic
+    # candidate map; real prove uses the frozen target list (default the seven direct props).
+    contaminated_props: set = set()
+    if args.self_test:
+        target_props = None
+    else:
+        target_props = [p.strip() for p in args.target_props.split(",") if p.strip()]
+        missing_from_manifest = [p for p in target_props if p not in selected]
+        if missing_from_manifest:
+            print(f"[WARN] candidate-freeze manifest is missing target props "
+                  f"{missing_from_manifest}; they will be reported MISSING_CANDIDATE (never dropped).",
+                  file=sys.stderr)
+        if args.require_manifest_integrity:
+            # A2: fail-closed manifest + artifact integrity BEFORE touching proof rows.
+            _, full_candidate = _load_candidate_manifest(args.selected_candidates)
+            split_manifest = json.loads(Path(args.split_manifest).read_text(encoding="utf-8"))
+            contaminated_props = _verify_manifests(
+                full_candidate, split_manifest,
+                input_path=args.input, target_props=target_props)
     result = _prove(
         test,
         selected,
@@ -573,22 +729,36 @@ def main() -> int:
         n_boot=args.bootstrap,
         seed=args.seed,
         min_rows=args.min_rows,
+        min_clusters=args.min_clusters,
         alpha=args.alpha,
         min_logloss_delta=args.min_logloss_delta,
         min_brier_delta=args.min_brier_delta,
         min_auc_delta=args.min_auc_delta,
+        target_props=target_props,
+        contaminated_props=contaminated_props,
     )
     result.to_csv(outdir / "market_superiority_proof.csv", index=False)
     (outdir / "market_superiority_proof.json").write_text(
         json.dumps(
             {
-                "test_split": args.test_split,
+                "mode": "prove",
+                "self_test": bool(args.self_test),
+                "split_manifest": args.split_manifest,
+                "candidate_manifest": args.selected_candidates,
                 "bootstrap_replicates": args.bootstrap,
                 "alpha": args.alpha,
                 "minimum_rows": args.min_rows,
-                "all_props_pass": bool(
+                "minimum_clusters": args.min_clusters,
+                "target_props": (None if args.self_test else
+                                 [p.strip() for p in args.target_props.split(",") if p.strip()]),
+                "status_by_prop": dict(zip(result["prop"], result["status"])),
+                "all_props_proper_score_pass": bool(
                     len(result) > 0
-                    and (result["market_superiority_gate"] == "PASS").all()
+                    and (result["proper_score_market_superiority_gate"] == "PASS").all()
+                ),
+                "all_props_strict_pass": bool(
+                    len(result) > 0
+                    and (result["strict_market_superiority_gate"] == "PASS").all()
                 ),
                 "results": result.replace({np.nan: None}).to_dict(orient="records"),
             },
@@ -604,8 +774,8 @@ def main() -> int:
         n_boot=args.bootstrap,
     )
     print(result[[
-        "prop", "candidate", "n_settled", "logloss_delta",
-        "brier_delta", "auc_delta", "market_superiority_gate"
+        "prop", "candidate", "n_settled", "n_clusters", "logloss_delta",
+        "brier_delta", "auc_delta", "status"
     ]].to_string(index=False))
 
     if args.self_test:

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authorization_id": "FL-W0-eval-market-superiority-proof-harness",
+  "authorized_pr": "phase-b W0.1 proof harness",
+  "authorized_branch": "cursor/phase-b-w0-correctness-06e5",
+  "authorized_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
+  "single_use": true,
+  "allowed_locked_paths": ["scripts/evaluate_market_superiority.py"],
+  "expiration": "2026-12-31",
+  "rationale": "W0.1 proof-harness corrections: prove mode now requires model_prob_over_final + frozen split/candidate manifests, adds --min-clusters (floor 30), Holm across the co-primary proper-score claims, and emits separate proper_score and strict(AUC) gates. No change to gate math semantics that would weaken the bar; the bar is strengthened."
+}

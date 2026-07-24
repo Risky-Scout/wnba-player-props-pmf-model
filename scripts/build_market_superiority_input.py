@@ -38,7 +38,7 @@ import typer
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from wnba_props_model.evaluation import historical_market as hm  # noqa: E402
 from wnba_props_model.models.binary_probability_calibration import (  # noqa: E402
-    BinaryCalibrationRegistry,
+    load_binary_calibration_registry,
 )
 from wnba_props_model.models.probability_lineage import build_probability_lineage  # noqa: E402
 from wnba_props_model.models.simulation import json_to_pmf  # noqa: E402
@@ -96,8 +96,12 @@ def build(
                                     help="If no --split-date, fraction of latest dates used as test."),
     calibration_policy: str = typer.Option(
         "config/binary_calibration_policy_v1.json", "--calibration-policy",
-        help="Binary calibration policy file (the SAME one delivery loads). Absent -> "
-             "identity, matching current production. Guarantees evaluated == deployed."),
+        help="Binary calibration policy file (the SAME one delivery loads via the shared "
+             "resolver). Absent -> identity, matching current production."),
+    calibration_mode: str = typer.Option(
+        "optional", "--calibration-mode",
+        help="disabled|optional|required. Certified proof uses 'required' (missing policy/"
+             "artifact/hash-mismatch fatal). Default 'optional' -> identity when absent."),
     candidate: str = typer.Option("production", "--candidate"),
     run_eval: bool = typer.Option(False, "--run-eval", help="Invoke the evaluator (prove mode)."),
     eval_output_dir: str = typer.Option("artifacts/market_feature_proof/from_archive", "--eval-output-dir"),
@@ -147,7 +151,7 @@ def build(
     # is present) -> model_prob_over_final. Evaluated == deployed. The PMF is decoded with the
     # same json_to_pmf delivery uses. Binary-ineligible (all-push) rows have no defined P(over)
     # and are dropped (they cannot be scored and are never shipped).
-    registry = BinaryCalibrationRegistry.from_policy(calibration_policy or None)
+    registry = load_binary_calibration_registry(calibration_policy or None, mode=calibration_mode)
     roles = (df["role_bucket"].astype(str) if "role_bucket" in df.columns
              else pd.Series(["all"] * len(df), index=df.index))
     versions = (df["model_version"] if "model_version" in df.columns
@@ -198,14 +202,20 @@ def build(
                f"| binary_ineligible_dropped={n_ineligible} "
                f"| date range {result['game_date'].min()} .. {result['game_date'].max()}")
 
+    typer.echo("[market-input] NOTE: this closing-consensus archive is DEVELOPMENT_DIAGNOSTIC / "
+               "NOT_EXACT_QUOTE_PROOF / NOT_UNTOUCHED / NOT_PROMOTION_ELIGIBLE. Promotion proof "
+               "requires atomic decision-time same-book quotes and a frozen split manifest (W0.7/W12).")
     if run_eval:
+        # Diagnostic only -> AUDIT mode (never prove; prove requires frozen split + candidate
+        # manifests). Pass the delivered-probability column explicitly and PROPAGATE failure.
         cmd = [sys.executable, str(Path(__file__).parent / "evaluate_market_superiority.py"),
-               "--input", str(out_p), "--output-dir", eval_output_dir, "--mode", "prove"]
-        typer.echo(f"[market-input] running verdict: {' '.join(cmd)}")
-        subprocess.run(cmd, check=False)
+               "--input", str(out_p), "--output-dir", eval_output_dir, "--mode", "audit",
+               "--model-prob-col", "model_prob_over_final"]
+        typer.echo(f"[market-input] running DIAGNOSTIC audit: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
     else:
-        typer.echo("Next: python3 scripts/evaluate_market_superiority.py "
-                   f"--input {out_p} --mode prove")
+        typer.echo("Next (diagnostic): python3 scripts/evaluate_market_superiority.py "
+                   f"--input {out_p} --mode audit --model-prob-col model_prob_over_final")
 
 
 if __name__ == "__main__":

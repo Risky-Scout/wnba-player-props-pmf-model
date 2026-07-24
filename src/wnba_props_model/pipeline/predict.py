@@ -791,72 +791,15 @@ def predict_player_pmfs(
     # recompute pmf_mean/pmf_variance/stat_mean/stat_variance/p0 from the rebuilt PMF so the
     # distribution, its mean, and every line probability move together and stay internally
     # consistent (validate_pmf_row_integrity holds within 1e-6).
-    from wnba_props_model.models.pmf_utils import rebuild_count_pmf_at_mean  # noqa: PLC0415
-    _MINUTES_OFFSET_STATS = ["turnover", "ast"]
-    for _stat in _MINUTES_OFFSET_STATS:
-        _mask = pmfs_long["stat"] == _stat
-        if _mask.any() and "minutes_mean" in pmfs_long.columns:
-            if "player_minutes_mean_l5" in feature_df.columns:
-                try:
-                    _feat_mins = feature_df.set_index(["player_id", "game_id"])["player_minutes_mean_l5"]
-                    _idx = pmfs_long.index[_mask]
-                    _pg = pmfs_long.loc[_idx].set_index(["player_id", "game_id"])
-                    _feat_min_vals = _feat_mins.reindex(_pg.index).values
-                    _safe_feat = np.where(_feat_min_vals > 1.0, _feat_min_vals, 1.0)
-                    _model_mins = pmfs_long.loc[_idx, "minutes_mean"].values
-                    _old_means = pmfs_long.loc[_idx, "stat_mean"].values.astype(float)
-                    _rate_per_min = _old_means / _safe_feat
-                    _new_means = _rate_per_min * np.clip(_model_mins, 0, 45)
-
-                    # Documented rebuild tolerance: if support truncation makes the realized
-                    # PMF mean deviate from the structural target by more than this, we DO NOT
-                    # hide it by silently exporting the truncated mean - we flag the row with a
-                    # non-promotable support_tail_warning and record the exact error.
-                    _MEAN_REBUILD_TOL = 0.05
-                    _new_json, _new_mean, _new_var, _new_p0 = [], [], [], []
-                    _tgt_mean, _mean_err, _tail_warn = [], [], []
-                    for _ridx, _tgt in zip(_idx, _new_means):
-                        _old_pmf = json_to_pmf(pmfs_long.at[_ridx, "pmf_json"])
-                        if not np.isfinite(_tgt) or _tgt <= 0:
-                            _reb = np.asarray(_old_pmf, dtype=float)
-                            _tgt_val = float("nan")
-                        else:
-                            _reb = rebuild_count_pmf_at_mean(_old_pmf, float(_tgt))
-                            _tgt_val = float(_tgt)
-                        _k = np.arange(len(_reb), dtype=float)
-                        _m = float(np.dot(_k, _reb))
-                        _v = float(np.dot(_k ** 2, _reb)) - _m ** 2
-                        _err = abs(_m - _tgt_val) if _tgt_val == _tgt_val else 0.0
-                        _new_json.append(pmf_to_json(_reb))
-                        _new_mean.append(_m); _new_var.append(_v); _new_p0.append(float(_reb[0]))
-                        _tgt_mean.append(_tgt_val); _mean_err.append(_err)
-                        _tail_warn.append(bool(_err > _MEAN_REBUILD_TOL))
-                    pmfs_long.loc[_idx, "pmf_json"] = _new_json
-                    pmfs_long.loc[_idx, "pmf_mean"] = _new_mean
-                    pmfs_long.loc[_idx, "pmf_variance"] = _new_var
-                    pmfs_long.loc[_idx, "stat_mean"] = _new_mean       # PMF-derived, consistent
-                    pmfs_long.loc[_idx, "stat_variance"] = _new_var
-                    if "p0" in pmfs_long.columns:
-                        pmfs_long.loc[_idx, "p0"] = _new_p0
-                    # PMF-rebuild integrity diagnostics (never hidden).
-                    pmfs_long.loc[_idx, "structural_target_mean"] = _tgt_mean
-                    pmfs_long.loc[_idx, "final_pmf_mean"] = _new_mean
-                    pmfs_long.loc[_idx, "mean_rebuild_error"] = _mean_err
-                    pmfs_long.loc[_idx, "support_tail_warning"] = _tail_warn
-                    # Fail-closed structural integrity: exported mean must equal the final PMF
-                    # mean within 1e-6 (no detached post-PMF stat_mean adjustment remains).
-                    from wnba_props_model.models.pmf_utils import validate_pmf_row_integrity  # noqa: PLC0415
-                    for _ridx in _idx:
-                        validate_pmf_row_integrity(pmfs_long.loc[_ridx], mean_tol=1e-6)
-                    logger.info(
-                        "Minutes-offset fix %s: %d rows rebuilt PMF, old_mean=%.2f → new_mean=%.2f, "
-                        "max_rebuild_err=%.4f, tail_warnings=%d",
-                        _stat, int(_mask.sum()),
-                        float(np.nanmean(_old_means)), float(np.nanmean(_new_mean)),
-                        float(np.nanmax(_mean_err)) if _mean_err else 0.0, int(sum(_tail_warn)),
-                    )
-                except Exception as _mof_exc:
-                    logger.warning("Minutes-offset fix failed for %s: %s", _stat, _mof_exc)
+    # PR 1A B6 / W0.2: ONE shared minutes-offset PMF rebuild used by both delivery (here)
+    # and the OOF generator (build_oof_pmfs.py). Rebuilds the count PMF at the adjusted mean
+    # (never a detached stat_mean shift) so distribution/mean/line-probabilities move
+    # together and live == OOF for identical inputs.
+    from wnba_props_model.models.pmf_utils import apply_minutes_offset_rebuild  # noqa: PLC0415
+    apply_minutes_offset_rebuild(
+        pmfs_long, feature_df, to_json=pmf_to_json, from_json=json_to_pmf,
+        stats=("turnover", "ast"), logger=logger,
+    )
 
     # Pre-role-bucket: apply minutes_mean_override and role_bucket_override from
     # player_form_corrections_2026.json. These fix players whose minutes model

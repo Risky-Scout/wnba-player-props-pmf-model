@@ -45,6 +45,9 @@ jobs:
       - name: Phase-0 scope protection (Foundation Lock must not touch live-delivery surfaces)
         run: python scripts/check_phase0_scope.py --base origin/main
 
+      - name: Hidden/bidirectional Unicode control scan (fail-closed)
+        run: python scripts/scan_bidi_controls.py
+
       - name: Probability source-of-truth audit (must be 1/0/0)
         run: python scripts/audit_probability_consumers.py --check
 

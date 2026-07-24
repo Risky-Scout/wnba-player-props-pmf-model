@@ -219,3 +219,121 @@ class VennAbersBinaryCalibrationRegistry:
         if not (0.0 <= out <= 1.0):
             raise CalibrationError(f"VA calibrator output outside [0,1] for {key}: {out}")
         return CalibrationResult(out, "calibrated", key, self._sha256(path))
+
+
+# ---------------------------------------------------------------------------
+# W0.6: ONE required-mode policy resolver + per-prop registry
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PolicyBinaryCalibrationRegistry:
+    """Per-prop binary-calibration registry driven by the W0.5 policy file
+    ({props: {stat: {method, path, sha256}}}). Implements the same
+    ``apply(prop, role, p_over) -> CalibrationResult`` contract as BinaryCalibrationRegistry
+    so it plugs into build_probability_lineage. ONE instance is loaded by delivery, market
+    comparison, proof, scoring, and OOF via ``load_binary_calibration_registry`` so the
+    calibrated probability is identical everywhere.
+
+    mode:
+      * "disabled" -> always identity (passthrough).
+      * "optional" -> identity when policy/prop-entry/artifact is missing (never fatal).
+      * "required" -> missing policy, missing prop entry, missing/invalid artifact, or
+                      sha256 mismatch is FATAL (certified operation).
+    """
+    props: dict = field(default_factory=dict)
+    mode: str = "optional"
+    policy_id: str | None = None
+    policy_hash: str | None = None
+    _cache: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def status(self) -> str:
+        return f"policy:{self.mode}"
+
+    def _load_calibrator(self, spec: dict, key: str):
+        if key in self._cache:
+            return self._cache[key]
+        import joblib  # noqa: PLC0415
+        path = Path(spec["path"])
+        if not path.exists():
+            raise CalibrationError(f"calibrator artifact missing: {path}")
+        expected = spec.get("sha256")
+        if not expected:
+            raise CalibrationError(f"calibrator has no pinned sha256: {key}")
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        actual = h.hexdigest()
+        if actual != expected:
+            raise CalibrationError(
+                f"calibrator hash mismatch for {key}: expected {expected[:12]} actual {actual[:12]}")
+        model = joblib.load(path)
+        if not hasattr(model, "predict"):
+            raise CalibrationError(f"calibrator {key} has no predict()")
+        self._cache[key] = model
+        return model
+
+    def apply(self, prop: str, role: str, p_over: float) -> CalibrationResult:
+        if not (isinstance(p_over, (int, float)) and math.isfinite(p_over)):
+            raise CalibrationError(f"input probability not finite: {p_over!r}")
+        if not (0.0 <= float(p_over) <= 1.0):
+            raise CalibrationError(f"input probability outside [0,1]: {p_over}")
+        if self.mode == "disabled":
+            return CalibrationResult(float(p_over), "identity_disabled", None, None)
+
+        entry = self.props.get(prop)
+        if entry is None:
+            if self.mode == "required":
+                raise CalibrationError(f"required policy has no entry for prop {prop!r}")
+            return CalibrationResult(float(p_over), "identity_no_policy_entry", None, None)
+
+        # A4/A5 hierarchy: prop x role -> prop -> identity. A role override is used only when
+        # the policy explicitly declares a non-identity role calibrator for this (prop, role).
+        roles = entry.get("roles") or {}
+        role_entry = roles.get(str(role))
+        if role_entry is not None and role_entry.get("method", "identity") != "identity":
+            spec, key_prefix = role_entry, f"{prop}/{role}"
+        else:
+            spec, key_prefix = entry, f"{prop}"
+
+        method = spec.get("method", "identity")
+        if method == "identity":
+            return CalibrationResult(float(p_over), "identity", f"identity:{key_prefix}", None)
+
+        # Non-identity: load and apply the calibrator (fail-closed in required mode).
+        key = f"{key_prefix}:{method}"
+        try:
+            model = self._load_calibrator(spec, key)
+            out = float(model.predict([[float(p_over)]])[0])
+        except CalibrationError:
+            if self.mode == "required":
+                raise
+            return CalibrationResult(float(p_over), "identity_calibrator_unavailable", None, None)
+        except Exception as exc:  # noqa: BLE001
+            if self.mode == "required":
+                raise CalibrationError(f"calibrator predict failed for {key}: {exc}") from exc
+            return CalibrationResult(float(p_over), "identity_calibrator_error", None, None)
+        if not math.isfinite(out) or not (0.0 <= out <= 1.0):
+            raise CalibrationError(f"calibrator output invalid for {key}: {out}")
+        return CalibrationResult(out, "calibrated", f"{method}:{key_prefix}", spec.get("sha256"))
+
+
+def load_binary_calibration_registry(policy_path, mode: str = "required"):
+    """The single loader used by delivery, market comparison, proof, scoring, and OOF.
+
+    Returns a PolicyBinaryCalibrationRegistry with the given ``mode``. In "required" mode a
+    missing policy file is FATAL; in "optional"/"disabled" a missing policy yields identity.
+    """
+    if mode not in ("disabled", "optional", "required"):
+        raise ValueError(f"invalid mode {mode!r} (disabled|optional|required)")
+    p = Path(policy_path) if policy_path else None
+    if p is None or not p.exists():
+        if mode == "required":
+            raise CalibrationError(f"required binary-calibration policy not found: {policy_path}")
+        return PolicyBinaryCalibrationRegistry(props={}, mode=mode)
+    cfg = json.loads(p.read_text())
+    h = hashlib.sha256(p.read_bytes()).hexdigest()
+    return PolicyBinaryCalibrationRegistry(
+        props=cfg.get("props", {}), mode=mode,
+        policy_id=cfg.get("version"), policy_hash=h)

@@ -113,6 +113,10 @@ class BetaBinomialFg3mModel:
 
         # Predict fg3a
         if self.attempts_model is not None and self.attempts_features_:
+            from wnba_props_model.features.feature_contract import assert_feature_artifact_parity
+            assert_feature_artifact_parity(
+                df, list(self.attempts_features_),
+                context="BetaBinomialFg3mModel.predict_pmf_matrix", check_all_null=False)
             X = df.reindex(columns=self.attempts_features_).fillna(0).values
             fg3a_pred = self.attempts_model.predict(X)
         elif "player_fg3a_mean_season" in df.columns:

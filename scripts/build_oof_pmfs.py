@@ -273,30 +273,17 @@ def build(
                     fold_model, val_wide_df, val_long_df, fold_meta, cfg
                 )
 
-                # Fix minutes-offset stats in OOF: use forward-looking minutes instead of lagging feature
-                _MINUTES_OFFSET_STATS = ["turnover", "ast"]
-                for _stat in _MINUTES_OFFSET_STATS:
-                    _mask = pmf_frame["stat"] == _stat
-                    if _mask.any() and "minutes_mean" in pmf_frame.columns:
-                        if "player_minutes_mean_l5" in val_wide_df.columns:
-                            try:
-                                _feat_mins = val_wide_df.set_index(["player_id", "game_id"])["player_minutes_mean_l5"]
-                                _pg = pmf_frame[_mask].set_index(["player_id", "game_id"])
-                                _feat_min_vals = _feat_mins.reindex(_pg.index).values
-                                _safe_feat = np.where(_feat_min_vals > 1.0, _feat_min_vals, 1.0)
-                                _model_mins = pmf_frame.loc[_mask, "minutes_mean"].values
-                                _old_means = pmf_frame.loc[_mask, "stat_mean"].values.copy()
-                                _rate_per_min = _old_means / _safe_feat
-                                pmf_frame.loc[_mask, "stat_mean"] = _rate_per_min * np.clip(_model_mins, 0, 45)
-                                import logging as _log
-                                _log.getLogger(__name__).info(
-                                    "[OOF] Minutes-offset fix %s: %d rows, mean %.2f -> %.2f",
-                                    _stat, int(_mask.sum()), float(np.nanmean(_old_means)),
-                                    float(np.nanmean(pmf_frame.loc[_mask, "stat_mean"].values)),
-                                )
-                            except Exception as _mof_exc:
-                                import logging as _log
-                                _log.getLogger(__name__).warning("[OOF] Minutes-offset fix failed for %s: %s", _stat, _mof_exc)
+                # W0.2: minutes-offset for ast/turnover uses the SAME shared rebuild as the
+                # live delivery path (apply_minutes_offset_rebuild) so the PMF itself is rebuilt
+                # at the adjusted mean (never a detached stat_mean shift) and OOF == live for
+                # identical inputs. pmf_frame must carry a game-date-aligned index reset.
+                from wnba_props_model.models.pmf_utils import apply_minutes_offset_rebuild
+                from wnba_props_model.models.simulation import json_to_pmf, pmf_to_json
+                pmf_frame = pmf_frame.reset_index(drop=True)
+                apply_minutes_offset_rebuild(
+                    pmf_frame, val_wide_df, to_json=pmf_to_json, from_json=json_to_pmf,
+                    stats=("turnover", "ast"),
+                )
 
                 status = "model_oof"
                 errmsg = ""
@@ -344,6 +331,26 @@ def build(
     if invalid > 0:
         raise ValueError(f"{invalid} invalid OOF PMFs (sum error > 1e-6)")
     print(f"  Max PMF sum error: {max_err:.2e}  (PASS)")
+
+    # W0.2 fail-closed: minutes-offset stats (ast/turnover) must have the offset baked INTO
+    # the PMF (stat_mean == pmf_mean == mean(pmf_json)), never a detached mean shift.
+    _offset_mask = oof_df["stat"].isin(["ast", "turnover"])
+    if _offset_mask.any():
+        _sm = oof_df.loc[_offset_mask, "stat_mean"].astype(float).to_numpy()
+        _pm = oof_df.loc[_offset_mask, "pmf_mean"].astype(float).to_numpy()
+        _dev = float(np.nanmax(np.abs(_sm - _pm)))
+        if _dev > 1e-6:
+            raise ValueError(
+                f"AST/TOV OOF PMF parity FAILED: max|stat_mean - pmf_mean|={_dev:.3e} > 1e-6 "
+                "(detached mean shift detected; the minutes offset must rebuild the PMF).")
+        _json_mean = oof_df.loc[_offset_mask, "pmf_json"].map(
+            lambda s: sum(int(k) * float(v) for k, v in json.loads(s).items())).to_numpy()
+        _dev2 = float(np.nanmax(np.abs(_pm - _json_mean)))
+        if _dev2 > 1e-6:
+            raise ValueError(
+                f"AST/TOV OOF PMF self-consistency FAILED: max|pmf_mean - mean(pmf_json)|="
+                f"{_dev2:.3e} > 1e-6.")
+        print(f"  AST/TOV PMF parity: max|stat_mean-pmf_mean|={_dev:.2e} (PASS)")
 
     # Forbidden field check
     for col in ["line", "over_odds", "under_odds", "book", "vendor", "sportsbook"]:

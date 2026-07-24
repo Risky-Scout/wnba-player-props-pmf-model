@@ -282,6 +282,52 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
 MODEL_FEATURES: list[str] = [f for family in FEATURE_FAMILIES.values() for f in family]
 
 # ---------------------------------------------------------------------------
+# W0.4: PURE vs MARKET-ANCHORED information contracts
+# ---------------------------------------------------------------------------
+# Same-game sportsbook-derived features (the current game's Vegas total/spread and
+# everything derived from them). These are market information and MUST NOT enter an
+# independently-evaluated pure_forecast candidate. (The model-derived game-script
+# features -- pregame_win_probability etc. -- come from a net-rating spread, NOT Vegas,
+# and remain pure-eligible.)
+SAME_GAME_MARKET_FEATURES: list[str] = [
+    "implied_team_total", "game_total", "game_spread_home",
+    "blowout_risk", "predicted_spread_abs", "close_game_indicator",
+]
+# Lagged prior-game market features: a SEPARATE preregistered family. They are NOT part of
+# the primary pure forecast (W0.4); include only via an explicit, preregistered analysis.
+LAGGED_MARKET_FEATURES: list[str] = list(MARKET_PRIOR_FEATURES)
+
+_PURE_EXCLUDED_MARKET: frozenset = frozenset(SAME_GAME_MARKET_FEATURES) | frozenset(LAGGED_MARKET_FEATURES)
+
+# The PURE forecast contract: model features with ALL market-derived features removed.
+PURE_FORECAST_FEATURES: list[str] = [f for f in MODEL_FEATURES if f not in _PURE_EXCLUDED_MARKET]
+# The MARKET-ANCHORED contract: may use market information available by the decision
+# timestamp (pre-tip Vegas game context + lagged prior-game market). Never described as an
+# independent pure forecast.
+MARKET_ANCHORED_FEATURES: list[str] = list(MODEL_FEATURES)
+
+
+def pure_forecast_features() -> list[str]:
+    return list(PURE_FORECAST_FEATURES)
+
+
+def market_anchored_features() -> list[str]:
+    return list(MARKET_ANCHORED_FEATURES)
+
+
+def assert_pure_forecast(features: "list[str] | pd.DataFrame") -> None:
+    """Raise if a pure_forecast candidate contains ANY same-game sportsbook or lagged-market
+    feature. The pure track must be independent of market information (W0.4)."""
+    import pandas as pd  # local import
+    cols = list(features.columns) if isinstance(features, pd.DataFrame) else list(features)
+    overlap = sorted(set(cols) & _PURE_EXCLUDED_MARKET)
+    if overlap:
+        raise ValueError(
+            f"pure_forecast candidate contains market-derived features (forbidden on the "
+            f"pure track; use the market_anchored contract instead): {overlap}")
+
+
+# ---------------------------------------------------------------------------
 # Forbidden columns  (market / post-game leakage)
 # ---------------------------------------------------------------------------
 
@@ -403,6 +449,119 @@ def assert_no_forbidden_features(features: "list[str] | pd.DataFrame") -> None:
         raise ValueError(
             f"Forbidden leakage features in training feature list: {overlap}"
         )
+
+
+class FeatureArtifactParityError(ValueError):
+    """Fatal: the inference frame does not match the trained artifact's feature contract."""
+
+
+def feature_schema_hash(ordered_feature_names: "list[str]") -> str:
+    """Deterministic sha256 over the ORDERED feature list (order is part of the contract)."""
+    import hashlib
+    payload = "\n".join(str(f) for f in ordered_feature_names)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def assert_feature_artifact_parity(
+    frame,
+    expected_features: "list[str]",
+    *,
+    context: str = "",
+    dtype_map: "dict[str, str] | None" = None,
+    check_all_null: bool = True,
+) -> None:
+    """Fail-closed W0.3 parity: the inference frame MUST supply every feature the trained
+    artifact expects, so training/OOF/delivery never silently run on a truncated matrix
+    (the invalidated 52-of-128 failure).
+
+    Raises FeatureArtifactParityError when:
+      * any expected feature is ABSENT from the frame (missing -> fatal, no silent drop);
+      * an expected feature is present but ENTIRELY null (no silent all-null substitution);
+      * dtype kind mismatches a provided dtype_map.
+    Extra columns beyond the contract are permitted (ignored after leakage validation).
+    """
+    import pandas as pd  # local import to avoid module-level cycle
+    cols = set(frame.columns) if isinstance(frame, pd.DataFrame) else set(frame)
+    expected = list(expected_features)
+    missing = [f for f in expected if f not in cols]
+    if missing:
+        raise FeatureArtifactParityError(
+            f"{context or 'feature parity'}: {len(missing)}/{len(expected)} expected features "
+            f"absent from the inference frame (silent truncation forbidden). "
+            f"First missing: {missing[:12]}")
+    if isinstance(frame, pd.DataFrame):
+        if check_all_null:
+            all_null = [f for f in expected if len(frame) > 0 and frame[f].isna().all()]
+            if all_null:
+                raise FeatureArtifactParityError(
+                    f"{context or 'feature parity'}: {len(all_null)} expected features are "
+                    f"ENTIRELY null (silent all-null substitution forbidden). "
+                    f"First: {all_null[:12]}")
+        if dtype_map:
+            bad = []
+            for f in expected:
+                want = dtype_map.get(f)
+                if want is not None:
+                    got = frame[f].dtype
+                    # Compare by numpy kind (numeric vs object/bool) to tolerate int/float width.
+                    if str(getattr(got, "kind", "")) and want and got.kind != str(want)[0]:
+                        bad.append((f, str(got), want))
+            if bad:
+                raise FeatureArtifactParityError(
+                    f"{context or 'feature parity'}: dtype-kind mismatch on {len(bad)} features: "
+                    f"{bad[:8]}")
+
+
+FEATURE_ARTIFACT_BUILDER_VERSION = "w0.3-a3-v1"
+
+
+def capture_feature_dtype_kinds(frame, features: "list[str]") -> "dict[str, str]":
+    """Capture the numpy dtype-KIND ('f','i','O','b',...) of each trained feature, so an
+    inference frame that arrives with an unexpectedly categorical/object column (where the
+    artifact trained on numeric) fails closed instead of silently corrupting the model."""
+    import pandas as pd
+    if not isinstance(frame, pd.DataFrame):
+        return {}
+    return {c: str(frame[c].dtype.kind) for c in features if c in frame.columns}
+
+
+def build_feature_artifact_metadata(frame, ordered_features: "list[str]", *,
+                                    builder_version: str = FEATURE_ARTIFACT_BUILDER_VERSION,
+                                    training_data_hash: "str | None" = None,
+                                    encoder_version: "str | None" = None) -> dict:
+    """A3: persistable, self-describing feature-artifact metadata captured at FIT time.
+
+    Every trained inference artifact should store this alongside its estimator so that every
+    inference path can enforce identical feature parity (names, order, dtype kinds) and so
+    lineage (encoder/category version, training-data hash, builder version) is auditable."""
+    ordered = list(ordered_features)
+    return {
+        "ordered_feature_names": ordered,
+        "feature_schema_hash": feature_schema_hash(ordered),
+        "dtype_kinds": capture_feature_dtype_kinds(frame, ordered),
+        "encoder_version": encoder_version,
+        "training_data_hash": training_data_hash,
+        "builder_version": builder_version,
+    }
+
+
+def assert_inference_parity(frame, model, context: str, *, strict_dtype: bool = False) -> None:
+    """A3 shared fail-closed validator wired into EVERY inference reindex path.
+
+    Always enforces the CRITICAL guard: the frame must supply every trained feature
+    (`_usable_cols`) so no component silently reindexes a missing feature to NaN (the
+    52-of-128 failure). When ``strict_dtype`` is set it also enforces the artifact's captured
+    dtype-kind map (`_feature_dtype_kinds`) so an unexpectedly-categorical column is fatal;
+    this is opt-in because benign int/float/bool drift between fit and inference frames is
+    common and must not false-positive the live path."""
+    usable = getattr(model, "_usable_cols", None)
+    if not usable:
+        return
+    assert_feature_artifact_parity(
+        frame, list(usable), context=context,
+        dtype_map=(getattr(model, "_feature_dtype_kinds", None) or None) if strict_dtype else None,
+        check_all_null=False,
+    )
 
 
 def assert_no_market_columns(columns: list[str]) -> None:

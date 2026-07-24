@@ -93,6 +93,10 @@ class SVDBridgeEstimator:
         result = df.copy()
         if use_real_svd or not self.feature_names_:
             return result
+        from wnba_props_model.features.feature_contract import assert_feature_artifact_parity
+        assert_feature_artifact_parity(
+            result, list(self.feature_names_), context="SVDBridgeEstimator.predict",
+            check_all_null=False)
         X = result[self.feature_names_].fillna(0).values
         for svd_col, model in self.bridge_models.items():
             result[svd_col] = model.predict(X)

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authorization_id": "FL-A3-feature-artifact-parity-all-inference-paths",
+  "authorized_pr": "PR #80 amendment A3 (feature-artifact parity across every inference artifact)",
+  "authorized_branch": "cursor/phase-b-w0-correctness-06e5",
+  "authorized_base_sha": "63265773f2c9408ad494e5a5b509a0273a79efc3",
+  "single_use": true,
+  "allowed_locked_paths": ["src/wnba_props_model/features/feature_contract.py"],
+  "expiration": "2026-12-31",
+  "rationale": "A3: add shared fail-closed inference-parity helpers (capture_feature_dtype_kinds, build_feature_artifact_metadata, assert_inference_parity) so EVERY inference artifact (minutes, DNP, stat-rate, hurdle/ZINB, FG3M beta-binomial, dispersion, SVD bridge) enforces identical feature parity (names/order/dtype-kind) and can persist self-describing metadata. Additive only; strengthens the parity bar."
+}

@@ -1,0 +1,13 @@
+{
+  "version": "binary-cal-v1",
+  "enabled": true,
+  "allow_role_fallback_to_prop": true,
+  "fit_split_date": "2026-07-10",
+  "fit_window": "selection (< split_date), chronological CV",
+  "artifacts": {
+    "reb": {
+      "path": "artifacts/models/calibration/binary_iso_reb.pkl",
+      "sha256": "5a951855d3653832f3718f210564d281b7f69745b4780197ef431fcd540fcd6e"
+    }
+  }
+}
