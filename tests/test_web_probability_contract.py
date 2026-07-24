@@ -50,6 +50,41 @@ def test_pmf_payload_uses_final_not_pmf_mass(tmp_path, monkeypatch):
     assert row["model_p_over"] != row["pmf_p_over_unconditional"]
 
 
+def test_no_market_line_yields_null_not_zero(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    gwp = _load("generate_web_pages")
+    pmf = json.dumps({"0": 0.5, "1": 0.3, "2": 0.2})
+    proj = pd.DataFrame([{"player_id": "p9", "player_name": "No Line", "stat": "pts",
+                          "pmf_json": pmf, "pmf_mean": 0.7}])
+    edges = pd.DataFrame([{"player_id": "p9", "stat": "pts", "line": 0.0,
+                           "model_prob_over_final": None}])   # no exact market line
+    payload = gwp._build_pmf_json(edges, proj, "2026-07-20")
+    row = next(p for p in payload["props"] if p["stat_raw"] == "pts")
+    # 2.5: line-display probabilities are null, never 0/0.5. PMF shape still present.
+    assert row["model_prob_over_final"] is None
+    assert row["model_p_over"] is None and row["model_p_under"] is None
+    assert row["pmf_full"]                                   # distribution still shown
+
+
+def test_edge_under_is_exactly_one_minus_final():
+    # 2.4: settled Under must be 1 - final (final is already push-conditioned); the double
+    # subtraction of model_prob_push must be gone from the edge generator.
+    src = (LANE / "scripts" / "generate_web_pages.py").read_text()
+    assert "1.0 - float(r.get(\"model_prob_over_final\", 0) or 0)\n                 - float(r.get(\"model_prob_push\"" not in src
+    assert '"model_p_under": round(1.0 - float(r.get("model_prob_over_final", 0) or 0), 4)' in src
+
+
+def test_smoke_workflow_has_no_swallowed_failures():
+    wf = (LANE / ".github" / "workflows" / "forecast_pages_smoke.yml").read_text()
+    # 2.2: required generation/validation steps must not swallow failures.
+    gen_block = wf.split("Generate forecast pages")[1].split("Upload generated")[0]
+    assert "|| true" not in gen_block
+    assert "set -euo pipefail" in gen_block
+    # 2.3: validator runs with --require-forecast-rows when games are scheduled.
+    assert "--require-forecast-rows" in wf
+    assert "scheduled_game_count" in wf
+
+
 def test_distributions_page_consumes_final(tmp_path):
     gdp = _load("generate_distributions_page")
     src = {

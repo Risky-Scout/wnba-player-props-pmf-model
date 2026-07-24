@@ -1,9 +1,10 @@
 name: forecast-pages-smoke
 
-# B7 - manual smoke workflow for the forecast-only launch. A dry run generates and validates
-# all public payloads WITHOUT publishing; deploy is opt-in and only runs when dry_run=false and
-# deploy=true. This is the operator boundary for the forecast-only Distributions page + the
-# explicit abstaining Edge Board (no unproven edges, no Kelly).
+# B7 / Phase-2 - self-contained, fail-closed smoke workflow for the forecast-only launch.
+# A dry run generates + validates all public payloads WITHOUT publishing; deploy is opt-in and
+# only runs when dry_run=false AND deploy=true. The run FAILS CLOSED on any missing required
+# input, any generator/validator error, or (when games are scheduled) zero forecast rows - it
+# can never go green without a meaningful current-slate forecast release.
 
 on:
   workflow_dispatch:
@@ -29,6 +30,7 @@ jobs:
     env:
       GAME_DATE: ${{ github.event.inputs.game_date }}
       PYTHONUNBUFFERED: "1"
+      PRE_GAME_DIR: tools/odds-scanner/predictions/WNBA/Pre-Game
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,43 +43,98 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Generate forecast pages (Distributions + abstaining Edge Board + PMF payloads)
+      # 2.1/2.3 - resolve the EXACT-date delivery bundle + slate manifest, fail closed on missing.
+      - name: Resolve exact-date inputs (fail closed)
+        id: inputs
         run: |
-          PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
+          set -euo pipefail
+          PROJ="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
+          if [ ! -f "$PROJ" ]; then
+            echo "::error::Missing exact-date projection bundle $PROJ (no cross-date substitution)."
+            exit 1
+          fi
+          SLATE=$(ls deliveries/tonight/slate_manifest_${GAME_DATE}.json 2>/dev/null | head -1 || echo "")
+          SCHED=0
+          if [ -n "$SLATE" ]; then
+            SCHED=$(python3 -c "import json,sys; print(int(json.load(open('$SLATE')).get('scheduled_game_count',0)))")
+          else
+            echo "::error::Missing slate manifest slate_manifest_${GAME_DATE}.json (cannot certify scheduled_game_count)."
+            exit 1
+          fi
+          NPROJ=$(python3 -c "import pandas as pd; print(len(pd.read_parquet('$PROJ')))")
+          echo "proj=$PROJ" >> $GITHUB_OUTPUT
+          echo "scheduled_game_count=$SCHED" >> $GITHUB_OUTPUT
+          echo "proj_rows=$NPROJ" >> $GITHUB_OUTPUT
+          echo "[inputs] scheduled_game_count=$SCHED projection_rows=$NPROJ"
+          if [ "$SCHED" -gt 0 ] && [ "$NPROJ" -le 0 ]; then
+            echo "::error::scheduled_game_count=$SCHED but 0 projection rows."
+            exit 1
+          fi
+
+      - name: No-games short-circuit
+        if: steps.inputs.outputs.scheduled_game_count == '0'
+        run: |
+          echo "NO_GAMES_SCHEDULED for ${GAME_DATE} - not a forecast release; stopping without deploy."
+          exit 0
+
+      # 2.2 - clear stale outputs so a failed run cannot validate yesterday's latest.json.
+      - name: Clear stale latest.json before generation
+        if: steps.inputs.outputs.scheduled_game_count != '0'
+        run: |
+          set -euo pipefail
+          for SUB in Edge PMF-Distributions Distributions; do
+            rm -f "${PRE_GAME_DIR}/${SUB}/latest.json" || true
+          done
+
+      # 2.2 - NO "|| true": every generator/validator propagates its exit code.
+      - name: Generate forecast pages (fail closed)
+        if: steps.inputs.outputs.scheduled_game_count != '0'
+        run: |
+          set -euo pipefail
+          PROJ="${{ steps.inputs.outputs.proj }}"
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
           EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
           GIT_COMMIT=$(git rev-parse HEAD)
           python scripts/generate_web_pages.py \
-            --game-date "$GAME_DATE" \
-            ${PROJ_FILE:+--projections "$PROJ_FILE"} \
+            --game-date "$GAME_DATE" --projections "$PROJ" \
             ${EDGE_FILE:+--edges "$EDGE_FILE"} \
-            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game \
+            --out-dir "$PRE_GAME_DIR" \
             --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT" \
             --policy config/recommendation_policy.yaml \
             ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
-          GIT_COMMIT=$(git rev-parse HEAD)
           python scripts/generate_distributions_page.py \
             --game-date "$GAME_DATE" \
             --base-dir tools/odds-scanner/predictions/WNBA \
-            --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT" || true
+            --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT"
 
-      - name: Validate forecast pages (fail-closed B5/B6 + abstention/no-Kelly)
+      - name: Validate forecast pages (fail closed, require rows)
+        if: steps.inputs.outputs.scheduled_game_count != '0'
         run: |
+          set -euo pipefail
           python scripts/validate_forecast_pages.py \
-            --pre-game-dir tools/odds-scanner/predictions/WNBA/Pre-Game
+            --pre-game-dir "$PRE_GAME_DIR" --require-forecast-rows
+
+      # Always upload the generated bundle (even dry-run) for inspection.
+      - name: Upload generated forecast bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-pages-${{ env.GAME_DATE }}-${{ github.run_id }}
+          path: ${{ env.PRE_GAME_DIR }}
+          retention-days: 14
 
       - name: Dry-run summary (no publish)
-        if: ${{ github.event.inputs.dry_run == 'true' }}
+        if: ${{ github.event.inputs.dry_run == 'true' && steps.inputs.outputs.scheduled_game_count != '0' }}
         run: |
-          echo "DRY RUN complete for ${GAME_DATE}: pages generated + validated, NOT published."
-          echo "Edge/latest.json:";        cat tools/odds-scanner/predictions/WNBA/Pre-Game/Edge/latest.json | head -40 || true
+          echo "DRY RUN OK for ${GAME_DATE}: pages generated + validated, NOT published."
+          head -60 "${PRE_GAME_DIR}/Edge/latest.json" || true
 
       - name: Deploy to gh-pages (only when explicitly requested)
-        if: ${{ github.event.inputs.dry_run == 'false' && github.event.inputs.deploy == 'true' }}
+        if: ${{ github.event.inputs.dry_run == 'false' && github.event.inputs.deploy == 'true' && steps.inputs.outputs.scheduled_game_count != '0' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: tools/odds-scanner/predictions/WNBA/Pre-Game
+          publish_dir: ${{ env.PRE_GAME_DIR }}
           publish_branch: gh-pages
           destination_dir: tools/odds-scanner/predictions/WNBA/Pre-Game
           keep_files: true

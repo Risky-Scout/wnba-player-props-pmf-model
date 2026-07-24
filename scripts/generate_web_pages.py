@@ -277,11 +277,9 @@ def _build_edge_json(
             "median": round(float(r.get("median", 0) or 0), 1),
             "market_line": round(float(r.get("line", 0) or 0), 1),
             "model_p_over": round(float(r.get("model_prob_over_final", 0) or 0), 4),
-            # Compute push-aware under from PMF when available; fallback is 1 - p_over
-            "model_p_under": round(
-                (1.0 - float(r.get("model_prob_over_final", 0) or 0)
-                 - float(r.get("model_prob_push", 0) or 0)), 4
-            ),
+            # 2.4: model_prob_over_final is ALREADY push-conditioned; the settled Under is
+            # EXACTLY 1 - final (never 1 - final - push, which double-counts the push mass).
+            "model_p_under": round(1.0 - float(r.get("model_prob_over_final", 0) or 0), 4),
             "model_p_push": round(float(r.get("model_prob_push", 0) or 0), 4),
             "market_p_over": round(float(r.get("market_prob_over_no_vig", 0) or 0), 4),
             "no_vig_over_prob": round(float(r.get("no_vig_over_prob", r.get("market_prob_over_no_vig", 0)) or 0), 4),
@@ -379,6 +377,19 @@ def _build_edge_json(
     return payload
 
 
+def _forecast_allowed_stats() -> set:
+    """Stats with forecast_allowed==true in the stat_registry (source of truth). Returns an
+    empty set only if the registry is unreadable (then no generation-time filtering is applied
+    and the fail-closed validator remains the backstop)."""
+    try:
+        import json as _j
+        reg = _j.loads((Path(__file__).resolve().parent.parent / "config" / "stat_registry.json").read_text())
+        return {k.lower() for k, v in reg.items()
+                if isinstance(v, dict) and v.get("forecast_allowed") is True}
+    except Exception:
+        return set()
+
+
 def _build_pmf_json(
     edges_df: pd.DataFrame,
     proj_df: pd.DataFrame,
@@ -394,9 +405,13 @@ def _build_pmf_json(
     left-joined from edges_df so players with no market line still appear with
     their full PMF distribution (edge/kelly/market columns default to 0/null).
     """
-    # No stats are suppressed: all valid modeled PMFs appear on the public page.
-    # If a stat has weak calibration, it carries a calibration_status/warning field
-    # but is not deleted from the page.
+    # 2.6: forecast_allowed (from stat_registry) is enforced during generation. Stats whose
+    # forecast permission is false are EXCLUDED from the public payload (fg3m/blk stay off the
+    # public forecast distributions while suppressed). Set INCLUDE_SUPPRESSED_FORECASTS=1 for
+    # internal diagnostic artifacts (which must never be published).
+    import os as _os
+    _INCLUDE_SUPPRESSED = _os.environ.get("INCLUDE_SUPPRESSED_FORECASTS") == "1"
+    _FORECAST_ALLOWED = _forecast_allowed_stats()
 
     # Start from the full projection universe (all players × all stats).
     base_df = proj_df.copy()
@@ -474,6 +489,12 @@ def _build_pmf_json(
 
     props = []
     for _, r in merged.iterrows():
+        # 2.6: enforce stat_registry forecast_allowed DURING generation. Stats whose forecast
+        # permission is false (e.g. fg3m, blk) are excluded from the browser-accessible public
+        # payload. Internal diagnostics can retain them via INCLUDE_SUPPRESSED_FORECASTS=1.
+        _stat_gate = str(r.get("stat", "")).lower()
+        if _FORECAST_ALLOWED and _stat_gate not in _FORECAST_ALLOWED and not _INCLUDE_SUPPRESSED:
+            continue
         raw_pmf = r.get("pmf_json", None)
         pmf_str = raw_pmf if isinstance(raw_pmf, str) and raw_pmf.strip() else "{}"
         pairs, mu, var, std, skew, kurt, mode_k, median_k = _parse_pmf(pmf_str)
@@ -522,10 +543,18 @@ def _build_pmf_json(
             pmf_p_push = round(float(_p[_k == float(market_line)].sum()), 6) if _is_int_line else 0.0
             pmf_p_under_unconditional = round(float(_p[_k < float(market_line)].sum()), 6)
         # Bettor-facing settled probabilities come from the lineage's final value only.
-        model_prob_over_final = float(r.get("model_prob_over_final", 0) or 0)
-        model_p_over = round(model_prob_over_final, 6)
-        model_p_push = round(float(r.get("model_prob_push", 0) or 0), 6)
-        model_p_under = round(max(0.0, 1.0 - model_p_over), 6)   # settled Under = 1 - final
+        # 2.5: with NO exact selected market line, line-display probabilities are null (never 0
+        # or 0.5). The PMF distribution is still shown via the *unconditional* fields above.
+        if market_line and market_line > 0 and (r.get("model_prob_over_final") is not None):
+            model_prob_over_final = float(r.get("model_prob_over_final", 0) or 0)
+            model_p_over = round(model_prob_over_final, 6)
+            model_p_push = round(float(r.get("model_prob_push", 0) or 0), 6)
+            model_p_under = round(max(0.0, 1.0 - model_p_over), 6)   # settled Under = 1 - final
+        else:
+            model_prob_over_final = None
+            model_p_over = None
+            model_p_under = None
+            model_p_push = None
 
         market_p_over = round(float(r.get("market_prob_over_no_vig", 0) or 0), 4)
         no_vig_over = round(float(r.get("no_vig_over_prob", market_p_over) or market_p_over), 4)
@@ -558,11 +587,13 @@ def _build_pmf_json(
             "model_p_over": model_p_over,
             "model_p_under": model_p_under,
             "model_p_push": model_p_push,
-            "model_p_over_pct": round(model_p_over * 100, 1),
-            "model_p_under_pct": round(model_p_under * 100, 1),
+            "model_p_over_pct": (round(model_p_over * 100, 1) if model_p_over is not None else None),
+            "model_p_under_pct": (round(model_p_under * 100, 1) if model_p_under is not None else None),
             # B1: decision-grade final (bettor-facing) kept distinct from PMF-shape mass.
-            "model_prob_over_final": round(model_prob_over_final, 6),
-            "model_prob_under_final": round(max(0.0, 1.0 - model_prob_over_final), 6),
+            # 2.5: null (not 0) when there is no exact selected market line.
+            "model_prob_over_final": (round(model_prob_over_final, 6) if model_prob_over_final is not None else None),
+            "model_prob_under_final": (round(max(0.0, 1.0 - model_prob_over_final), 6)
+                                       if model_prob_over_final is not None else None),
             "pmf_p_over_unconditional": pmf_p_over_unconditional,
             "pmf_p_under_unconditional": pmf_p_under_unconditional,
             "pmf_p_push": pmf_p_push,
