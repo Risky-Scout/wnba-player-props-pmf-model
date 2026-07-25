@@ -1,0 +1,5 @@
+prop,has_advancing_candidate,best_candidate,best_logloss_delta_vs_market,best_brier_delta_vs_market,distance_from_passing
+ast,True,C5_role_blend,-0.011105470000240536,-0.005109928035092831,0.0
+fg3m,True,C2_beta,-0.012490742238217334,-0.006561892177397832,0.0
+pts,True,C6_market_residual,-0.0011319651651309215,-0.0005788621577417496,0.0
+reb,True,C4_blend,-0.001141016894740221,-0.000525642234559337,0.0

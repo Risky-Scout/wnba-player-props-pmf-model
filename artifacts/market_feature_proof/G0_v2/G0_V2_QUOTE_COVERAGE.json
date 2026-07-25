@@ -1,0 +1,118 @@
+{
+  "primary_book": "draftkings",
+  "split_cut_date": "2026-06-13",
+  "by_prop_book": {
+    "pts": {
+      "betonlineag": {
+        "rows": 526,
+        "dates": 31
+      },
+      "draftkings": {
+        "rows": 824,
+        "dates": 55
+      },
+      "fanduel": {
+        "rows": 808,
+        "dates": 54
+      },
+      "williamhill_us": {
+        "rows": 766,
+        "dates": 52
+      }
+    },
+    "reb": {
+      "betonlineag": {
+        "rows": 464,
+        "dates": 31
+      },
+      "draftkings": {
+        "rows": 695,
+        "dates": 55
+      },
+      "fanduel": {
+        "rows": 675,
+        "dates": 54
+      },
+      "williamhill_us": {
+        "rows": 567,
+        "dates": 52
+      }
+    },
+    "ast": {
+      "betonlineag": {
+        "rows": 326,
+        "dates": 31
+      },
+      "draftkings": {
+        "rows": 458,
+        "dates": 55
+      },
+      "fanduel": {
+        "rows": 395,
+        "dates": 54
+      },
+      "williamhill_us": {
+        "rows": 283,
+        "dates": 52
+      }
+    },
+    "fg3m": {
+      "betonlineag": {
+        "rows": 325,
+        "dates": 31
+      },
+      "draftkings": {
+        "rows": 475,
+        "dates": 55
+      },
+      "fanduel": {
+        "rows": 435,
+        "dates": 54
+      },
+      "williamhill_us": {
+        "rows": 397,
+        "dates": 51
+      }
+    },
+    "stl": {},
+    "blk": {},
+    "turnover": {}
+  },
+  "by_prop_primary": {
+    "pts": {
+      "rows": 824,
+      "dates": 55,
+      "status": "OK"
+    },
+    "reb": {
+      "rows": 695,
+      "dates": 55,
+      "status": "OK"
+    },
+    "ast": {
+      "rows": 458,
+      "dates": 55,
+      "status": "OK"
+    },
+    "fg3m": {
+      "rows": 475,
+      "dates": 55,
+      "status": "OK"
+    },
+    "stl": {
+      "rows": 0,
+      "dates": 0,
+      "status": "NO_EXACT_QUOTES"
+    },
+    "blk": {
+      "rows": 0,
+      "dates": 0,
+      "status": "NO_EXACT_QUOTES"
+    },
+    "turnover": {
+      "rows": 0,
+      "dates": 0,
+      "status": "NO_EXACT_QUOTES"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "selected_candidates": {
+    "pts": {
+      "candidate_id": "C6_market_residual",
+      "probability_track": "pure_forecast",
+      "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+      "feature_schema_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "calibration_policy_hash": "8ff643fe92bcc3dee24eb6852bc07b10410496aab632912df5155afd66b6e41f",
+      "calibrator_hash": "51f6bda9765a51ee12785340718839216e1c6653afb8f312e282c84172fb8eff",
+      "training_date_max": "2026-06-12",
+      "selection_date_max": "2026-06-12",
+      "proof_date_min": "2026-06-13"
+    }
+  }
+}

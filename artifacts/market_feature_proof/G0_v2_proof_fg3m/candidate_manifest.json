@@ -1,0 +1,15 @@
+{
+  "selected_candidates": {
+    "fg3m": {
+      "candidate_id": "C2_beta",
+      "probability_track": "pure_forecast",
+      "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+      "feature_schema_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "calibration_policy_hash": "de27f1b8250698b2ff1d5d2481a66f630632ebebb902a4bf15be9883fc1d7989",
+      "calibrator_hash": "f088fd228bc0b073ecaf6ee066116dceddaa0c303b47f2f73b4ba1789e31ffdf",
+      "training_date_max": "2026-06-12",
+      "selection_date_max": "2026-06-12",
+      "proof_date_min": "2026-06-13"
+    }
+  }
+}
