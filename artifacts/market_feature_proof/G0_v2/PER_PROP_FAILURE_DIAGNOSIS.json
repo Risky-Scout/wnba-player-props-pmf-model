@@ -73,7 +73,8 @@
       },
       "semantics_sign_status": "ORIENTED_CORRECTLY",
       "selection_advancing_candidates_diagnostic": [
-        "C4_blend"
+        "C4_blend",
+        "C5_role_blend"
       ],
       "failure_diagnosis": {
         "reason": "calibration",
@@ -100,13 +101,7 @@
         "market_ece": 0.049950945053654286
       },
       "semantics_sign_status": "ORIENTED_CORRECTLY",
-      "selection_advancing_candidates_diagnostic": [
-        "C1_platt",
-        "C2_beta",
-        "C4_blend",
-        "C5_role_blend",
-        "C6_market_residual"
-      ],
+      "selection_advancing_candidates_diagnostic": [],
       "failure_diagnosis": {
         "reason": "discrimination",
         "delta_auc_vs_market": -0.04946487486923645,

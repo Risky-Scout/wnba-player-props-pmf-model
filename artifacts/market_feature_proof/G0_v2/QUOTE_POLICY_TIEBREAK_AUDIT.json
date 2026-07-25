@@ -1,0 +1,16 @@
+{
+  "version": "quote-policy-tiebreak-audit-v1",
+  "policy_file_sha256": "962db96af3cceb31eb0e2efc08ca5f069e517e131e10d1a76619de4f8a20c780",
+  "priority": [
+    "draftkings",
+    "fanduel",
+    "williamhill_us",
+    "betrivers",
+    "betonlineag"
+  ],
+  "observations": 2619,
+  "obs_with_multiple_eligible_pairs_at_selected_book": 0,
+  "max_eligible_pairs_at_selected_book": 1,
+  "tiebreak_used": false,
+  "conclusion": "Exactly one eligible exact pair per observation at the selected book; the latest-at-or-before-cutoff tie-break was UNUSED. No policy v2 needed (point-in-time comparability already deterministic)."
+}

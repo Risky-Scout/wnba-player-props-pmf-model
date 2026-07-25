@@ -146,7 +146,16 @@ def main() -> int:
                           "discrimination deficit vs market that calibration cannot repair."),
             "selection_ranking": ranking,
         },
-        "deliverable_6b_ast_freeze": _load(REPO / "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE.json"),
+        "deliverable_6b_ast_freeze_v2": _load(REPO / "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE_V2.json"),
+        "deliverable_6c_ast_freeze_v1_invalidation": _load(REPO / "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE_INVALIDATION.json"),
+        "deliverable_6d_quote_policy_hash_resolution": {
+            "authoritative_hash_method": "raw file SHA-256 of config/book_quote_priority_v1.json",
+            "quote_policy_file_sha256": "962db96af3cceb31eb0e2efc08ca5f069e517e131e10d1a76619de4f8a20c780",
+            "stale_v1_freeze_hash": "4b39ee8f1deb33cd211e83e186d89aa3fc0bdc2b7ae00a0197a2392360b70c89",
+            "resolution": ("The stale value was a string hash of a label, not the file digest; the "
+                           "v1 freeze is invalidated. The v2 freeze records the raw file SHA-256."),
+            "tiebreak_audit": _load(G0 / "QUOTE_POLICY_TIEBREAK_AUDIT.json"),
+        },
         "deliverable_7_first_edge_board_row_blocker": {
             "certified_props": [],
             "blocker": ("No certified prop yet. AST candidate A1 (monotone-calibrated existing model) "

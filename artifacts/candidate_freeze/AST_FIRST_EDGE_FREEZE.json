@@ -40,5 +40,12 @@
     "status": null,
     "note": null
   },
-  "caveat": "Development-window proper-score dominance is small; pooled calibration slope is low (documented cross-fold pooling artifact). Certification depends solely on the prospective proof; this freeze does NOT certify."
+  "caveat": "Development-window proper-score dominance is small; pooled calibration slope is low (documented cross-fold pooling artifact). Certification depends solely on the prospective proof; this freeze does NOT certify.",
+  "SUPERSEDED_BY": "AST_FIRST_EDGE_FREEZE_INVALIDATION.json",
+  "authoritative_status": [
+    "INVALIDATED_TEMPORAL_CV_LEAKAGE",
+    "NOT_PROOF_ELIGIBLE",
+    "NOT_DEPLOYABLE",
+    "NOT_CERTIFIED"
+  ]
 }

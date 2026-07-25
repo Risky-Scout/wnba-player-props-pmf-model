@@ -1,0 +1,22 @@
+{
+  "version": "primary-deterministic-scored-rows-v1",
+  "unique_key": [
+    "game_id",
+    "player_id",
+    "prop"
+  ],
+  "rows": 2619,
+  "quote_policy_version": "book-quote-priority-v1",
+  "quote_policy_file_sha256": "962db96af3cceb31eb0e2efc08ca5f069e517e131e10d1a76619de4f8a20c780",
+  "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+  "feature_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+  "calibration_hash_C0": "bf2c42e2dcdabf6039685a057afedaff21330690be5ae81e386341bdcd995478",
+  "rows_by_prop": {
+    "ast": 522,
+    "fg3m": 504,
+    "pts": 851,
+    "reb": 742
+  },
+  "sha256": "d8222320d5e8c01070dbced47ac8db2d290912a44086f2676efa75a5ce8a1f71",
+  "row_count_reconciliation": "Primary = one deterministic quote per (game_id,player_id,prop) under book-quote-priority-v1 (draftkings first, backfilled by fanduel/williamhill_us/betrivers/betonlineag when the higher-priority book has no exact pair). This yields pts 851 / reb 742 / ast 522 / fg3m 504. The legacy P14 numbers (pts 824 / reb 695 / ast 458 / fg3m 475) were DRAFTKINGS-ONLY and are superseded."
+}

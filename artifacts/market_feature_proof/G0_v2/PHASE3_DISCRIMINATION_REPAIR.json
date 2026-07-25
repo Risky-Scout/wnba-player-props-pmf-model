@@ -1,187 +1,40 @@
 {
-  "version": "phase3-discrimination-repair-v1",
-  "scope": "primary_deterministic_one_quote (DEVELOPMENT/SELECTION; NOT future proof)",
+  "version": "phase3-discrimination-repair-v2",
+  "cv": "corrected nested expanding-window rolling-origin",
   "a4_status": "BLOCKED_NO_FEATURE_MATRIX (pregame feature matrix unrecoverable on this VM)",
   "props": {
     "pts": {
-      "prop": "pts",
-      "n_dev": 851,
-      "records": [
-        {
-          "candidate": "A0",
-          "n": 851,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 0.0,
-          "ece": 0.01935129602409774,
-          "auc": 0.5198485150267782,
-          "market_auc": 0.5198485150267782,
-          "cal_slope": 0.6440213028392696,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A1",
-          "n": 851,
-          "logloss_delta_vs_market": 0.0008266180654260546,
-          "brier_delta_vs_market": 0.0004141043179521353,
-          "ece": 0.004797003531005307,
-          "auc": 0.4701124242021865,
-          "market_auc": 0.5198485150267782,
-          "cal_slope": -2.655967649435881,
-          "worst_fold_logloss_delta": 0.001727943605564941,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A2",
-          "n": 851,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 2.7755575615628914e-17,
-          "ece": 0.019351296024097776,
-          "auc": 0.5198485150267782,
-          "market_auc": 0.5198485150267782,
-          "cal_slope": 0.644021302839268,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A3",
-          "n": 851,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 2.7755575615628914e-17,
-          "ece": 0.019351296024097776,
-          "auc": 0.5198485150267782,
-          "market_auc": 0.5198485150267782,
-          "cal_slope": 0.644021302839268,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A4_feature_residual",
-          "status": "BLOCKED_NO_FEATURE_MATRIX"
-        }
-      ],
       "any_existing_output_challenger_beats_market": false,
-      "best_challenger": null
+      "advancing_candidates": [],
+      "raw_model_auc": 0.48745772410058336,
+      "market_auc": 0.5264026402640265,
+      "auc_deficit_vs_market": 0.0389,
+      "semantics_sign_status": "SIGN_INVERSION_DIAGNOSTIC",
+      "diagnosis": "sign-inversion/near-null signal at market lines; no gross target/line defect found (under=1-over, prob at quote line, pushes excluded, identities clean)",
+      "next_repair": "A4 regularized feature residual (existing pregame features) \u2014 BLOCKED_NO_FEATURE_MATRIX until feature matrix is recovered/rebuilt"
     },
     "reb": {
-      "prop": "reb",
-      "n_dev": 742,
-      "records": [
-        {
-          "candidate": "A0",
-          "n": 742,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 0.0,
-          "ece": 0.03506278049737647,
-          "auc": 0.5865342405618964,
-          "market_auc": 0.5865342405618964,
-          "cal_slope": 1.3227089490613473,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A1",
-          "n": 742,
-          "logloss_delta_vs_market": 0.005195628229463067,
-          "brier_delta_vs_market": 0.0025209531041368305,
-          "ece": 0.00676869522011959,
-          "auc": 0.5449736611062336,
-          "market_auc": 0.5865342405618964,
-          "cal_slope": 0.7122979999326672,
-          "worst_fold_logloss_delta": 0.02406258163886399,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A2",
-          "n": 742,
-          "logloss_delta_vs_market": -1.1102230246251565e-16,
-          "brier_delta_vs_market": 0.0,
-          "ece": 0.03506278049737647,
-          "auc": 0.5865342405618964,
-          "market_auc": 0.5865342405618964,
-          "cal_slope": 1.3227089490613475,
-          "worst_fold_logloss_delta": 1.1102230246251565e-16,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A3",
-          "n": 742,
-          "logloss_delta_vs_market": 1.2867298785801395e-05,
-          "brier_delta_vs_market": 6.310079356808274e-06,
-          "ece": 0.035052949135031514,
-          "auc": 0.5864135206321335,
-          "market_auc": 0.5865342405618964,
-          "cal_slope": 1.321942017876888,
-          "worst_fold_logloss_delta": 3.9750795611803724e-05,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A4_feature_residual",
-          "status": "BLOCKED_NO_FEATURE_MATRIX"
-        }
+      "any_existing_output_challenger_beats_market": true,
+      "advancing_candidates": [
+        "C4_blend",
+        "C6_market_residual"
       ],
-      "any_existing_output_challenger_beats_market": false,
-      "best_challenger": null
+      "raw_model_auc": 0.55078125,
+      "market_auc": 0.5911568306587838,
+      "auc_deficit_vs_market": 0.0404,
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "diagnosis": "market discrimination advantage; recalibration/market-blend cannot add ordering",
+      "next_repair": "A4 regularized feature residual (existing pregame features) \u2014 BLOCKED_NO_FEATURE_MATRIX until feature matrix is recovered/rebuilt"
     },
     "fg3m": {
-      "prop": "fg3m",
-      "n_dev": 504,
-      "records": [
-        {
-          "candidate": "A0",
-          "n": 504,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 0.0,
-          "ece": 0.049950945053654286,
-          "auc": 0.6170193932566187,
-          "market_auc": 0.6170193932566187,
-          "cal_slope": 1.0389520714805207,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A1",
-          "n": 504,
-          "logloss_delta_vs_market": 0.015173825667819552,
-          "brier_delta_vs_market": 0.007103743751515984,
-          "ece": 0.0124417578147594,
-          "auc": 0.5462460770902068,
-          "market_auc": 0.6170193932566187,
-          "cal_slope": 0.76172410947746,
-          "worst_fold_logloss_delta": 0.04381637283519124,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A2",
-          "n": 504,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 0.0,
-          "ece": 0.0499509450536543,
-          "auc": 0.6170193932566187,
-          "market_auc": 0.6170193932566187,
-          "cal_slope": 1.0389520714805207,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A3",
-          "n": 504,
-          "logloss_delta_vs_market": 0.0,
-          "brier_delta_vs_market": 0.0,
-          "ece": 0.0499509450536543,
-          "auc": 0.6170193932566187,
-          "market_auc": 0.6170193932566187,
-          "cal_slope": 1.0389520714805207,
-          "worst_fold_logloss_delta": 0.0,
-          "beats_market_both": false
-        },
-        {
-          "candidate": "A4_feature_residual",
-          "status": "BLOCKED_NO_FEATURE_MATRIX"
-        }
-      ],
       "any_existing_output_challenger_beats_market": false,
-      "best_challenger": null
+      "advancing_candidates": [],
+      "raw_model_auc": 0.5473981900452489,
+      "market_auc": 0.6329044117647059,
+      "auc_deficit_vs_market": 0.0855,
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "diagnosis": "market discrimination advantage; recalibration/market-blend cannot add ordering",
+      "next_repair": "A4 regularized feature residual (existing pregame features) \u2014 BLOCKED_NO_FEATURE_MATRIX until feature matrix is recovered/rebuilt"
     }
   }
 }

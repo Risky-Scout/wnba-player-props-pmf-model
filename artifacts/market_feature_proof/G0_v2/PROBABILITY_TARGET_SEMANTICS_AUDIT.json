@@ -1,6 +1,6 @@
 {
   "version": "probability-target-semantics-audit-v1",
-  "scope": "primary_deterministic_one_quote",
+  "scope": "primary_deterministic_one_quote (canonical artifact)",
   "per_prop": {
     "pts": {
       "n": 851,

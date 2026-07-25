@@ -22,7 +22,13 @@ import typer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from build_lowcost_candidates import _fit_candidate  # noqa: E402
+from build_lowcost_candidates import _fit as _fit_candidate_impl  # noqa: E402
+
+
+def _fit_candidate(candidate, sel):
+    """Back-compat shim: corrected _fit returns (predictor, meta); return the predictor."""
+    fn, _meta = _fit_candidate_impl(candidate, sel)
+    return fn
 from wnba_props_model.models.probability_contract import FINAL_PROBABILITY_COLUMN  # noqa: E402
 
 app = typer.Typer(add_completion=False)

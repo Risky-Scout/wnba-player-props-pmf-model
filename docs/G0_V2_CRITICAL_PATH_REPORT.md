@@ -141,3 +141,38 @@ steals/blocks/turnovers); forward collection and stl/blk/turnover backfill are
 **Backup:** the private-repo authenticated 404 is **BLOCKED_TOKEN_REPOSITORY_ACCESS** (the token
 lists 20 Risky-Scout repos but not the data repo; name matches, owner correct) — a token-scope
 issue, not a missing repo. Publish the recovery bundle once access is granted.
+
+---
+
+## Correction pass (leaky-CV defect fix)
+
+A valid defect was found: the candidate cross-validation was **leave-block-out** (folds trained on
+future date blocks), not rolling-origin. Corrections:
+
+- **AST A1 freeze INVALIDATED** (`AST_FIRST_EDGE_FREEZE_INVALIDATION.json`): status
+  `INVALIDATED_TEMPORAL_CV_LEAKAGE / NOT_PROOF_ELIGIBLE / NOT_DEPLOYABLE / NOT_CERTIFIED`; prior
+  evidence preserved. No proof rows collected under it.
+- **CV repaired** → `src/wnba_props_model/evaluation/rolling_origin.py`: grouped **expanding-window**
+  folds with the invariant `max(train_date) < min(validation_date)`, machine-verifiable fold
+  manifest (`ROLLING_ORIGIN_FOLD_MANIFEST.json`, all `chronology_pass=true`), and **nested** inner
+  selection. Tests (`tests/test_rolling_origin_cv.py`) reproduce the old leave-block-out folds and
+  **require** the chronology check to flag them.
+- **One canonical scored-row universe** `PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet` (key
+  `game_id+player_id+prop`, one row max) drives all metrics. Row-count reconciliation: primary
+  deterministic one-quote = **pts 851 / reb 742 / ast 522 / fg3m 504** (draftkings first, backfilled
+  by lower-priority books when absent); the legacy **824/695/458/475** were draftkings-only and are
+  superseded.
+- **Quote-policy hash resolved**: authoritative = raw file SHA-256
+  `962db96af3cceb31eb0e2efc08ca5f069e517e131e10d1a76619de4f8a20c780`; the stale freeze value
+  `4b39ee8f…` was a label string-hash (invalidated). Tie-break audit: exactly one eligible pair per
+  observation at the selected book → tie-break unused; policy v1 retained.
+- **Corrected C0–C6 (nested rolling-origin):** ast advances on proper score (C4_blend ΔLL −0.0048,
+  C5 −0.0016); reb advances (C4/C6); fg3m/pts none. **Strict-AUC gate:** no ast candidate beats
+  market AUC (best −0.0076) → `strict_auc_selection_eligible=False`.
+- **AST re-freeze v2** (`AST_FIRST_EDGE_FREEZE_V2.json`): candidate **C4_blend**, **proper-score
+  track**, `proper_score_selection_eligible=True`, `strict_auc_selection_eligible=False` (explicitly
+  not strict-gate-ready); raw file policy SHA + canonical + fold-manifest + code hashes recorded.
+- **Calibrator monotonicity (expanding-window):** PTS has a **negative Platt slope in all 14 folds**
+  (SIGN_INVERSION_DIAGNOSTIC); reb/ast/fg3m monotone.
+- **Phase 3:** no existing-output challenger beats market for pts/reb/fg3m; A4 feature residual
+  `BLOCKED_NO_FEATURE_MATRIX`.

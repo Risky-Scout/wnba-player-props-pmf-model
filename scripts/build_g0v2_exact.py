@@ -137,6 +137,8 @@ def main(
     om_cols = ["game_id", "player_id", "stat", "pmf_json", "actual_outcome"]
     if "role_bucket" in oof_df.columns:
         om_cols.append("role_bucket")
+    if "fold_id" in oof_df.columns:
+        om_cols.append("fold_id")
     om = oof_df[om_cols].drop_duplicates(["game_id", "player_id", "stat"])
 
     pair = _pair_decision_quotes(pd.read_parquet(quotes))
@@ -198,7 +200,56 @@ def main(
     scored = df[cols].reset_index(drop=True)
     scored.to_parquet(outp / "scored_candidates_g0v2.parquet", index=False)
 
-    prim = scored[scored["is_primary"]]
+    prim = scored[scored["is_primary"]].copy()
+
+    # ---- ONE canonical primary deterministic scored-row artifact (drives ALL downstream) ----
+    import hashlib as _hl
+    _model_hash = _hl.sha256(Path(oof).read_bytes()).hexdigest() if Path(oof).exists() else None
+    _feat_hash = "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357"
+    _cal_hash = _hl.sha256(b"identity_pure_forecast_C0").hexdigest()
+    _policy_sha = _hl.sha256(Path(quote_policy).read_bytes()).hexdigest()
+    can = prim.copy()
+    can["binary_target_over"] = can["outcome_over"].astype(int)
+    can["pair_timestamp"] = can["snapshot_time"]
+    can["decision_timestamp"] = can["snapshot_time"]
+    can["settlement_status"] = "settled"
+    can["binary_score_eligible"] = True
+    can["oof_fold"] = can["fold_id"] if "fold_id" in can.columns else -1
+    can["model_hash"] = _model_hash
+    can["feature_hash"] = _feat_hash
+    can["calibration_hash"] = _cal_hash
+    can["quote_pair_id"] = [
+        _hl.sha256(f"{b}|{g}|{p}|{pr}|{ln}|{ts}".encode()).hexdigest()[:16]
+        for b, g, p, pr, ln, ts in zip(can["book"], can["game_id"], can["player_id"],
+                                       can["prop"], can["line"], can["snapshot_time"])]
+    can = can.rename(columns={"book": "sportsbook"})
+    canon_cols = ["game_date", "game_id", "player_id", "prop", "actual", "line", "sportsbook",
+                  "over_odds", "under_odds", "quote_pair_id", "pair_timestamp", "decision_timestamp",
+                  FINAL_PROBABILITY_COLUMN, "market_prob_over_no_vig", "binary_target_over",
+                  "settlement_status", "binary_score_eligible", "oof_fold", "model_hash",
+                  "feature_hash", "calibration_hash", "role_bucket", "split", "outcome_over"]
+    canon = can[canon_cols].reset_index(drop=True)
+    # enforce one row per canonical key
+    dup = int(canon.duplicated(["game_id", "player_id", "prop"]).sum())
+    if dup:
+        raise SystemExit(f"canonical artifact has {dup} duplicate (game_id,player_id,prop) keys")
+    canon.to_parquet(outp / "PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet", index=False)
+    (outp / "PRIMARY_DETERMINISTIC_SCORED_ROWS_MANIFEST.json").write_text(json.dumps({
+        "version": "primary-deterministic-scored-rows-v1",
+        "unique_key": ["game_id", "player_id", "prop"],
+        "rows": int(len(canon)), "quote_policy_version": policy["version"],
+        "quote_policy_file_sha256": _policy_sha,
+        "model_hash": _model_hash, "feature_hash": _feat_hash, "calibration_hash_C0": _cal_hash,
+        "rows_by_prop": {k: int(v) for k, v in canon.groupby("prop").size().items()},
+        "sha256": _hl.sha256((outp / "PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet").read_bytes()).hexdigest(),
+        "row_count_reconciliation": (
+            "Primary = one deterministic quote per (game_id,player_id,prop) under "
+            "book-quote-priority-v1 (draftkings first, backfilled by fanduel/williamhill_us/"
+            "betrivers/betonlineag when the higher-priority book has no exact pair). This yields "
+            "pts 851 / reb 742 / ast 522 / fg3m 504. The legacy P14 numbers (pts 824 / reb 695 / "
+            "ast 458 / fg3m 475) were DRAFTKINGS-ONLY and are superseded."),
+    }, indent=2) + "\n")
+
     # Coverage report: PRIMARY deterministic one-quote + per-book + all-books pooled (sensitivity).
     cov = {"quote_policy": policy["version"], "primary_scope": "deterministic_one_quote_per_obs",
            "legacy_primary_book": primary_book, "split_cut_date": str(cut),
