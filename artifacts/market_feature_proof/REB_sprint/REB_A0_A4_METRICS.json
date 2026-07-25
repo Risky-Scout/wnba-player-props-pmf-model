@@ -1,0 +1,90 @@
+{
+  "cv": "corrected nested expanding-window rolling-origin (leakage-safe)",
+  "scored_artifact": "PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet",
+  "gates": {
+    "proper_score": "logloss<market AND brier<market AND monotone AND ece ok AND no catastrophic fold",
+    "strict_auc": "proper_score AND cand_auc>market_auc"
+  },
+  "records": [
+    {
+      "a_id": "A1",
+      "candidate": "C1_platt",
+      "status": "EVALUATED",
+      "logloss_delta": 0.0052248962707978075,
+      "brier_delta": 0.002545293106731711,
+      "cand_auc": 0.5462547508445945,
+      "market_auc": 0.5911568306587838,
+      "auc_delta": -0.044902079814189255,
+      "cand_ece": 0.027440891533300243,
+      "cal_slope": 0.7921559901642024,
+      "monotone_deployable": true,
+      "worst_fold_logloss_delta": 0.03543316167058508,
+      "proper_score_selection_eligible": false,
+      "strict_auc_selection_eligible": false
+    },
+    {
+      "a_id": "A2",
+      "candidate": "C4_blend",
+      "status": "EVALUATED",
+      "logloss_delta": -0.0015877687787697603,
+      "brier_delta": -0.0007098181901469269,
+      "cand_auc": 0.5813450168918919,
+      "market_auc": 0.5911568306587838,
+      "auc_delta": -0.009811813766891886,
+      "cand_ece": 0.01475702612190002,
+      "cal_slope": 1.2306608155119438,
+      "monotone_deployable": true,
+      "worst_fold_logloss_delta": 0.018181190913598155,
+      "proper_score_selection_eligible": true,
+      "strict_auc_selection_eligible": false
+    },
+    {
+      "a_id": "A3",
+      "candidate": "C5_role_blend",
+      "status": "EVALUATED",
+      "logloss_delta": -0.003442224651234227,
+      "brier_delta": -0.0016601874290442242,
+      "cand_auc": 0.5992068728885135,
+      "market_auc": 0.5911568306587838,
+      "auc_delta": 0.008050042229729715,
+      "cand_ece": 0.022418176331872423,
+      "cal_slope": 0.9980017612300164,
+      "monotone_deployable": true,
+      "worst_fold_logloss_delta": 0.061551105402469886,
+      "proper_score_selection_eligible": false,
+      "strict_auc_selection_eligible": false
+    },
+    {
+      "a_id": "A0",
+      "candidate": "market_identity",
+      "status": "BASELINE",
+      "logloss_delta": null,
+      "brier_delta": null,
+      "cand_auc": null,
+      "market_auc": null,
+      "auc_delta": null,
+      "cand_ece": null,
+      "cal_slope": null,
+      "monotone_deployable": null,
+      "worst_fold_logloss_delta": null,
+      "proper_score_selection_eligible": null,
+      "strict_auc_selection_eligible": null
+    },
+    {
+      "a_id": "A4",
+      "candidate": "regularized_feature_residual",
+      "status": "BLOCKED_NO_FEATURE_MATRIX",
+      "logloss_delta": null,
+      "brier_delta": null,
+      "cand_auc": null,
+      "market_auc": null,
+      "auc_delta": null,
+      "cand_ece": null,
+      "cal_slope": null,
+      "monotone_deployable": null,
+      "worst_fold_logloss_delta": null,
+      "proper_score_selection_eligible": null,
+      "strict_auc_selection_eligible": null
+    }
+  ]
+}

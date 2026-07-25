@@ -86,6 +86,8 @@ CLASSIFICATION: dict[str, str] = {
     "scripts/build_historical_review.py": "permitted_pmf_diagnostic",
     "scripts/audit_exact_quote_readiness.py": "permitted_pmf_diagnostic",
     "scripts/audit_probability_semantics.py": "permitted_pmf_diagnostic",
+    "scripts/phase3_a4_feature_residual.py": "permitted_pmf_diagnostic",
+    "scripts/verify_delivered_lineage.py": "permitted_pmf_diagnostic",
     # the audit itself references the symbols as detection strings
     "scripts/audit_probability_consumers.py": "audit_tool",
 }

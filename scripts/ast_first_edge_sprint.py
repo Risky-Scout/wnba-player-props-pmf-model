@@ -55,11 +55,15 @@ def _gates(r: dict) -> dict:
 def main(
     scored: str = typer.Option("artifacts/market_feature_proof/G0_v2/PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet", "--scored"),
     quote_policy: str = typer.Option("config/book_quote_priority_v1.json", "--quote-policy"),
-    out_dir: str = typer.Option("artifacts/market_feature_proof/AST_sprint", "--out-dir"),
+    out_dir: str = typer.Option("", "--out-dir"),
+    prop: str = typer.Option("ast", "--prop", help="Prop to reassess/freeze (ast or reb)."),
 ) -> None:
+    prop = prop.lower()
+    P = prop.upper()
+    out_dir = out_dir or f"artifacts/market_feature_proof/{P}_sprint"
     outp = Path(out_dir); outp.mkdir(parents=True, exist_ok=True)
     df = pd.read_parquet(scored)
-    ast = df[df["prop"] == "ast"].sort_values("game_date").reset_index(drop=True)
+    ast = df[df["prop"] == prop].sort_values("game_date").reset_index(drop=True)
 
     rows = []
     for a_id, c_id in A_MAP.items():
@@ -78,29 +82,29 @@ def main(
     rows.append({"a_id": "A4", "candidate": "regularized_feature_residual",
                  "status": "BLOCKED_NO_FEATURE_MATRIX"})
     res = pd.DataFrame(rows)
-    res.to_csv(outp / "AST_A0_A4_METRICS.csv", index=False)
+    res.to_csv(outp / f"{P}_A0_A4_METRICS.csv", index=False)
 
     ev = [r for r in rows if r.get("status") == "EVALUATED"]
     proper = [r for r in ev if r["proper_score_selection_eligible"]]
-    (outp / "AST_A0_A4_METRICS.json").write_text(json.dumps(
+    (outp / f"{P}_A0_A4_METRICS.json").write_text(json.dumps(
         {"cv": "corrected nested expanding-window rolling-origin (leakage-safe)",
          "scored_artifact": "PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet",
          "gates": {"proper_score": "logloss<market AND brier<market AND monotone AND ece ok AND no catastrophic fold",
                    "strict_auc": "proper_score AND cand_auc>market_auc"},
          "records": res.replace({np.nan: None}).to_dict("records")}, indent=2) + "\n")
 
-    print("[AST reassessment, corrected nested CV]")
+    print(f"[{P} reassessment, corrected nested CV]")
     for r in ev:
         print(f"  {r['a_id']}={r['candidate']:14s} dLL={r['logloss_delta']:+.5f} "
               f"dBrier={r['brier_delta']:+.5f} auc_delta={r['auc_delta']:+.4f} "
               f"proper={r['proper_score_selection_eligible']} strict_auc={r['strict_auc_selection_eligible']}")
 
     if not proper:
-        (outp / "AST_FREEZE_DECISION.json").write_text(json.dumps(
-            {"frozen": False, "reason": "no AST candidate is proper_score_selection_eligible under "
+        (outp / f"{P}_FREEZE_DECISION.json").write_text(json.dumps(
+            {"frozen": False, "reason": f"no {prop} candidate is proper_score_selection_eligible under "
              "corrected nested rolling-origin CV", "records": res.replace({np.nan: None}).to_dict("records")},
             indent=2) + "\n")
-        print("\n[AST freeze] NO candidate qualifies (proper-score) — none frozen.")
+        print(f"\n[{P} freeze] NO candidate qualifies (proper-score) — none frozen.")
         return
 
     best = sorted(proper, key=lambda r: r["logloss_delta"])[0]
@@ -123,10 +127,12 @@ def main(
     now = pd.Timestamp.now(tz="UTC")
     policy_sha = _sha_file(Path(quote_policy))
     canon = Path(scored)
+    supersedes = ("AST_FIRST_EDGE_FREEZE.json (v1, INVALIDATED_TEMPORAL_CV_LEAKAGE)"
+                  if prop == "ast" else "none (first freeze for this prop)")
     freeze = {
-        "version": "ast-first-edge-freeze-v2",
-        "supersedes": "AST_FIRST_EDGE_FREEZE.json (v1, INVALIDATED_TEMPORAL_CV_LEAKAGE)",
-        "prop": "ast", "candidate_id": c_id, "a_id": best["a_id"],
+        "version": f"{prop}-first-edge-freeze-v2",
+        "supersedes": supersedes,
+        "prop": prop, "candidate_id": c_id, "a_id": best["a_id"],
         "track": "proper_score" if not best["strict_auc_selection_eligible"] else "strict",
         "proper_score_selection_eligible": best["proper_score_selection_eligible"],
         "strict_auc_selection_eligible": best["strict_auc_selection_eligible"],
@@ -155,11 +161,11 @@ def main(
                    "nested CV but does NOT beat market AUC (strict-AUC gate not met). Not strict-gate-"
                    "ready. Certification depends solely on the prospective proof; this freeze does NOT certify."),
     }
-    fp = REPO / "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE_V2.json"
+    fp = REPO / f"artifacts/candidate_freeze/{P}_FIRST_EDGE_FREEZE_V2.json"
     fp.write_text(json.dumps(freeze, indent=2) + "\n")
-    print(f"\n[AST freeze v2] candidate={c_id} track={freeze['track']} "
+    print(f"\n[{P} freeze v2] candidate={c_id} track={freeze['track']} "
           f"proper={best['proper_score_selection_eligible']} strict_auc={best['strict_auc_selection_eligible']}")
-    print(f"[AST freeze v2] wrote {fp.relative_to(REPO)} (policy_sha={policy_sha[:12]}…)")
+    print(f"[{P} freeze v2] wrote {fp.relative_to(REPO)} (policy_sha={policy_sha[:12]}…)")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
-  "version": "phase3-discrimination-repair-v2",
+  "version": "phase3-discrimination-repair-v3",
   "cv": "corrected nested expanding-window rolling-origin",
-  "a4_status": "BLOCKED_NO_FEATURE_MATRIX (pregame feature matrix unrecoverable on this VM)",
+  "a4_status": "UNBLOCKED_FEATURE_MATRIX_RECOVERED",
   "props": {
     "pts": {
       "any_existing_output_challenger_beats_market": false,
@@ -10,8 +10,50 @@
       "market_auc": 0.5264026402640265,
       "auc_deficit_vs_market": 0.0389,
       "semantics_sign_status": "SIGN_INVERSION_DIAGNOSTIC",
+      "a4_feature_residual": {
+        "n": 626,
+        "n_folds": 14,
+        "cand_logloss": 0.6977990923687478,
+        "market_logloss": 0.6920418443579266,
+        "base_model_logloss": 0.7797356449606374,
+        "cand_brier": 0.2522249674544437,
+        "market_brier": 0.24944983052825373,
+        "cand_ece": 0.029327394627829555,
+        "market_ece": 0.014467425575986584,
+        "cand_auc": 0.5162819687541509,
+        "market_auc": 0.5264026402640265,
+        "base_model_auc": 0.48745772410058336,
+        "cal_slope": 0.16763073714651774,
+        "logloss_delta_vs_market": 0.005757248010821225,
+        "brier_delta_vs_market": 0.002775136926189997,
+        "auc_delta_vs_market": -0.010120671509875612,
+        "auc_gain_vs_base_model": 0.028824244653567532,
+        "worst_fold_logloss_delta": 0.037583165076872316,
+        "selected_C_by_fold": [
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ],
+        "proper_score_selection_eligible": false,
+        "strict_auc_selection_eligible": false,
+        "status": "EVALUATED",
+        "joined_rows": 851,
+        "repair_beats_market": false,
+        "adds_discrimination_vs_market": false
+      },
       "diagnosis": "sign-inversion/near-null signal at market lines; no gross target/line defect found (under=1-over, prob at quote line, pushes excluded, identities clean)",
-      "next_repair": "A4 regularized feature residual (existing pregame features) \u2014 BLOCKED_NO_FEATURE_MATRIX until feature matrix is recovered/rebuilt"
+      "next_repair": "A4 regularized feature residual FIT (feature matrix recovered): cand AUC 0.516 vs base 0.487 vs market 0.526; beats_market=False, adds_discrimination_vs_market=False. Repair does NOT beat the exact market on the leakage-safe nested CV; prop remains NOT promotion-eligible (no certified edge)."
     },
     "reb": {
       "any_existing_output_challenger_beats_market": true,
@@ -23,6 +65,7 @@
       "market_auc": 0.5911568306587838,
       "auc_deficit_vs_market": 0.0404,
       "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "a4_feature_residual": null,
       "diagnosis": "market discrimination advantage; recalibration/market-blend cannot add ordering",
       "next_repair": "A4 regularized feature residual (existing pregame features) \u2014 BLOCKED_NO_FEATURE_MATRIX until feature matrix is recovered/rebuilt"
     },
@@ -33,8 +76,50 @@
       "market_auc": 0.6329044117647059,
       "auc_deficit_vs_market": 0.0855,
       "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "a4_feature_residual": {
+        "n": 378,
+        "n_folds": 14,
+        "cand_logloss": 0.6870832735102257,
+        "market_logloss": 0.6610541760138181,
+        "base_model_logloss": 0.7726004137515324,
+        "cand_brier": 0.246551663341013,
+        "market_brier": 0.23446165328978272,
+        "cand_ece": 0.022784016289056862,
+        "market_ece": 0.029281005611023217,
+        "cand_auc": 0.5541855203619909,
+        "market_auc": 0.6329044117647059,
+        "base_model_auc": 0.5473981900452489,
+        "cal_slope": 0.5942486198769082,
+        "logloss_delta_vs_market": 0.026029097496407583,
+        "brier_delta_vs_market": 0.012090010051230282,
+        "auc_delta_vs_market": -0.07871889140271504,
+        "auc_gain_vs_base_model": 0.006787330316741946,
+        "worst_fold_logloss_delta": 0.11918384712062247,
+        "selected_C_by_fold": [
+          0.003,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ],
+        "proper_score_selection_eligible": false,
+        "strict_auc_selection_eligible": false,
+        "status": "EVALUATED",
+        "joined_rows": 504,
+        "repair_beats_market": false,
+        "adds_discrimination_vs_market": false
+      },
       "diagnosis": "market discrimination advantage; recalibration/market-blend cannot add ordering",
-      "next_repair": "A4 regularized feature residual (existing pregame features) \u2014 BLOCKED_NO_FEATURE_MATRIX until feature matrix is recovered/rebuilt"
+      "next_repair": "A4 regularized feature residual FIT (feature matrix recovered): cand AUC 0.554 vs base 0.547 vs market 0.633; beats_market=False, adds_discrimination_vs_market=False. Repair does NOT beat the exact market on the leakage-safe nested CV; prop remains NOT promotion-eligible (no certified edge)."
     }
   }
 }

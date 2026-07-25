@@ -175,4 +175,68 @@ future date blocks), not rolling-origin. Corrections:
 - **Calibrator monotonicity (expanding-window):** PTS has a **negative Platt slope in all 14 folds**
   (SIGN_INVERSION_DIAGNOSTIC); reb/ast/fg3m monotone.
 - **Phase 3:** no existing-output challenger beats market for pts/reb/fg3m; A4 feature residual
-  `BLOCKED_NO_FEATURE_MATRIX`.
+`BLOCKED_NO_FEATURE_MATRIX`.
+
+---
+
+## Activation pass (feature matrix recovered; A4 fit; REB freeze; delivered-prob preservation)
+
+`BDL_API_KEY` and `ODDS_API_KEY` are present in this environment. Actions this pass are
+compute-only over committed artifacts plus a leakage-guarded feature rebuild; **no new model
+architecture, no tracking/minutes/structural models, no broad model changes.**
+
+- **Feature matrix RECOVERED** via `BDL_API_KEY` (`pull_bdl_history` → `build_canonical_tables`
+  → `build_features`): `data/processed/wnba_player_game_features_wide.parquet`, **12,066 wide
+  rows / 84,462 long rows, 403 model feature columns, leakage guard PASS, forbidden check
+  PASS**. Joins to the canonical scored rows on `game_id+player_id` at **100%** coverage
+  (pts 851/851, fg3m 504/504). The rebuild is a fresh BDL snapshot (403 cols vs the frozen
+  410-col contract) and is used only to supply point-in-time features to the A4 residual;
+  it does not alter the frozen model, calibrators, or delivered probabilities.
+- **A4 regularized feature-residual repair FIT (was BLOCKED_NO_FEATURE_MATRIX)** for pts/fg3m
+  under the SAME leakage-safe nested expanding-window rolling-origin CV
+  (`PHASE3_A4_FEATURE_RESIDUAL.json`): L2 logistic on standardized median-imputed pregame
+  features + model logit + market logit, `C` nested-selected per outer fold.
+  - **pts**: cand AUC **0.516** vs base model 0.487 vs market **0.526**; ΔLL +0.0058,
+    ΔBrier +0.0028 → features lift discrimination out of inversion (0.487→0.516) but **do not
+    beat the exact market**. `proper_score=False`, `strict_auc=False`.
+  - **fg3m**: cand AUC **0.554** vs base 0.547 vs market **0.633**; ΔLL +0.0260 → **do not
+    beat the market**. `proper_score=False`.
+  - Conclusion: the sanctioned targeted repair is no longer blocked and was run; **pts/fg3m
+    remain NOT promotion-eligible** (no certified edge). The exact deficits are recorded.
+- **REB re-freeze v2** (`REB_FIRST_EDGE_FREEZE_V2.json`): candidate **C4_blend**, proper-score
+  track, `proper_score_selection_eligible=True`, `strict_auc_selection_eligible=False` — the
+  REB analogue of the AST v2 freeze under corrected nested CV (C4_blend ΔLL −0.0016, ΔBrier
+  −0.0007, worst-fold +0.018; C6 also advances). Certification depends solely on the
+  prospective proof; the freeze does NOT certify.
+- **AST + REB candidate/promotion-gate status:** both **FROZEN, proper-score track,
+  strict-AUC gate NOT met, NOT certified**. Promotion is contingent on the prospective proof
+  (new dates strictly after freeze; deterministic one-quote; ≥5000 cluster bootstrap; Holm;
+  upper-95%-CI(model−market)<0 for BOTH log loss and Brier).
+- **Delivered probabilities preserved** (`DELIVERED_PROBABILITY_PRESERVATION.json` +
+  `DELIVERED_MODEL_PROB_OVER_FINAL.parquet`): `model_prob_over_final` counts **pts 851 /
+  reb 742 / ast 522 / fg3m 504**; **stl/blk/turnover = 0 (NO_EXACT_QUOTES)**.
+- **Exact same-book pairing / identities / timestamps / lineage VERIFIED**
+  (`EXACT_PAIR_LINEAGE_VERIFICATION.json`, **all checks PASS** over 2,619 rows): one
+  deterministic same-book quote per key (over+under, single sportsbook, never averaged),
+  unique `quote_pair_id`, non-null parseable `pair_timestamp`/`decision_timestamp`, non-null
+  `game_id`/`player_id`, no duplicate keys, single `model_hash`/`feature_hash`/`calibration_hash`
+  matching the frozen model (`a851ccc…`) and feature contract (`302de34…`).
+- **Forward exact-quote collection:** the local collector is **verified functional** with
+  `ODDS_API_KEY` (2026-07-22 slate → 4,980 same-book quote rows across all markets). However,
+  **provider odds currently extend only through 2026-07-22**, while the AST/REB freezes are
+  2026-07-25. The first post-freeze slate (2026-07-26+) is **not yet published by the provider**,
+  so there are **zero prospective-proof-eligible observations** yet. The append-only workflow
+  `collect_atomic_quotes.yml` additionally **cannot be `workflow_dispatch`-ed until PR #82
+  merges** (workflow_dispatch requires the file on the default branch).
+- **Backup:** `PRIVATE_DATA_WRITER_TOKEN` and `DATA_ASSET_REPOSITORY` are **absent** in this
+  environment → the fail-closed private publish path is `BLOCKED_TOKEN_REPOSITORY_ACCESS`.
+  (The private repo is read-reachable via personal `gh`, but public redistribution of
+  BDL-derived data via the model repo remains **owner-gated / LOCAL_ONLY_UNPUBLISHED** and was
+  intentionally not performed.)
+
+**Exact blocker to the first trustworthy public Edge Board row:** no prop is certified. AST and
+REB are frozen and proper-score-eligible but require a **prospective** proof over game dates
+strictly after their 2026-07-25 freeze; the provider has **not yet published any post-freeze
+slate** (odds end 2026-07-22), so the proof cannot collect a single eligible observation yet.
+pts/fg3m fail the discrimination gate even after the (now-unblocked) A4 feature residual. The
+Edge Board therefore still has **zero certified props** and publishes no certified row.

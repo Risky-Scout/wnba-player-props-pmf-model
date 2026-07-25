@@ -1,0 +1,32 @@
+{
+  "version": "exact-pair-lineage-verification-v1",
+  "generated_at_utc": "2026-07-25T19:48:37.569328+00:00",
+  "rows_verified": 2619,
+  "checks": {
+    "same_book_pairing": {
+      "sportsbook_non_null": true,
+      "over_and_under_present": true,
+      "quote_pair_id_unique": true,
+      "note": "each row is ONE deterministic same-book quote (over+under from a single sportsbook) under book-quote-priority-v1; books are never averaged"
+    },
+    "identities": {
+      "game_id_non_null": true,
+      "player_id_non_null": true,
+      "unique_key_no_dups": true
+    },
+    "timestamps": {
+      "pair_timestamp_non_null": true,
+      "decision_timestamp_non_null": true,
+      "pair_timestamp_parseable": true,
+      "decision_timestamp_parseable": true
+    },
+    "lineage": {
+      "single_model_hash": true,
+      "single_feature_hash": true,
+      "single_calibration_hash": true,
+      "model_hash_matches_frozen": true,
+      "feature_hash_matches_frozen": true
+    }
+  },
+  "all_checks_pass": true
+}
