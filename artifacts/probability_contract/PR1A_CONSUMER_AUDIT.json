@@ -17,6 +17,7 @@
     "src/wnba_props_model/pipeline/deliver.py"
   ],
   "classification": {
+    "scripts/audit_exact_quote_readiness.py": "permitted_pmf_diagnostic",
     "scripts/audit_probability_consumers.py": "audit_tool",
     "scripts/backtest_strategy.py": "final_probability_decision_consumer",
     "scripts/build_edge_report.py": "final_probability_decision_consumer",
