@@ -1,0 +1,95 @@
+{
+  "version": "exact-quote-readiness-v1",
+  "generated_at_utc": "2026-07-25T01:35:11.754525+00:00",
+  "atomic_quote_store_present": false,
+  "total_rows_in_store": 0,
+  "per_prop": {
+    "pts": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    },
+    "reb": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    },
+    "ast": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    },
+    "fg3m": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    },
+    "stl": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    },
+    "blk": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    },
+    "turnover": {
+      "raw_sides": 0,
+      "exact_pairs": 0,
+      "with_delivered_prob": 0,
+      "settled_binary_eligible_non_push": 0,
+      "unique_dates": 0,
+      "required_rows": 300,
+      "required_dates": 30,
+      "row_shortfall": 300,
+      "date_shortfall": 30,
+      "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
+    }
+  },
+  "any_prop_ready_for_g0v2": false,
+  "mission_is_compute_only": false,
+  "note": "No exact player-prop atomic quote store exists yet; game-level odds are NOT exact same-book player-prop pairs. G0-v2 and proof are DATA-BLOCKED on atomic decision-time quote collection (collect_atomic_quotes.py + settlement), not merely compute."
+}
