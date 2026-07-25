@@ -1,6 +1,6 @@
 {
   "version": "backup-verification-v1",
-  "generated_at_utc": "2026-07-24T23:46:55.840749+00:00",
+  "generated_at_utc": "2026-07-25T01:25:12.618436+00:00",
   "primary": {
     "locator": "ephemeral-agent-filesystem:data/processed",
     "durable": false,
@@ -20,7 +20,7 @@
   "retention_policy": "immutable, hash-pinned; never overwrite a published asset with different contents",
   "recovery_instructions": "Re-run scripts/pull_bdl_history.py --start-season 2021 --end-season 2026 -> build_canonical_tables.py -> build_features.py; verify against RECOVERED_DATA_MANIFEST.json hashes before use.",
   "verification_timestamps": {
-    "frozen_at": "2026-07-24T23:46:19.411931+00:00",
-    "checked_at": "2026-07-24T23:46:55.840749+00:00"
+    "frozen_at": "2026-07-25T01:24:46.704373+00:00",
+    "checked_at": "2026-07-25T01:25:12.618436+00:00"
   }
 }
