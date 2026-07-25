@@ -51,14 +51,12 @@ def _resolve_repo(value: str) -> str:
 def _auth_env(private: bool) -> "dict | None":
     """Return a child-process env carrying a token for PRIVATE assets, or None for public.
 
-    Priority: PRIVATE_DATA_WRITER_TOKEN, PRIVATE_DATA_GH_TOKEN, then GH_TOKEN; fail closed for
-    private assets when none is set. The token is placed ONLY in the child env (never in argv,
-    URLs, logs, or messages)."""
+    Priority: PRIVATE_DATA_GH_TOKEN, then GH_TOKEN; fail closed for private assets when neither
+    is set. The token is placed ONLY in the child env (never in argv, URLs, logs, or messages).
+    To verify with a write-scoped token, pass it as PRIVATE_DATA_GH_TOKEN at call time."""
     if not private:
         return None
-    token = (os.environ.get("PRIVATE_DATA_WRITER_TOKEN")
-             or os.environ.get("PRIVATE_DATA_GH_TOKEN")
-             or os.environ.get("GH_TOKEN"))
+    token = os.environ.get("PRIVATE_DATA_GH_TOKEN") or os.environ.get("GH_TOKEN")
     if not token:
         raise PrivateAuthError(
             "private data asset requires PRIVATE_DATA_GH_TOKEN or GH_TOKEN in the environment")

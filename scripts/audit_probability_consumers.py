@@ -43,6 +43,7 @@ ALLOWED_FINAL_WRITERS = {
     LINEAGE_MODULE,
     "src/wnba_props_model/pipeline/deliver.py",
     "scripts/build_scored_candidates.py",
+    "scripts/build_g0v2_exact.py",
 }
 
 # Every trigger-bearing module must be classified here (completeness gate).
@@ -50,6 +51,7 @@ CLASSIFICATION: dict[str, str] = {
     LINEAGE_MODULE: "sole_lineage_creator",
     "src/wnba_props_model/pipeline/deliver.py": "lineage_output_serializer",
     "scripts/build_scored_candidates.py": "lineage_output_serializer",
+    "scripts/build_g0v2_exact.py": "lineage_output_serializer",
     # decision consumers (scanned for legacy reads / selected-line reconstruction)
     "scripts/evaluate_market_superiority.py": "final_probability_decision_consumer",
     "scripts/generate_clv_report.py": "final_probability_decision_consumer",

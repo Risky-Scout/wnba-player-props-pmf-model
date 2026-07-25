@@ -12,6 +12,7 @@
   "forbidden_post_lineage_writes": [],
   "unclassified_modules": [],
   "allowed_final_writers": [
+    "scripts/build_g0v2_exact.py",
     "scripts/build_scored_candidates.py",
     "src/wnba_props_model/models/probability_lineage.py",
     "src/wnba_props_model/pipeline/deliver.py"
@@ -21,6 +22,7 @@
     "scripts/audit_probability_consumers.py": "audit_tool",
     "scripts/backtest_strategy.py": "final_probability_decision_consumer",
     "scripts/build_edge_report.py": "final_probability_decision_consumer",
+    "scripts/build_g0v2_exact.py": "lineage_output_serializer",
     "scripts/build_historical_review.py": "permitted_pmf_diagnostic",
     "scripts/build_market_superiority_input.py": "permitted_pmf_diagnostic",
     "scripts/build_scored_candidates.py": "lineage_output_serializer",
