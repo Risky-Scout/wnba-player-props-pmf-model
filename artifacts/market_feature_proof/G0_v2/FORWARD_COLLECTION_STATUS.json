@@ -1,0 +1,25 @@
+{
+  "version": "forward-collection-status-v1",
+  "generated_at_utc": "2026-07-25T17:08:40.376384+00:00",
+  "odds_api_key_present": false,
+  "bdl_api_key_present": false,
+  "collector_supports_markets": {
+    "pts": "player_points",
+    "reb": "player_rebounds",
+    "ast": "player_assists",
+    "fg3m": "player_threes",
+    "stl": "player_steals",
+    "blk": "player_blocks",
+    "turnover": "player_turnovers"
+  },
+  "collector_scripts": [
+    "scripts/collect_atomic_quotes.py",
+    "scripts/pull_odds_api_props.py",
+    "src/wnba_props_model/data/odds_api_client.py"
+  ],
+  "existing_archive": "artifacts/p1/p1_quotes.parquet (76,620 rows; pts/reb/ast/fg3m + combos; NO stl/blk/turnover)",
+  "forward_collection_status": "BLOCKED_NO_ODDS_API_KEY",
+  "historical_backfill_stl_blk_turnover": "BLOCKED_NO_ODDS_API_KEY (client exposes the market keys + *_alternate; whether the subscription returns these exact WNBA markets must be verified once the key is present)",
+  "bdl_key_status": "ABSENT \u2014 does NOT block historical G0 analysis, but BLOCKS fresh daily prediction generation (reported separately)",
+  "action": "Add ODDS_API_KEY (and BDL_API_KEY for daily predictions) as Cloud Agent secrets; then run scripts/collect_atomic_quotes.py for all 7 markets on a schedule (append-only), and attempt historical backfill for stl/blk/turnover."
+}

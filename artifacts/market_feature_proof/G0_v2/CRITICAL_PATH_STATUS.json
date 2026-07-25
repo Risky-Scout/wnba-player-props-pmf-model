@@ -1079,20 +1079,65 @@
       ]
     }
   },
+  "deliverable_6b_ast_freeze": {
+    "version": "ast-first-edge-freeze-v1",
+    "prop": "ast",
+    "candidate_id": "A1",
+    "frozen_calibrator_params": {
+      "candidate_id": "A1",
+      "form": "platt_on_model_logit",
+      "platt_intercept": -0.1120365296389821,
+      "platt_slope": 0.12856810164831406
+    },
+    "probability_track": "pure_forecast",
+    "model_hash": "c49a64cb9d20f2d3887ef07b40a3f2efd00b4b75cc3934ffcdc8e092a89aba20",
+    "feature_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+    "calibration_hash": "3e8fe387117db76078e047c53ab69080296cf839e67aff8eb12227d48cb44958",
+    "quote_policy_hash": "4b39ee8f1deb33cd211e83e186d89aa3fc0bdc2b7ae00a0197a2392360b70c89",
+    "settlement_policy_hash": "e7faff61b5d1c8cbf0aad10c4d3969bed7a0771b8f4ded78ad0350cf0c9b5fcf",
+    "development_dates": [
+      "2026-05-08",
+      "2026-07-19"
+    ],
+    "development_rows": 522,
+    "development_scope": "primary_deterministic_one_quote (all inspected historical dates)",
+    "freeze_timestamp_utc": "2026-07-25T17:06:55.424364+00:00",
+    "prospective_proof_start_utc": "2026-07-25T17:06:55.424364+00:00",
+    "prospective_proof_rule": "New game dates strictly AFTER freeze; one deterministic exact quote per obs; >=5000 cluster bootstrap; frozen min rows/dates; Holm; upper-95%-CI(model-market) < 0 for BOTH log loss and Brier.",
+    "development_metrics": {
+      "candidate": "A1",
+      "n": 522.0,
+      "logloss": 0.6881890506938928,
+      "market_logloss": 0.6919136835447349,
+      "brier": 0.24732920572812214,
+      "market_brier": 0.24939254841528347,
+      "ece": 0.015672073633889123,
+      "market_ece": 0.056108057634446096,
+      "auc": 0.5311533888228299,
+      "market_auc": 0.5344381688466112,
+      "cal_slope": 0.265692634529045,
+      "worst_fold_logloss_delta": 0.00989869016689171,
+      "advances": true,
+      "status": null,
+      "note": null
+    },
+    "caveat": "Development-window proper-score dominance is small; pooled calibration slope is low (documented cross-fold pooling artifact). Certification depends solely on the prospective proof; this freeze does NOT certify."
+  },
   "deliverable_7_first_edge_board_row_blocker": {
     "certified_props": [],
-    "blocker": "No prop's probabilities (existing model with or without C0-C6 low-cost correction) certifiably beat the EXACT decision-time market on the untouched forward window under the frozen proof contract (>=300 rows, >=30 clusters, cluster-bootstrap 95% CI, Holm). Pure-model recalibration edges seen on the selection window REVERSE on the untouched window (non-stationary/overfit). The closest prop (ast) reaches the correct forward sign but the margin is not statistically significant and the exact-quote history is a single partial season (~55 game-dates).",
+    "blocker": "No certified prop yet. AST candidate A1 (monotone-calibrated existing model) is FROZEN and beats the exact one-quote market on both proper scores on the DEVELOPMENT window (dLL -0.0037, dBrier -0.0019, ECE 0.016) but not significantly (historical DIAGNOSTIC FAIL). Certification now requires a PROSPECTIVE proof on NEW dates after the freeze timestamp (>=5000 cluster bootstrap, Holm, upper-95%-CI<0 for log loss AND Brier). That prospective window does not exist yet and its collection is BLOCKED_NO_ODDS_API_KEY.",
     "primary_causes": {
-      "pts": "discrimination (model AUC < 0.50 at market lines)",
-      "reb": "discrimination (market AUC materially higher)",
-      "fg3m": "discrimination (largest AUC gap; selection calibration edge overfit)",
-      "ast": "calibration + insufficient forward exact-quote volume (closest to passing)",
-      "stl/blk/turnover": "no exact market quotes collected"
+      "pts": "sign-inversion/near-null signal (cross-fit AUC 0.47, Platt slope negative); no gross target/line defect found",
+      "reb": "market discrimination advantage (market AUC 0.587 vs model 0.545); no existing-output challenger beats market",
+      "fg3m": "largest market discrimination advantage (0.617 vs 0.546); no existing-output challenger beats market",
+      "ast": "frozen A1 beats market on dev proper scores but not significant; needs prospective proof",
+      "stl/blk/turnover": "no exact market quotes (BLOCKED_NO_ODDS_API_KEY)"
     },
+    "targeted_repair_blocker": "The A4 feature-residual challenger (the only path that could add genuine discrimination for pts/reb/fg3m) is BLOCKED_NO_FEATURE_MATRIX: the pregame feature matrix is gitignored/unrecoverable on this VM.",
     "actionable_next": [
-      "Continue append-only exact-quote collection to lengthen the forward window (ast is the closest; a few more ast game-dates enable a powered significance test).",
-      "Collect stl/blk/turnover odds to make those props evaluable at all.",
-      "Targeted model-signal (discrimination) repair for pts/reb/fg3m is DEFERRED pending this evidence per owner instruction (no new architecture without measured need)."
+      "Add ODDS_API_KEY -> start append-only prospective exact-quote collection for all 7 props; the AST prospective proof then accrues automatically after the freeze timestamp.",
+      "Recover the feature matrix (grant token access to the private data repo, or restore BDL_API_KEY) to enable A4 feature-residual repair for pts/reb/fg3m.",
+      "Fix token access to the private data repo (BLOCKED_TOKEN_REPOSITORY_ACCESS) to publish the recovery bundle."
     ]
   }
 }

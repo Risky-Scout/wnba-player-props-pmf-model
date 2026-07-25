@@ -20,6 +20,7 @@
   "classification": {
     "scripts/audit_exact_quote_readiness.py": "permitted_pmf_diagnostic",
     "scripts/audit_probability_consumers.py": "audit_tool",
+    "scripts/audit_probability_semantics.py": "permitted_pmf_diagnostic",
     "scripts/backtest_strategy.py": "final_probability_decision_consumer",
     "scripts/build_edge_report.py": "final_probability_decision_consumer",
     "scripts/build_g0v2_exact.py": "lineage_output_serializer",

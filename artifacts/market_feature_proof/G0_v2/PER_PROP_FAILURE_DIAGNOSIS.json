@@ -2,7 +2,7 @@
   "version": "per-prop-failure-diagnosis-v1",
   "quote_covered_props": {
     "pts": {
-      "g0v2_c0": {
+      "g0v2_c0_primary_deterministic": {
         "n_settled": 851,
         "n_dates": 55,
         "model_logloss": 0.8005021338211863,
@@ -16,37 +16,19 @@
         "model_ece": 0.16212905570723757,
         "market_ece": 0.01935129602409774
       },
-      "selection_advancing_candidates": [],
+      "semantics_sign_status": "SIGN_INVERSION_DIAGNOSTIC",
+      "selection_advancing_candidates_diagnostic": [],
       "failure_diagnosis": {
         "reason": "discrimination",
         "delta_auc_vs_market": -0.03391260567432386,
         "delta_ece_vs_market": 0.14277775968313983,
         "note": "model binary AUC < 0.50 at market lines: ordering is non-informative."
       },
-      "forward_proof": {
-        "primary_book": {
-          "candidate": "C6_market_residual",
-          "n_settled": 485,
-          "n_clusters": 30,
-          "logloss_delta": 0.00689960737723283,
-          "brier_delta": 0.003398243597669992,
-          "auc_delta": -0.016741527153940394,
-          "status": "FAIL"
-        },
-        "all_books_pooled": {
-          "candidate": "C1_platt",
-          "n_settled": 1796,
-          "n_clusters": 30,
-          "logloss_delta": 0.0035746860940707448,
-          "brier_delta": 0.0017596707646410636,
-          "auc_delta": 0.02466364931191417,
-          "status": "FAIL"
-        }
-      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
       "certified": false
     },
     "reb": {
-      "g0v2_c0": {
+      "g0v2_c0_primary_deterministic": {
         "n_settled": 742,
         "n_dates": 55,
         "model_logloss": 0.7721264234827216,
@@ -60,7 +42,8 @@
         "model_ece": 0.14235297278624273,
         "market_ece": 0.03506278049737647
       },
-      "selection_advancing_candidates": [
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "selection_advancing_candidates_diagnostic": [
         "C4_blend",
         "C6_market_residual"
       ],
@@ -70,30 +53,11 @@
         "delta_ece_vs_market": 0.10729019228886627,
         "note": "market AUC exceeds model AUC by 0.035; calibration cannot add ordering."
       },
-      "forward_proof": {
-        "primary_book": {
-          "candidate": "C4_blend",
-          "n_settled": 419,
-          "n_clusters": 30,
-          "logloss_delta": -0.004260969335502018,
-          "brier_delta": -0.002039942879676626,
-          "auc_delta": -0.00022983222247752177,
-          "status": "FAIL"
-        },
-        "all_books_pooled": {
-          "candidate": "C4_blend",
-          "n_settled": 1487,
-          "n_clusters": 30,
-          "logloss_delta": -0.002353045378329366,
-          "brier_delta": -0.001088311992678781,
-          "auc_delta": -0.003203912183804114,
-          "status": "FAIL"
-        }
-      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
       "certified": false
     },
     "ast": {
-      "g0v2_c0": {
+      "g0v2_c0_primary_deterministic": {
         "n_settled": 522,
         "n_dates": 55,
         "model_logloss": 0.7728265033303804,
@@ -107,7 +71,8 @@
         "model_ece": 0.1374657632807146,
         "market_ece": 0.056108057634446096
       },
-      "selection_advancing_candidates": [
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "selection_advancing_candidates_diagnostic": [
         "C4_blend"
       ],
       "failure_diagnosis": {
@@ -116,30 +81,11 @@
         "delta_ece_vs_market": 0.08135770564626851,
         "note": "discrimination ~ market (dAUC=+0.006) but model ECE exceeds market by 0.081; recalibration is the lever."
       },
-      "forward_proof": {
-        "primary_book": {
-          "candidate": "C5_role_blend",
-          "n_settled": 273,
-          "n_clusters": 30,
-          "logloss_delta": -0.007134186104418405,
-          "brier_delta": -0.002849700069304739,
-          "auc_delta": -0.00016339869281056796,
-          "status": "INSUFFICIENT"
-        },
-        "all_books_pooled": {
-          "candidate": "C4_blend",
-          "n_settled": 914,
-          "n_clusters": 30,
-          "logloss_delta": -0.0054139481170444315,
-          "brier_delta": -0.002627086948818219,
-          "auc_delta": -0.007915856031128432,
-          "status": "FAIL"
-        }
-      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
       "certified": false
     },
     "fg3m": {
-      "g0v2_c0": {
+      "g0v2_c0_primary_deterministic": {
         "n_settled": 504,
         "n_dates": 55,
         "model_logloss": 0.7619067448063898,
@@ -153,7 +99,8 @@
         "model_ece": 0.11706317470404026,
         "market_ece": 0.049950945053654286
       },
-      "selection_advancing_candidates": [
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "selection_advancing_candidates_diagnostic": [
         "C1_platt",
         "C2_beta",
         "C4_blend",
@@ -166,26 +113,7 @@
         "delta_ece_vs_market": 0.06711222965038598,
         "note": "market AUC exceeds model AUC by 0.049; calibration cannot add ordering."
       },
-      "forward_proof": {
-        "primary_book": {
-          "candidate": "C2_beta",
-          "n_settled": 288,
-          "n_clusters": 30,
-          "logloss_delta": 0.05273873143293062,
-          "brier_delta": 0.023829523769203026,
-          "auc_delta": -0.12083759933694127,
-          "status": "INSUFFICIENT"
-        },
-        "all_books_pooled": {
-          "candidate": "C2_beta",
-          "n_settled": 1029,
-          "n_clusters": 30,
-          "logloss_delta": 0.03636180955891655,
-          "brier_delta": 0.016822666187434665,
-          "auc_delta": -0.09856612097991424,
-          "status": "FAIL"
-        }
-      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
       "certified": false
     }
   },

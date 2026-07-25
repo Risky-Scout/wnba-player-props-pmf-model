@@ -90,30 +90,24 @@ def main() -> int:
         }
 
     # Deliverable 4/5/6/8 for quote-covered props.
+    semantics = _load(G0 / "PROBABILITY_TARGET_SEMANTICS_AUDIT.json")
+    phase3 = _load(G0 / "PHASE3_DISCRIMINATION_REPAIR.json")
     per_prop = {}
     for prop in QUOTE_COVERED:
         c0 = _c0(metrics, prop)
         cands = [r for r in cand["records"] if r["prop"] == prop and r.get("status") == "EVALUATED"] if cand else []
         advancing = [r["candidate"] for r in cands if r.get("advances")]
         diag = _classify(c0) if c0 else {"reason": "no_data"}
-        # forward proof outcome (primary + pooled)
-        proofs = {}
-        for scope, d in (("primary_book", REPO / f"artifacts/market_feature_proof/G0_v2_proof_{prop}"),
-                         ("all_books_pooled", REPO / f"artifacts/market_feature_proof/G0_v2_proof_pooled_{prop}")):
-            j = _load(d / "market_superiority_proof.json")
-            if j and j.get("results"):
-                r = j["results"][0]
-                proofs[scope] = {"candidate": r["candidate"], "n_settled": r["n_settled"],
-                                 "n_clusters": r["n_clusters"], "logloss_delta": r["logloss_delta"],
-                                 "brier_delta": r["brier_delta"], "auc_delta": r["auc_delta"],
-                                 "status": r["status"]}
+        sem = (semantics or {}).get("per_prop", {}).get(prop, {})
         per_prop[prop] = {
-            "g0v2_c0": {k: c0[k] for k in ("n_settled", "n_dates", "model_logloss", "market_logloss",
-                        "logloss_delta", "model_brier", "market_brier", "brier_delta",
-                        "model_auc", "market_auc", "model_ece", "market_ece")} if c0 else None,
-            "selection_advancing_candidates": advancing,
+            "g0v2_c0_primary_deterministic": {k: c0[k] for k in (
+                "n_settled", "n_dates", "model_logloss", "market_logloss", "logloss_delta",
+                "model_brier", "market_brier", "brier_delta", "model_auc", "market_auc",
+                "model_ece", "market_ece")} if c0 else None,
+            "semantics_sign_status": sem.get("sign_status"),
+            "selection_advancing_candidates_diagnostic": advancing,
             "failure_diagnosis": diag,
-            "forward_proof": proofs,
+            "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
             "certified": False,
         }
 
@@ -152,29 +146,33 @@ def main() -> int:
                           "discrimination deficit vs market that calibration cannot repair."),
             "selection_ranking": ranking,
         },
+        "deliverable_6b_ast_freeze": _load(REPO / "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE.json"),
         "deliverable_7_first_edge_board_row_blocker": {
             "certified_props": [],
-            "blocker": ("No prop's probabilities (existing model with or without C0-C6 low-cost "
-                        "correction) certifiably beat the EXACT decision-time market on the untouched "
-                        "forward window under the frozen proof contract (>=300 rows, >=30 clusters, "
-                        "cluster-bootstrap 95% CI, Holm). Pure-model recalibration edges seen on the "
-                        "selection window REVERSE on the untouched window (non-stationary/overfit). "
-                        "The closest prop (ast) reaches the correct forward sign but the margin is not "
-                        "statistically significant and the exact-quote history is a single partial "
-                        "season (~55 game-dates)."),
+            "blocker": ("No certified prop yet. AST candidate A1 (monotone-calibrated existing model) "
+                        "is FROZEN and beats the exact one-quote market on both proper scores on the "
+                        "DEVELOPMENT window (dLL -0.0037, dBrier -0.0019, ECE 0.016) but not "
+                        "significantly (historical DIAGNOSTIC FAIL). Certification now requires a "
+                        "PROSPECTIVE proof on NEW dates after the freeze timestamp (>=5000 cluster "
+                        "bootstrap, Holm, upper-95%-CI<0 for log loss AND Brier). That prospective "
+                        "window does not exist yet and its collection is BLOCKED_NO_ODDS_API_KEY."),
             "primary_causes": {
-                "pts": "discrimination (model AUC < 0.50 at market lines)",
-                "reb": "discrimination (market AUC materially higher)",
-                "fg3m": "discrimination (largest AUC gap; selection calibration edge overfit)",
-                "ast": "calibration + insufficient forward exact-quote volume (closest to passing)",
-                "stl/blk/turnover": "no exact market quotes collected",
+                "pts": "sign-inversion/near-null signal (cross-fit AUC 0.47, Platt slope negative); no gross target/line defect found",
+                "reb": "market discrimination advantage (market AUC 0.587 vs model 0.545); no existing-output challenger beats market",
+                "fg3m": "largest market discrimination advantage (0.617 vs 0.546); no existing-output challenger beats market",
+                "ast": "frozen A1 beats market on dev proper scores but not significant; needs prospective proof",
+                "stl/blk/turnover": "no exact market quotes (BLOCKED_NO_ODDS_API_KEY)",
             },
+            "targeted_repair_blocker": ("The A4 feature-residual challenger (the only path that could "
+                                        "add genuine discrimination for pts/reb/fg3m) is BLOCKED_NO_FEATURE_MATRIX: "
+                                        "the pregame feature matrix is gitignored/unrecoverable on this VM."),
             "actionable_next": [
-                "Continue append-only exact-quote collection to lengthen the forward window (ast is "
-                "the closest; a few more ast game-dates enable a powered significance test).",
-                "Collect stl/blk/turnover odds to make those props evaluable at all.",
-                "Targeted model-signal (discrimination) repair for pts/reb/fg3m is DEFERRED pending "
-                "this evidence per owner instruction (no new architecture without measured need).",
+                "Add ODDS_API_KEY -> start append-only prospective exact-quote collection for all 7 "
+                "props; the AST prospective proof then accrues automatically after the freeze timestamp.",
+                "Recover the feature matrix (grant token access to the private data repo, or restore "
+                "BDL_API_KEY) to enable A4 feature-residual repair for pts/reb/fg3m.",
+                "Fix token access to the private data repo (BLOCKED_TOKEN_REPOSITORY_ACCESS) to publish "
+                "the recovery bundle.",
             ],
         },
     }
