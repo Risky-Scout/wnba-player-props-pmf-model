@@ -1,0 +1,98 @@
+name: full-baseline-oof
+
+# P9 - long trusted baseline OOF. A setup job freezes the fold list, a matrix job runs each fold
+# independently (strict-baseline, immutable checkpoint upload), and an aggregate job fails unless
+# EVERY fold and all seven props are complete and valid. Private baseline data is fetched with
+# the repository secret PRIVATE_DATA_GH_TOKEN (never the temporary writer token).
+
+on:
+  workflow_dispatch:
+    inputs:
+      resume:
+        description: "Reuse valid fold checkpoints"
+        type: boolean
+        default: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  WIDE: data/processed/wnba_player_game_features_wide.parquet
+  LONG: data/processed/wnba_player_game_features_long.parquet
+  MANIFEST: data/processed/feature_schema_manifest.json
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      folds: ${{ steps.folds.outputs.folds }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: Fetch private baseline data
+        env:
+          PRIVATE_DATA_GH_TOKEN: ${{ secrets.PRIVATE_DATA_GH_TOKEN }}
+        run: python scripts/fetch_data.py wnba_games wnba_player_game_stats wnba_player_game_features_wide wnba_player_game_features_long feature_schema_manifest
+      - name: Freeze fold list
+        id: folds
+        run: |
+          python scripts/build_oof_pmfs.py --features-wide "$WIDE" --features-long "$LONG" \
+            --manifest "$MANIFEST" --list-folds > /tmp/folds.json
+          IDS=$(python3 -c "import json;print(json.dumps([f['fold_id'] for f in json.load(open('/tmp/folds.json'))]))")
+          echo "folds=$IDS" >> "$GITHUB_OUTPUT"
+          echo "fold ids: $IDS"
+
+  fold:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fold_id: ${{ fromJson(needs.setup.outputs.folds) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: Fetch private baseline data
+        env:
+          PRIVATE_DATA_GH_TOKEN: ${{ secrets.PRIVATE_DATA_GH_TOKEN }}
+        run: python scripts/fetch_data.py wnba_games wnba_player_game_stats wnba_player_game_features_wide wnba_player_game_features_long feature_schema_manifest
+      - name: Run strict fold ${{ matrix.fold_id }}
+        run: |
+          python scripts/build_oof_pmfs.py --features-wide "$WIDE" --features-long "$LONG" \
+            --manifest "$MANIFEST" --fold-id ${{ matrix.fold_id }} --strict-baseline \
+            --checkpoint-dir data/oof_checkpoints --out-dir data/oof_fold_${{ matrix.fold_id }} \
+            ${{ github.event.inputs.resume == 'true' && '--resume' || '' }}
+      - name: Upload immutable fold checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: oof-checkpoint-fold-${{ matrix.fold_id }}
+          path: data/oof_checkpoints/fold_${{ matrix.fold_id }}.*
+          retention-days: 30
+
+  aggregate:
+    needs: [setup, fold]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: Download all fold checkpoints
+        uses: actions/download-artifact@v4
+        with:
+          pattern: oof-checkpoint-fold-*
+          path: data/oof_checkpoints
+          merge-multiple: true
+      - name: Fetch private baseline data
+        env:
+          PRIVATE_DATA_GH_TOKEN: ${{ secrets.PRIVATE_DATA_GH_TOKEN }}
+        run: python scripts/fetch_data.py wnba_games wnba_player_game_stats wnba_player_game_features_wide wnba_player_game_features_long feature_schema_manifest
+      - name: Verify every fold + all seven props (fail-closed)
+        run: |
+          python scripts/build_oof_pmfs.py --features-wide "$WIDE" --features-long "$LONG" \
+            --manifest "$MANIFEST" --checkpoint-dir data/oof_checkpoints --verify-checkpoints
