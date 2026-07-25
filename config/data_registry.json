@@ -101,6 +101,18 @@
    "publication_status": "LOCAL_ONLY_UNPUBLISHED",
    "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
   },
+  "recovery_bundle": {
+   "path": "data/recovery/recovery_bundle_v1.tar.gz",
+   "repository": "${DATA_ASSET_REPOSITORY}",
+   "visibility": "private",
+   "release_tag": "recovery-v1",
+   "asset": "recovery_bundle_v1.tar.gz",
+   "sha256": null,
+   "bytes": null,
+   "updated_utc": null,
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "description": "Immutable private recovery bundle: committed 7-prop OOF PMFs, atomic exact-quote store, closing-consensus, prequential ledger, G0 market-superiority input, plus manifests/registry. See artifacts/data_bootstrap/RECOVERY_BUNDLE_MANIFEST.json."
+  },
   "feature_schema_manifest": {
    "path": "data/processed/feature_schema_manifest.json",
    "release_tag": "processed-features-v2",

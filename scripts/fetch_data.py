@@ -33,14 +33,32 @@ class PrivateAuthError(RuntimeError):
     """Private asset requested but no authentication token is available (fail closed)."""
 
 
+def _resolve_repo(value: str) -> str:
+    """Resolve a repository field, expanding a ``${ENV_VAR}`` reference from the environment.
+
+    The private data repository name is a protected secret and is NEVER persisted in the
+    committed registry; entries store the literal ``${DATA_ASSET_REPOSITORY}`` and it is
+    expanded here at runtime."""
+    v = str(value).strip()
+    if v.startswith("${") and v.endswith("}"):
+        resolved = os.environ.get(v[2:-1])
+        if not resolved:
+            raise PrivateAuthError(f"registry repository refers to {v} but it is not set")
+        return resolved
+    return v
+
+
 def _auth_env(private: bool) -> "dict | None":
     """Return a child-process env carrying a token for PRIVATE assets, or None for public.
 
-    Priority: PRIVATE_DATA_GH_TOKEN, then GH_TOKEN; fail closed for private assets when neither
-    is set. The token is placed ONLY in the child env (never in argv, URLs, logs, or messages)."""
+    Priority: PRIVATE_DATA_WRITER_TOKEN, PRIVATE_DATA_GH_TOKEN, then GH_TOKEN; fail closed for
+    private assets when none is set. The token is placed ONLY in the child env (never in argv,
+    URLs, logs, or messages)."""
     if not private:
         return None
-    token = os.environ.get("PRIVATE_DATA_GH_TOKEN") or os.environ.get("GH_TOKEN")
+    token = (os.environ.get("PRIVATE_DATA_WRITER_TOKEN")
+             or os.environ.get("PRIVATE_DATA_GH_TOKEN")
+             or os.environ.get("GH_TOKEN"))
     if not token:
         raise PrivateAuthError(
             "private data asset requires PRIVATE_DATA_GH_TOKEN or GH_TOKEN in the environment")
@@ -87,8 +105,11 @@ def main(
         d = datasets[n]
         path = ROOT / d["path"]
         want = d.get("sha256")
-        repo = d.get("repository", default_repo)
         private = str(d.get("visibility", "public")).lower() == "private"
+        try:
+            repo = _resolve_repo(d.get("repository", default_repo))
+        except PrivateAuthError as exc:
+            failures.append(f"{n}: {exc}"); continue
         # A private asset is only fetchable when its publication is confirmed durable.
         unpublished = (not want) or str(d.get("publication_status", "")) == "LOCAL_ONLY_UNPUBLISHED"
 
