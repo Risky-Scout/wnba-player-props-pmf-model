@@ -3,26 +3,24 @@
   "quote_covered_props": {
     "pts": {
       "g0v2_c0": {
-        "n_settled": 824,
+        "n_settled": 851,
         "n_dates": 55,
-        "model_logloss": 0.8022936105828093,
-        "market_logloss": 0.6925118440772362,
-        "logloss_delta": 0.10978176650557314,
-        "model_brier": 0.28406783716098416,
-        "market_brier": 0.24968211056334733,
-        "brier_delta": 0.034385726597636834,
-        "model_auc": 0.48534419167330567,
-        "market_auc": 0.5215957038741849,
-        "model_ece": 0.1589497917315028,
-        "market_ece": 0.019401094400204884
+        "model_logloss": 0.8005021338211863,
+        "market_logloss": 0.6927388116476435,
+        "logloss_delta": 0.10776332217354279,
+        "model_brier": 0.2838114463411886,
+        "market_brier": 0.24979274691539122,
+        "brier_delta": 0.03401869942579738,
+        "model_auc": 0.48593590935245434,
+        "market_auc": 0.5198485150267782,
+        "model_ece": 0.16212905570723757,
+        "market_ece": 0.01935129602409774
       },
-      "selection_advancing_candidates": [
-        "C6_market_residual"
-      ],
+      "selection_advancing_candidates": [],
       "failure_diagnosis": {
         "reason": "discrimination",
-        "delta_auc_vs_market": -0.03625151220087919,
-        "delta_ece_vs_market": 0.13954869733129793,
+        "delta_auc_vs_market": -0.03391260567432386,
+        "delta_ece_vs_market": 0.14277775968313983,
         "note": "model binary AUC < 0.50 at market lines: ordering is non-informative."
       },
       "forward_proof": {
@@ -49,18 +47,18 @@
     },
     "reb": {
       "g0v2_c0": {
-        "n_settled": 695,
+        "n_settled": 742,
         "n_dates": 55,
-        "model_logloss": 0.7707914422425524,
-        "market_logloss": 0.6805478959455145,
-        "logloss_delta": 0.0902435462970379,
-        "model_brier": 0.27151707193752883,
-        "market_brier": 0.24375298286391223,
-        "brier_delta": 0.027764089073616605,
-        "model_auc": 0.5505828128653018,
-        "market_auc": 0.5951496276009485,
-        "model_ece": 0.13817094727011778,
-        "market_ece": 0.03961509456128434
+        "model_logloss": 0.7721264234827216,
+        "market_logloss": 0.682336628942035,
+        "logloss_delta": 0.0897897945406867,
+        "model_brier": 0.2726482142971898,
+        "market_brier": 0.24463017203719595,
+        "brier_delta": 0.028018042259993825,
+        "model_auc": 0.5510389230318993,
+        "market_auc": 0.5865342405618964,
+        "model_ece": 0.14235297278624273,
+        "market_ece": 0.03506278049737647
       },
       "selection_advancing_candidates": [
         "C4_blend",
@@ -68,9 +66,9 @@
       ],
       "failure_diagnosis": {
         "reason": "discrimination",
-        "delta_auc_vs_market": -0.04456681473564672,
-        "delta_ece_vs_market": 0.09855585270883344,
-        "note": "market AUC exceeds model AUC by 0.045; calibration cannot add ordering."
+        "delta_auc_vs_market": -0.03549531752999713,
+        "delta_ece_vs_market": 0.10729019228886627,
+        "note": "market AUC exceeds model AUC by 0.035; calibration cannot add ordering."
       },
       "forward_proof": {
         "primary_book": {
@@ -96,28 +94,27 @@
     },
     "ast": {
       "g0v2_c0": {
-        "n_settled": 458,
+        "n_settled": 522,
         "n_dates": 55,
-        "model_logloss": 0.7811083433172923,
-        "market_logloss": 0.6939638289549467,
-        "logloss_delta": 0.0871445143623456,
-        "model_brier": 0.27066757421847076,
-        "market_brier": 0.2504093364711446,
-        "brier_delta": 0.020258237747326158,
-        "model_auc": 0.5344102207812258,
-        "market_auc": 0.5252914157789099,
-        "model_ece": 0.1356365973897919,
-        "market_ece": 0.06392303533073998
+        "model_logloss": 0.7728265033303804,
+        "market_logloss": 0.6919136835447349,
+        "logloss_delta": 0.08091281978564546,
+        "model_brier": 0.2689995892768986,
+        "market_brier": 0.24939254841528347,
+        "brier_delta": 0.019607040861615133,
+        "model_auc": 0.5405023781212842,
+        "market_auc": 0.5344381688466112,
+        "model_ece": 0.1374657632807146,
+        "market_ece": 0.056108057634446096
       },
       "selection_advancing_candidates": [
-        "C4_blend",
-        "C5_role_blend"
+        "C4_blend"
       ],
       "failure_diagnosis": {
         "reason": "calibration",
-        "delta_auc_vs_market": 0.009118805002315877,
-        "delta_ece_vs_market": 0.07171356205905191,
-        "note": "discrimination ~ market (dAUC=+0.009) but model ECE exceeds market by 0.072; recalibration is the lever."
+        "delta_auc_vs_market": 0.006064209274672994,
+        "delta_ece_vs_market": 0.08135770564626851,
+        "note": "discrimination ~ market (dAUC=+0.006) but model ECE exceeds market by 0.081; recalibration is the lever."
       },
       "forward_proof": {
         "primary_book": {
@@ -143,18 +140,18 @@
     },
     "fg3m": {
       "g0v2_c0": {
-        "n_settled": 475,
+        "n_settled": 504,
         "n_dates": 55,
-        "model_logloss": 0.779191568892619,
-        "market_logloss": 0.6707904426206368,
-        "logloss_delta": 0.10840112627198217,
-        "model_brier": 0.2678021293225732,
-        "market_brier": 0.23915530442284846,
-        "brier_delta": 0.028646824899724727,
-        "model_auc": 0.5516295520987476,
-        "market_auc": 0.6026726098097954,
-        "model_ece": 0.12752581145554773,
-        "market_ece": 0.04310555387033825
+        "model_logloss": 0.7619067448063898,
+        "market_logloss": 0.6652977901408331,
+        "logloss_delta": 0.09660895466555663,
+        "model_brier": 0.2612872904606633,
+        "market_brier": 0.2365087034496151,
+        "brier_delta": 0.02477858701104818,
+        "model_auc": 0.5675545183873822,
+        "market_auc": 0.6170193932566187,
+        "model_ece": 0.11706317470404026,
+        "market_ece": 0.049950945053654286
       },
       "selection_advancing_candidates": [
         "C1_platt",
@@ -165,9 +162,9 @@
       ],
       "failure_diagnosis": {
         "reason": "discrimination",
-        "delta_auc_vs_market": -0.05104305771104778,
-        "delta_ece_vs_market": 0.08442025758520948,
-        "note": "market AUC exceeds model AUC by 0.051; calibration cannot add ordering."
+        "delta_auc_vs_market": -0.04946487486923645,
+        "delta_ece_vs_market": 0.06711222965038598,
+        "note": "market AUC exceeds model AUC by 0.049; calibration cannot add ordering."
       },
       "forward_proof": {
         "primary_book": {

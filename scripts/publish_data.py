@@ -129,11 +129,13 @@ def main(
             failures.append(f"{n}: {exc}"); continue
 
         if private and not _repo_exists(gh, target_repo, env):
-            # Fine-grained tokens scoped to a repo cannot create it; the owner must create
-            # the empty private repo first. Fail closed with an actionable, token-safe message.
+            # The repo may exist while the fine-grained token simply lacks access to it
+            # (authenticated 404). Classify as a token-access block, not "repo missing".
+            # Fail closed with an actionable, token-safe message.
             failures.append(
-                f"{n}: PRIVATE_DATA_REPO_MISSING ({target_repo} not reachable with the "
-                f"provided token — create the empty private repo and grant Contents:read/write)")
+                f"{n}: BLOCKED_TOKEN_REPOSITORY_ACCESS ({target_repo} returns an authenticated "
+                f"404 with the provided token — grant this fine-grained token access to that "
+                f"repository with Contents:read/write, then retry)")
             continue
 
         typer.echo(f"[publish] {n} -> {'PRIVATE ' if private else ''}{target_repo} "

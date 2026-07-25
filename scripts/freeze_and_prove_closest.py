@@ -47,7 +47,8 @@ def main(
     prop: str = typer.Option(..., "--prop"),
     candidate: str = typer.Option(..., "--candidate"),
     scored: str = typer.Option("artifacts/market_feature_proof/G0_v2/scored_candidates_g0v2.parquet", "--scored"),
-    primary_book: str = typer.Option("draftkings", "--primary-book"),
+    primary_book: str = typer.Option("primary", "--primary-book",
+                                     help="'primary'=deterministic one-quote; 'all'=pooled sensitivity; or a book."),
     out_dir: str = typer.Option("", "--out-dir"),
     min_rows: int = typer.Option(300, "--min-rows"),
     min_clusters: int = typer.Option(30, "--min-clusters"),
@@ -57,7 +58,9 @@ def main(
     outp.mkdir(parents=True, exist_ok=True)
     df = pd.read_parquet(scored)
     pdf = df[df["prop"] == prop].copy()
-    if primary_book != "all":
+    if primary_book == "primary":
+        pdf = pdf[pdf["is_primary"]].copy()
+    elif primary_book != "all":
         pdf = pdf[pdf["book"] == primary_book].copy()
     sel = pdf[pdf["split"] == "selection"].reset_index(drop=True)
     test = pdf[pdf["split"] == "test"].reset_index(drop=True)

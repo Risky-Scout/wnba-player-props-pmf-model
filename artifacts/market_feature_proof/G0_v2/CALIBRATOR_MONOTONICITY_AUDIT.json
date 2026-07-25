@@ -1,0 +1,520 @@
+{
+  "version": "calibrator-monotonicity-audit-v1",
+  "scope": "primary_deterministic_one_quote",
+  "k_folds": 5,
+  "auc_pooling_explanation": "Cross-fitted calibration can change POOLED AUC even when every within-fold map is monotone: each fold's map has a different intercept/slope, so concatenating predictions from folds with different base Over-rates re-orders cross-fold pairs. Within-fold ranking (hence within-fold AUC) is preserved by a monotone map; the pooled AUC shift is a cross-fold intercept artifact, not added discrimination.",
+  "per_prop": {
+    "pts": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_dates": [
+            "2026-05-29",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-08",
+            "2026-05-27"
+          ],
+          "n_train": 679,
+          "platt_intercept": -0.06649739171585269,
+          "platt_slope": 0.0366849487255899,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": 0.2478390463129524,
+          "beta_a_logp": 0.1626396314193949,
+          "beta_b_log1mp": 0.3042073265732917,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.0043976800439768,
+            0.800620303987594
+          ]
+        },
+        {
+          "fold": 1,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-29",
+            "2026-06-09"
+          ],
+          "n_train": 706,
+          "platt_intercept": -0.055255813624260235,
+          "platt_slope": -0.016905617304575155,
+          "platt_monotone_increasing": false,
+          "platt_negative_slope": true,
+          "beta_intercept": 0.015469786835378791,
+          "beta_a_logp": 0.009671904514987785,
+          "beta_b_log1mp": 0.09623925672363715,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.0043976800439768,
+            0.800620303987594
+          ]
+        },
+        {
+          "fold": 2,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-10",
+            "2026-06-21"
+          ],
+          "n_train": 702,
+          "platt_intercept": -0.09738214158263231,
+          "platt_slope": -0.01044643976035349,
+          "platt_monotone_increasing": false,
+          "platt_negative_slope": true,
+          "beta_intercept": -0.13928511437771493,
+          "beta_a_logp": -0.026604822793581343,
+          "beta_b_log1mp": -0.036359887847028156,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.0043976800439768,
+            0.800620303987594
+          ]
+        },
+        {
+          "fold": 3,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-22",
+            "2026-07-05"
+          ],
+          "n_train": 673,
+          "platt_intercept": -0.08525959335129271,
+          "platt_slope": 0.001447556812311377,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.16255360673666538,
+          "beta_a_logp": -0.026515502010196996,
+          "beta_b_log1mp": -0.09348023910725836,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.0043976800439768,
+            0.7810487643790248
+          ]
+        },
+        {
+          "fold": 4,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-05"
+          ],
+          "validation_dates": [
+            "2026-07-06",
+            "2026-07-19"
+          ],
+          "n_train": 644,
+          "platt_intercept": -0.14315290918092405,
+          "platt_slope": -0.056257372835380064,
+          "platt_monotone_increasing": false,
+          "platt_negative_slope": true,
+          "beta_intercept": 0.5207832344074487,
+          "beta_a_logp": 0.19217667699088264,
+          "beta_b_log1mp": 0.8404113200810711,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.004449740177989607,
+            0.800620303987594
+          ]
+        }
+      ],
+      "any_negative_platt_slope": true,
+      "negative_slope_folds": [
+        1,
+        2,
+        4
+      ],
+      "classification": "SIGN_INVERSION_DIAGNOSTIC"
+    },
+    "reb": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_dates": [
+            "2026-05-29",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-08",
+            "2026-05-27"
+          ],
+          "n_train": 595,
+          "platt_intercept": 0.054243443775372595,
+          "platt_slope": 0.2342786613754668,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": 0.22497868829391277,
+          "beta_a_logp": 0.2970682789625065,
+          "beta_b_log1mp": -0.017960676458113486,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.004195120125853603,
+            0.67329082
+          ]
+        },
+        {
+          "fold": 1,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-29",
+            "2026-06-09"
+          ],
+          "n_train": 622,
+          "platt_intercept": -0.03039736890013591,
+          "platt_slope": 0.20844344439266804,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.45972862493393774,
+          "beta_a_logp": 0.055018755539091475,
+          "beta_b_log1mp": -0.7652601832055915,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.005778139942218602,
+            0.67329082
+          ]
+        },
+        {
+          "fold": 2,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-10",
+            "2026-06-21"
+          ],
+          "n_train": 615,
+          "platt_intercept": 0.005416332869286548,
+          "platt_slope": 0.14282613016181914,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.07618918942436653,
+          "beta_a_logp": 0.1133375568864922,
+          "beta_b_log1mp": -0.2485934376651304,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.004195120125853603,
+            0.67329082
+          ]
+        },
+        {
+          "fold": 3,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-22",
+            "2026-07-05"
+          ],
+          "n_train": 582,
+          "platt_intercept": 0.04006937046048553,
+          "platt_slope": 0.26350654671039747,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.009520267054764752,
+          "beta_a_logp": 0.2463965791118828,
+          "beta_b_log1mp": -0.3298922181578604,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.004195120125853603,
+            0.67329082
+          ]
+        },
+        {
+          "fold": 4,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-05"
+          ],
+          "validation_dates": [
+            "2026-07-06",
+            "2026-07-19"
+          ],
+          "n_train": 554,
+          "platt_intercept": 0.04302544693413571,
+          "platt_slope": 0.2508481742967224,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": 0.22621320555628183,
+          "beta_a_logp": 0.3163456766178507,
+          "beta_b_log1mp": -0.009054143862050426,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.004195120125853603,
+            0.66678243
+          ]
+        }
+      ],
+      "any_negative_platt_slope": false,
+      "negative_slope_folds": [],
+      "classification": "MONOTONE_OK"
+    },
+    "ast": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_dates": [
+            "2026-05-29",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-08",
+            "2026-05-27"
+          ],
+          "n_train": 428,
+          "platt_intercept": -0.05272515810649926,
+          "platt_slope": 0.21370101217518375,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": 0.035063872776974106,
+          "beta_a_logp": 0.2478705904342993,
+          "beta_b_log1mp": -0.10396266754633958,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.005083800101676004,
+            0.6441223435587766
+          ]
+        },
+        {
+          "fold": 1,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-29",
+            "2026-06-09"
+          ],
+          "n_train": 440,
+          "platt_intercept": -0.11278714863961468,
+          "platt_slope": 0.11321827742250892,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.755227752290723,
+          "beta_a_logp": -0.09132291515750851,
+          "beta_b_log1mp": -1.0290638777609804,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00073627,
+            0.6441223435587766
+          ]
+        },
+        {
+          "fold": 2,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-10",
+            "2026-06-21"
+          ],
+          "n_train": 431,
+          "platt_intercept": -0.16773871119038403,
+          "platt_slope": 0.08940874696569646,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.6943130243460844,
+          "beta_a_logp": -0.08153448043727862,
+          "beta_b_log1mp": -0.8446618893347052,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00073627,
+            0.6441223435587766
+          ]
+        },
+        {
+          "fold": 3,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-22",
+            "2026-07-05"
+          ],
+          "n_train": 410,
+          "platt_intercept": -0.03550449804794243,
+          "platt_slope": 0.181643960133339,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.9244245643272516,
+          "beta_a_logp": -0.10100423574988827,
+          "beta_b_log1mp": -1.486446930117638,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00073627,
+            0.610712806107128
+          ]
+        },
+        {
+          "fold": 4,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-05"
+          ],
+          "validation_dates": [
+            "2026-07-06",
+            "2026-07-19"
+          ],
+          "n_train": 379,
+          "platt_intercept": -0.17712940224981183,
+          "platt_slope": 0.06985507362226415,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -1.2097709383155721,
+          "beta_a_logp": -0.2679881737731247,
+          "beta_b_log1mp": -1.5227878293550479,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00073627,
+            0.6441223435587766
+          ]
+        }
+      ],
+      "any_negative_platt_slope": false,
+      "negative_slope_folds": [],
+      "classification": "MONOTONE_OK"
+    },
+    "fg3m": {
+      "folds": [
+        {
+          "fold": 0,
+          "train_dates": [
+            "2026-05-29",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-08",
+            "2026-05-27"
+          ],
+          "n_train": 402,
+          "platt_intercept": -0.09229818941549621,
+          "platt_slope": 0.15534873332289206,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.4455404475508461,
+          "beta_a_logp": 0.018947593540907436,
+          "beta_b_log1mp": -0.5606031506423,
+          "beta_monotone_increasing": true,
+          "input_prob_range": [
+            0.00544841,
+            0.81228715
+          ]
+        },
+        {
+          "fold": 1,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-05-29",
+            "2026-06-09"
+          ],
+          "n_train": 428,
+          "platt_intercept": -0.1518425047830247,
+          "platt_slope": 0.20574992482914647,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.9423683450929548,
+          "beta_a_logp": -0.0841206946356098,
+          "beta_b_log1mp": -1.1482843852384192,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00544841,
+            0.81228715
+          ]
+        },
+        {
+          "fold": 2,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-10",
+            "2026-06-21"
+          ],
+          "n_train": 422,
+          "platt_intercept": -0.13539709220447566,
+          "platt_slope": 0.19445276067517175,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -0.7069205804058112,
+          "beta_a_logp": -0.012039401431931843,
+          "beta_b_log1mp": -0.8756209813398063,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00544841,
+            0.81228715
+          ]
+        },
+        {
+          "fold": 3,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-19"
+          ],
+          "validation_dates": [
+            "2026-06-22",
+            "2026-07-05"
+          ],
+          "n_train": 392,
+          "platt_intercept": -0.16740551300399967,
+          "platt_slope": 0.17971459934011386,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -1.5152120638212465,
+          "beta_a_logp": -0.2982386064564863,
+          "beta_b_log1mp": -1.835080324399592,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.00544841,
+            0.7361870700000002
+          ]
+        },
+        {
+          "fold": 4,
+          "train_dates": [
+            "2026-05-08",
+            "2026-07-05"
+          ],
+          "validation_dates": [
+            "2026-07-06",
+            "2026-07-19"
+          ],
+          "n_train": 372,
+          "platt_intercept": -0.19338556397297013,
+          "platt_slope": 0.14607806760947903,
+          "platt_monotone_increasing": true,
+          "platt_negative_slope": false,
+          "beta_intercept": -1.20505978625037,
+          "beta_a_logp": -0.21926846656245605,
+          "beta_b_log1mp": -1.3810833663365858,
+          "beta_monotone_increasing": false,
+          "input_prob_range": [
+            0.005475320054753202,
+            0.81228715
+          ]
+        }
+      ],
+      "any_negative_platt_slope": false,
+      "negative_slope_folds": [],
+      "classification": "MONOTONE_OK"
+    }
+  }
+}

@@ -26,7 +26,7 @@ def _load(p):
 
 def _c0(metrics, prop):
     for r in metrics["records"]:
-        if r["prop"] == prop and r["scope"] == "primary_book" and r["status"] == "EVALUATED":
+        if r["prop"] == prop and r["scope"] == "primary_deterministic" and r["status"] == "EVALUATED":
             return r
     return None
 
@@ -79,13 +79,13 @@ def main() -> int:
     # Deliverable 3: exact quote counts by prop (decision snapshot exact pairs).
     quote_counts = {}
     for prop in DIRECT:
-        prim = coverage["by_prop_primary"].get(prop, {}) if coverage else {}
-        pooled = coverage["by_prop_book"].get(prop, {}) if coverage else {}
-        pooled_rows = sum(v["rows"] for v in pooled.values()) if pooled else 0
+        prim = coverage["by_prop_primary_deterministic"].get(prop, {}) if coverage else {}
+        pooled = coverage["by_prop_all_books_pooled"].get(prop, {}) if coverage else {}
         quote_counts[prop] = {
-            "primary_book_exact_rows": prim.get("rows", 0),
-            "primary_book_unique_dates": prim.get("dates", 0),
-            "all_books_exact_rows": pooled_rows,
+            "primary_deterministic_exact_rows": prim.get("rows", 0),
+            "primary_deterministic_unique_dates": prim.get("dates", 0),
+            "primary_book_mix": prim.get("book_mix", {}),
+            "all_books_pooled_rows_SENSITIVITY": pooled.get("rows", 0),
             "status": prim.get("status", "NO_EXACT_QUOTES"),
         }
 

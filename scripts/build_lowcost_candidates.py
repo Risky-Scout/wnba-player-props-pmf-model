@@ -165,7 +165,10 @@ def _crossfit(prop_df: pd.DataFrame, name: str, k: int) -> "np.ndarray | None":
 def main(
     scored: str = typer.Option("artifacts/market_feature_proof/G0_v2/scored_candidates_g0v2.parquet", "--scored"),
     out_dir: str = typer.Option("artifacts/market_feature_proof/G0_v2", "--out-dir"),
-    primary_book: str = typer.Option("draftkings", "--primary-book"),
+    primary_book: str = typer.Option("primary", "--primary-book",
+                                     help="'primary' = frozen deterministic one-quote per obs "
+                                          "(is_primary); 'all' = all-books pooled SENSITIVITY; or a "
+                                          "specific book name."),
     k_folds: int = typer.Option(5, "--k-folds"),
     ece_margin: float = typer.Option(0.03, "--ece-margin",
                                      help="Candidate ECE must be <= market ECE + margin."),
@@ -173,7 +176,9 @@ def main(
     outp = Path(out_dir); outp.mkdir(parents=True, exist_ok=True)
     df = pd.read_parquet(scored)
     sel = df[df["split"] == "selection"].copy()
-    if primary_book != "all":
+    if primary_book == "primary":
+        sel = sel[sel["is_primary"]].copy()
+    elif primary_book != "all":
         sel = sel[sel["book"] == primary_book].copy()
 
     rows = []

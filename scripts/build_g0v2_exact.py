@@ -117,7 +117,11 @@ def main(
     oof: str = typer.Option("artifacts/models/calibration/oof_predictions.parquet", "--oof"),
     quotes: str = typer.Option("artifacts/p1/p1_quotes.parquet", "--quotes"),
     out_dir: str = typer.Option("artifacts/market_feature_proof/G0_v2", "--out-dir"),
-    primary_book: str = typer.Option("draftkings", "--primary-book"),
+    primary_book: str = typer.Option("draftkings", "--primary-book",
+                                     help="Legacy single-book headline (retained for sensitivity)."),
+    quote_policy: str = typer.Option("config/book_quote_priority_v1.json", "--quote-policy",
+                                     help="Frozen sportsbook-priority policy for the PRIMARY "
+                                          "deterministic one-quote-per-observation selection."),
     selection_frac: float = typer.Option(0.6, "--selection-frac"),
     test_dates: int = typer.Option(0, "--test-dates",
                                    help="If >0, reserve the LAST N distinct game dates as the "
@@ -178,30 +182,45 @@ def main(
     if "role_bucket" not in df.columns:
         df["role_bucket"] = "all"
     df["role_bucket"] = df["role_bucket"].fillna("all").astype(str)
+
+    # Frozen deterministic one-quote-per-observation policy (PRIMARY comparison).
+    policy = json.loads(Path(quote_policy).read_text())
+    prio = {b: i for i, b in enumerate(policy["priority"])}
+    df["_book_rank"] = df["book"].map(lambda b: prio.get(b, 10_000)).astype(int)
+    df = df.sort_values(["game_id", "player_id", "prop", "_book_rank", "book", "snapshot_time"])
+    first_idx = df.groupby(["game_id", "player_id", "prop"], as_index=False).head(1).index
+    df["is_primary"] = df.index.isin(first_idx)
+
     cols = ["game_date", "game_id", "player_id", "prop", "book", "candidate", "split",
             "actual", "line", FINAL_PROBABILITY_COLUMN, "model_prob_push",
             "market_prob_over_no_vig", "over_odds", "under_odds", "snapshot_time",
-            "outcome_over", "role_bucket"]
+            "outcome_over", "role_bucket", "is_primary"]
     scored = df[cols].reset_index(drop=True)
     scored.to_parquet(outp / "scored_candidates_g0v2.parquet", index=False)
 
-    # Coverage report (exact comparable rows + unique dates by prop/book).
-    cov = {"primary_book": primary_book, "split_cut_date": str(cut), "by_prop_book": {}, "by_prop_primary": {}}
+    prim = scored[scored["is_primary"]]
+    # Coverage report: PRIMARY deterministic one-quote + per-book + all-books pooled (sensitivity).
+    cov = {"quote_policy": policy["version"], "primary_scope": "deterministic_one_quote_per_obs",
+           "legacy_primary_book": primary_book, "split_cut_date": str(cut),
+           "by_prop_primary_deterministic": {}, "by_prop_book": {}, "by_prop_all_books_pooled": {}}
     for prop in DIRECT_PROPS:
         gp = scored[scored["prop"] == prop]
+        pr = prim[prim["prop"] == prop]
+        cov["by_prop_primary_deterministic"][prop] = {
+            "rows": int(len(pr)), "dates": int(pr["game_date"].nunique()),
+            "book_mix": {k: int(v) for k, v in pr["book"].value_counts().items()},
+            "status": ("OK" if len(pr) else "NO_EXACT_QUOTES")}
         cov["by_prop_book"][prop] = {
             bk: {"rows": int(len(g)), "dates": int(g["game_date"].nunique())}
             for bk, g in gp.groupby("book")}
-        pb = gp[gp["book"] == primary_book]
-        cov["by_prop_primary"][prop] = {"rows": int(len(pb)), "dates": int(pb["game_date"].nunique()),
-                                        "status": ("OK" if len(pb) else "NO_EXACT_QUOTES")}
+        cov["by_prop_all_books_pooled"][prop] = {"rows": int(len(gp)), "dates": int(gp["game_date"].nunique())}
     (outp / "G0_V2_QUOTE_COVERAGE.json").write_text(json.dumps(cov, indent=2) + "\n")
 
-    # G0-v2 metrics per prop: primary book (headline) + all-books pooled (reference).
+    # G0-v2 metrics per prop: PRIMARY deterministic one-quote (headline) + all-books pooled (sensitivity).
     rows = []
     for prop in DIRECT_PROPS:
-        for scope, sub in (("primary_book", scored[(scored["prop"] == prop) & (scored["book"] == primary_book)]),
-                           ("all_books_pooled", scored[scored["prop"] == prop])):
+        for scope, sub in (("primary_deterministic", prim[prim["prop"] == prop]),
+                           ("all_books_pooled_SENSITIVITY", scored[scored["prop"] == prop])):
             if len(sub) == 0:
                 rows.append({"prop": prop, "scope": scope, "n_settled": 0,
                              "status": "NO_EXACT_QUOTES", "n_dates": 0})
@@ -214,15 +233,17 @@ def main(
     metrics = pd.DataFrame(rows)
     metrics.to_csv(outp / "G0_V2_METRICS.csv", index=False)
     (outp / "G0_V2_METRICS.json").write_text(
-        json.dumps({"primary_book": primary_book,
+        json.dumps({"primary_scope": "primary_deterministic (one quote per game_id+player_id+prop)",
+                    "quote_policy": policy["version"],
                     "note": ("model log loss/Brier ABOVE market = model does NOT yet beat the "
-                             "exact market on that prop (positive delta is worse). stl/blk/turnover "
-                             "have NO exact quotes and cannot be scored against market."),
+                             "exact market on that prop (positive delta is worse). all_books_pooled "
+                             "is SENSITIVITY ONLY (duplicates outcomes across books). stl/blk/turnover "
+                             "have NO exact quotes."),
                     "records": metrics.replace({np.nan: None}).to_dict("records")}, indent=2) + "\n")
 
-    print(f"[g0v2] scored rows={len(scored)} books={sorted(scored['book'].unique())} "
-          f"split_cut={cut}")
-    show = metrics[metrics["scope"] == "primary_book"][
+    print(f"[g0v2] scored rows={len(scored)} primary(one-quote) rows={len(prim)} "
+          f"books={sorted(scored['book'].unique())} split_cut={cut}")
+    show = metrics[metrics["scope"] == "primary_deterministic"][
         ["prop", "n_settled", "n_dates", "model_logloss", "market_logloss", "logloss_delta",
          "model_brier", "market_brier", "brier_delta", "model_ece", "market_ece", "status"]]
     print(show.to_string(index=False))

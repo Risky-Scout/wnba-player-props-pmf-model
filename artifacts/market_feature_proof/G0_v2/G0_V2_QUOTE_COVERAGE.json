@@ -1,6 +1,70 @@
 {
-  "primary_book": "draftkings",
+  "quote_policy": "book-quote-priority-v1",
+  "primary_scope": "deterministic_one_quote_per_obs",
+  "legacy_primary_book": "draftkings",
   "split_cut_date": "2026-06-13",
+  "by_prop_primary_deterministic": {
+    "pts": {
+      "rows": 851,
+      "dates": 55,
+      "book_mix": {
+        "draftkings": 824,
+        "fanduel": 19,
+        "betonlineag": 8
+      },
+      "status": "OK"
+    },
+    "reb": {
+      "rows": 742,
+      "dates": 55,
+      "book_mix": {
+        "draftkings": 695,
+        "fanduel": 23,
+        "betonlineag": 22,
+        "williamhill_us": 2
+      },
+      "status": "OK"
+    },
+    "ast": {
+      "rows": 522,
+      "dates": 55,
+      "book_mix": {
+        "draftkings": 458,
+        "betonlineag": 46,
+        "fanduel": 16,
+        "williamhill_us": 2
+      },
+      "status": "OK"
+    },
+    "fg3m": {
+      "rows": 504,
+      "dates": 55,
+      "book_mix": {
+        "draftkings": 475,
+        "betonlineag": 26,
+        "fanduel": 3
+      },
+      "status": "OK"
+    },
+    "stl": {
+      "rows": 0,
+      "dates": 0,
+      "book_mix": {},
+      "status": "NO_EXACT_QUOTES"
+    },
+    "blk": {
+      "rows": 0,
+      "dates": 0,
+      "book_mix": {},
+      "status": "NO_EXACT_QUOTES"
+    },
+    "turnover": {
+      "rows": 0,
+      "dates": 0,
+      "book_mix": {},
+      "status": "NO_EXACT_QUOTES"
+    }
+  },
   "by_prop_book": {
     "pts": {
       "betonlineag": {
@@ -78,41 +142,34 @@
     "blk": {},
     "turnover": {}
   },
-  "by_prop_primary": {
+  "by_prop_all_books_pooled": {
     "pts": {
-      "rows": 824,
-      "dates": 55,
-      "status": "OK"
+      "rows": 2924,
+      "dates": 55
     },
     "reb": {
-      "rows": 695,
-      "dates": 55,
-      "status": "OK"
+      "rows": 2401,
+      "dates": 55
     },
     "ast": {
-      "rows": 458,
-      "dates": 55,
-      "status": "OK"
+      "rows": 1462,
+      "dates": 55
     },
     "fg3m": {
-      "rows": 475,
-      "dates": 55,
-      "status": "OK"
+      "rows": 1632,
+      "dates": 55
     },
     "stl": {
       "rows": 0,
-      "dates": 0,
-      "status": "NO_EXACT_QUOTES"
+      "dates": 0
     },
     "blk": {
       "rows": 0,
-      "dates": 0,
-      "status": "NO_EXACT_QUOTES"
+      "dates": 0
     },
     "turnover": {
       "rows": 0,
-      "dates": 0,
-      "status": "NO_EXACT_QUOTES"
+      "dates": 0
     }
   }
 }

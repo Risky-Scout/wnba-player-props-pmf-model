@@ -4,34 +4,34 @@
     {
       "prop": "ast",
       "has_advancing_candidate": true,
-      "best_candidate": "C5_role_blend",
-      "best_logloss_delta_vs_market": -0.011105470000240536,
-      "best_brier_delta_vs_market": -0.005109928035092831,
+      "best_candidate": "C4_blend",
+      "best_logloss_delta_vs_market": -0.006462034392171412,
+      "best_brier_delta_vs_market": -0.003345060561957519,
       "distance_from_passing": 0.0
     },
     {
       "prop": "fg3m",
       "has_advancing_candidate": true,
       "best_candidate": "C2_beta",
-      "best_logloss_delta_vs_market": -0.012490742238217334,
-      "best_brier_delta_vs_market": -0.006561892177397832,
-      "distance_from_passing": 0.0
-    },
-    {
-      "prop": "pts",
-      "has_advancing_candidate": true,
-      "best_candidate": "C6_market_residual",
-      "best_logloss_delta_vs_market": -0.0011319651651309215,
-      "best_brier_delta_vs_market": -0.0005788621577417496,
+      "best_logloss_delta_vs_market": -0.010153462988223727,
+      "best_brier_delta_vs_market": -0.005774381621900082,
       "distance_from_passing": 0.0
     },
     {
       "prop": "reb",
       "has_advancing_candidate": true,
-      "best_candidate": "C4_blend",
-      "best_logloss_delta_vs_market": -0.001141016894740221,
-      "best_brier_delta_vs_market": -0.000525642234559337,
+      "best_candidate": "C6_market_residual",
+      "best_logloss_delta_vs_market": -0.0032435434180680955,
+      "best_brier_delta_vs_market": -0.0013518011558297516,
       "distance_from_passing": 0.0
+    },
+    {
+      "prop": "pts",
+      "has_advancing_candidate": false,
+      "best_candidate": "C2_beta",
+      "best_logloss_delta_vs_market": 0.00038605544152614524,
+      "best_brier_delta_vs_market": 0.0002003998905971971,
+      "distance_from_passing": 0.0005864553321233423
     }
   ]
 }
