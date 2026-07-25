@@ -1,0 +1,125 @@
+name: Atomic Quote Collection (append-only, all 7 props)
+
+# Phase 1 forward collection. Captures exact, per-book, point-in-time (decision + closing)
+# player-prop quotes for ALL seven props (pts/reb/ast/fg3m/stl/blk/turnover) into the
+# append-only atomic store, then persists the store durably to the PRIVATE data repo.
+#
+# Exact id resolution requires the canonical roster/games, so this rebuilds them from BDL
+# first. The store is additive/idempotent (dedup by quote_id); run early and often so no
+# future prospective-proof observation is ever lost.
+#
+# REQUIRED secrets IN THIS (model) repository — NOT only in the private data repo:
+#   ODDS_API_KEY            The Odds API historical key (exposes player_* markets)
+#   BDL_API_KEY             Ball Don't Lie (GOAT tier) for canonical roster/games
+#   PRIVATE_DATA_WRITER_TOKEN  fine-grained token with Contents:read/write on the private
+#                              data repo (must include that repo in its scope)
+#   DATA_ASSET_REPOSITORY   owner/name of the private data repo (or set as a variable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_dates:
+        description: "Space-separated YYYY-MM-DD dates (default: yesterday..+2d)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "20 15 * * *"   # ~11:20 ET: capture decision-time snapshots for today's slate
+    - cron: "20 3 * * *"    # ~23:20 ET: capture closing snapshots after lines settle
+
+concurrency:
+  group: atomic-quote-collection
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+      PRIVATE_DATA_WRITER_TOKEN: ${{ secrets.PRIVATE_DATA_WRITER_TOKEN }}
+      DATA_ASSET_REPOSITORY: ${{ secrets.DATA_ASSET_REPOSITORY || vars.DATA_ASSET_REPOSITORY }}
+      STORE: data/atomic_quotes/atomic_quotes.parquet
+      RELEASE_TAG: atomic-quotes-v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Fail loudly if ODDS_API_KEY is missing
+        run: |
+          if [ -z "$ODDS_API_KEY" ]; then
+            echo "::error::ODDS_API_KEY is not set in THIS repository's Actions secrets. "\
+                 "Add it here (model repo) — a secret on the private data repo is NOT readable by this workflow."
+            exit 1
+          fi
+
+      - name: Compute target game dates
+        id: dates
+        run: |
+          if [ -n "${{ github.event.inputs.game_dates }}" ]; then
+            echo "dates=${{ github.event.inputs.game_dates }}" >> "$GITHUB_OUTPUT"
+          else
+            y=$(date -u -d 'yesterday' +%Y-%m-%d); t=$(date -u +%Y-%m-%d)
+            t1=$(date -u -d '+1 day' +%Y-%m-%d); t2=$(date -u -d '+2 day' +%Y-%m-%d)
+            echo "dates=$y $t $t1 $t2" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild canonical roster/games (for exact id resolution)
+        run: |
+          python scripts/pull_bdl_history.py --start-season 2024 --end-season 2026 --out-dir data/raw/bdl
+          python scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed
+
+      - name: Download existing atomic store from the private data repo (best effort)
+        run: |
+          mkdir -p data/atomic_quotes
+          if [ -n "$PRIVATE_DATA_WRITER_TOKEN" ] && [ -n "$DATA_ASSET_REPOSITORY" ]; then
+            GH_TOKEN="$PRIVATE_DATA_WRITER_TOKEN" gh release download "$RELEASE_TAG" \
+              --repo "$DATA_ASSET_REPOSITORY" --pattern "atomic_quotes.parquet" \
+              --dir data/atomic_quotes --clobber || echo "no prior store (first run or access blocked)"
+          fi
+
+      - name: Collect atomic quotes (append-only, all markets)
+        run: |
+          python scripts/collect_atomic_quotes.py --game-dates ${{ steps.dates.outputs.dates }} \
+            --store "$STORE" \
+            --roster data/processed/wnba_player_game_stats.parquet \
+            --games data/processed/wnba_games.parquet
+
+      - name: Coverage summary (fail loudly if scheduled games but zero coverage)
+        run: |
+          python - <<'PY'
+          import pandas as pd, os, sys
+          p = os.environ["STORE"]
+          df = pd.read_parquet(p)
+          print("[atomic] total rows:", len(df))
+          print(df.groupby("prop").size().to_string() if len(df) else "EMPTY STORE")
+          exact = df[df.get("game_id").notna() & df.get("player_id").notna()] if len(df) else df
+          print("[atomic] exact-id rows:", len(exact))
+          if len(df) == 0:
+              print("::warning::atomic store empty after collection")
+          PY
+
+      - name: Publish updated store to the private data repo (durable, append-only)
+        if: env.PRIVATE_DATA_WRITER_TOKEN != '' && env.DATA_ASSET_REPOSITORY != ''
+        run: |
+          if GH_TOKEN="$PRIVATE_DATA_WRITER_TOKEN" gh repo view "$DATA_ASSET_REPOSITORY" --json name >/dev/null 2>&1; then
+            GH_TOKEN="$PRIVATE_DATA_WRITER_TOKEN" gh release view "$RELEASE_TAG" --repo "$DATA_ASSET_REPOSITORY" >/dev/null 2>&1 || \
+              GH_TOKEN="$PRIVATE_DATA_WRITER_TOKEN" gh release create "$RELEASE_TAG" --repo "$DATA_ASSET_REPOSITORY" --title "$RELEASE_TAG" --notes "Append-only atomic quote store"
+            GH_TOKEN="$PRIVATE_DATA_WRITER_TOKEN" gh release upload "$RELEASE_TAG" "$STORE" --repo "$DATA_ASSET_REPOSITORY" --clobber
+          else
+            echo "::error::BLOCKED_TOKEN_REPOSITORY_ACCESS: token cannot reach $DATA_ASSET_REPOSITORY (grant Contents:read/write). Store uploaded as a workflow artifact instead."
+          fi
+
+      - name: Upload store as workflow artifact (fallback durability)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atomic-quotes-${{ github.run_id }}
+          path: data/atomic_quotes/atomic_quotes.parquet
+          retention-days: 90

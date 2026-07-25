@@ -1,6 +1,6 @@
 {
   "version": "forward-collection-status-v1",
-  "generated_at_utc": "2026-07-25T17:08:40.376384+00:00",
+  "generated_at_utc": "2026-07-25T17:45:09.599857+00:00",
   "odds_api_key_present": false,
   "bdl_api_key_present": false,
   "collector_supports_markets": {
@@ -18,8 +18,20 @@
     "src/wnba_props_model/data/odds_api_client.py"
   ],
   "existing_archive": "artifacts/p1/p1_quotes.parquet (76,620 rows; pts/reb/ast/fg3m + combos; NO stl/blk/turnover)",
-  "forward_collection_status": "BLOCKED_NO_ODDS_API_KEY",
+  "forward_collection_status": "MECHANISM_READY__BLOCKED_SECRET_SCOPE (workflow added; needs keys in the model repo + token repo access)",
   "historical_backfill_stl_blk_turnover": "BLOCKED_NO_ODDS_API_KEY (client exposes the market keys + *_alternate; whether the subscription returns these exact WNBA markets must be verified once the key is present)",
   "bdl_key_status": "ABSENT \u2014 does NOT block historical G0 analysis, but BLOCKS fresh daily prediction generation (reported separately)",
-  "action": "Add ODDS_API_KEY (and BDL_API_KEY for daily predictions) as Cloud Agent secrets; then run scripts/collect_atomic_quotes.py for all 7 markets on a schedule (append-only), and attempt historical backfill for stl/blk/turnover."
+  "action": "Add ODDS_API_KEY (and BDL_API_KEY for daily predictions) as Cloud Agent secrets; then run scripts/collect_atomic_quotes.py for all 7 markets on a schedule (append-only), and attempt historical backfill for stl/blk/turnover.",
+  "secrets_added_by_owner": {
+    "location": "repository Actions secrets on the PRIVATE data repo (Risky-Scout-wnba-player-props-data-private)",
+    "ODDS_API_KEY": "saved (private data repo)",
+    "BDL_API_KEY": "saved (private data repo)"
+  },
+  "secret_scope_reality": "These are Actions secrets on the PRIVATE data repo. They are NOT injected into the Cursor agent VM (both read false here) and are NOT readable by the model-repo workflows that reference secrets.ODDS_API_KEY / secrets.BDL_API_KEY. The private repo also still returns an authenticated 404 to the writer token (BLOCKED_TOKEN_REPOSITORY_ACCESS).",
+  "required_placement": [
+    "Add ODDS_API_KEY and BDL_API_KEY to the MODEL repo (Risky-Scout/wnba-player-props-pmf-model) Actions secrets (or as org-level secrets shared to both) so the collection/daily workflows can read them.",
+    "Grant PRIVATE_DATA_WRITER_TOKEN access to the private data repo (Contents:read/write) so the collector can persist the append-only store there.",
+    "Optionally add the keys as Cursor Cloud Agent secrets so future agent VMs can run collection directly."
+  ],
+  "new_workflow": ".github/workflows/collect_atomic_quotes.yml (append-only, all 7 props, decision+closing snapshots; rebuilds canonical roster/games from BDL for exact id resolution; persists to private data repo release + workflow artifact)"
 }
