@@ -95,3 +95,49 @@ game-dates) and the only discrimination-competitive prop (ast) is not yet statis
 significant. Targeted model-signal (discrimination) repair for pts/reb/fg3m is **deferred**
 pending this evidence, per owner instruction (no new architecture without measured need).
 The Edge Board therefore has **zero certified props** and cannot publish a certified row yet.
+
+---
+
+## Phase 0–3 update (corrected evidence contract)
+
+**0.1 Historical window relabeled** `DEVELOPMENT_SELECTION_EVIDENCE / HISTORICAL_HOLDOUT_DIAGNOSTIC /
+NOT_FUTURE_PROOF / NOT_PROMOTION_ELIGIBLE` (`HISTORICAL_WINDOW_CLASSIFICATION.json`). All prior
+P14 results preserved unchanged. Every new candidate opens a **new prospective** proof period.
+
+**0.2 Deterministic one-quote policy** `config/book_quote_priority_v1.json` (frozen priority
+draftkings > fanduel > williamhill_us > betrivers > betonlineag). Primary = one exact quote per
+`game_id+player_id+prop`; all-books pooled is **SENSITIVITY only**. G0-v2, candidates, and the
+closest-prop ranking were regenerated on this primary. Under one-quote, all four props clear the
+300-row / 30-date floor.
+
+**0.3 Probability/target semantics** (`PROBABILITY_TARGET_SEMANTICS_AUDIT.json`): **PTS =
+SIGN_INVERSION_DIAGNOSTIC** (mean model P(over) 0.379 vs empirical over-rate 0.479, Platt slope
+−0.009, Spearman −0.024, AUC 0.486; cross-fit AUC 0.470 with slope −2.66). No gross target/line
+defect found (under = 1 − over by construction; prob computed at the exact quote line; pushes
+excluded; identities clean) → the deficit is a genuine near-null/inverted signal, not a bug.
+reb/ast/fg3m are oriented correctly.
+
+**0.4 Calibrator monotonicity** (`CALIBRATOR_MONOTONICITY_AUDIT.json`): Platt/Beta by prop+fold;
+PTS has negative Platt slope in 3/5 folds (SIGN_INVERSION_DIAGNOSTIC); reb/ast/fg3m monotone. The
+pooled-AUC change from cross-fitted calibration is a cross-fold intercept artifact (within-fold
+ranking preserved), not added discrimination.
+
+**Phase 2 — AST first edge:** candidate **A1 (monotone-calibrated existing model) is FROZEN**
+(`artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE.json`). On the full development window it beats
+the exact one-quote market on both proper scores (ΔLL −0.0037, ΔBrier −0.0019, ECE 0.016, no
+catastrophic fold). A2/A3 collapse to market (β→0) under the required strong shrinkage; A4
+(feature residual) is **BLOCKED_NO_FEATURE_MATRIX**. Certification is deferred to a **prospective**
+proof (new dates after the freeze timestamp); the historical diagnostic is not significant (FAIL),
+as expected.
+
+**Phase 3 — PTS/REB/FG3M:** no existing-output challenger beats the market. PTS shows out-of-fold
+sign inversion; reb/fg3m have a real market AUC advantage (0.587/0.617 vs 0.545/0.546). The only
+repair that could add genuine discrimination (A4 feature residual) is **BLOCKED_NO_FEATURE_MATRIX**.
+
+**Phase 1/4 — forward collection:** the collector supports all seven market keys (incl.
+steals/blocks/turnovers); forward collection and stl/blk/turnover backfill are
+**BLOCKED_NO_ODDS_API_KEY**. `BDL_API_KEY` is absent (blocks fresh daily predictions, not historical G0).
+
+**Backup:** the private-repo authenticated 404 is **BLOCKED_TOKEN_REPOSITORY_ACCESS** (the token
+lists 20 Risky-Scout repos but not the data repo; name matches, owner correct) — a token-scope
+issue, not a missing repo. Publish the recovery bundle once access is granted.
