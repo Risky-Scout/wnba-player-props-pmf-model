@@ -259,6 +259,15 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
                 "game_spread_home": float(rng.normal(0, 6)),
                 "game_total": float(rng.uniform(150, 175)),
                 "implied_team_total": float(rng.uniform(75, 90)),
+                # Box-score components so the structural repair candidate can fit (train-only).
+                "actual_fga": float(rng.poisson(max(0.1, mm * 0.45)) if played else 0),
+                "actual_fgm": float(rng.poisson(max(0.1, mm * 0.20)) if played else 0),
+                "actual_fg3a": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
+                "actual_fg3m": float(rng.poisson(max(0.1, mm * 0.05)) if played else 0),
+                "actual_fta": float(rng.poisson(max(0.1, mm * 0.12)) if played else 0),
+                "actual_ftm": float(rng.poisson(max(0.1, mm * 0.10)) if played else 0),
+                "actual_oreb": float(rng.poisson(max(0.1, mm * 0.06)) if played else 0),
+                "actual_dreb": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
                 "actual_pts": float(rng.poisson(max(0.1, mm * 0.4)) if played else 0),
                 "actual_reb": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
             })
@@ -310,6 +319,14 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
 
     oof = pd.read_parquet(out_dir / "oof_player_stat_pmfs.parquet")
     assert {"active_pmf_json", "availability_mixture_pmf_json", "p_dnp"} <= set(oof.columns)
+    # Structural repair candidate PMFs are persisted and non-null for supported props (pts/reb).
+    assert "structural_active_pmf_json" in oof.columns
+    for prop in ("pts", "reb"):
+        sub = oof[oof["stat"] == prop]
+        assert sub["structural_active_pmf_json"].notna().any(), f"no structural PMF for {prop}"
+        assert (sub["structural_candidate_id"].dropna()
+                == {"pts": "S_pts_opportunity_conversion",
+                    "reb": "S_reb_oreb_dreb_opportunity"}[prop]).all()
     # GAP 4: line-independent provenance/contract + hash fields persisted on every OOF row.
     gap4 = {"active_pmf_variance", "availability_mixture_mean", "information_contract",
             "market_probability_weight", "model_hash", "config_hash", "feature_hash",
@@ -385,6 +402,11 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     for prop in metrics["holm_family"]:
         cands = metrics["per_prop"][prop].get("pure_recalibration_candidates", {})
         assert "P1_active_settled_platt" in cands
+    # Structural repair candidate is registered + scored for a supported prop (pts).
+    sc = metrics["per_prop"]["pts"].get("structural_repair_candidate")
+    assert sc is not None and sc["candidate_id"] == "S_pts_opportunity_conversion"
+    assert sc["after_structural_settled_platt"] is not None
+    assert "advances" in sc
 
 
 def test_holm_adjustment_is_monotone_and_bounded():

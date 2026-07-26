@@ -134,6 +134,19 @@ stat_overrides:
     use_beta_binomial: true
   turnover:
     use_minutes_offset: true
+# --- Pure structural repair candidates (owner item 7) --------------------------------------
+# Opportunity×conversion decomposition for pts/reb/fg3m, fit train-only per fold and persisted
+# as an ALTERNATIVE active PMF (structural_active_pmf_json) alongside the direct model's active
+# PMF. evaluate_pure_oof settles + scores each structural candidate against the exact no-vig
+# market and advances it ONLY if it improves LL AND Brier AND AUC. Uses ONLY the model's own
+# box-score aggregates + the minutes projection — NO market input can enter (fail-closed via
+# assert_no_market_inputs). Abstains automatically when a prop's box-score columns are absent.
+structural_repair:
+  enabled: true
+  kappa_rate: 30.0
+  kappa_conversion: 40.0
+  usage_grid: [0.85, 1.0, 1.15]
+  usage_weights: [0.25, 0.5, 0.25]
 use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true

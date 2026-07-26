@@ -46,6 +46,9 @@ from wnba_props_model.models.market import (  # noqa: E402
     UndefinedSettledProbabilityError,
 )
 from wnba_props_model.models.simulation import json_to_pmf, normalize_pmf  # noqa: E402
+from wnba_props_model.models.structural_pmf import (  # noqa: E402
+    SUPPORTED_PROPS as SUPPORTED_STRUCTURAL_PROPS,
+)
 
 app = typer.Typer(add_completion=False)
 
@@ -312,7 +315,13 @@ def load_joined(oof_path: str, scored_path: str) -> tuple[pd.DataFrame, list[str
         df["game_id"] = df["game_id"].astype(str)
         df["player_id"] = df["player_id"].astype(str)
     key = ["game_id", "player_id", "prop"]
-    oof_keep = oof[key + ["active_pmf_json", "p_dnp", "actual_outcome"]].drop_duplicates(key)
+    keep_cols = key + ["active_pmf_json", "p_dnp", "actual_outcome"]
+    # Optional structural repair candidate PMF (owner item 7): carried when the OOF was built
+    # with structural_repair enabled; absent OOFs simply have no structural candidate.
+    for opt in ("structural_active_pmf_json", "structural_candidate_id"):
+        if opt in oof.columns:
+            keep_cols.append(opt)
+    oof_keep = oof[keep_cols].drop_duplicates(key)
     m = scored.merge(oof_keep, on=key, how="inner", suffixes=("", "_oof"))
     return m, key
 
@@ -365,7 +374,18 @@ def main(
     m["crps_active"] = [
         _crps_discrete(a, y) for a, y in zip(m["active_pmf_json"], m["actual"])
     ]
-    # Drop rows where the settled probability is undefined (all mass on the integer push).
+    # Structural repair candidate: settle P(over) + CRPS from the ALTERNATIVE structural active
+    # PMF (opportunity×conversion). Rows without a structural PMF carry NaN and are skipped for
+    # that candidate only.
+    has_structural = "structural_active_pmf_json" in m.columns
+    if has_structural:
+        m["p_over_settled_structural"] = [
+            (_settled_over_from_active(a, ln) if isinstance(a, str) and a else None)
+            for a, ln in zip(m["structural_active_pmf_json"], m["line"])]
+        m["crps_structural"] = [
+            (_crps_discrete(a, y) if isinstance(a, str) and a else float("nan"))
+            for a, y in zip(m["structural_active_pmf_json"], m["actual"])]
+    # Drop rows where the (direct) settled probability is undefined (all mass on the integer push).
     n_before = len(m)
     m = m[m["p_over_settled_active"].notna()].reset_index(drop=True)
     n_undef = n_before - len(m)
@@ -409,6 +429,38 @@ def main(
         monotone_cands = {k: v for k, v in cand_results.items() if v.get("monotone")}
         best_cand = (min(monotone_cands, key=lambda k: monotone_cands[k]["model_logloss"])
                      if monotone_cands else None)
+        # Structural repair candidate (owner item 7): score the alternative opportunity×conversion
+        # PMF through the SAME settle→pure-recalibration ladder, and advance it ONLY if it beats
+        # the market on LL AND Brier AND AUC (the identity/raw settled prob carries the
+        # discrimination; monotone Platt only fixes calibration). No market input is involved.
+        structural = None
+        if has_structural and prop in SUPPORTED_STRUCTURAL_PROPS:
+            spdf = pdf[pdf.get("p_over_settled_structural").notna()].copy() \
+                if "p_over_settled_structural" in pdf.columns else pdf.iloc[0:0].copy()
+            if len(spdf) >= 30:
+                spdf["p_over_settled_active"] = spdf["p_over_settled_structural"].to_numpy(float)
+                spdf["crps_active"] = spdf["crps_structural"].to_numpy(float)
+                s_before = nested_eval(spdf, "P0_active_settled_identity",
+                                       min_train_dates=min_train_dates, val_block_dates=val_block_dates)
+                s_after = nested_eval(spdf, "P1_active_settled_platt",
+                                      min_train_dates=min_train_dates, val_block_dates=val_block_dates)
+                s_ci = _bootstrap_ci(s_after, spdf) if s_after else None
+                s_contract = (real_selection_contract(s_after, s_ci,
+                                                       pure_provenance_ok=pure_provenance_ok)
+                              if (s_after and s_ci) else None)
+                structural = {
+                    "candidate_id": (spdf["structural_candidate_id"].dropna().iloc[0]
+                                     if "structural_candidate_id" in spdf.columns
+                                     and spdf["structural_candidate_id"].notna().any() else None),
+                    "n": int(len(spdf)),
+                    "before_structural_settled_identity": pub(s_before),
+                    "after_structural_settled_platt": pub(s_after),
+                    "after_bootstrap_ci": s_ci,
+                    "real_selection_contract": s_contract,
+                    "advances": bool(s_contract and s_contract["selection_contract_pass"]),
+                    "lineage": ("structural_active_pmf(opportunity×conversion) -> push_safe_settled "
+                                "-> monotone_platt(model_vs_outcome)"),
+                }
         per_prop[prop] = {
             "before_active_settled_identity": pub(before),
             "after_active_settled_platt": pub(after),
@@ -416,6 +468,7 @@ def main(
             "real_selection_contract": contract,
             "pure_recalibration_candidates": cand_results,
             "best_pure_recalibration_candidate": best_cand,
+            "structural_repair_candidate": structural,
             "final_probability_column": FINAL_COL,
             "lineage": "active_pmf -> push_safe_settled -> monotone_platt(model_vs_outcome)",
         }
@@ -464,6 +517,18 @@ def main(
                     row["holm_adjusted_p_ll"] = holm_ll.get(prop)
                     row["holm_adjusted_p_brier"] = holm_brier.get(prop)
                 csv_rows.append(row)
+        # Structural repair candidate CSV row (owner item 7).
+        sc = per_prop[prop].get("structural_repair_candidate")
+        if sc and sc.get("after_structural_settled_platt"):
+            r = sc["after_structural_settled_platt"]
+            csv_rows.append({"prop": prop, "stage": "STRUCTURAL_repair_platt",
+                             "candidate_id": sc.get("candidate_id"),
+                             "advances": sc.get("advances"),
+                             **{k: r[k] for k in (
+                                 "n", "n_folds", "model_logloss", "market_logloss", "logloss_delta",
+                                 "model_brier", "market_brier", "brier_delta", "model_auc",
+                                 "market_auc", "model_ece", "market_ece", "model_crps_active_pmf",
+                                 "worst_fold_logloss_delta", "monotone")}})
 
     passing = [p for p in QUOTE_COVERED
                if per_prop[p].get("real_selection_contract")
@@ -485,6 +550,9 @@ def main(
         "note_not_certification": ("passing the selection contract is a development pre-proof "
                                    "screen; STEP 10 prospective proof is still required and NO "
                                    "promotion/edge gate is modified here"),
+        "structural_repair": ("pure opportunity×conversion candidates (pts/reb/fg3m) scored "
+                              "through the same settle→recalibration ladder; advances only on "
+                              "LL<0 AND Brier<0 AND AUC>=market; zero market input"),
         "multiple_testing": ("one-sided paired date-cluster bootstrap p-value per prop for "
                              "dLL<0 and dBrier<0, Holm-Bonferroni across the quote-covered prop "
                              "family (reporting only; the CI-based selection contract still gates)"),
@@ -520,6 +588,12 @@ def main(
         if per_prop[prop].get("holm_adjusted_p_ll") is not None:
             print(f"      -> Holm-adjusted p: LL={per_prop[prop]['holm_adjusted_p_ll']:.4f} "
                   f"Brier={per_prop[prop]['holm_adjusted_p_brier']:.4f}")
+        sc = per_prop[prop].get("structural_repair_candidate")
+        if sc and sc.get("after_structural_settled_platt"):
+            sr = sc["after_structural_settled_platt"]
+            print(f"      -> STRUCTURAL {sc.get('candidate_id')}: dLL={sr['logloss_delta']:+.4f} "
+                  f"dBr={sr['brier_delta']:+.4f} AUC={sr['model_auc']:.3f} "
+                  f"advances={sc.get('advances')}")
     print(f"\nPROPS PASSING REAL SELECTION CONTRACT: {passing or 'none'}")
     print("stl/blk/turnover: NO_EXACT_QUOTES (market comparison blocked on odds collection)")
     print(f"\nWrote {outp/'PRODUCTION_PURE_OOF_METRICS.json'} and .csv")
