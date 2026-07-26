@@ -527,6 +527,20 @@ def generate_fold_pmfs(
             pmf_mat = poisson_pmf_batch(np.full(len(stat_rows), mu_prior), cap)
             stat_model_type = "prior_fallback"
 
+        # ---- Active PMF capture (STEP 4: PMF-level DNP correction) ---------
+        # ``pmf_mat`` here is the conditional-on-appearance ("active") PMF: it already
+        # marginalizes over the appearance-only minutes distribution but the DNP mass has
+        # NOT yet been folded onto outcome 0. The subsequent DNP/zero-inflation block folds
+        # p_dnp onto index 0 to produce the availability MIXTURE (the historical ``pmf_json``).
+        # We persist the active PMF separately so the sportsbook binary probability can be
+        # settled from the active distribution (void-on-DNP), keeping p_dnp separate — never
+        # the invalid post-hoc model_prob_over_final/(1-p_dnp) shortcut.
+        from wnba_props_model.models.pmf_utils import sanitize_pmf_matrix as _san_active  # noqa: PLC0415
+        active_pmf_mat, _ = _san_active(pmf_mat.copy())
+        validate_pmf_matrix(active_pmf_mat)
+        active_pmf_means, _ = pmf_mean_var(active_pmf_mat)
+        active_pmf_jsons = pmf_matrix_to_json_list(active_pmf_mat)
+
         # ---- DNP / zero-inflation -----------------------------------------
         low_min_applied = False
         low_min_count = 0
@@ -608,6 +622,9 @@ def generate_fold_pmfs(
             "pos_mu":                       pos_mus_out if pos_mus_out is not None else stat_means_out,
             "stat_model_type":              stat_model_type,
             "pmf_json":                     pmf_jsons,
+            "active_pmf_json":              active_pmf_jsons,
+            "active_pmf_mean":              active_pmf_means,
+            "availability_mixture_pmf_json": pmf_jsons,
             "pmf_support_min":              0,
             "pmf_support_max":              cap,
             "pmf_mean":                     pmf_means,

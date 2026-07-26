@@ -32,6 +32,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from wnba_props_model.features.feature_contract import assert_no_forbidden_features
 from wnba_props_model.models.oof_engine import generate_oof_folds, make_prior_only_pmfs
+from wnba_props_model.models.pure_model_contract import (
+    assert_pure_feature_columns,
+    assert_pure_model_config,
+    is_pure_model,
+    pure_forecast_provenance,
+)
 from wnba_props_model.models.training import train_fold, generate_fold_pmfs
 from wnba_props_model.models.svd_bridge import SVDBridgeEstimator
 
@@ -251,6 +257,31 @@ def build(
     if leaked:
         raise ValueError(f"Target columns in model_feature_cols: {leaked}")
     print("  Leakage guard: PASS")
+
+    # ------------------------------------------------------------------
+    # 1b. Fail-closed pure_forecast guard (STEP 3)
+    # ------------------------------------------------------------------
+    # The OOF build uses train_fold()/generate_fold_pmfs() (NOT pmf_engine.build_all_pmfs),
+    # so the pure contract must be re-enforced HERE before any fold is trained. A pure OOF
+    # config carries ZERO market weight/nudge and no market-derived feature column enters the
+    # (OOF-safe) model_feature_columns; otherwise this aborts the run.
+    assert_pure_model_config(cfg, context="build_oof_pmfs")
+    _pure_mode = is_pure_model(cfg)
+    pure_provenance: dict | None = None
+    if _pure_mode:
+        assert_pure_feature_columns(model_cols, context="build_oof_pmfs")
+        pure_provenance = pure_forecast_provenance(cfg, model_cols)
+        pure_provenance["config_path"] = str(config_path)
+        pure_provenance["ordered_feature_list_count"] = len(model_cols)
+        prov_out = audit_out.parent / "PURE_OOF_RUN_MANIFEST.json"
+        prov_out.write_text(json.dumps(pure_provenance, indent=2, default=str) + "\n")
+        print(f"  pure_forecast guard: PASS (information_contract=pure_forecast; "
+              f"market_prior_lambda=0.0; CLV disabled)")
+        print(f"    config_sha256={pure_provenance['config_sha256']}")
+        print(f"    ordered_feature_list_sha256={pure_provenance['ordered_feature_list_sha256']}")
+        print(f"  → wrote pure run manifest: {prov_out}")
+    else:
+        print("  pure_forecast guard: SKIPPED (config not marked pure_model)")
 
     # ------------------------------------------------------------------
     # 2. Fold-safe encoding (Phase 5.1)
@@ -563,6 +594,40 @@ def build(
     print("  is_calibrated = False: PASS")
 
     # ------------------------------------------------------------------
+    # 5b. Active-PMF lineage (STEP 4): derive the conditional-on-play PMF authoritatively
+    # ------------------------------------------------------------------
+    # ``pmf_json`` is the availability MIXTURE (DNP mass folded onto outcome 0, plus the
+    # ast/turnover minutes-offset rebuild). The sportsbook binary probability must be settled
+    # from the ACTIVE (conditional-on-appearance) PMF and p_dnp kept SEPARATE. We recover the
+    # active PMF by inverting the DNP fold on the FINAL mixture (canonical recover_active_pmf),
+    # so active ⊕ p_dnp is consistent with the delivered mixture for EVERY stat — never the
+    # invalid model_prob_over_final/(1-p_dnp) post-hoc shortcut.
+    from wnba_props_model.models.availability_pmf import (  # noqa: PLC0415
+        pmf_mean as _active_mean,
+        recover_active_pmf,
+    )
+    from wnba_props_model.models.simulation import pmf_to_json as _active_to_json  # noqa: PLC0415
+    _pdnp_col = oof_df["p_dnp"].fillna(0.0).to_numpy(float) if "p_dnp" in oof_df.columns \
+        else np.zeros(len(oof_df))
+    _active_jsons, _active_means = [], []
+    for _js, _d in zip(oof_df["pmf_json"].to_numpy(), _pdnp_col):
+        _a = recover_active_pmf(_js, float(_d))
+        _active_jsons.append(_active_to_json(_a))
+        _active_means.append(_active_mean(_a))
+    oof_df["active_pmf_json"] = _active_jsons
+    oof_df["active_pmf_mean"] = _active_means
+    oof_df["availability_mixture_pmf_json"] = oof_df["pmf_json"].to_numpy()
+    _mix_mean = oof_df["pmf_mean"].astype(float).to_numpy()
+    _amn = np.asarray(_active_means, float)
+    _bad_active = int(np.sum(_mix_mean > _amn + 1e-6))
+    if _bad_active:
+        raise ValueError(
+            f"active-PMF lineage FAILED: {_bad_active} rows have mixture mean > active mean "
+            "(folding DNP mass onto 0 must not raise the mean).")
+    print(f"  active-PMF lineage: PASS (mean(active)-mean(mixture)="
+          f"{float(np.mean(_amn - _mix_mean)):.4f}; p_dnp kept separate)")
+
+    # ------------------------------------------------------------------
     # 6. Write outputs
     # ------------------------------------------------------------------
     long_out = out_dir / "oof_player_stat_pmfs.parquet"
@@ -626,6 +691,10 @@ def build(
         "same_day_leakage_check": "PASS",
         "low_minutes_adjustment_count": low_adj,
         "model_feature_count": len(model_cols),
+        "pure_model": bool(_pure_mode),
+        "information_contract": cfg.get("information_contract"),
+        "pure_forecast_provenance": pure_provenance,
+        "active_pmf_lineage": bool("active_pmf_json" in oof_df.columns),
     }
     audit_out.write_text(json.dumps(audit, indent=2, default=str))
     print(f"\nSaved audit: {audit_out}")
