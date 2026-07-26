@@ -152,3 +152,15 @@ def test_no_42_minute_iqr_cap():
     # predict() sigma is derived from the same uncapped clip so it is not artificially 0.
     _, sigma, _ = m.predict(X, meta)
     assert np.all(sigma >= cfg["min_minutes_sigma"])
+
+
+def test_quantile_crossing_is_repaired():
+    X, y, meta = _synthetic_minutes_frame(n=500, seed=3)
+    cfg = {"min_minutes_sigma": 1.0, "minutes_clip_max": 48.0, "hgb_regressor": {"max_iter": 30}}
+    m = MinutesModel(cfg).fit(X, y, meta)
+    q = m.predict_quantiles(X, meta)
+    # q10<=q25<=q50<=q75<=q90 for every row (no crossing after repair).
+    assert np.all(np.diff(q, axis=1) >= -1e-9)
+    # derived sigma is therefore always well-defined and >= the floor.
+    _, sigma, _ = m.predict(X, meta)
+    assert np.all(sigma >= cfg["min_minutes_sigma"])

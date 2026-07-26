@@ -199,7 +199,10 @@ class MinutesModel:
             else:
                 raw = self._model.predict(X_aligned)  # fallback
             cols.append(np.clip(raw, 0.0, clip_max))
-        return np.column_stack(cols)  # (n, 5)
+        q = np.column_stack(cols)  # (n, 5)
+        # Repair quantile crossing: independently-fit quantile regressors can cross; enforce
+        # non-decreasing q10<=q25<=q50<=q75<=q90 per row so the derived IQR/sigma is valid.
+        return np.sort(q, axis=1)
 
     def predict(
         self,
@@ -236,10 +239,16 @@ class MinutesModel:
         _qm = getattr(self, "_quantile_models", {}) or {}
         if _qm:
             # Use the configured clip_max consistently with predict_quantiles (no 42-min hard
-            # cap — capping q75 at 42 shrinks the IQR/sigma for high-minute starters).
+            # cap — capping q75 at 42 shrinks the IQR/sigma for high-minute starters) and derive
+            # sigma from crossing-repaired (sorted) quantiles so q75>=q25 always holds.
             clip_max = self.cfg.get("minutes_clip_max", 48.0)
-            q25_pred = np.clip(_qm[0.25].predict(X), 0.0, clip_max)
-            q75_pred = np.clip(_qm[0.75].predict(X), 0.0, clip_max)
+            q_all = np.column_stack([
+                np.clip(_qm[q].predict(X), 0.0, clip_max) if q in _qm
+                else np.clip(self._model.predict(X), 0.0, clip_max)
+                for q in _QUANTILES
+            ])
+            q_all = np.sort(q_all, axis=1)
+            q25_pred, q75_pred = q_all[:, 1], q_all[:, 3]
             sigmas = np.maximum((q75_pred - q25_pred) / 1.35, min_sigma)
         else:
             # Legacy fallback: role-stratified residual sigma
