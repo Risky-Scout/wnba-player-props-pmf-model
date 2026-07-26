@@ -1,0 +1,86 @@
+{
+  "version": "live-collection-attempt-v1",
+  "generated_at_utc": "2026-07-26T01:02:16.543831+00:00",
+  "supersedes_facts_in": "FORWARD_COLLECTION_STATUS.json (odds_api_key_present/bdl_api_key_present recorded false on a prior VM); on THIS Cloud Agent VM both keys are present and the Odds API key is VALID",
+  "environment_secrets_present": {
+    "ODDS_API_KEY": true,
+    "BDL_API_KEY": true,
+    "PRIVATE_DATA_WRITER_TOKEN": true,
+    "DATA_ASSET_REPOSITORY": true
+  },
+  "odds_api_key_status": "VALID (list_sports 200; basketball_wnba active=true)",
+  "odds_api_key_length": 32,
+  "quota_remaining_after_probe": 4553270,
+  "real_collection_attempts": {
+    "nearest_post_freeze_slate": {
+      "game_dates": [
+        "2026-07-28",
+        "2026-07-29"
+      ],
+      "collector": "scripts/collect_atomic_quotes.py (local; workflow_dispatch not possible until PR #82 merges)",
+      "historical_rows_collected": 0,
+      "reason": "decision-time historical snapshots (tip - 12h) for these dates are in the FUTURE relative to now; no snapshot exists yet"
+    },
+    "last_completed_slate_provider_health_check": {
+      "game_date": "2026-07-22",
+      "same_book_quote_rows": 4948,
+      "props_present": [
+        "pts",
+        "reb",
+        "ast",
+        "fg3m",
+        "pts_reb_ast",
+        "pts_reb",
+        "pts_ast",
+        "reb_ast"
+      ],
+      "props_absent_no_book_offered": [
+        "stl",
+        "blk",
+        "turnover"
+      ],
+      "note": "provider + collector VERIFIED functional; rows were BLOCKED_EXACT_QUOTES only because canonical roster/games were not rebuilt in this VM (id resolution), NOT a provider fault"
+    }
+  },
+  "schedule_reality_from_live_events_endpoint": {
+    "no_wnba_games_on": [
+      "2026-07-23",
+      "2026-07-24",
+      "2026-07-25",
+      "2026-07-26",
+      "2026-07-27"
+    ],
+    "verified_via": "historical events endpoint returned 0 events for 07-23..07-27; live events endpoint lists next games starting 2026-07-28",
+    "upcoming_slate_dates": [
+      "2026-07-28",
+      "2026-07-29",
+      "2026-07-30"
+    ],
+    "upcoming_games_by_date": {
+      "2026-07-28": [
+        "Connecticut Sun @ Washington Mystics"
+      ],
+      "2026-07-29": [
+        "Toronto Tempo @ Minnesota Lynx",
+        "Indiana Fever @ Seattle Storm",
+        "Portland Fire @ Las Vegas Aces",
+        "New York Liberty @ Los Angeles Sparks"
+      ],
+      "2026-07-30": [
+        "Atlanta Dream @ Dallas Wings",
+        "Golden State Valkyries @ Phoenix Mercury"
+      ]
+    }
+  },
+  "freeze_timestamps_utc": {
+    "ast": "2026-07-25T18:09:40.752859+00:00",
+    "reb": "2026-07-25T19:40:23.613139+00:00"
+  },
+  "prospective_proof_eligible_observations": {
+    "ast": 0,
+    "reb": 0,
+    "explanation": "prospective proof requires COMPLETED game dates strictly after the freeze; the first post-freeze WNBA slate is 2026-07-28, which has not been played yet (now=2026-07-26T01:02:16.543831+00:00)"
+  },
+  "precise_blocker": "SCHEDULE_GAP_THEN_FUTURE_SLATE: the WNBA has no games 2026-07-23..2026-07-27; the first post-freeze slate (2026-07-28) is ~2.5 days in the future and unplayed. Zero prospective-proof-eligible observations exist. This is NOT an Odds API data-lag or key/quota problem (key valid, quota_remaining ~4553270). Action when 07-28 completes: run collect_atomic_quotes for 2026-07-28/29 (decision-time tip-12h snapshots), settle, pair, then run the prospective proof for AST and REB.",
+  "workflow_dispatch_status": "collect_atomic_quotes.yml is NOT on the default branch (main); it lives only on PR #82. It cannot be workflow_dispatch-ed until PR #82 merges. Local collection was used as the sanctioned fallback."
+}

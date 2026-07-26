@@ -1,0 +1,14 @@
+{
+  "version": "backup-deferred-nonblocking-v1",
+  "status": "BACKUP_DEFERRED_NONBLOCKING",
+  "generated_at_utc": "2026-07-26T01:02:00+00:00",
+  "reason": "Private-repository backup publication remains blocked (authenticated 404: PRIVATE_DATA_WRITER_TOKEN cannot reach DATA_ASSET_REPOSITORY). Per owner priority reset, private-repository token troubleshooting is STOPPED and is NOT allowed to block model evaluation, live-quote collection, prospective proof, or the public pages.",
+  "artifact_retention_path": "GitHub Actions: collect_atomic_quotes.yml uploads the atomic-quote store as a 90-day retained workflow artifact (fallback durability) on every run, independent of the private repo. The recovery bundle (data/recovery/recovery_bundle_v1.tar.gz) is also retained locally.",
+  "do_not": [
+    "diagnose PRIVATE_DATA_WRITER_TOKEN",
+    "create or repair the private data-vault repository",
+    "publish recovery bundles to the public model repo (owner-gated)"
+  ],
+  "continue": "Model evaluation, live-quote collection, prospective proof, and public-page work proceed without waiting on private-repository publication.",
+  "supersedes": "The publish-blocker detail remains recorded (non-actionable now) in CRITICAL_PATH_STATUS.json deliverable_1_data_preservation; it is retained for history only."
+}
