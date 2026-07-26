@@ -1,0 +1,15 @@
+{
+  "selected_candidates": {
+    "pts": {
+      "candidate_id": "C1_platt",
+      "probability_track": "pure_forecast",
+      "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+      "feature_schema_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "calibration_policy_hash": "6313c0871054b3c9117ef9e974217ac181ed05b73e2942f39dc5c898e3afa423",
+      "calibrator_hash": "23e348747084efb8a07e9424ca4d1f89208a8d3500fab3373fd969cadf9ec320",
+      "training_date_max": "2026-06-12",
+      "selection_date_max": "2026-06-12",
+      "proof_date_min": "2026-06-13"
+    }
+  }
+}

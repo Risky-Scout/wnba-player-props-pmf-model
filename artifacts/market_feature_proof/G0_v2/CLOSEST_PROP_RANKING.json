@@ -1,0 +1,37 @@
+{
+  "cv": "nested expanding-window rolling-origin",
+  "records": [
+    {
+      "prop": "ast",
+      "has_advancing_candidate": true,
+      "best_candidate": "C4_blend",
+      "best_logloss_delta_vs_market": -0.004750801845611052,
+      "best_brier_delta_vs_market": -0.002341688776559603,
+      "distance_from_passing": 0.0
+    },
+    {
+      "prop": "reb",
+      "has_advancing_candidate": true,
+      "best_candidate": "C6_market_residual",
+      "best_logloss_delta_vs_market": -0.0019682258076734183,
+      "best_brier_delta_vs_market": -0.0008998864273468132,
+      "distance_from_passing": 0.0
+    },
+    {
+      "prop": "fg3m",
+      "has_advancing_candidate": false,
+      "best_candidate": "C4_blend",
+      "best_logloss_delta_vs_market": 0.0009635193695225475,
+      "best_brier_delta_vs_market": 0.0004666165644051645,
+      "distance_from_passing": 0.001430135933927712
+    },
+    {
+      "prop": "pts",
+      "has_advancing_candidate": false,
+      "best_candidate": "C3_isotonic",
+      "best_logloss_delta_vs_market": 0.0014388778504790256,
+      "best_brier_delta_vs_market": 0.0006682369701160595,
+      "distance_from_passing": 0.002107114820595085
+    }
+  ]
+}

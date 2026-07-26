@@ -1,0 +1,15 @@
+{
+  "selected_candidates": {
+    "reb": {
+      "candidate_id": "C4_blend",
+      "probability_track": "pure_forecast",
+      "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+      "feature_schema_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+      "calibration_policy_hash": "6fee7cb3ff0c356d897d063e29de092e2c383c8d9ff8f8e1295986a1034bacd1",
+      "calibrator_hash": "a7bd7b9395dae452cf9db62ed4254be343ad34c43c8b7f343e3034c450abb48d",
+      "training_date_max": "2026-06-12",
+      "selection_date_max": "2026-06-12",
+      "proof_date_min": "2026-06-13"
+    }
+  }
+}

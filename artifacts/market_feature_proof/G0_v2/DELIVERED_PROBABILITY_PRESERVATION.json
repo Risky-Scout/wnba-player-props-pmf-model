@@ -1,0 +1,48 @@
+{
+  "version": "delivered-probability-preservation-v1",
+  "generated_at_utc": "2026-07-25T19:48:37.569328+00:00",
+  "probability_column": "model_prob_over_final",
+  "total_delivered_rows": 2619,
+  "per_prop": {
+    "pts": {
+      "delivered_prob_rows": 851,
+      "in_unit_interval": 851,
+      "status": "OK"
+    },
+    "reb": {
+      "delivered_prob_rows": 742,
+      "in_unit_interval": 742,
+      "status": "OK"
+    },
+    "ast": {
+      "delivered_prob_rows": 522,
+      "in_unit_interval": 522,
+      "status": "OK"
+    },
+    "fg3m": {
+      "delivered_prob_rows": 504,
+      "in_unit_interval": 504,
+      "status": "OK"
+    },
+    "stl": {
+      "delivered_prob_rows": 0,
+      "in_unit_interval": 0,
+      "status": "NO_EXACT_QUOTES"
+    },
+    "blk": {
+      "delivered_prob_rows": 0,
+      "in_unit_interval": 0,
+      "status": "NO_EXACT_QUOTES"
+    },
+    "turnover": {
+      "delivered_prob_rows": 0,
+      "in_unit_interval": 0,
+      "status": "NO_EXACT_QUOTES"
+    }
+  },
+  "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+  "feature_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+  "canonical_scored_row_sha256": "d8222320d5e8c01070dbced47ac8db2d290912a44086f2676efa75a5ce8a1f71",
+  "preserved_artifact": "artifacts/market_feature_proof/G0_v2/DELIVERED_MODEL_PROB_OVER_FINAL.parquet",
+  "preserved_artifact_sha256": "1ed803e5fd6c73f1a306675e307d2d0b00577d082c0fb43d4d2b5eb99b290a06"
+}

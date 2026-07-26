@@ -1,0 +1,71 @@
+{
+  "version": "probability-target-semantics-audit-v1",
+  "scope": "primary_deterministic_one_quote (canonical artifact)",
+  "per_prop": {
+    "pts": {
+      "n": 851,
+      "mean_model_prob": 0.37897548045843377,
+      "empirical_over_rate": 0.4794359576968273,
+      "calibration_intercept": -0.08771120515917276,
+      "calibration_slope": -0.008972024140016029,
+      "spearman_prob_vs_outcome": -0.02433912517976644,
+      "auc": 0.48593590935245434,
+      "line_match_failures": 0,
+      "identity_failures": 0,
+      "push_leak_rows": 0,
+      "under_equals_one_minus_over": true,
+      "sign_status": "SIGN_INVERSION_DIAGNOSTIC"
+    },
+    "reb": {
+      "n": 742,
+      "mean_model_prob": 0.3255759349736208,
+      "empirical_over_rate": 0.4582210242587601,
+      "calibration_intercept": 0.022230444327977047,
+      "calibration_slope": 0.2205112735292229,
+      "spearman_prob_vs_outcome": 0.08809293892713484,
+      "auc": 0.5510389230318993,
+      "line_match_failures": 0,
+      "identity_failures": 0,
+      "push_leak_rows": 0,
+      "under_equals_one_minus_over": true,
+      "sign_status": "ORIENTED_CORRECTLY"
+    },
+    "ast": {
+      "n": 522,
+      "mean_model_prob": 0.3233186061303792,
+      "empirical_over_rate": 0.4444444444444444,
+      "calibration_intercept": -0.1120365296389821,
+      "calibration_slope": 0.12856810164831406,
+      "spearman_prob_vs_outcome": 0.06971792168398953,
+      "auc": 0.5405023781212842,
+      "line_match_failures": 0,
+      "identity_failures": 0,
+      "push_leak_rows": 0,
+      "under_equals_one_minus_over": true,
+      "sign_status": "ORIENTED_CORRECTLY"
+    },
+    "fg3m": {
+      "n": 504,
+      "mean_model_prob": 0.33477037934642,
+      "empirical_over_rate": 0.42658730158730157,
+      "calibration_intercept": -0.14528489537134218,
+      "calibration_slope": 0.17945075231238963,
+      "spearman_prob_vs_outcome": 0.11574000449933976,
+      "auc": 0.5675545183873822,
+      "line_match_failures": 0,
+      "identity_failures": 0,
+      "push_leak_rows": 0,
+      "under_equals_one_minus_over": true,
+      "sign_status": "ORIENTED_CORRECTLY"
+    },
+    "stl": {
+      "status": "NO_EXACT_QUOTES"
+    },
+    "blk": {
+      "status": "NO_EXACT_QUOTES"
+    },
+    "turnover": {
+      "status": "NO_EXACT_QUOTES"
+    }
+  }
+}

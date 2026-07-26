@@ -1,0 +1,37 @@
+{
+  "ranking_metric": "distance_from_passing = max(dLL,0)+max(dBrier,0) on cross-fit selection",
+  "records": [
+    {
+      "prop": "ast",
+      "has_advancing_candidate": true,
+      "best_candidate": "C4_blend",
+      "best_logloss_delta_vs_market": -0.006463584968195102,
+      "best_brier_delta_vs_market": -0.003453197559386445,
+      "distance_from_passing": 0.0
+    },
+    {
+      "prop": "fg3m",
+      "has_advancing_candidate": true,
+      "best_candidate": "C2_beta",
+      "best_logloss_delta_vs_market": -0.02193965141646681,
+      "best_brier_delta_vs_market": -0.011165442449673102,
+      "distance_from_passing": 0.0
+    },
+    {
+      "prop": "pts",
+      "has_advancing_candidate": true,
+      "best_candidate": "C1_platt",
+      "best_logloss_delta_vs_market": -0.0028286461309072752,
+      "best_brier_delta_vs_market": -0.0014043145770105958,
+      "distance_from_passing": 0.0
+    },
+    {
+      "prop": "reb",
+      "has_advancing_candidate": true,
+      "best_candidate": "C4_blend",
+      "best_logloss_delta_vs_market": -0.003242696848541171,
+      "best_brier_delta_vs_market": -0.0015698381695554153,
+      "distance_from_passing": 0.0
+    }
+  ]
+}

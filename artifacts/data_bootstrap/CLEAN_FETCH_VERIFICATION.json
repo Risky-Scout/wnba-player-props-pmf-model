@@ -1,0 +1,56 @@
+{
+  "version": "clean-fetch-verification-v1",
+  "generated_at_utc": "2026-07-25T01:25:12.618436+00:00",
+  "datasets": {
+    "wnba_games": {
+      "local_present": true,
+      "sha256": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+      "release_tag": "processed-data-v1",
+      "asset": "wnba_games.parquet",
+      "remote_release_exists": false,
+      "remote_asset_present": false,
+      "publication_status": "LOCAL_ONLY_UNPUBLISHED"
+    },
+    "wnba_player_game_stats": {
+      "local_present": true,
+      "sha256": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+      "release_tag": "processed-data-v1",
+      "asset": "wnba_player_game_stats.parquet",
+      "remote_release_exists": false,
+      "remote_asset_present": false,
+      "publication_status": "LOCAL_ONLY_UNPUBLISHED"
+    },
+    "wnba_player_game_features_wide": {
+      "local_present": true,
+      "sha256": "4fca72c3ff4627f6043c1a4e35f9878afe0791322c8176511bd5fa7159ae5603",
+      "release_tag": "processed-features-v2",
+      "asset": "wnba_player_game_features_wide.parquet",
+      "remote_release_exists": false,
+      "remote_asset_present": false,
+      "publication_status": "LOCAL_ONLY_UNPUBLISHED"
+    },
+    "wnba_player_game_features_long": {
+      "local_present": true,
+      "sha256": "4d04129348771f0af39f53c4a3e06e7017c529e0eb8b68de9a15638cdea1016e",
+      "release_tag": "processed-features-v2",
+      "asset": "wnba_player_game_features_long.parquet",
+      "remote_release_exists": false,
+      "remote_asset_present": false,
+      "publication_status": "LOCAL_ONLY_UNPUBLISHED"
+    },
+    "feature_schema_manifest": {
+      "local_present": true,
+      "sha256": "089d3f607769fd19bdcc419bde93c50c2468930a880afc00a75c04f8f568c81d",
+      "release_tag": "processed-features-v2",
+      "asset": "feature_schema_manifest.json",
+      "remote_release_exists": false,
+      "remote_asset_present": false,
+      "publication_status": "LOCAL_ONLY_UNPUBLISHED"
+    }
+  },
+  "local_run_ready": true,
+  "durable_data_ready": false,
+  "clean_fetch_verified": false,
+  "reproducible_run_ready": false,
+  "blocker": "Remote releases processed-data-v1 / processed-features-v2 do not exist; no write credential available to publish (cursor account push=false; GH_TOKEN not injected). Owner must publish or inject a write-scoped token."
+}

@@ -1,47 +1,136 @@
 {
-  "version": 1,
-  "description": "Canonical registry of large/gitignored datasets. The parquet files themselves live in GitHub Releases (durable, immutable, off your laptop). This JSON records where each one lives and its sha256 so any clone can pull + verify it with `python3 scripts/fetch_data.py --all`. Populate/refresh entries with `python3 scripts/publish_data.py`.",
-  "repo": "Risky-Scout/wnba-player-props-pmf-model",
-  "datasets": {
-    "wnba_tracking": {
-      "path": "data/processed/wnba_tracking_2021_2026.parquet",
-      "release_tag": "tracking-data-v1",
-      "asset": "wnba_tracking_2021_2026.parquet",
-      "sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
-      "bytes": 393427,
-      "updated_utc": "2026-07-24T00:26:02Z"
-    },
-    "wnba_hustle": {
-      "path": "data/processed/wnba_hustle_2021_2026.parquet",
-      "release_tag": "tracking-data-v1",
-      "asset": "wnba_hustle_2021_2026.parquet",
-      "sha256": "a1e75c65cc23a5b57c145895bb59183b576f7c070fa2768d665a236350eb96e4",
-      "bytes": 18486,
-      "updated_utc": "2026-07-24T00:26:02Z"
-    },
-    "wnba_games": {
-      "path": "data/processed/wnba_games.parquet",
-      "release_tag": "processed-data-v1",
-      "asset": "wnba_games.parquet",
-      "sha256": null,
-      "bytes": null,
-      "updated_utc": null
-    },
-    "wnba_player_game_stats": {
-      "path": "data/processed/wnba_player_game_stats.parquet",
-      "release_tag": "processed-data-v1",
-      "asset": "wnba_player_game_stats.parquet",
-      "sha256": null,
-      "bytes": null,
-      "updated_utc": null
-    },
-    "oof_player_stat_pmfs": {
-      "path": "data/oof/oof_player_stat_pmfs.parquet",
-      "release_tag": "oof-data-v1",
-      "asset": "oof_player_stat_pmfs.parquet",
-      "sha256": null,
-      "bytes": null,
-      "updated_utc": null
-    }
+ "version": 1,
+ "description": "Canonical registry of large/gitignored datasets. The parquet files themselves live in GitHub Releases (durable, immutable, off your laptop). This JSON records where each one lives and its sha256 so any clone can pull + verify it with `python3 scripts/fetch_data.py --all`. Populate/refresh entries with `python3 scripts/publish_data.py`.",
+ "repo": "Risky-Scout/wnba-player-props-pmf-model",
+ "datasets": {
+  "wnba_tracking": {
+   "path": "data/processed/wnba_tracking_2021_2026.parquet",
+   "release_tag": "tracking-data-v1",
+   "asset": "wnba_tracking_2021_2026.parquet",
+   "sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
+   "bytes": 393427,
+   "updated_utc": "2026-07-24T00:26:02Z"
+  },
+  "wnba_hustle": {
+   "path": "data/processed/wnba_hustle_2021_2026.parquet",
+   "release_tag": "tracking-data-v1",
+   "asset": "wnba_hustle_2021_2026.parquet",
+   "sha256": "a1e75c65cc23a5b57c145895bb59183b576f7c070fa2768d665a236350eb96e4",
+   "bytes": 18486,
+   "updated_utc": "2026-07-24T00:26:02Z"
+  },
+  "wnba_games": {
+   "path": "data/processed/wnba_games.parquet",
+   "release_tag": "processed-data-v1",
+   "asset": "wnba_games.parquet",
+   "sha256": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+   "bytes": 42267,
+   "updated_utc": null,
+   "source_data_hashes": {
+    "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+    "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+    "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+    "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+   },
+   "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+   "builder_sha": "1cf28b3",
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
+  },
+  "wnba_player_game_stats": {
+   "path": "data/processed/wnba_player_game_stats.parquet",
+   "release_tag": "processed-data-v1",
+   "asset": "wnba_player_game_stats.parquet",
+   "sha256": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+   "bytes": 584070,
+   "updated_utc": null,
+   "source_data_hashes": {
+    "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+    "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+    "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+    "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+   },
+   "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+   "builder_sha": "1cf28b3",
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
+  },
+  "oof_player_stat_pmfs": {
+   "path": "data/oof/oof_player_stat_pmfs.parquet",
+   "release_tag": "oof-data-v1",
+   "asset": "oof_player_stat_pmfs.parquet",
+   "sha256": null,
+   "bytes": null,
+   "updated_utc": null
+  },
+  "wnba_player_game_features_wide": {
+   "path": "data/processed/wnba_player_game_features_wide.parquet",
+   "release_tag": "processed-features-v2",
+   "asset": "wnba_player_game_features_wide.parquet",
+   "feature_contract_version": "wnba-baseline-features-v2-410col",
+   "sha256": "4fca72c3ff4627f6043c1a4e35f9878afe0791322c8176511bd5fa7159ae5603",
+   "bytes": 42544219,
+   "updated_utc": "2026-07-24T23:02:16Z",
+   "source_data_hashes": {
+    "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+    "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+    "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+    "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+   },
+   "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+   "builder_sha": "1cf28b3",
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
+  },
+  "wnba_player_game_features_long": {
+   "path": "data/processed/wnba_player_game_features_long.parquet",
+   "release_tag": "processed-features-v2",
+   "asset": "wnba_player_game_features_long.parquet",
+   "feature_contract_version": "wnba-baseline-features-v2-410col",
+   "sha256": "4d04129348771f0af39f53c4a3e06e7017c529e0eb8b68de9a15638cdea1016e",
+   "bytes": 88240479,
+   "updated_utc": "2026-07-24T23:02:16Z",
+   "source_data_hashes": {
+    "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+    "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+    "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+    "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+   },
+   "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+   "builder_sha": "1cf28b3",
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
+  },
+  "recovery_bundle": {
+   "path": "data/recovery/recovery_bundle_v1.tar.gz",
+   "repository": "${DATA_ASSET_REPOSITORY}",
+   "visibility": "private",
+   "release_tag": "recovery-v1",
+   "asset": "recovery_bundle_v1.tar.gz",
+   "sha256": null,
+   "bytes": null,
+   "updated_utc": null,
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "description": "Immutable private recovery bundle: committed 7-prop OOF PMFs, atomic exact-quote store, closing-consensus, prequential ledger, G0 market-superiority input, plus manifests/registry. See artifacts/data_bootstrap/RECOVERY_BUNDLE_MANIFEST.json."
+  },
+  "feature_schema_manifest": {
+   "path": "data/processed/feature_schema_manifest.json",
+   "release_tag": "processed-features-v2",
+   "asset": "feature_schema_manifest.json",
+   "feature_contract_version": "wnba-baseline-features-v2-410col",
+   "sha256": "089d3f607769fd19bdcc419bde93c50c2468930a880afc00a75c04f8f568c81d",
+   "bytes": 30576,
+   "updated_utc": "2026-07-24T23:02:16Z",
+   "source_data_hashes": {
+    "data/processed/wnba_player_game_stats.parquet": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+    "data/processed/wnba_games.parquet": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+    "data/processed/wnba_player_advanced_stats.parquet": "947867623575c19214e8c3303ae27bc424c2238bee291dd75438005ef997da82",
+    "data/processed/wnba_injuries.parquet": "ec4132b4db1fa3c1f82e48ab6c839b24952789b967585772660c7dee96f37ff3"
+   },
+   "feature_contract_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+   "builder_sha": "1cf28b3",
+   "publication_status": "LOCAL_ONLY_UNPUBLISHED",
+   "generated_at_utc": "2026-07-24T23:38:19.188847+00:00"
   }
+ }
 }

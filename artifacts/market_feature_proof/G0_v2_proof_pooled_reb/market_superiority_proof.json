@@ -1,0 +1,57 @@
+{
+  "mode": "prove",
+  "self_test": false,
+  "split_manifest": "artifacts/market_feature_proof/G0_v2_proof_pooled_reb/split_manifest.json",
+  "candidate_manifest": "artifacts/market_feature_proof/G0_v2_proof_pooled_reb/candidate_manifest.json",
+  "bootstrap_replicates": 4000,
+  "alpha": 0.05,
+  "minimum_rows": 300,
+  "minimum_clusters": 30,
+  "target_props": [
+    "reb"
+  ],
+  "status_by_prop": {
+    "reb": "FAIL"
+  },
+  "all_props_proper_score_pass": false,
+  "all_props_strict_pass": false,
+  "results": [
+    {
+      "prop": "reb",
+      "candidate": "C4_blend",
+      "n_settled": 1487,
+      "n_clusters": 30,
+      "date_min": "2026-06-13",
+      "date_max": "2026-07-19",
+      "model_logloss": 0.6767489181348414,
+      "market_logloss": 0.6791019635131708,
+      "model_brier": 0.24194608455452368,
+      "market_brier": 0.24303439654720246,
+      "logloss_delta": -0.002353045378329366,
+      "brier_delta": -0.001088311992678781,
+      "model_auc": 0.5949700493947861,
+      "market_auc": 0.5981739615785903,
+      "auc_delta": -0.003203912183804114,
+      "logloss_delta_ci_low": -0.01021608531839088,
+      "logloss_delta_ci_high": 0.004331979734499142,
+      "logloss_delta_p_one_sided": 0.25293676580854785,
+      "brier_delta_ci_low": -0.00496354332973168,
+      "brier_delta_ci_high": 0.0022328854233858325,
+      "brier_delta_p_one_sided": 0.26768307923019247,
+      "auc_delta_ci_low": -0.025610619275772586,
+      "auc_delta_ci_high": 0.01884187152555261,
+      "auc_delta_p_one_sided": 0.5816045988502875,
+      "data_state": "evaluated",
+      "logloss_delta_p_holm": 0.5058735316170957,
+      "brier_delta_p_holm": 0.5058735316170957,
+      "auc_delta_p_holm": 0.5816045988502875,
+      "gate_logloss": false,
+      "gate_brier": false,
+      "gate_auc": false,
+      "proper_score_market_superiority_gate": "FAIL",
+      "strict_market_superiority_gate": "FAIL",
+      "market_superiority_gate": "FAIL",
+      "status": "FAIL"
+    }
+  ]
+}

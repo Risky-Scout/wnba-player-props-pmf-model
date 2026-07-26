@@ -1,0 +1,15 @@
+{
+  "version": "book-quote-priority-v1",
+  "frozen_at_utc": "2026-07-25T00:00:00+00:00",
+  "purpose": "Deterministic selection of ONE exact quote per (game_id, player_id, prop) for the PRIMARY market-superiority comparison. Frozen by general market liquidity/reputation BEFORE inspecting any candidate performance; must not be re-ordered to favor results.",
+  "selection_rule": "For each (game_id, player_id, prop) at the decision-time snapshot, choose the exact Over/Under pair from the highest-priority sportsbook present (lowest rank). Deterministic tie-break: sportsbook name ascending, then earliest snapshot_time.",
+  "provider": "odds_api_v4_historical",
+  "priority": [
+    "draftkings",
+    "fanduel",
+    "williamhill_us",
+    "betrivers",
+    "betonlineag"
+  ],
+  "notes": "All-books-pooled rows are permitted ONLY as SENSITIVITY_ANALYSIS, never as the primary proof dataset (pooling the same player outcome once per book overweights events with more book coverage)."
+}

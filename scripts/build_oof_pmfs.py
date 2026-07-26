@@ -32,10 +32,103 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from wnba_props_model.features.feature_contract import assert_no_forbidden_features
 from wnba_props_model.models.oof_engine import generate_oof_folds, make_prior_only_pmfs
-from wnba_props_model.models.training import encode_features, train_fold, generate_fold_pmfs
+from wnba_props_model.models.training import train_fold, generate_fold_pmfs
 from wnba_props_model.models.svd_bridge import SVDBridgeEstimator
 
 app = typer.Typer(add_completion=False)
+
+REQUIRED_PROPS = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+
+
+def _sha256_bytes(b: bytes) -> str:
+    import hashlib
+    return hashlib.sha256(b).hexdigest()
+
+
+def _sha256_file(p) -> "str | None":
+    import hashlib
+    p = Path(p)
+    if not p.exists():
+        return None
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _fold_input_hash(fold: dict, *, data_hashes: dict, contract_hash: str, config_hash: str,
+                     code_sha: str) -> str:
+    """Deterministic hash over everything that MUST match for a checkpoint to be reusable."""
+    payload = json.dumps({
+        "fold_id": fold["fold_id"],
+        "train_end": str(fold.get("train_end_date")),
+        "val_start": str(fold["val_start_date"]), "val_end": str(fold["val_end_date"]),
+        "data_hashes": data_hashes, "contract_hash": contract_hash,
+        "config_hash": config_hash, "code_sha": code_sha,
+        "encoder_policy": "fold_train_only_ordinal_unknown_-1",
+    }, sort_keys=True, default=str)
+    return _sha256_bytes(payload.encode())
+
+
+def _checkpoint_paths(ckpt_dir: Path, fid) -> "tuple[Path, Path]":
+    return ckpt_dir / f"fold_{fid}.json", ckpt_dir / f"fold_{fid}.parquet"
+
+
+def _load_valid_checkpoint(ckpt_dir: Path, fid, input_hash: str):
+    """Return the checkpoint's pmf DataFrame iff the meta exists, input_hash matches, the parquet
+    exists and its output hash matches, the fit_status is model_oof, and all 7 props are present."""
+    meta_p, data_p = _checkpoint_paths(ckpt_dir, fid)
+    if not (meta_p.exists() and data_p.exists()):
+        return None
+    try:
+        meta = json.loads(meta_p.read_text())
+    except Exception:  # noqa: BLE001
+        return None
+    if meta.get("input_hash") != input_hash:
+        return None
+    if meta.get("fit_status") != "model_oof":
+        return None
+    if _sha256_file(data_p) != meta.get("output_hash"):
+        return None
+    df = pd.read_parquet(data_p)
+    if set(df.get("stat", pd.Series(dtype=str)).unique()) < set(REQUIRED_PROPS):
+        return None
+    return df
+
+
+def _write_checkpoint(ckpt_dir: Path, fid, *, pmf_frame, fold, input_hash: str,
+                      data_hashes: dict, contract_hash: str, pit_hash: str, config_hash: str,
+                      code_sha: str, encoder_hash: str, model_hashes: dict, fit_status: str) -> dict:
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    meta_p, data_p = _checkpoint_paths(ckpt_dir, fid)
+    if data_p.exists():  # immutable: never rewrite a historical checkpoint
+        raise FileExistsError(f"refusing to overwrite existing checkpoint {data_p}")
+    tmp = data_p.with_suffix(".parquet.tmp")
+    pmf_frame.to_parquet(tmp, index=False)
+    import os as _os
+    fd = _os.open(str(tmp), _os.O_RDONLY); _os.fsync(fd); _os.close(fd)
+    _os.replace(tmp, data_p)
+    output_hash = _sha256_file(data_p)
+    rows_by_prop = {p: int((pmf_frame["stat"] == p).sum()) for p in REQUIRED_PROPS}
+    pmf_ok = True
+    try:
+        pmf_ok = bool((pmf_frame["pmf_json"].map(lambda s: abs(sum(json.loads(s).values()) - 1.0) < 1e-6)).all())
+    except Exception:  # noqa: BLE001
+        pmf_ok = False
+    meta = {
+        "fold_id": fid, "train_date_range": [str(fold.get("train_start_date")), str(fold["train_end_date"])],
+        "val_date_range": [str(fold["val_start_date"]), str(fold["val_end_date"])],
+        "required_props": REQUIRED_PROPS, "data_hashes": data_hashes,
+        "feature_contract_hash": contract_hash, "point_in_time_audit_hash": pit_hash,
+        "code_sha": code_sha, "config_hash": config_hash, "encoder_hash": encoder_hash,
+        "model_hashes": model_hashes, "rows_by_prop": rows_by_prop, "pmf_integrity_ok": pmf_ok,
+        "output_hash": output_hash, "input_hash": input_hash, "fit_status": fit_status,
+        "created_utc": __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).isoformat(),
+    }
+    meta_p.write_text(json.dumps(meta, indent=2, default=str) + "\n")
+    return meta
 
 
 def _git_commit() -> str | None:
@@ -77,6 +170,22 @@ def build(
         help="Path to trained SVDBridgeEstimator pkl. When provided, predicts SVD dims "
              "from leak-free features instead of dropping them from OOF folds.",
     ),
+    strict_baseline: bool = typer.Option(
+        False, "--strict-baseline",
+        help="TRUSTED baseline (Phase 5.3): a prior_only or failed_model_fit fold is FATAL "
+             "(the run aborts) instead of silently emitting prior PMFs. Leave off only for a "
+             "clearly-labeled diagnostic run.",
+    ),
+    list_folds: bool = typer.Option(False, "--list-folds",
+        help="Print the frozen fold list (id + train/val windows) as JSON and exit."),
+    fold_id: int = typer.Option(-1, "--fold-id",
+        help="Run ONLY this fold id (for matrix-parallel workflows). -1 = all folds."),
+    checkpoint_dir: str = typer.Option("", "--checkpoint-dir",
+        help="Directory for immutable per-fold checkpoints (enables --resume)."),
+    resume: bool = typer.Option(False, "--resume",
+        help="Reuse a fold's checkpoint when ALL its input hashes match (else recompute)."),
+    verify_checkpoints: bool = typer.Option(False, "--verify-checkpoints",
+        help="Verify every checkpoint's output hash against its parquet and exit."),
 ) -> None:
     t0 = time.time()
     print("=" * 70)
@@ -144,12 +253,14 @@ def build(
     print("  Leakage guard: PASS")
 
     # ------------------------------------------------------------------
-    # 2. Fit global position encoder (on all data for category discovery)
+    # 2. Fold-safe encoding (Phase 5.1)
     # ------------------------------------------------------------------
-    # We fit the encoder once globally so each fold knows all categories.
-    # The actual model fitting uses per-fold training data only.
-    _, global_pos_encoder = encode_features(wide, model_cols, fit_encoder=True)
-    print(f"\nGlobal pos_encoder fitted on {len(wide):,} rows")
+    # NO global encoder fitted on all dates: fitting on the full dataset leaks FUTURE
+    # validation categories into the training encoding. Each fold fits its position encoder
+    # on TRAINING dates only (inside train_fold); encode_features uses
+    # OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), so an unseen
+    # validation category maps to the explicit UNKNOWN code (-1) rather than a leaked ordinal.
+    print("\nFold-safe encoding: per-fold train-only position encoders (no global leak).")
 
     # ------------------------------------------------------------------
     # 3. Generate folds
@@ -181,6 +292,44 @@ def build(
     print(f"  First val window: {folds[0]['val_start_date']} – {folds[0]['val_end_date']}")
     print(f"  Last  val window: {folds[-1]['val_start_date']} – {folds[-1]['val_end_date']}")
 
+    # ---- P7: frozen fold list / single-fold selection / checkpoint plumbing ----
+    if list_folds:
+        print(json.dumps([{"fold_id": f["fold_id"], "val_start": str(f["val_start_date"]),
+                           "val_end": str(f["val_end_date"]),
+                           "train_end": str(f.get("train_end_date"))} for f in folds],
+                         indent=2, default=str))
+        raise typer.Exit(0)
+    ckpt_dir = Path(checkpoint_dir) if checkpoint_dir else None
+    if verify_checkpoints:
+        if not ckpt_dir or not ckpt_dir.exists():
+            print("[verify-checkpoints] no checkpoint dir", file=sys.stderr); raise typer.Exit(1)
+        bad = 0
+        for f in folds:
+            meta_p, data_p = _checkpoint_paths(ckpt_dir, f["fold_id"])
+            if not meta_p.exists():
+                print(f"  fold {f['fold_id']}: MISSING"); continue
+            meta = json.loads(meta_p.read_text())
+            ok = data_p.exists() and _sha256_file(data_p) == meta.get("output_hash")
+            print(f"  fold {f['fold_id']}: {'OK' if ok else 'HASH_MISMATCH'}")
+            bad += 0 if ok else 1
+        raise typer.Exit(1 if bad else 0)
+    if fold_id >= 0:
+        folds = [f for f in folds if f["fold_id"] == fold_id]
+        if not folds:
+            print(f"[fold-id] no fold {fold_id}", file=sys.stderr); raise typer.Exit(1)
+        print(f"  --fold-id {fold_id}: running a single fold")
+
+    # Reusability hashes shared by all folds this run.
+    _data_hashes = {"features_wide": _sha256_file(features_wide),
+                    "features_long": _sha256_file(features_long),
+                    "manifest": _sha256_file(manifest_path)}
+    _contract_hash = __import__("hashlib").sha256("\n".join(model_cols).encode()).hexdigest()
+    _config_hash = _sha256_file(config_path)
+    _code_sha = _git_commit() or "unknown"
+    _pit_audit = REPO_ROOT / "artifacts" / "data_bootstrap" / "FEATURE_POINT_IN_TIME_AUDIT.json" \
+        if (REPO_ROOT := Path(__file__).resolve().parent.parent) else None
+    _pit_hash = _sha256_file(_pit_audit) if _pit_audit and _pit_audit.exists() else ""
+
     min_train = cfg.get("min_train_long_rows", 2000)
 
     # ------------------------------------------------------------------
@@ -193,6 +342,19 @@ def build(
     for fold in folds:
         fid = fold["fold_id"]
         val_start: date = fold["val_start_date"]
+
+        # P7 resume: reuse a fully hash-valid checkpoint (skip retraining this fold).
+        _input_hash = _fold_input_hash(fold, data_hashes=_data_hashes, contract_hash=_contract_hash,
+                                       config_hash=_config_hash, code_sha=_code_sha)
+        if resume and ckpt_dir is not None:
+            _cached = _load_valid_checkpoint(ckpt_dir, fid, _input_hash)
+            if _cached is not None:
+                print(f"\n  Fold {fid:2d}: RESUMED from valid checkpoint ({len(_cached):,} rows)")
+                all_pmf_frames.append(_cached)
+                fold_records.append({"fold_id": fid, "fit_status": "model_oof",
+                                     "error_message": "resumed_checkpoint",
+                                     "validation_long_rows": int(len(_cached))})
+                continue
 
         # STRICT temporal split: train on game_date < val_start (never <=)
         train_mask_wide = wide["game_date"].dt.date < val_start
@@ -249,6 +411,11 @@ def build(
 
         # --- Check eligibility ---
         if n_train_long < min_train:
+            if strict_baseline:
+                raise RuntimeError(
+                    f"[strict-baseline] fold {fid}: insufficient training data "
+                    f"({n_train_long} < {min_train}). A trusted baseline may not emit prior_only "
+                    "PMFs; aborting (use a diagnostic run without --strict-baseline).")
             print(f"    → insufficient training data ({n_train_long} < {min_train}) → prior_only")
             fold_meta = {**fold_meta_base, "oof_prediction_type": "prior_only"}
             pmf_frame = make_prior_only_pmfs(val_wide_df, val_long_df, fold_meta, cfg)
@@ -257,11 +424,9 @@ def build(
                 "validation_long_rows": len(val_long_df)})
         else:
             try:
-                # --- Train fold models ---
+                # --- Train fold models (encoder fitted on TRAIN dates only; Phase 5.1) ---
                 fold_model = train_fold(train_wide_df, train_long_df, model_cols, cfg)
-                # Override encoder with global one (has all categories)
-                fold_model.pos_encoder = global_pos_encoder
-                fold_model.minutes_model._pos_encoder = global_pos_encoder
+                # NO global-encoder override: the fold keeps its train-only, unknown-safe encoder.
 
                 fold_meta = {
                     **fold_meta_base,
@@ -288,10 +453,30 @@ def build(
                 status = "model_oof"
                 errmsg = ""
                 print(f"    → model_oof  PMF rows={len(pmf_frame):,}")
+                # P7: write an immutable, hash-keyed checkpoint for this fold.
+                if ckpt_dir is not None:
+                    try:
+                        _enc = getattr(getattr(fold_model, "minutes_model", None), "_pos_encoder", None)
+                        _enc_hash = _sha256_bytes(repr(getattr(_enc, "categories_", "")).encode())
+                        _write_checkpoint(
+                            ckpt_dir, fid, pmf_frame=pmf_frame, fold=fold, input_hash=_input_hash,
+                            data_hashes=_data_hashes, contract_hash=_contract_hash,
+                            pit_hash=_pit_hash, config_hash=_config_hash, code_sha=_code_sha,
+                            encoder_hash=_enc_hash,
+                            model_hashes={"train_stat_rows": getattr(fold_model, "train_stat_rows", None)},
+                            fit_status="model_oof")
+                        print(f"    → checkpoint written: {_checkpoint_paths(ckpt_dir, fid)[1].name}")
+                    except FileExistsError:
+                        print(f"    → checkpoint already exists for fold {fid} (immutable; kept)")
             except Exception as e:
                 import traceback as _tb
                 print(f"    → FAILED: {e}")
                 _tb.print_exc()  # full stack trace so CI logs show exact cause
+                if strict_baseline:
+                    raise RuntimeError(
+                        f"[strict-baseline] fold {fid}: model fit failed ({e}). A trusted "
+                        "baseline may not convert a fit failure into a prior_only PMF; aborting."
+                    ) from e
                 fold_meta = {**fold_meta_base, "oof_prediction_type": "failed_model_fit"}
                 pmf_frame = make_prior_only_pmfs(
                     val_wide_df, val_long_df, fold_meta, cfg, error_msg=str(e)
@@ -315,6 +500,20 @@ def build(
     print("\nConcatenating OOF frames...")
     oof_df = pd.concat(all_pmf_frames, ignore_index=True)
     print(f"  Total OOF rows: {len(oof_df):,}")
+
+    # Phase 5.3/5.5: trusted-baseline completeness — no prior_only/failed rows and every
+    # direct prop present. (Diagnostic runs skip this and remain explicitly labeled.)
+    if strict_baseline:
+        _bad_types = oof_df["oof_prediction_type"].isin(["prior_only", "failed_model_fit"])
+        if bool(_bad_types.any()):
+            raise RuntimeError(
+                f"[strict-baseline] {int(_bad_types.sum())} OOF rows are prior_only/failed_model_fit "
+                "— a trusted baseline must be 100% model_oof.")
+        _required = set(cfg.get("stats", ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]))
+        _present = set(oof_df["stat"].astype(str).unique())
+        _missing = sorted(_required - _present)
+        if _missing:
+            raise RuntimeError(f"[strict-baseline] missing direct prop(s) in OOF: {_missing}")
 
     # Duplicate key check
     dup_count = oof_df.duplicated(subset=["player_id", "game_id", "stat"]).sum()

@@ -1,0 +1,39 @@
+{
+  "version": "reb-first-edge-freeze-v2",
+  "supersedes": "none (first freeze for this prop)",
+  "prop": "reb",
+  "candidate_id": "C4_blend",
+  "a_id": "A2",
+  "track": "proper_score",
+  "proper_score_selection_eligible": true,
+  "strict_auc_selection_eligible": false,
+  "frozen_calibrator_params": {
+    "candidate_id": "C4_blend",
+    "a_id": "A2",
+    "form": "convex_blend a*model+(1-a)*market",
+    "alpha_model_weight": 0.2
+  },
+  "cv": "corrected nested expanding-window rolling-origin (leakage-safe)",
+  "selection_metrics_outer_fold": {
+    "logloss_delta": -0.0015877687787697603,
+    "brier_delta": -0.0007098181901469269,
+    "auc_delta": -0.009811813766891886,
+    "cand_ece": 0.01475702612190002,
+    "cal_slope": 1.2306608155119438,
+    "worst_fold_logloss_delta": 0.018181190913598155
+  },
+  "quote_policy_file_sha256": "962db96af3cceb31eb0e2efc08ca5f069e517e131e10d1a76619de4f8a20c780",
+  "settlement_policy_hash": "e7faff61b5d1c8cbf0aad10c4d3969bed7a0771b8f4ded78ad0350cf0c9b5fcf",
+  "model_hash": "a851cccdd00e28cc82dd5bd1a7edf94bdef75a18ee81fed09a5850d2bf92ac06",
+  "feature_hash": "302de341643008330520bc9c76c6b397f9ba24b80bd011faf038366ad6a95357",
+  "calibrator_hash": "d8133afbda0d56ba79f41d56027eecfd689098162e71bed013df6e6a98302d8a",
+  "candidate_code_sha256": "0c476e3859334526445574205b226fceabb17b894edbd29b5d866c8edb68e410",
+  "canonical_scored_row_sha256": "d8222320d5e8c01070dbced47ac8db2d290912a44086f2676efa75a5ce8a1f71",
+  "nested_fold_manifest_sha256": "a058e8083b959dfb46177e1658c01f745a8377500b8c23cd84daefa40c3f7f0b",
+  "training_date_max": "2026-07-19",
+  "development_rows": 742,
+  "freeze_timestamp_utc": "2026-07-25T19:40:23.613139+00:00",
+  "prospective_proof_start_utc": "2026-07-25T19:40:23.613139+00:00",
+  "prospective_proof_rule": "NEW game dates strictly AFTER freeze; deterministic one-quote; >=5000 cluster bootstrap; Holm; upper-95%-CI(model-market)<0 for BOTH log loss and Brier. AUC gate applied separately.",
+  "caveat": "proper-score-track freeze: beats exact market on log loss & Brier under corrected nested CV but does NOT beat market AUC (strict-AUC gate not met). Not strict-gate-ready. Certification depends solely on the prospective proof; this freeze does NOT certify."
+}

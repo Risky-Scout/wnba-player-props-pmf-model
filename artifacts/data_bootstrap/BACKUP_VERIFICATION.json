@@ -1,0 +1,26 @@
+{
+  "version": "backup-verification-v1",
+  "generated_at_utc": "2026-07-25T01:25:12.618436+00:00",
+  "primary": {
+    "locator": "ephemeral-agent-filesystem:data/processed",
+    "durable": false,
+    "files": {
+      "wnba_games": "de4119fdc6787d769d89e89cbb854e5260829a6a99ec86f245f640b9a1ef5b10",
+      "wnba_player_game_stats": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+      "wnba_player_game_features_wide": "4fca72c3ff4627f6043c1a4e35f9878afe0791322c8176511bd5fa7159ae5603",
+      "wnba_player_game_features_long": "4d04129348771f0af39f53c4a3e06e7017c529e0eb8b68de9a15638cdea1016e",
+      "feature_schema_manifest": "089d3f607769fd19bdcc419bde93c50c2468930a880afc00a75c04f8f568c81d"
+    }
+  },
+  "secondary": {
+    "locator": null,
+    "durable": false,
+    "status": "NOT_CREATED - requires owner write-scoped credential or private object storage; agent has no durable write target."
+  },
+  "retention_policy": "immutable, hash-pinned; never overwrite a published asset with different contents",
+  "recovery_instructions": "Re-run scripts/pull_bdl_history.py --start-season 2021 --end-season 2026 -> build_canonical_tables.py -> build_features.py; verify against RECOVERED_DATA_MANIFEST.json hashes before use.",
+  "verification_timestamps": {
+    "frozen_at": "2026-07-25T01:24:46.704373+00:00",
+    "checked_at": "2026-07-25T01:25:12.618436+00:00"
+  }
+}

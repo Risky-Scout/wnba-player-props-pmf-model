@@ -1,0 +1,130 @@
+{
+  "version": "per-prop-failure-diagnosis-v1",
+  "quote_covered_props": {
+    "pts": {
+      "g0v2_c0_primary_deterministic": {
+        "n_settled": 851,
+        "n_dates": 55,
+        "model_logloss": 0.8005021338211863,
+        "market_logloss": 0.6927388116476435,
+        "logloss_delta": 0.10776332217354279,
+        "model_brier": 0.2838114463411886,
+        "market_brier": 0.24979274691539122,
+        "brier_delta": 0.03401869942579738,
+        "model_auc": 0.48593590935245434,
+        "market_auc": 0.5198485150267782,
+        "model_ece": 0.16212905570723757,
+        "market_ece": 0.01935129602409774
+      },
+      "semantics_sign_status": "SIGN_INVERSION_DIAGNOSTIC",
+      "selection_advancing_candidates_diagnostic": [],
+      "failure_diagnosis": {
+        "reason": "discrimination",
+        "delta_auc_vs_market": -0.03391260567432386,
+        "delta_ece_vs_market": 0.14277775968313983,
+        "note": "model binary AUC < 0.50 at market lines: ordering is non-informative."
+      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
+      "certified": false
+    },
+    "reb": {
+      "g0v2_c0_primary_deterministic": {
+        "n_settled": 742,
+        "n_dates": 55,
+        "model_logloss": 0.7721264234827216,
+        "market_logloss": 0.682336628942035,
+        "logloss_delta": 0.0897897945406867,
+        "model_brier": 0.2726482142971898,
+        "market_brier": 0.24463017203719595,
+        "brier_delta": 0.028018042259993825,
+        "model_auc": 0.5510389230318993,
+        "market_auc": 0.5865342405618964,
+        "model_ece": 0.14235297278624273,
+        "market_ece": 0.03506278049737647
+      },
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "selection_advancing_candidates_diagnostic": [
+        "C4_blend",
+        "C6_market_residual"
+      ],
+      "failure_diagnosis": {
+        "reason": "discrimination",
+        "delta_auc_vs_market": -0.03549531752999713,
+        "delta_ece_vs_market": 0.10729019228886627,
+        "note": "market AUC exceeds model AUC by 0.035; calibration cannot add ordering."
+      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
+      "certified": false
+    },
+    "ast": {
+      "g0v2_c0_primary_deterministic": {
+        "n_settled": 522,
+        "n_dates": 55,
+        "model_logloss": 0.7728265033303804,
+        "market_logloss": 0.6919136835447349,
+        "logloss_delta": 0.08091281978564546,
+        "model_brier": 0.2689995892768986,
+        "market_brier": 0.24939254841528347,
+        "brier_delta": 0.019607040861615133,
+        "model_auc": 0.5405023781212842,
+        "market_auc": 0.5344381688466112,
+        "model_ece": 0.1374657632807146,
+        "market_ece": 0.056108057634446096
+      },
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "selection_advancing_candidates_diagnostic": [
+        "C4_blend",
+        "C5_role_blend"
+      ],
+      "failure_diagnosis": {
+        "reason": "calibration",
+        "delta_auc_vs_market": 0.006064209274672994,
+        "delta_ece_vs_market": 0.08135770564626851,
+        "note": "discrimination ~ market (dAUC=+0.006) but model ECE exceeds market by 0.081; recalibration is the lever."
+      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
+      "certified": false
+    },
+    "fg3m": {
+      "g0v2_c0_primary_deterministic": {
+        "n_settled": 504,
+        "n_dates": 55,
+        "model_logloss": 0.7619067448063898,
+        "market_logloss": 0.6652977901408331,
+        "logloss_delta": 0.09660895466555663,
+        "model_brier": 0.2612872904606633,
+        "market_brier": 0.2365087034496151,
+        "brier_delta": 0.02477858701104818,
+        "model_auc": 0.5675545183873822,
+        "market_auc": 0.6170193932566187,
+        "model_ece": 0.11706317470404026,
+        "market_ece": 0.049950945053654286
+      },
+      "semantics_sign_status": "ORIENTED_CORRECTLY",
+      "selection_advancing_candidates_diagnostic": [],
+      "failure_diagnosis": {
+        "reason": "discrimination",
+        "delta_auc_vs_market": -0.04946487486923645,
+        "delta_ece_vs_market": 0.06711222965038598,
+        "note": "market AUC exceeds model AUC by 0.049; calibration cannot add ordering."
+      },
+      "historical_window_state": "DEVELOPMENT_SELECTION_EVIDENCE / NOT_FUTURE_PROOF",
+      "certified": false
+    }
+  },
+  "no_quote_props": {
+    "stl": "NO_EXACT_QUOTES (cannot G0/certify until odds collected)",
+    "blk": "NO_EXACT_QUOTES (cannot G0/certify until odds collected)",
+    "turnover": "NO_EXACT_QUOTES (cannot G0/certify until odds collected)"
+  },
+  "summary": {
+    "discrimination_limited": [
+      "pts",
+      "reb",
+      "fg3m"
+    ],
+    "calibration_limited": [
+      "ast"
+    ]
+  }
+}

@@ -44,5 +44,7 @@ def require_gh() -> str:
     return gh
 
 
-def run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+def run(cmd: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
+    # env (when provided) is passed to the child process only; it is NEVER logged. Callers use
+    # this to hand gh a token via GH_TOKEN in the environment (never on the command line).
+    return subprocess.run(cmd, capture_output=True, text=True, env=env)

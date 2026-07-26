@@ -1,0 +1,17 @@
+{
+  "version": "historical-window-classification-v1",
+  "generated_at_utc": "2026-07-25T17:02:52.210872+00:00",
+  "window": {
+    "date_min": "2026-05-08",
+    "date_max": "2026-07-19"
+  },
+  "labels": [
+    "DEVELOPMENT_SELECTION_EVIDENCE",
+    "HISTORICAL_HOLDOUT_DIAGNOSTIC",
+    "NOT_FUTURE_PROOF",
+    "NOT_PROMOTION_ELIGIBLE"
+  ],
+  "reason": "These dates/outcomes have been inspected repeatedly (G0-v2, low-cost candidates, freeze/prove diagnostics). They may be used for development, cross-validation, diagnosis, and candidate selection, but never as a future/promotion proof.",
+  "rule": "Every newly frozen candidate must open a NEW prospective proof period beginning after its candidate-freeze timestamp; historical-window 'proof' outputs are DIAGNOSTIC only.",
+  "preserved_prior_results": "unchanged (all P14 failures retained)"
+}

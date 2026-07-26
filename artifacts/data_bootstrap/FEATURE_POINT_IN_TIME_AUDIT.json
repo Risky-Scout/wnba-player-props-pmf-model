@@ -1,0 +1,14 @@
+{
+  "version": "feature-point-in-time-audit-v1",
+  "generated_at_utc": "2026-07-25T01:24:47.363750+00:00",
+  "feature_contract_id": "wnba-baseline-features-v2-410col",
+  "checks": {
+    "temporal_policy_strict": true,
+    "no_model_feature_is_target": true,
+    "no_model_feature_forbidden": true,
+    "no_same_game_outcome_feature": true,
+    "no_unpermitted_identifier_overlap": true
+  },
+  "passed": true,
+  "note": "Static contract-level PIT audit; builder temporal_policy is strict_pregame_shifted (all rolling features lagged before the target cutoff)."
+}
