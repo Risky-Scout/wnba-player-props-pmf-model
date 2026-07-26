@@ -86,7 +86,14 @@ jobs:
 
       - name: Collect atomic quotes (append-only, all markets)
         run: |
-          python scripts/collect_atomic_quotes.py --game-dates ${{ steps.dates.outputs.dates }} \
+          # The CLI takes a REPEATED --game-dates flag (typer list option); a single
+          # space-joined value is parsed as one date + extra positional args and fails.
+          # Expand the space-separated date list into one --game-dates flag per date.
+          FLAGS=""
+          for d in ${{ steps.dates.outputs.dates }}; do
+            FLAGS="$FLAGS --game-dates $d"
+          done
+          python scripts/collect_atomic_quotes.py $FLAGS \
             --store "$STORE" \
             --roster data/processed/wnba_player_game_stats.parquet \
             --games data/processed/wnba_games.parquet
