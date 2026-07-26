@@ -1,4 +1,20 @@
 random_seed: 42
+# --- pure_forecast information contract (STEP 3 of the pure-model-supremacy repair) ---
+# The walk-forward OOF must be regenerated with ZERO market information so the resulting
+# probabilities are a genuine pure-model baseline. These keys make the OOF config pass the
+# fail-closed guard in wnba_props_model.models.pure_model_contract (assert_pure_model_config)
+# and are re-enforced inside scripts/build_oof_pmfs.py before any fold is trained.
+pure_model: true
+information_contract: pure_forecast
+market_prior_lambda: 0.0
+market_prior_lambda_display: 0.0
+market_probability_weight: 0.0
+market_anchor: null
+use_clv_head: false
+use_live_calibrators: false
+# Corrected minutes subsystem (STEP 5): train conditional minutes MEAN + quantiles on
+# appearances only; DNP mass is kept separate (never multiplied into conditional minutes).
+train_minutes_on_appearances_only: true
 use_log_linear: true
 validation_window_days: 7
 oof_first_val_date: '2026-05-01'
