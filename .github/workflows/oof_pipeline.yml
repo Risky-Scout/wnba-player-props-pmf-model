@@ -9,7 +9,7 @@ permissions:
 jobs:
   oof-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
 
     steps:
       - name: Checkout
@@ -50,7 +50,11 @@ jobs:
       - name: Validate features
         run: python scripts/validate_features.py
 
-      - name: Build OOF PMFs (Stage 5)
+      # Fail-closed trusted baseline: --strict-baseline aborts (nonzero exit, NO silent
+      # fallback to prior PMFs) on prior_only / failed_model_fit / missing prop / invalid PMF /
+      # missing active_pmf / market weight != 0 / temporal leakage. --checkpoint-dir + --resume
+      # persist immutable per-fold checkpoints so a re-dispatch resumes instead of recomputing.
+      - name: Build OOF PMFs (Stage 5, strict + resumable)
         run: |
           python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
@@ -58,7 +62,10 @@ jobs:
             --manifest data/processed/feature_schema_manifest.json \
             --config config/model/stage5_oof.yaml \
             --out-dir data/oof \
-            --audit-out artifacts/audits/stage5_oof_audit.json
+            --audit-out artifacts/audits/stage5_oof_audit.json \
+            --strict-baseline \
+            --checkpoint-dir data/oof/checkpoints \
+            --resume
 
       - name: Validate OOF PMFs
         run: |
@@ -95,6 +102,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.json \
                   artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.csv \
+                  artifacts/pure_supremacy/PRODUCTION_PURE_OOF_SCORED_ROWS.parquet \
                   artifacts/audits/PURE_OOF_RUN_MANIFEST.json || true
           if git diff --cached --quiet; then
             echo "No PURE OOF metric changes to commit."
@@ -114,4 +122,5 @@ jobs:
             artifacts/audits/PURE_OOF_RUN_MANIFEST.json
             artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.json
             artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.csv
+            artifacts/pure_supremacy/PRODUCTION_PURE_OOF_SCORED_ROWS.parquet
           retention-days: 30

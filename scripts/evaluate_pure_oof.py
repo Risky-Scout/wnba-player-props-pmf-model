@@ -213,13 +213,33 @@ def _bootstrap_ci(res: dict, pdf: pd.DataFrame, n_boot=N_BOOTSTRAP, seed=2026072
         dll.append(_ll(y[idx], pr[idx]) - _ll(y[idx], pk[idx]))
         dbr.append(_brier(y[idx], pr[idx]) - _brier(y[idx], pk[idx]))
     dll, dbr = np.array(dll), np.array(dbr)
+    # One-sided paired date-cluster bootstrap p-value for H1: delta < 0 (model better than
+    # market). p = P(delta_boot >= 0) with the standard +1/+1 finite-sample correction.
+    p_ll = float((int(np.sum(dll >= 0.0)) + 1) / (n_boot + 1))
+    p_brier = float((int(np.sum(dbr >= 0.0)) + 1) / (n_boot + 1))
     return {
         "n_bootstrap": int(n_boot),
         "logloss_delta_ci95": [float(np.percentile(dll, 2.5)), float(np.percentile(dll, 97.5))],
         "brier_delta_ci95": [float(np.percentile(dbr, 2.5)), float(np.percentile(dbr, 97.5))],
         "logloss_upper95_below_zero": bool(np.percentile(dll, 97.5) < 0),
         "brier_upper95_below_zero": bool(np.percentile(dbr, 97.5) < 0),
+        "logloss_p_onesided": p_ll,
+        "brier_p_onesided": p_brier,
     }
+
+
+def _holm(pvals: dict[str, float]) -> dict[str, float]:
+    """Holm–Bonferroni step-down adjustment across a family of raw one-sided p-values.
+    Returns {key: holm_adjusted_p} enforcing monotonicity and capping at 1.0."""
+    items = sorted(pvals.items(), key=lambda kv: kv[1])
+    m = len(items)
+    out: dict[str, float] = {}
+    running = 0.0
+    for rank, (k, p) in enumerate(items):
+        adj = min(1.0, (m - rank) * p)
+        running = max(running, adj)  # step-down monotonicity
+        out[k] = running
+    return out
 
 
 def real_selection_contract(res: dict, ci: dict, *, pure_provenance_ok: bool) -> dict:
@@ -334,6 +354,8 @@ def main(
 
     per_prop = {}
     csv_rows = []
+    scored_row_frames = []
+    pub = lambda r: {k: v for k, v in r.items() if not k.startswith("_")} if r else None
     for prop in DIRECT_PROPS:
         if prop not in QUOTE_COVERED:
             per_prop[prop] = {"status": "NO_EXACT_QUOTES",
@@ -347,7 +369,6 @@ def main(
         ci = _bootstrap_ci(after, pdf) if after else None
         contract = (real_selection_contract(after, ci, pure_provenance_ok=pure_provenance_ok)
                     if (after and ci) else None)
-        pub = lambda r: {k: v for k, v in r.items() if not k.startswith("_")} if r else None
         per_prop[prop] = {
             "before_active_settled_identity": pub(before),
             "after_active_settled_platt": pub(after),
@@ -356,13 +377,51 @@ def main(
             "final_probability_column": FINAL_COL,
             "lineage": "active_pmf -> push_safe_settled -> monotone_platt(model_vs_outcome)",
         }
+        # Per-row scored lineage (owner item 2): persist the line-dependent settled + final
+        # probabilities that cannot live on the line-free OOF PMF rows.
+        if after is not None:
+            msk = after["_mask"]
+            fin = after["_oof_pred"][msk]
+            sub = pdf[msk].reset_index(drop=True)
+            scored_row_frames.append(pd.DataFrame({
+                "game_id": sub["game_id"].astype(str), "player_id": sub["player_id"].astype(str),
+                "prop": prop, "game_date": sub["game_date"].astype(str),
+                "line": sub["line"].to_numpy(float), "p_dnp": sub["p_dnp"].to_numpy(float),
+                "model_prob_over_settled_from_active_pmf":
+                    sub["p_over_settled_active"].to_numpy(float),
+                "model_prob_over_final": np.asarray(fin, float),
+                "market_prob_over_no_vig": sub[MARKET_COL].to_numpy(float),
+                "outcome_over": sub["outcome_over"].to_numpy(int),
+            }))
+
+    # Holm-Bonferroni across the frozen prop family, per metric (owner item 4).
+    raw_p_ll = {p: per_prop[p]["after_bootstrap_ci"]["logloss_p_onesided"]
+                for p in QUOTE_COVERED if per_prop[p].get("after_bootstrap_ci")}
+    raw_p_brier = {p: per_prop[p]["after_bootstrap_ci"]["brier_p_onesided"]
+                   for p in QUOTE_COVERED if per_prop[p].get("after_bootstrap_ci")}
+    holm_ll = _holm(raw_p_ll)
+    holm_brier = _holm(raw_p_brier)
+    for prop in QUOTE_COVERED:
+        ci = per_prop[prop].get("after_bootstrap_ci")
+        if ci:
+            per_prop[prop]["holm_adjusted_p_ll"] = holm_ll.get(prop)
+            per_prop[prop]["holm_adjusted_p_brier"] = holm_brier.get(prop)
+            per_prop[prop]["holm_family"] = sorted(raw_p_ll)
+        before = per_prop[prop]["before_active_settled_identity"]
+        after = per_prop[prop]["after_active_settled_platt"]
         for tag, r in [("BEFORE_active_settled", before), ("AFTER_active_settled_platt", after)]:
             if r:
-                csv_rows.append({"prop": prop, "stage": tag, **{k: r[k] for k in (
+                row = {"prop": prop, "stage": tag, **{k: r[k] for k in (
                     "n", "n_folds", "model_logloss", "market_logloss", "logloss_delta",
                     "model_brier", "market_brier", "brier_delta", "model_auc", "market_auc",
                     "model_ece", "market_ece", "model_crps_active_pmf",
-                    "worst_fold_logloss_delta", "monotone")}})
+                    "worst_fold_logloss_delta", "monotone")}}
+                if tag == "AFTER_active_settled_platt" and ci:
+                    row["raw_p_ll_onesided"] = ci["logloss_p_onesided"]
+                    row["raw_p_brier_onesided"] = ci["brier_p_onesided"]
+                    row["holm_adjusted_p_ll"] = holm_ll.get(prop)
+                    row["holm_adjusted_p_brier"] = holm_brier.get(prop)
+                csv_rows.append(row)
 
     passing = [p for p in QUOTE_COVERED
                if per_prop[p].get("real_selection_contract")
@@ -384,12 +443,19 @@ def main(
         "note_not_certification": ("passing the selection contract is a development pre-proof "
                                    "screen; STEP 10 prospective proof is still required and NO "
                                    "promotion/edge gate is modified here"),
+        "multiple_testing": ("one-sided paired date-cluster bootstrap p-value per prop for "
+                             "dLL<0 and dBrier<0, Holm-Bonferroni across the quote-covered prop "
+                             "family (reporting only; the CI-based selection contract still gates)"),
+        "holm_family": sorted(raw_p_ll),
         "fold_manifest": manifests,
         "per_prop": per_prop,
         "props_passing_real_selection_contract": passing,
     }
     (outp / "PRODUCTION_PURE_OOF_METRICS.json").write_text(json.dumps(report, indent=2, default=str) + "\n")
     pd.DataFrame(csv_rows).to_csv(outp / "PRODUCTION_PURE_OOF_METRICS.csv", index=False)
+    if scored_row_frames:
+        pd.concat(scored_row_frames, ignore_index=True).to_parquet(
+            outp / "PRODUCTION_PURE_OOF_SCORED_ROWS.parquet", index=False)
 
     print("\n=== PRODUCTION PURE OOF (active-PMF lineage) vs exact no-vig market ===")
     print(f"pure_input_provenance_ok={pure_provenance_ok}  rows={len(m)}  "
@@ -409,6 +475,9 @@ def main(
         if c:
             print(f"      -> REAL selection contract: {'PASS' if c['selection_contract_pass'] else 'FAIL'} "
                   f"{c['fail_reasons']}")
+        if per_prop[prop].get("holm_adjusted_p_ll") is not None:
+            print(f"      -> Holm-adjusted p: LL={per_prop[prop]['holm_adjusted_p_ll']:.4f} "
+                  f"Brier={per_prop[prop]['holm_adjusted_p_brier']:.4f}")
     print(f"\nPROPS PASSING REAL SELECTION CONTRACT: {passing or 'none'}")
     print("stl/blk/turnover: NO_EXACT_QUOTES (market comparison blocked on odds collection)")
     print(f"\nWrote {outp/'PRODUCTION_PURE_OOF_METRICS.json'} and .csv")

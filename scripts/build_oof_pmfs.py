@@ -602,21 +602,23 @@ def build(
     # active PMF by inverting the DNP fold on the FINAL mixture (canonical recover_active_pmf),
     # so active ⊕ p_dnp is consistent with the delivered mixture for EVERY stat — never the
     # invalid model_prob_over_final/(1-p_dnp) post-hoc shortcut.
-    from wnba_props_model.models.availability_pmf import (  # noqa: PLC0415
-        pmf_mean as _active_mean,
-        recover_active_pmf,
-    )
+    from wnba_props_model.models.availability_pmf import recover_active_pmf  # noqa: PLC0415
     from wnba_props_model.models.simulation import pmf_to_json as _active_to_json  # noqa: PLC0415
     _pdnp_col = oof_df["p_dnp"].fillna(0.0).to_numpy(float) if "p_dnp" in oof_df.columns \
         else np.zeros(len(oof_df))
-    _active_jsons, _active_means = [], []
+    _active_jsons, _active_means, _active_vars = [], [], []
     for _js, _d in zip(oof_df["pmf_json"].to_numpy(), _pdnp_col):
         _a = recover_active_pmf(_js, float(_d))
+        _k = np.arange(_a.size, dtype=float)
+        _mn = float(np.dot(_k, _a))
         _active_jsons.append(_active_to_json(_a))
-        _active_means.append(_active_mean(_a))
+        _active_means.append(_mn)
+        _active_vars.append(float(np.dot(_k * _k, _a) - _mn * _mn))
     oof_df["active_pmf_json"] = _active_jsons
     oof_df["active_pmf_mean"] = _active_means
+    oof_df["active_pmf_variance"] = _active_vars
     oof_df["availability_mixture_pmf_json"] = oof_df["pmf_json"].to_numpy()
+    oof_df["availability_mixture_mean"] = oof_df["pmf_mean"].to_numpy()
     _mix_mean = oof_df["pmf_mean"].astype(float).to_numpy()
     _amn = np.asarray(_active_means, float)
     _bad_active = int(np.sum(_mix_mean > _amn + 1e-6))
@@ -626,6 +628,46 @@ def build(
             "(folding DNP mass onto 0 must not raise the mean).")
     print(f"  active-PMF lineage: PASS (mean(active)-mean(mixture)="
           f"{float(np.mean(_amn - _mix_mean)):.4f}; p_dnp kept separate)")
+
+    # ------------------------------------------------------------------
+    # 5c. Persist contract + provenance fields on EVERY OOF row (owner item 2)
+    # ------------------------------------------------------------------
+    # Line-independent availability + provenance fields. The line-dependent
+    # model_prob_over_settled_from_active_pmf / model_prob_over_final are persisted per scored
+    # row by scripts/evaluate_pure_oof.py (a PMF has no line until joined to a market quote).
+    oof_df["information_contract"] = cfg.get("information_contract")
+    oof_df["market_probability_weight"] = float(cfg.get("market_probability_weight", 0.0) or 0.0)
+    oof_df["market_prior_lambda"] = float(cfg.get("market_prior_lambda", 0.0) or 0.0)
+    oof_df["model_hash"] = _code_sha
+    oof_df["config_hash"] = _config_hash
+    oof_df["feature_hash"] = _contract_hash
+    # OOF is uncalibrated by contract (is_calibrated == False), so the calibrator identity is
+    # the explicit sentinel; the enabled binary calibrator is fit + hashed downstream.
+    oof_df["calibrator_hash"] = "uncalibrated_oof_is_calibrated_false"
+
+    # ------------------------------------------------------------------
+    # 5d. STRICT trusted-baseline gates (owner item 3): fail closed, never fall back
+    # ------------------------------------------------------------------
+    if strict_baseline:
+        if oof_df["active_pmf_json"].isna().any():
+            raise RuntimeError("[strict-baseline] OOF rows missing active_pmf_json "
+                               "(active-PMF lineage incomplete).")
+        if not _pure_mode or float(cfg.get("market_probability_weight", 0.0) or 0.0) != 0.0 \
+                or float(cfg.get("market_prior_lambda", 0.0) or 0.0) != 0.0:
+            raise RuntimeError("[strict-baseline] OOF config is not pure (market weight != 0); "
+                               "a trusted pure baseline must carry zero market weight.")
+        _te = pd.to_datetime(oof_df["fold_train_end_date"])
+        _vs = pd.to_datetime(oof_df["fold_validation_start_date"])
+        _leak = int((_te >= _vs).sum())
+        if _leak:
+            raise RuntimeError(f"[strict-baseline] {_leak} OOF rows with fold_train_end_date >= "
+                               "fold_validation_start_date (temporal leakage).")
+        _req = set(cfg.get("stats", REQUIRED_PROPS))
+        _missing = sorted(_req - set(oof_df["stat"].astype(str).unique()))
+        if _missing:
+            raise RuntimeError(f"[strict-baseline] missing direct prop(s) in OOF: {_missing}")
+        print("  strict-baseline gates: PASS (100% model_oof, pure, no leakage, active-PMF "
+              "present, all props present)")
 
     # ------------------------------------------------------------------
     # 6. Write outputs

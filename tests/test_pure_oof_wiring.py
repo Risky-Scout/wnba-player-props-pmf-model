@@ -283,18 +283,33 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     cfg_p = tmp_path / "cfg.yaml"; cfg_p.write_text(yaml.safe_dump(cfg))
 
     out_dir = tmp_path / "oof"; audit = tmp_path / "audit.json"
-    r = subprocess.run(
-        [sys.executable, "scripts/build_oof_pmfs.py",
-         "--features-wide", str(wide_p), "--features-long", str(long_p),
-         "--manifest", str(man_p), "--config", str(cfg_p),
-         "--out-dir", str(out_dir), "--audit-out", str(audit), "--max-folds", "2"],
-        cwd=REPO, capture_output=True, text=True)
+    ckpt = out_dir / "checkpoints"
+    build_cmd = [sys.executable, "scripts/build_oof_pmfs.py",
+                 "--features-wide", str(wide_p), "--features-long", str(long_p),
+                 "--manifest", str(man_p), "--config", str(cfg_p),
+                 "--out-dir", str(out_dir), "--audit-out", str(audit), "--max-folds", "2",
+                 "--strict-baseline", "--checkpoint-dir", str(ckpt), "--resume"]
+    r = subprocess.run(build_cmd, cwd=REPO, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[-3000:]
     assert "pure_forecast guard: PASS" in r.stdout
     assert "active-PMF lineage: PASS" in r.stdout
+    assert "strict-baseline gates: PASS" in r.stdout
+    # GAP 1: per-fold checkpoints persisted, and a second --resume run reuses them.
+    assert ckpt.exists() and any(ckpt.iterdir()), "checkpoint dir should hold per-fold files"
+    r_resume = subprocess.run(build_cmd, cwd=REPO, capture_output=True, text=True)
+    assert r_resume.returncode == 0, r_resume.stderr[-3000:]
 
     oof = pd.read_parquet(out_dir / "oof_player_stat_pmfs.parquet")
     assert {"active_pmf_json", "availability_mixture_pmf_json", "p_dnp"} <= set(oof.columns)
+    # GAP 4: line-independent provenance/contract + hash fields persisted on every OOF row.
+    gap4 = {"active_pmf_variance", "availability_mixture_mean", "information_contract",
+            "market_probability_weight", "model_hash", "config_hash", "feature_hash",
+            "calibrator_hash"}
+    assert gap4 <= set(oof.columns), f"missing persisted fields: {gap4 - set(oof.columns)}"
+    assert (oof["information_contract"] == "pure_forecast").all()
+    assert (oof["market_probability_weight"] == 0.0).all()
+    assert (oof["active_pmf_variance"] >= -1e-9).all()
+    assert oof["model_hash"].nunique() == 1 and oof["feature_hash"].nunique() == 1
     manifest = json.loads((audit.parent / "PURE_OOF_RUN_MANIFEST.json").read_text())
     assert manifest["information_contract"] == "pure_forecast"
     assert manifest["forbidden_market_columns_present"] == []
@@ -328,3 +343,159 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     metrics = json.loads((ev_out / "PRODUCTION_PURE_OOF_METRICS.json").read_text())
     assert metrics["pure_input_provenance_ok"] is True
     assert (ev_out / "PRODUCTION_PURE_OOF_METRICS.csv").exists()
+    # GAP 2: Holm-adjusted p-values recorded per quote-covered prop with an evaluated fold.
+    assert "holm_family" in metrics
+    for prop in metrics["holm_family"]:
+        pp = metrics["per_prop"][prop]
+        assert "holm_adjusted_p_ll" in pp and "holm_adjusted_p_brier" in pp
+        assert 0.0 <= pp["holm_adjusted_p_ll"] <= 1.0
+        assert 0.0 <= pp["holm_adjusted_p_brier"] <= 1.0
+    csv = pd.read_csv(ev_out / "PRODUCTION_PURE_OOF_METRICS.csv")
+    assert {"holm_adjusted_p_ll", "holm_adjusted_p_brier"} <= set(csv.columns)
+    # GAP 4: per-row scored lineage persists the line-dependent settled + final probabilities.
+    srp = ev_out / "PRODUCTION_PURE_OOF_SCORED_ROWS.parquet"
+    assert srp.exists()
+    sr = pd.read_parquet(srp)
+    assert {"model_prob_over_settled_from_active_pmf", "model_prob_over_final",
+            "p_dnp", "line"} <= set(sr.columns)
+
+
+def test_holm_adjustment_is_monotone_and_bounded():
+    """GAP 2: Holm-Bonferroni is step-down monotone, bounded by 1.0, and >= the raw p-value."""
+    raw = {"pts": 0.20, "reb": 0.01, "ast": 0.04, "fg3m": 0.50}
+    adj = ev._holm(raw)
+    # Smallest raw (reb) gets multiplied by m=4; ordering preserved; all capped at 1.
+    assert adj["reb"] == pytest.approx(min(1.0, 4 * 0.01))
+    order = sorted(raw, key=raw.get)
+    seq = [adj[k] for k in order]
+    assert seq == sorted(seq), "Holm-adjusted p-values must be nondecreasing in raw rank"
+    for k in raw:
+        assert adj[k] >= raw[k] - 1e-12 and adj[k] <= 1.0
+
+
+def test_onesided_bootstrap_pvalue_semantics():
+    """GAP 2: a model that dominates the market on every date yields a tiny one-sided p."""
+    rng = np.random.default_rng(11)
+    dates = pd.date_range("2026-05-01", periods=25, freq="D").astype(str)
+    rows = []
+    for dt in dates:
+        for _ in range(12):
+            y = int(rng.random() < 0.5)
+            # Model is confidently correct; market is a coin flip -> model LL/Brier much lower.
+            rows.append({"prop": "pts", "game_date": dt, "outcome_over": y,
+                         "market_prob_over_no_vig": 0.5,
+                         "p_over_settled_active": 0.95 if y else 0.05, "crps_active": 0.1})
+    pdf = pd.DataFrame(rows)
+    res = ev.nested_eval(pdf, "P0_active_settled_identity", min_train_dates=6, val_block_dates=2)
+    ci = ev._bootstrap_ci(res, pdf, n_boot=2000)
+    assert ci["logloss_p_onesided"] < 0.05
+    assert ci["brier_p_onesided"] < 0.05
+
+
+# ---------------------------------------------------------------------------
+# E. delivery <-> OOF float64 parity (GAP 3)
+# ---------------------------------------------------------------------------
+
+def test_delivery_oof_float64_parity_identity_calibration():
+    """The live-delivery lineage (build_probability_lineage) and the OOF/eval lineage
+    (settle_over_from_active_pmf) MUST produce the bit-identical float64 model_prob_over_final
+    on an identical (active PMF, line) fixture under identity calibration (production default)."""
+    from wnba_props_model.models.availability_pmf import settle_over_from_active_pmf
+    from wnba_props_model.models.probability_lineage import build_probability_lineage
+
+    for line in (4.5, 5.0, 7.5, 12.0):  # half-lines and integer (push) lines
+        active = {"3": 0.05, "4": 0.15, "5": 0.30, "6": 0.25, "7": 0.15, "8": 0.10}
+        # Delivery path: single source of truth, identity (disabled) binary calibration.
+        lineage = build_probability_lineage(
+            final_pmf={int(k): v for k, v in active.items()}, line=line,
+            prop="pts", role="rotation")
+        # OOF/eval path: settle P(over) from the same active PMF; identity calibration.
+        try:
+            settled = settle_over_from_active_pmf(json.dumps(active), line).p_over_settled
+        except Exception:
+            settled = None
+        if lineage.model_prob_over_final is None:
+            # Both paths must agree the row is binary-ineligible (all mass on the push).
+            assert settled is None
+            continue
+        # Bit-identical float64 (identity calibration -> final == settled on both sides).
+        assert lineage.model_prob_over_settled_from_final_pmf == settled
+        assert lineage.model_prob_over_final == settled
+
+
+def test_delivery_oof_parity_under_shared_monotone_calibrator():
+    """When a nonidentity monotone calibrator g is applied identically after the shared
+    settlement step, both paths still return the identical float64 final probability."""
+    from wnba_props_model.models.availability_pmf import settle_over_from_active_pmf
+    from wnba_props_model.models.market import settled_probabilities_from_pmf
+
+    active = {"2": 0.1, "3": 0.2, "4": 0.4, "5": 0.2, "6": 0.1}
+    line = 3.5
+
+    def g(p):  # a monotone logit-shift calibrator, applied identically on both sides
+        z = np.log(p / (1 - p)) * 1.3 - 0.2
+        return float(1 / (1 + np.exp(-z)))
+
+    delivery_settled = settled_probabilities_from_pmf(
+        {int(k): v for k, v in active.items()}, line).p_over_settled
+    oof_settled = settle_over_from_active_pmf(json.dumps(active), line).p_over_settled
+    assert delivery_settled == oof_settled  # shared settlement function
+    assert g(delivery_settled) == g(oof_settled)  # identical calibrated final
+
+
+# ---------------------------------------------------------------------------
+# F. strict-baseline is fail-closed, never silently falls back (GAP 1)
+# ---------------------------------------------------------------------------
+
+def test_strict_baseline_aborts_on_prior_only(tmp_path):
+    """With --strict-baseline, a fold that cannot fit a model (thresholds unmet) must FAIL the
+    run with a nonzero exit and NOT silently emit prior_only PMFs."""
+    rng = np.random.default_rng(9)
+    stats = ["pts"]
+    feats = ["player_minutes_mean_l5", "player_pts_mean_l5", "is_home", "position"]
+    dates = pd.date_range("2026-05-01", periods=16, freq="D")
+    rows, gid = [], 5000
+    for d in dates:
+        for pl in range(20):
+            gid += 1
+            mm = float(rng.uniform(8, 34))
+            played = rng.random() > 0.12
+            rows.append({
+                "player_id": pl, "game_id": gid, "game_date": d, "season": 2026,
+                "team_id": pl % 6, "player_name": f"P{pl}", "team_abbreviation": "TST",
+                "opponent_team_id": (pl + 1) % 6, "opponent_team_abbreviation": "OPP",
+                "position": rng.choice(["G", "F", "C"]), "is_home": bool(rng.random() > .5),
+                "actual_minutes": mm if played else 0.0, "did_play": bool(played),
+                "player_minutes_mean_l5": mm + rng.normal(0, 2),
+                "player_pts_mean_l5": float(rng.uniform(4, 20)),
+                "actual_pts": float(rng.poisson(max(0.1, mm * 0.4)) if played else 0),
+            })
+    wide = pd.DataFrame(rows)
+    sub = wide[["player_id", "game_id", "game_date", "season", "player_name", "team_id",
+                "team_abbreviation", "opponent_team_id", "opponent_team_abbreviation",
+                "is_home", "actual_minutes", "did_play"]].copy()
+    sub["stat"] = "pts"; sub["actual_outcome"] = wide["actual_pts"].values
+
+    wide_p = tmp_path / "wide.parquet"; wide.to_parquet(wide_p, index=False)
+    long_p = tmp_path / "long.parquet"; sub.to_parquet(long_p, index=False)
+    man_p = tmp_path / "manifest.json"
+    man_p.write_text(json.dumps({"model_feature_columns": feats,
+                                 "target_columns": ["actual_pts"]}))
+    cfg = yaml.safe_load((REPO / "config/model/stage5_oof.yaml").read_text())
+    cfg.update({"stats": stats, "sparse_stats": [], "oof_first_val_date": "2026-05-08",
+                "validation_window_days": 5, "use_tuned_hyperparams": False,
+                "use_model_ensemble": False, "use_role_stratified_training": False,
+                # Impossible thresholds -> every fold is prior_only.
+                "min_train_long_rows": 10_000_000, "min_train_stat_rows": 10_000_000})
+    cfg["pmf_support_caps"] = {"pts": 45}
+    cfg_p = tmp_path / "cfg.yaml"; cfg_p.write_text(yaml.safe_dump(cfg))
+
+    r = subprocess.run(
+        [sys.executable, "scripts/build_oof_pmfs.py",
+         "--features-wide", str(wide_p), "--features-long", str(long_p),
+         "--manifest", str(man_p), "--config", str(cfg_p),
+         "--out-dir", str(tmp_path / "oof"), "--audit-out", str(tmp_path / "audit.json"),
+         "--max-folds", "2", "--strict-baseline"],
+        cwd=REPO, capture_output=True, text=True)
+    assert r.returncode != 0, "strict-baseline must abort on prior_only folds"
+    assert "strict-baseline" in (r.stdout + r.stderr).lower()
