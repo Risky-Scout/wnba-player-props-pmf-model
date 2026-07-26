@@ -21,6 +21,18 @@
         "src/wnba_props_model/pipeline/deliver.py"
       ],
       "expiration": "2026-12-31"
+    },
+    {
+      "schema_version": 1,
+      "approved_branch": "cursor/public-forecast-pages-v1",
+      "approved_base_sha": "3efb4cf4d9ec97a05f28d91a1b6e292931e07abd",
+      "purpose": "PR #81 LANE 1 B4 - decouple forecast-page deploy from validated-edge-row count so the Distributions page and the ABSTAINING Edge Board deploy whenever forecast data exists, while the Edge Board stays in explicit zero-row abstention until a prop is prospectively certified.",
+      "approved_by": "LANE 1 forecast-only safe launch",
+      "reason": "Only the deploy gate in pregame_final.yml changes (has_data -> has_forecast_data / has_validated_edges); no change to model, calibration, market, or recommendation-policy surfaces. Re-pinned to the merged main (3efb4cf) after rebasing PR #81.",
+      "approved_paths": [
+        ".github/workflows/pregame_final.yml"
+      ],
+      "expiration": "2026-12-31"
     }
   ]
 }
