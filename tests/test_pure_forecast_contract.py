@@ -51,12 +51,33 @@ def test_pure_pmf_generation_fails_on_clv_head():
                                   {"pts": _StatModelWithCLV()}, {}, cfg)
 
 
-def test_pure_pmf_generation_fails_on_forbidden_market_feature():
+def test_pure_pmf_generation_drops_forbidden_market_feature():
+    # Owner repair: the pure track DROPS forbidden market-derived columns (train/predict on the
+    # identical pure feature list) instead of merely rejecting. The post-drop safety-net guard
+    # therefore PASSES, so any failure here comes from the downstream stub model — NOT a
+    # MarketLeakageError. (A surviving forbidden column would still raise; see the resolver test.)
     wide, long = _min_frames()
     cfg = enforce_pure_model_config({"stats": ["pts"]})
-    with pytest.raises(MarketLeakageError, match="market"):
+    with pytest.raises(Exception) as ei:  # noqa: PT011 - asserting the TYPE below
         pmf_engine.build_all_pmfs(wide, long, ["player_pts_mean_l5", "market_prob_over_no_vig"],
                                   object(), {"pts": _CleanStatModel()}, {}, cfg)
+    assert not isinstance(ei.value, MarketLeakageError), (
+        "forbidden market feature must be DROPPED, not raise MarketLeakageError")
+
+
+def test_drop_forbidden_market_columns_resolver():
+    from wnba_props_model.models.pure_model_contract import (
+        assert_pure_feature_columns,
+        drop_forbidden_market_columns,
+    )
+    cols = ["player_pts_mean_l5", "game_spread_home", "minutes_mean", "game_total",
+            "implied_team_total", "player_market_p_over_prev", "over_odds", "position"]
+    kept, dropped = drop_forbidden_market_columns(cols)
+    assert kept == ["player_pts_mean_l5", "minutes_mean", "position"]
+    assert set(dropped) == {"game_spread_home", "game_total", "implied_team_total",
+                            "player_market_p_over_prev", "over_odds"}
+    # Safety net must pass AFTER the drop (zero forbidden columns remain).
+    assert_pure_feature_columns(kept, context="resolver_test")
 
 
 def test_non_pure_config_still_allowed_to_blend():

@@ -98,6 +98,22 @@ def forbidden_market_columns(columns: Iterable[str]) -> list[str]:
     return [c for c in columns if is_forbidden_market_field(c)]
 
 
+def drop_forbidden_market_columns(columns: Iterable[str]) -> tuple[list[str], list[str]]:
+    """Split ``columns`` into (pure_kept, dropped_market), preserving input order.
+
+    This is the single shared resolver both the OOF path (``build_oof_pmfs``) and the
+    live-delivery path (``build_all_pmfs``) use to derive the IDENTICAL pure feature list, so
+    the two sides train/predict on exactly the same columns (delivery↔OOF parity). The dropped
+    set is exactly ``forbidden_market_columns`` (game_spread/total/implied-total, player_market_*,
+    market prob/odds/consensus/CLV/line-movement, ...).
+    """
+    cols = list(columns)
+    dropped_set = set(forbidden_market_columns(cols))
+    kept = [c for c in cols if c not in dropped_set]
+    dropped = [c for c in cols if c in dropped_set]
+    return kept, dropped
+
+
 def assert_pure_feature_columns(columns: Iterable[str], *, context: str = "pure_model") -> None:
     """Fail closed if any predictive feature column is market-derived."""
     bad = forbidden_market_columns(columns)
@@ -182,13 +198,23 @@ def config_sha256(cfg: dict[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def pure_forecast_provenance(cfg: dict[str, Any], ordered_feature_cols: Iterable[str]) -> dict:
+def pure_forecast_provenance(
+    cfg: dict[str, Any],
+    ordered_feature_cols: Iterable[str],
+    *,
+    dropped_market_columns: Iterable[str] | None = None,
+    pre_drop_feature_count: int | None = None,
+) -> dict:
     """Machine-verifiable proof that a run is pure: config hash, ordered feature list, market scan.
 
-    Raises ``MarketLeakageError`` if the config or feature list violates the pure contract, so a
-    provenance record can only be produced for a genuinely pure run.
+    ``ordered_feature_cols`` is the FINAL pure feature list (after dropping forbidden market
+    columns). ``dropped_market_columns`` / ``pre_drop_feature_count`` record exactly what was
+    removed (e.g. 394 → 391) so the provenance shows the pure feature set was derived by removal,
+    not by hiding columns. Raises ``MarketLeakageError`` if the config or the final feature list
+    violates the pure contract, so provenance can only be produced for a genuinely pure run.
     """
     cols = list(ordered_feature_cols)
+    dropped = sorted(dropped_market_columns) if dropped_market_columns is not None else []
     assert_pure_model_config(cfg, context="pure_forecast_provenance")
     assert_pure_feature_columns(cols, context="pure_forecast_provenance")
     return {
@@ -202,5 +228,10 @@ def pure_forecast_provenance(cfg: dict[str, Any], ordered_feature_cols: Iterable
         "config_sha256": config_sha256(cfg),
         "ordered_feature_list": cols,
         "ordered_feature_list_sha256": hashlib.sha256("|".join(cols).encode()).hexdigest(),
+        "pure_feature_count": len(cols),
+        "pre_drop_feature_count": (int(pre_drop_feature_count)
+                                   if pre_drop_feature_count is not None else len(cols)),
+        "dropped_market_columns": dropped,
+        "dropped_market_column_count": len(dropped),
         "forbidden_market_columns_present": forbidden_market_columns(cols),
     }

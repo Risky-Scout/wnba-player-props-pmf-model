@@ -159,11 +159,21 @@ def build_all_pmfs(
         assert_no_market_head,
         assert_pure_feature_columns,
         assert_pure_model_config,
+        drop_forbidden_market_columns,
         is_pure_model,
     )
     assert_pure_model_config(cfg, context="build_all_pmfs")
     _pure_mode = is_pure_model(cfg)
     if _pure_mode:
+        # DROP forbidden market-derived columns so the live-delivery path predicts on the SAME
+        # pure feature list the OOF path trains on (delivery↔OOF parity via the shared resolver).
+        # The assert below is then a safety net that must pass post-drop.
+        model_feature_cols, _dropped_market = drop_forbidden_market_columns(model_feature_cols)
+        if _dropped_market:
+            import logging as _log_pure  # noqa: PLC0415
+            _log_pure.getLogger(__name__).info(
+                "[pmf_engine] pure_forecast: dropped %d market-derived feature(s) from the "
+                "delivery feature set: %s", len(_dropped_market), sorted(_dropped_market))
         assert_pure_feature_columns(model_feature_cols, context="build_all_pmfs")
         assert_no_market_head(stat_models, hurdle_models, bb_models, context="build_all_pmfs")
 

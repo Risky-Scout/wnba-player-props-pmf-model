@@ -35,6 +35,7 @@ from wnba_props_model.models.oof_engine import generate_oof_folds, make_prior_on
 from wnba_props_model.models.pure_model_contract import (
     assert_pure_feature_columns,
     assert_pure_model_config,
+    drop_forbidden_market_columns,
     is_pure_model,
     pure_forecast_provenance,
 )
@@ -268,17 +269,34 @@ def build(
     assert_pure_model_config(cfg, context="build_oof_pmfs")
     _pure_mode = is_pure_model(cfg)
     pure_provenance: dict | None = None
+    _dropped_market_cols: list[str] = []
     if _pure_mode:
+        # DROP (do not merely reject) forbidden market-derived columns so the pure track trains
+        # AND predicts on the identical pure feature list. assert_pure_feature_columns then acts
+        # as a safety net that MUST pass post-drop (zero forbidden columns remain).
+        _n_pre_drop = len(model_cols)
+        model_cols, _dropped_market_cols = drop_forbidden_market_columns(model_cols)
+        if _dropped_market_cols:
+            print(f"  pure_forecast drop: removed {len(_dropped_market_cols)} market-derived "
+                  f"column(s) from the pure feature set ({_n_pre_drop} → {len(model_cols)}): "
+                  f"{sorted(_dropped_market_cols)}")
         assert_pure_feature_columns(model_cols, context="build_oof_pmfs")
-        pure_provenance = pure_forecast_provenance(cfg, model_cols)
+        pure_provenance = pure_forecast_provenance(
+            cfg, model_cols, dropped_market_columns=_dropped_market_cols,
+            pre_drop_feature_count=_n_pre_drop)
         pure_provenance["config_path"] = str(config_path)
         pure_provenance["ordered_feature_list_count"] = len(model_cols)
         prov_out = audit_out.parent / "PURE_OOF_RUN_MANIFEST.json"
         prov_out.write_text(json.dumps(pure_provenance, indent=2, default=str) + "\n")
+        # Also drop a standalone PURE_FORECAST_PROVENANCE.json alongside it (owner item 2).
+        (audit_out.parent / "PURE_FORECAST_PROVENANCE.json").write_text(
+            json.dumps(pure_provenance, indent=2, default=str) + "\n")
         print(f"  pure_forecast guard: PASS (information_contract=pure_forecast; "
               f"market_prior_lambda=0.0; CLV disabled)")
         print(f"    config_sha256={pure_provenance['config_sha256']}")
         print(f"    ordered_feature_list_sha256={pure_provenance['ordered_feature_list_sha256']}")
+        print(f"    pure_feature_count={pure_provenance['pure_feature_count']} "
+              f"(dropped {pure_provenance['dropped_market_column_count']})")
         print(f"  → wrote pure run manifest: {prov_out}")
     else:
         print("  pure_forecast guard: SKIPPED (config not marked pure_model)")

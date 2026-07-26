@@ -255,6 +255,10 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
                 "player_minutes_mean_l5": mm + rng.normal(0, 2),
                 "player_pts_mean_l5": float(rng.uniform(4, 20)),
                 "player_reb_mean_l5": float(rng.uniform(1, 9)),
+                # Market-derived columns that MUST be dropped from the pure feature set.
+                "game_spread_home": float(rng.normal(0, 6)),
+                "game_total": float(rng.uniform(150, 175)),
+                "implied_team_total": float(rng.uniform(75, 90)),
                 "actual_pts": float(rng.poisson(max(0.1, mm * 0.4)) if played else 0),
                 "actual_reb": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
             })
@@ -272,7 +276,8 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     wide_p = tmp_path / "wide.parquet"; wide.to_parquet(wide_p, index=False)
     long_p = tmp_path / "long.parquet"; long.to_parquet(long_p, index=False)
     man_p = tmp_path / "manifest.json"
-    man_p.write_text(json.dumps({"model_feature_columns": feats,
+    market_feats = ["game_spread_home", "game_total", "implied_team_total"]
+    man_p.write_text(json.dumps({"model_feature_columns": feats + market_feats,
                                  "target_columns": [f"actual_{s}" for s in stats]}))
     cfg = yaml.safe_load((REPO / "config/model/stage5_oof.yaml").read_text())
     cfg.update({"stats": stats, "sparse_stats": [], "min_train_long_rows": 150,
@@ -294,6 +299,10 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     assert "pure_forecast guard: PASS" in r.stdout
     assert "active-PMF lineage: PASS" in r.stdout
     assert "strict-baseline gates: PASS" in r.stdout
+    # Pure track drops forbidden market columns (394→391 in production; here N→N-3) and PASSES
+    # the strict guard rather than aborting with MarketLeakageError.
+    assert "pure_forecast drop: removed 3 market-derived" in r.stdout
+    assert "MarketLeakageError" not in (r.stdout + r.stderr)
     # GAP 1: per-fold checkpoints persisted, and a second --resume run reuses them.
     assert ckpt.exists() and any(ckpt.iterdir()), "checkpoint dir should hold per-fold files"
     r_resume = subprocess.run(build_cmd, cwd=REPO, capture_output=True, text=True)
@@ -313,6 +322,20 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     manifest = json.loads((audit.parent / "PURE_OOF_RUN_MANIFEST.json").read_text())
     assert manifest["information_contract"] == "pure_forecast"
     assert manifest["forbidden_market_columns_present"] == []
+    # Provenance records EXACTLY what was dropped and the pure feature count (owner item 2).
+    assert manifest["dropped_market_columns"] == sorted(market_feats)
+    assert manifest["dropped_market_column_count"] == 3
+    assert manifest["pre_drop_feature_count"] == len(feats) + 3
+    assert manifest["pure_feature_count"] == len(feats)
+    assert set(manifest["ordered_feature_list"]).isdisjoint(market_feats)
+    # Standalone PURE_FORECAST_PROVENANCE.json is written too.
+    prov2 = json.loads((audit.parent / "PURE_FORECAST_PROVENANCE.json").read_text())
+    assert prov2["ordered_feature_list_sha256"] == manifest["ordered_feature_list_sha256"]
+    # (b) OOF path and live-delivery path resolve to the SAME pure feature list via the shared
+    # resolver used by both build_oof_pmfs.py and pmf_engine.build_all_pmfs.
+    from wnba_props_model.models.pure_model_contract import drop_forbidden_market_columns
+    delivery_kept, _ = drop_forbidden_market_columns(feats + market_feats)
+    assert delivery_kept == manifest["ordered_feature_list"]
 
     # Evaluate against a synthetic exact-quote table joined on the pure OOF keys.
     q = oof[["game_id", "player_id", "stat", "actual_outcome", "active_pmf_json"]].rename(
