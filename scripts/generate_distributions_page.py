@@ -131,17 +131,19 @@ def _build_json(
             edge_pp = None
 
         pmf_pairs = p.get("pmf", [])
-        # Compute push-aware probabilities from the full PMF pairs
-        p_over_computed, p_under_computed, p_push_computed = _compute_push_aware_probs(
-            pmf_pairs, market_line
-        ) if has_market_line and pmf_pairs else (
-            round(float(p.get("model_p_over") or 0), 4), 0.0, 0.0
-        )
-        # Use source model_p_over if no market line (can't compute vs a line)
-        if not has_market_line:
-            p_over_computed = round(float(p.get("model_p_over") or 0), 4)
-            p_under_computed = round(1.0 - p_over_computed, 4)
-            p_push_computed  = 0.0
+        # B1 PROBABILITY CONTRACT: the bettor-facing settled probability is the upstream
+        # decision-grade model_prob_over_final (push-safe + binary-calibrated), NEVER recomputed
+        # from PMF mass. PMF pairs feed ONLY the *unconditional* distribution-shape fields.
+        model_prob_over_final = float(
+            p.get("model_prob_over_final", p.get("model_p_over") or 0) or 0)
+        p_over_computed = round(model_prob_over_final, 6)
+        p_push_computed = round(float(p.get("model_p_push") or p.get("pmf_p_push") or 0), 6)
+        p_under_computed = round(max(0.0, 1.0 - p_over_computed), 6)   # settled Under = 1 - final
+        # Unconditional PMF mass (distribution shape only) - clearly separated from the above.
+        if has_market_line and pmf_pairs:
+            pmf_over_u, pmf_under_u, pmf_push_u = _compute_push_aware_probs(pmf_pairs, market_line)
+        else:
+            pmf_over_u = pmf_under_u = pmf_push_u = None
 
         # pmf_full = complete probability pairs summing to 1 (never filtered)
         # pmf_chart = filtered pairs for chart rendering (omits tiny masses)
@@ -166,6 +168,11 @@ def _build_json(
             "model_p_over": p_over_computed,
             "model_p_under": p_under_computed,
             "model_p_push": p_push_computed,
+            "model_prob_over_final": round(model_prob_over_final, 6),
+            "model_prob_under_final": round(max(0.0, 1.0 - model_prob_over_final), 6),
+            "pmf_p_over_unconditional": pmf_over_u,
+            "pmf_p_under_unconditional": pmf_under_u,
+            "pmf_p_push": pmf_push_u,
             "market_p_over": round(float(p.get("market_p_over") or 0), 4),
             "no_vig_over_prob": round(float(p.get("no_vig_over_prob") or p.get("market_p_over") or 0), 4),
             "no_vig_under_prob": round(float(p.get("no_vig_under_prob") or 0), 4),

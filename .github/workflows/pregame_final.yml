@@ -319,23 +319,41 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Gate — skip publish if no edge data
+      - name: Gate — decouple forecast deploy from edge-row count (B4)
         id: data-gate
         run: |
+          # B4: forecast pages (Distributions + abstaining Edge Board + PMF payloads) deploy
+          # whenever there is FORECAST data, independent of validated-edge rows. Validated edge
+          # rows only additionally populate when has_validated_edges=true. We never require edge
+          # rows to deploy forecast pages, and we never preserve stale pages when today's board
+          # is legitimately empty (page gen publishes a current zero-row abstention release).
+          PROJ_FILE="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
+          [ -f "$PROJ_FILE" ] || PROJ_FILE=$(ls deliveries/tonight/player_projections_*.parquet 2>/dev/null | head -1 || echo "")
           EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
-          if [ ! -f "$EDGE_FILE" ]; then
-            echo "has_data=false" >> $GITHUB_OUTPUT
-            echo "[gate] No publishable_edges.parquet — skipping publish to preserve existing pages"
-          else
-            N=$(python3 -c "import pandas as pd; print(len(pd.read_parquet('$EDGE_FILE')))" 2>/dev/null || echo "0")
-            if [ "$N" -le "0" ]; then
-              echo "has_data=false" >> $GITHUB_OUTPUT
-              echo "[gate] 0 edges — skipping publish"
-            else
-              echo "has_data=true" >> $GITHUB_OUTPUT
-              echo "[gate] $N edges — proceeding"
-            fi
+          NF=0
+          if [ -n "$PROJ_FILE" ] && [ -f "$PROJ_FILE" ]; then
+            NF=$(python3 -c "import pandas as pd; print(len(pd.read_parquet('$PROJ_FILE')))" 2>/dev/null || echo "0")
           fi
+          NE=0
+          if [ -f "$EDGE_FILE" ]; then
+            NE=$(python3 -c "import pandas as pd; print(len(pd.read_parquet('$EDGE_FILE')))" 2>/dev/null || echo "0")
+          fi
+          if [ "$NF" -gt "0" ]; then
+            echo "has_forecast_data=true" >> $GITHUB_OUTPUT
+            echo "[gate] $NF forecast rows — deploying forecast pages (Distributions + abstaining Edge Board)"
+          else
+            echo "has_forecast_data=false" >> $GITHUB_OUTPUT
+            echo "[gate] no forecast rows — skipping (nothing to publish)"
+          fi
+          if [ "$NE" -gt "0" ]; then
+            echo "has_validated_edges=true" >> $GITHUB_OUTPUT
+            echo "[gate] $NE validated edge rows — will populate edge rows"
+          else
+            echo "has_validated_edges=false" >> $GITHUB_OUTPUT
+            echo "[gate] 0 validated edges — Edge Board stays in explicit abstention"
+          fi
+          # Back-compat alias retained for any downstream refs (now tracks forecast data).
+          echo "has_data=$([ "$NF" -gt "0" ] && echo true || echo false)" >> $GITHUB_OUTPUT
 
       - name: Generate Edge Board + PMF Dashboard web pages
         run: |
@@ -587,7 +605,7 @@ jobs:
           retention-days: 30
 
       - name: Stage all outputs for single gh-pages deploy
-        if: steps.data-gate.outputs.has_data == 'true' && env.NO_DEPLOY != 'true'
+        if: steps.data-gate.outputs.has_forecast_data == 'true' && env.NO_DEPLOY != 'true'
         run: |
           # Consolidate every output directory into _site so we make exactly
           # one push to gh-pages — eliminates all push race conditions.
@@ -609,7 +627,7 @@ jobs:
           echo "Staged files: $(find _site -type f | wc -l)"
 
       - name: Deploy all pages to gh-pages (single push — no race condition)
-        if: steps.data-gate.outputs.has_data == 'true' && env.NO_DEPLOY != 'true'
+        if: steps.data-gate.outputs.has_forecast_data == 'true' && env.NO_DEPLOY != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

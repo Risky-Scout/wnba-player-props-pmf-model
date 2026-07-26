@@ -622,15 +622,17 @@ class TestNoStatSuppression:
         stats = {p.get("stat", "").lower() for p in dist_json.get("props", [])}
         assert "stl" in stats, f"stl must not be suppressed. Found stats: {stats}"
 
-    def test_blk_present_on_public_distributions_page(self, tmp_path: Path):
-        """blk must appear in the Distributions page (not suppressed)."""
+    def test_forecast_suppressed_stats_absent_on_public_page(self, tmp_path: Path):
+        """2.6 (updated contract): fg3m/blk have forecast_allowed=false in the stat_registry and
+        MUST be absent from the public forecast distributions while suppressed. (Superseded the
+        prior 'blk must be present' assertion, which encoded the old all-PMFs-public policy.)"""
         _, _, dist_json = _build_full_pages(tmp_path)
         stats = {p.get("stat", "").lower() for p in dist_json.get("props", [])}
-        assert "blk" in stats, f"blk must not be suppressed. Found stats: {stats}"
+        assert "blk" not in stats, f"blk must be suppressed (forecast_allowed=false). Found: {stats}"
+        assert "fg3m" not in stats, f"fg3m must be suppressed (forecast_allowed=false). Found: {stats}"
 
-    def test_all_supported_stats_are_discoverable(self, tmp_path: Path):
-        """PMF page and Distributions page must include all valid modeled stats."""
-        # Build projections with all supported stats
+    def test_only_forecast_allowed_stats_are_public(self, tmp_path: Path):
+        """Public Distributions include ONLY forecast_allowed stats; fg3m/blk are excluded."""
         all_supported = ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
         rows = []
         for stat in all_supported:
@@ -645,7 +647,7 @@ class TestNoStatSuppression:
         edges = tmp_path / "publishable_edges.parquet"
         pd.DataFrame().to_parquet(edges, index=False)
         out = tmp_path / "Pre-Game"
-        r = _run_generate_web_pages(tmp_path, str(proj), str(edges), out_dir=out)
+        _run_generate_web_pages(tmp_path, str(proj), str(edges), out_dir=out)
         r2 = _run_generate_distributions(tmp_path, base_dir=tmp_path)
         if r2.returncode != 0:
             pytest.skip(f"Distributions page gen failed: {r2.stderr[:200]}")
@@ -653,8 +655,9 @@ class TestNoStatSuppression:
         if not dist_json:
             pytest.skip("Distributions page not generated")
         found_stats = {p.get("stat", "").lower() for p in dist_json.get("props", [])}
-        suppressed = [s for s in all_supported if s not in found_stats]
-        assert suppressed == [], f"Stats incorrectly suppressed from public page: {suppressed}"
+        assert "fg3m" not in found_stats and "blk" not in found_stats
+        # forecast_allowed stats remain discoverable.
+        assert {"pts", "reb", "ast", "stl", "turnover"} <= found_stats
 
     def test_stl_not_in_suppressed_stats_in_pmf_builder(self):
         """_build_pmf_json must not hard-code stl in _SUPPRESSED_STATS."""
