@@ -267,6 +267,10 @@ def build(
     # config carries ZERO market weight/nudge and no market-derived feature column enters the
     # (OOF-safe) model_feature_columns; otherwise this aborts the run.
     assert_pure_model_config(cfg, context="build_oof_pmfs")
+    # STRICT trusted OOF: appearance-only minutes training must FAIL closed on missing did_play
+    # metadata rather than silently training the conditional minute model on all rows.
+    if strict_baseline:
+        cfg["strict_minutes_metadata"] = True
     _pure_mode = is_pure_model(cfg)
     pure_provenance: dict | None = None
     _dropped_market_cols: list[str] = []
