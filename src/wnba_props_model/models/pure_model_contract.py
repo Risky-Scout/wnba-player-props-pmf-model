@@ -27,8 +27,12 @@ supremacy- or edge-board-eligible (see ``MAX_SENSITIVITY_MARKET_WEIGHT``).
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Iterable
 from typing import Any
+
+INFORMATION_CONTRACT = "pure_forecast"
 
 # Current-game market-derived fields that must NEVER be predictive inputs to a pure model.
 FORBIDDEN_MARKET_INPUT_FIELDS: frozenset[str] = frozenset({
@@ -120,6 +124,8 @@ def enforce_pure_model_config(cfg: dict[str, Any]) -> dict[str, Any]:
         out[k] = False
     out["pure_model"] = True
     out["market_probability_weight"] = 0.0
+    out["market_anchor"] = None
+    out["information_contract"] = INFORMATION_CONTRACT
     return out
 
 
@@ -137,6 +143,64 @@ def assert_pure_model_config(cfg: dict[str, Any], *, context: str = "pure_model"
             violations.append(f"{k}=True")
     if float(cfg.get("market_probability_weight", 0.0) or 0.0) != 0.0:
         violations.append(f"market_probability_weight={cfg.get('market_probability_weight')}")
+    if cfg.get("market_anchor", None) is not None:
+        violations.append(f"market_anchor={cfg.get('market_anchor')!r}")
     if violations:
         raise MarketLeakageError(
             f"{context}: config is marked pure_model but violates the pure contract: {violations}")
+
+
+# Attributes on a fitted stat/hurdle model that carry market-derived signal.
+FORBIDDEN_MODEL_MARKET_HEADS: tuple[str, ...] = ("clv_head", "market_head", "market_residual_head")
+
+
+def assert_no_market_head(*model_containers, context: str = "pure_model") -> None:
+    """Fail closed if any fitted model carries an attached market-derived head (e.g. CLV head)."""
+    offenders = []
+    for container in model_containers:
+        if container is None:
+            continue
+        models = container.values() if isinstance(container, dict) else container
+        try:
+            iterator = list(models)
+        except TypeError:
+            iterator = [models]
+        for mdl in iterator:
+            for attr in FORBIDDEN_MODEL_MARKET_HEADS:
+                if getattr(mdl, attr, None) is not None:
+                    offenders.append(f"{type(mdl).__name__}.{attr}")
+    if offenders:
+        raise MarketLeakageError(
+            f"{context}: pure model carries market-derived head(s): {sorted(set(offenders))}")
+
+
+def config_sha256(cfg: dict[str, Any]) -> str:
+    """Deterministic hash of the (JSON-serializable subset of the) config for provenance."""
+    def _default(o):
+        return str(o)
+    payload = json.dumps(cfg, sort_keys=True, default=_default).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def pure_forecast_provenance(cfg: dict[str, Any], ordered_feature_cols: Iterable[str]) -> dict:
+    """Machine-verifiable proof that a run is pure: config hash, ordered feature list, market scan.
+
+    Raises ``MarketLeakageError`` if the config or feature list violates the pure contract, so a
+    provenance record can only be produced for a genuinely pure run.
+    """
+    cols = list(ordered_feature_cols)
+    assert_pure_model_config(cfg, context="pure_forecast_provenance")
+    assert_pure_feature_columns(cols, context="pure_forecast_provenance")
+    return {
+        "information_contract": INFORMATION_CONTRACT,
+        "pure_model": True,
+        "market_probability_weight": float(cfg.get("market_probability_weight", 0.0) or 0.0),
+        "market_prior_lambda": float(cfg.get("market_prior_lambda", 0.0) or 0.0),
+        "market_prior_lambda_display": float(cfg.get("market_prior_lambda_display", 0.0) or 0.0),
+        "market_anchor": cfg.get("market_anchor", None),
+        "clv_head_enabled": bool(cfg.get("use_clv_head", False)),
+        "config_sha256": config_sha256(cfg),
+        "ordered_feature_list": cols,
+        "ordered_feature_list_sha256": hashlib.sha256("|".join(cols).encode()).hexdigest(),
+        "forbidden_market_columns_present": forbidden_market_columns(cols),
+    }

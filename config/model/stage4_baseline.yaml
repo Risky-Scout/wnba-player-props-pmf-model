@@ -132,9 +132,11 @@ use_per_player_dispersion: true
 # used ONLY as a post-PMF query threshold, never as a mean-anchoring prior. Both weights are
 # hard-zeroed and pure_model=true fail-closes any market blend in pmf_engine.build_all_pmfs.
 pure_model: true
+information_contract: pure_forecast
 market_prior_lambda: 0.0
 market_prior_lambda_display: 0.0
 market_probability_weight: 0.0
+market_anchor: null
 use_clv_head: false
 use_live_calibrators: false
 pi_rating_use_model_baseline: false
