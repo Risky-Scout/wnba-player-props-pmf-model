@@ -153,6 +153,15 @@ def build_all_pmfs(
         pmf_mean, pmf_variance, p0, p_ge_1, p_ge_2, p_ge_3, p_ge_5, p_ge_10,
         model_version, pmf_source, is_calibrated
     """
+    # PHASE 0 pure-model contract: a pure champion may carry ZERO market weight/nudge.
+    # Fail closed if the cfg claims to be pure but still blends the market.
+    from wnba_props_model.models.pure_model_contract import (
+        assert_pure_model_config,
+        is_pure_model,
+    )
+    assert_pure_model_config(cfg, context="build_all_pmfs")
+    _pure_mode = is_pure_model(cfg)
+
     # ------------------------------------------------------------------ #
     # Prepare wide-table features (used for minutes prediction and as
     # the base features for each stat model)
@@ -345,7 +354,8 @@ def build_all_pmfs(
         # mean_final = (1 - λ) * mean_model + λ * mean_market
         # The sportsbook line is the market's best estimate of the median; using it
         # as an anchor reduces extreme premiums (40-74% combo OVERs) toward realistic levels.
-        _mpl = cfg.get("market_prior_lambda", 0.0)
+        # A pure model is forbidden from anchoring its mean toward the market line.
+        _mpl = 0.0 if _pure_mode else cfg.get("market_prior_lambda", 0.0)
         if _mpl > 0 and "market_line" in stat_rows.columns:
             _market_lines = stat_rows["market_line"].values
             _valid_market = np.isfinite(_market_lines) & (_market_lines > 0)
@@ -359,7 +369,8 @@ def build_all_pmfs(
 
         # Part 6: CLV head signal — soft-nudge stat_mean by ≤5% based on
         # whether the model's direction beats the closing line historically.
-        if stat in stat_models:
+        # The CLV head is market-derived (closing line) → OFF for pure models.
+        if stat in stat_models and not _pure_mode:
             _clv_model = stat_models[stat]
             _clv_head = getattr(_clv_model, "clv_head", None)
             if _clv_head is not None:
