@@ -51,16 +51,26 @@ def test_pure_eval_rejects_market_column():
         sup.PURE_ALLOWED = orig
 
 
+def test_genuine_pure_win_label_is_removed():
+    # The invalid point-estimate-only label must not exist anywhere in the diagnostic.
+    assert not hasattr(sup, "genuine_pure_win")
+    src = (REPO / "scripts" / "build_pure_supremacy_metrics.py").read_text()
+    assert "genuine_pure_win" not in src
+
+
 @pytest.mark.skipif(not (_SCORED.exists() and _OOF.exists()), reason="artifacts absent")
-def test_ast_genuine_pure_win_p1():
+def test_ast_diagnostic_FAILS_real_selection_contract():
+    # AST has a negative point estimate but FAILS the real contract: AUC<market and the
+    # date-cluster bootstrap CIs cross zero. It must NOT be reported as a win.
     m = sup.load_joined(str(_SCORED), str(_OOF))
     pdf = m[m["prop"] == "ast"].sort_values("game_date").reset_index(drop=True)
-    before = sup.nested_eval(pdf, "P0_identity")
     after = sup.nested_eval(pdf, "P1_deDNP_platt")
-    assert before["logloss_delta"] > 0 and before["brier_delta"] > 0
-    assert after["logloss_delta"] < 0 and after["brier_delta"] < 0
-    assert after["worst_fold_logloss_delta"] < sup.WORST_FOLD_LL_MAX
-    assert after["monotone"] and after["genuine_pure_win"]
+    ci = sup._bootstrap_ci(after, pdf, n_boot=2000)
+    contract = sup.real_selection_contract(after, ci)
+    assert after["model_auc"] < after["market_auc"]  # AUC below market
+    assert not ci["logloss_upper95_below_zero"]        # LL CI crosses zero
+    assert contract["selection_contract_pass"] is False
+    assert any("AUC<market" in r for r in contract["fail_reasons"])
 
 
 @pytest.mark.skipif(not (_SCORED.exists() and _OOF.exists()), reason="artifacts absent")

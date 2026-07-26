@@ -1,22 +1,24 @@
-"""PHASE 2 (P1) -- pure PMF mean/variance + probability recalibration; new OOF metrics.
+"""DIAGNOSTIC_POSTHOC_DEDNP_PLATT -- development-only probe (NOT a production candidate).
 
-Pure model only (market_probability_weight=0.0; the line is used only as a post-PMF query
-threshold). Two model-only levers, both asserted market-free by the PHASE 0 contract:
+OWNER AUDIT CORRECTION: the post-hoc ``model_prob_over_final / (1 - p_dnp)`` de-DNP shortcut is
+INVALID as a production fix (exact only for a half-line, pre-calibration, exact DNP-zero mixture;
+wrong for integer lines with push mass and not the inverse of a nonlinear binary calibration).
+The correct production DNP handling lives in ``models/availability_pmf.py`` (active PMF ->
+push-safe settled probability -> calibration). This script is retained ONLY as a labelled
+diagnostic and its numbers are:
 
-  * de-DNP (mean repair): the delivered probability is the DNP-blended PMF P(over line); every
-    over line is >= 0.5 so the over region is entirely in k>0, which the blend scaled by
-    (1 - p_dnp). Dividing by (1 - p_dnp) recovers the pure conditional-on-play P(over) and
-    removes the systematic under-projection the PHASE 1 decomposition attributes to availability.
-  * pure Platt (binary recalibration): a monotone 1-parameter logistic map fit out-of-fold on
-    (logit(P_over_deDNP), outcome_over) only -- no market, cannot manufacture discrimination.
+    DEVELOPMENT_SELECTION_ONLY / UPSTREAM_PURITY_UNVERIFIED / NOT_PRODUCTION_WIRED /
+    NOT_PROOF_ELIGIBLE / NOT_CERTIFIED
 
-Evaluation: grouped expanding-window nested rolling-origin CV (leakage-safe; max(train)<min(val)).
-BEFORE = P0 current pure delivered probability; AFTER = P1 (de-DNP + pure Platt). Reports per
-prop n / LL / market LL / dLL / Brier / market Brier / dBrier / AUC / market AUC / ECE / market
-ECE / worst-fold dLL / monotone / genuine_pure_win against the exact no-vig market. stl/blk/
-turnover carry no exact quotes and are reported NO_EXACT_QUOTES (development blocked on odds).
+Upstream purity is UNVERIFIED: the consumed OOF was produced by a config with
+market_prior_lambda>0 and a CLV head, so the probabilities already contained market information;
+a downstream column guard cannot remove upstream market leakage. Regenerating a pure OOF requires
+the raw feature matrix + provider API (absent in this environment).
 
-DEVELOPMENT selection evidence only; does not touch prospective-proof / promotion / edge gates.
+It reports, under grouped expanding-window nested rolling-origin CV, the diagnostic de-DNP+Platt
+metrics AND the REAL selection contract verdict (STEP 9): a prop passes ONLY when it is pure,
+    dLL<0, dBrier<0, model_auc>=market_auc, AND the date-cluster bootstrap upper-95% CI of BOTH
+    deltas < 0. The old point-estimate-only win label has been removed.
 """
 from __future__ import annotations
 
@@ -153,10 +155,50 @@ def nested_eval(pdf, name):
         "model_auc": _auc(y, pr), "market_auc": _auc(y, pk),
         "model_ece": _ece(y, pr), "market_ece": _ece(y, pk),
         "worst_fold_logloss_delta": worst, "monotone": bool(mono),
-        "genuine_pure_win": bool(_ll(y, pr) < _ll(y, pk) and _brier(y, pr) < _brier(y, pk)
-                                 and worst < WORST_FOLD_LL_MAX
-                                 and _ece(y, pr) <= _ece(y, pk) + ECE_MARGIN and mono),
+        "_oof_pred": pred, "_mask": m, "_dates": pdf["game_date"].to_numpy(),
     }
+
+
+def _bootstrap_ci(res, pdf, n_boot=5000, seed=20260726):
+    """Paired date-cluster bootstrap of (model - market) LL and Brier deltas."""
+    m = res["_mask"]
+    pr = res["_oof_pred"][m]
+    sub = pdf[m].reset_index(drop=True)
+    y = sub["outcome_over"].to_numpy(int)
+    pk = sub[MARKET_COL].to_numpy(float)
+    dates = sub["game_date"].to_numpy()
+    uniq = np.array(sorted(set(dates)))
+    by = {u: np.where(dates == u)[0] for u in uniq}
+    rng = np.random.default_rng(seed)
+    dll, dbr = [], []
+    for _ in range(n_boot):
+        pick = rng.choice(uniq, size=len(uniq), replace=True)
+        idx = np.concatenate([by[u] for u in pick])
+        dll.append(_ll(y[idx], pr[idx]) - _ll(y[idx], pk[idx]))
+        dbr.append(_brier(y[idx], pr[idx]) - _brier(y[idx], pk[idx]))
+    dll, dbr = np.array(dll), np.array(dbr)
+    return {
+        "logloss_delta_ci95": [float(np.percentile(dll, 2.5)), float(np.percentile(dll, 97.5))],
+        "brier_delta_ci95": [float(np.percentile(dbr, 2.5)), float(np.percentile(dbr, 97.5))],
+        "logloss_upper95_below_zero": bool(np.percentile(dll, 97.5) < 0),
+        "brier_upper95_below_zero": bool(np.percentile(dbr, 97.5) < 0),
+    }
+
+
+def real_selection_contract(res, ci) -> dict:
+    """STEP 9 selection contract (development pre-proof screen). Returns PASS/FAIL + reasons."""
+    reasons = []
+    if not (res["logloss_delta"] < 0):
+        reasons.append(f"dLL>=0 ({res['logloss_delta']:+.5f})")
+    if not (res["brier_delta"] < 0):
+        reasons.append(f"dBrier>=0 ({res['brier_delta']:+.5f})")
+    if not (res["model_auc"] >= res["market_auc"]):
+        reasons.append(f"AUC<market ({res['model_auc']:.3f}<{res['market_auc']:.3f})")
+    if not ci["logloss_upper95_below_zero"]:
+        reasons.append(f"LL CI upper>=0 {ci['logloss_delta_ci95']}")
+    if not ci["brier_upper95_below_zero"]:
+        reasons.append(f"Brier CI upper>=0 {ci['brier_delta_ci95']}")
+    return {"selection_contract_pass": len(reasons) == 0, "fail_reasons": reasons}
 
 
 def load_joined(scored_path, oof_path):
@@ -200,42 +242,60 @@ def main(
         pdf = m[m["prop"] == prop].sort_values("game_date").reset_index(drop=True)
         before = nested_eval(pdf, "P0_identity")
         after = nested_eval(pdf, "P1_deDNP_platt")
-        per_prop[prop] = {"before_P0": before, "after_P1_deDNP_platt": after,
-                          "genuine_pure_win": bool(after and after["genuine_pure_win"])}
-        for tag, r in [("BEFORE_P0", before), ("AFTER_P1", after)]:
+        ci = _bootstrap_ci(after, pdf) if after else None
+        contract = real_selection_contract(after, ci) if (after and ci) else None
+        pub = lambda r: {k: v for k, v in r.items() if not k.startswith("_")} if r else None
+        per_prop[prop] = {
+            "before_P0": pub(before),
+            "diagnostic_after_deDNP_platt": pub(after),
+            "diagnostic_after_bootstrap_ci": ci,
+            "real_selection_contract": contract,
+            "labels": ["DIAGNOSTIC_POSTHOC_DEDNP_PLATT", "DEVELOPMENT_SELECTION_ONLY",
+                       "UPSTREAM_PURITY_UNVERIFIED", "NOT_PRODUCTION_WIRED",
+                       "NOT_PROOF_ELIGIBLE", "NOT_CERTIFIED"],
+        }
+        for tag, r in [("BEFORE_P0", before), ("DIAGNOSTIC_AFTER_dednp_platt", after)]:
             if r:
                 csv_rows.append({"prop": prop, "stage": tag, **{k: r[k] for k in (
                     "n", "n_folds", "model_logloss", "market_logloss", "logloss_delta",
                     "model_brier", "market_brier", "brier_delta", "model_auc", "market_auc",
-                    "model_ece", "market_ece", "worst_fold_logloss_delta", "monotone",
-                    "genuine_pure_win")}})
+                    "model_ece", "market_ece", "worst_fold_logloss_delta", "monotone")}})
 
-    winners = [p for p in QUOTE_COVERED if per_prop[p].get("genuine_pure_win")]
+    passing = [p for p in QUOTE_COVERED
+               if per_prop[p]["real_selection_contract"]
+               and per_prop[p]["real_selection_contract"]["selection_contract_pass"]]
     (outp / "PURE_SUPREMACY_OOF_METRICS.json").write_text(json.dumps({
-        "version": "pure-supremacy-oof-metrics-v1",
-        "zero_market_blending": True,
-        "pure_prediction_inputs_allowed": sorted(PURE_ALLOWED),
-        "before_pipeline": "P0 current pure delivered probability",
-        "after_pipeline": "P1 = de-DNP (P/(1-p_dnp)) -> out-of-fold pure Platt (model-vs-outcome only)",
+        "version": "diagnostic-posthoc-dednp-platt-v2",
+        "status_labels": ["DIAGNOSTIC_POSTHOC_DEDNP_PLATT", "DEVELOPMENT_SELECTION_ONLY",
+                          "UPSTREAM_PURITY_UNVERIFIED", "NOT_PRODUCTION_WIRED",
+                          "NOT_PROOF_ELIGIBLE", "NOT_CERTIFIED"],
+        "invalid_shortcut_note": ("post-hoc model_prob_over_final/(1-p_dnp) is NOT a production "
+                                  "fix; correct DNP handling is models/availability_pmf.py"),
+        "upstream_purity": "UNVERIFIED (consumed OOF built with market_prior_lambda>0 and CLV head)",
+        "downstream_column_guard_only": sorted(PURE_ALLOWED),
         "cv": "grouped expanding-window nested rolling-origin (max(train)<min(val))",
-        "win_rule": ("dLL<0 AND dBrier<0 AND worst_fold_dLL<%.2f AND model_ece<=market_ece+%.2f "
-                     "AND monotone" % (WORST_FOLD_LL_MAX, ECE_MARGIN)),
-        "evidence_class": "DEVELOPMENT_SELECTION_EVIDENCE (NOT prospective proof; gates unchanged)",
-        "fold_manifest": manifests, "per_prop": per_prop, "genuine_pure_wins": winners,
+        "real_selection_contract": ("pure AND dLL<0 AND dBrier<0 AND model_auc>=market_auc AND "
+                                    "bootstrap upper-95% CI of BOTH deltas < 0"),
+        "fold_manifest": manifests, "per_prop": per_prop,
+        "props_passing_real_selection_contract": passing,
     }, indent=2) + "\n")
     pd.DataFrame(csv_rows).to_csv(outp / "PURE_SUPREMACY_OOF_METRICS.csv", index=False)
 
-    print("\n=== PHASE 2 P1: pure BEFORE vs AFTER vs exact no-vig market (nested CV) ===")
+    print("\n=== DIAGNOSTIC de-DNP+Platt (NOT PRODUCTION) vs exact no-vig market (nested CV) ===")
     print(f"{'prop':5s} {'stage':10s} {'n':>4s} {'mLL':>7s} {'kLL':>7s} {'dLL':>8s} {'dBr':>8s} "
-          f"{'mAUC':>6s} {'kAUC':>6s} {'mECE':>6s} {'win':>5s}")
+          f"{'mAUC':>6s} {'kAUC':>6s} {'mECE':>6s}")
     for prop in QUOTE_COVERED:
-        for tag, key in [("BEFORE", "before_P0"), ("AFTER", "after_P1_deDNP_platt")]:
+        for tag, key in [("BEFORE", "before_P0"), ("DIAG", "diagnostic_after_deDNP_platt")]:
             r = per_prop[prop][key]
             if r:
                 print(f"{prop:5s} {tag:10s} {r['n']:>4d} {r['model_logloss']:>7.4f} {r['market_logloss']:>7.4f} "
                       f"{r['logloss_delta']:>+8.4f} {r['brier_delta']:>+8.4f} {r['model_auc']:>6.3f} "
-                      f"{r['market_auc']:>6.3f} {r['model_ece']:>6.3f} {str(r['genuine_pure_win'])[:5]:>5s}")
-    print(f"\nGENUINE PURE WINS (LL & Brier, robust): {winners or 'none'}")
+                      f"{r['market_auc']:>6.3f} {r['model_ece']:>6.3f}")
+        c = per_prop[prop]["real_selection_contract"]
+        if c:
+            print(f"      -> REAL selection contract: {'PASS' if c['selection_contract_pass'] else 'FAIL'} "
+                  f"{c['fail_reasons']}")
+    print(f"\nPROPS PASSING REAL SELECTION CONTRACT: {passing or 'none'}")
     print("stl/blk/turnover: NO_EXACT_QUOTES (market comparison blocked on odds collection)")
 
 

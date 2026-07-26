@@ -1,17 +1,23 @@
 {
-  "version": "pure-supremacy-oof-metrics-v1",
-  "zero_market_blending": true,
-  "pure_prediction_inputs_allowed": [
+  "version": "diagnostic-posthoc-dednp-platt-v2",
+  "status_labels": [
+    "DIAGNOSTIC_POSTHOC_DEDNP_PLATT",
+    "DEVELOPMENT_SELECTION_ONLY",
+    "UPSTREAM_PURITY_UNVERIFIED",
+    "NOT_PRODUCTION_WIRED",
+    "NOT_PROOF_ELIGIBLE",
+    "NOT_CERTIFIED"
+  ],
+  "invalid_shortcut_note": "post-hoc model_prob_over_final/(1-p_dnp) is NOT a production fix; correct DNP handling is models/availability_pmf.py",
+  "upstream_purity": "UNVERIFIED (consumed OOF built with market_prior_lambda>0 and CLV head)",
+  "downstream_column_guard_only": [
     "game_date",
     "model_prob_over_final",
     "outcome_over",
     "p_dnp"
   ],
-  "before_pipeline": "P0 current pure delivered probability",
-  "after_pipeline": "P1 = de-DNP (P/(1-p_dnp)) -> out-of-fold pure Platt (model-vs-outcome only)",
   "cv": "grouped expanding-window nested rolling-origin (max(train)<min(val))",
-  "win_rule": "dLL<0 AND dBrier<0 AND worst_fold_dLL<0.05 AND model_ece<=market_ece+0.03 AND monotone",
-  "evidence_class": "DEVELOPMENT_SELECTION_EVIDENCE (NOT prospective proof; gates unchanged)",
+  "real_selection_contract": "pure AND dLL<0 AND dBrier<0 AND model_auc>=market_auc AND bootstrap upper-95% CI of BOTH deltas < 0",
   "fold_manifest": {
     "pts": {
       "folds": [
@@ -723,10 +729,9 @@
         "model_ece": 0.14928832470431483,
         "market_ece": 0.014467425575986584,
         "worst_fold_logloss_delta": 0.22490396489235998,
-        "monotone": true,
-        "genuine_pure_win": false
+        "monotone": true
       },
-      "after_P1_deDNP_platt": {
+      "diagnostic_after_deDNP_platt": {
         "candidate": "P1_deDNP_platt",
         "n": 626,
         "n_folds": 14,
@@ -741,10 +746,38 @@
         "model_ece": 0.027483019131393744,
         "market_ece": 0.014467425575986584,
         "worst_fold_logloss_delta": 0.03195754650122773,
-        "monotone": false,
-        "genuine_pure_win": false
+        "monotone": false
       },
-      "genuine_pure_win": false
+      "diagnostic_after_bootstrap_ci": {
+        "logloss_delta_ci95": [
+          -0.004744549227351749,
+          0.010999108095520226
+        ],
+        "brier_delta_ci95": [
+          -0.002354894469130896,
+          0.005462849062722728
+        ],
+        "logloss_upper95_below_zero": false,
+        "brier_upper95_below_zero": false
+      },
+      "real_selection_contract": {
+        "selection_contract_pass": false,
+        "fail_reasons": [
+          "dLL>=0 (+0.00312)",
+          "dBrier>=0 (+0.00155)",
+          "AUC<market (0.504<0.526)",
+          "LL CI upper>=0 [-0.004744549227351749, 0.010999108095520226]",
+          "Brier CI upper>=0 [-0.002354894469130896, 0.005462849062722728]"
+        ]
+      },
+      "labels": [
+        "DIAGNOSTIC_POSTHOC_DEDNP_PLATT",
+        "DEVELOPMENT_SELECTION_ONLY",
+        "UPSTREAM_PURITY_UNVERIFIED",
+        "NOT_PRODUCTION_WIRED",
+        "NOT_PROOF_ELIGIBLE",
+        "NOT_CERTIFIED"
+      ]
     },
     "reb": {
       "before_P0": {
@@ -762,10 +795,9 @@
         "model_ece": 0.13404000567424923,
         "market_ece": 0.02972777217011185,
         "worst_fold_logloss_delta": 0.34624219714842286,
-        "monotone": true,
-        "genuine_pure_win": false
+        "monotone": true
       },
-      "after_P1_deDNP_platt": {
+      "diagnostic_after_deDNP_platt": {
         "candidate": "P1_deDNP_platt",
         "n": 552,
         "n_folds": 14,
@@ -780,10 +812,38 @@
         "model_ece": 0.015654980118452795,
         "market_ece": 0.02972777217011185,
         "worst_fold_logloss_delta": 0.038322389212066765,
-        "monotone": true,
-        "genuine_pure_win": false
+        "monotone": true
       },
-      "genuine_pure_win": false
+      "diagnostic_after_bootstrap_ci": {
+        "logloss_delta_ci95": [
+          -0.006107217653542335,
+          0.016049017063951117
+        ],
+        "brier_delta_ci95": [
+          -0.0030004102884572032,
+          0.007790203796801591
+        ],
+        "logloss_upper95_below_zero": false,
+        "brier_upper95_below_zero": false
+      },
+      "real_selection_contract": {
+        "selection_contract_pass": false,
+        "fail_reasons": [
+          "dLL>=0 (+0.00552)",
+          "dBrier>=0 (+0.00265)",
+          "AUC<market (0.548<0.591)",
+          "LL CI upper>=0 [-0.006107217653542335, 0.016049017063951117]",
+          "Brier CI upper>=0 [-0.0030004102884572032, 0.007790203796801591]"
+        ]
+      },
+      "labels": [
+        "DIAGNOSTIC_POSTHOC_DEDNP_PLATT",
+        "DEVELOPMENT_SELECTION_ONLY",
+        "UPSTREAM_PURITY_UNVERIFIED",
+        "NOT_PRODUCTION_WIRED",
+        "NOT_PROOF_ELIGIBLE",
+        "NOT_CERTIFIED"
+      ]
     },
     "ast": {
       "before_P0": {
@@ -801,10 +861,9 @@
         "model_ece": 0.12861684419775443,
         "market_ece": 0.05808801790498928,
         "worst_fold_logloss_delta": 0.18954698847485818,
-        "monotone": true,
-        "genuine_pure_win": false
+        "monotone": true
       },
-      "after_P1_deDNP_platt": {
+      "diagnostic_after_deDNP_platt": {
         "candidate": "P1_deDNP_platt",
         "n": 398,
         "n_folds": 14,
@@ -819,10 +878,36 @@
         "model_ece": 0.01934448102044011,
         "market_ece": 0.05808801790498928,
         "worst_fold_logloss_delta": 0.032262121494543106,
-        "monotone": true,
-        "genuine_pure_win": true
+        "monotone": true
       },
-      "genuine_pure_win": true
+      "diagnostic_after_bootstrap_ci": {
+        "logloss_delta_ci95": [
+          -0.014924483589883734,
+          0.011355355985182877
+        ],
+        "brier_delta_ci95": [
+          -0.007377469459207691,
+          0.005602134038049259
+        ],
+        "logloss_upper95_below_zero": false,
+        "brier_upper95_below_zero": false
+      },
+      "real_selection_contract": {
+        "selection_contract_pass": false,
+        "fail_reasons": [
+          "AUC<market (0.508<0.540)",
+          "LL CI upper>=0 [-0.014924483589883734, 0.011355355985182877]",
+          "Brier CI upper>=0 [-0.007377469459207691, 0.005602134038049259]"
+        ]
+      },
+      "labels": [
+        "DIAGNOSTIC_POSTHOC_DEDNP_PLATT",
+        "DEVELOPMENT_SELECTION_ONLY",
+        "UPSTREAM_PURITY_UNVERIFIED",
+        "NOT_PRODUCTION_WIRED",
+        "NOT_PROOF_ELIGIBLE",
+        "NOT_CERTIFIED"
+      ]
     },
     "fg3m": {
       "before_P0": {
@@ -840,10 +925,9 @@
         "model_ece": 0.12892679352678874,
         "market_ece": 0.029281005611023186,
         "worst_fold_logloss_delta": 0.32316024895896667,
-        "monotone": true,
-        "genuine_pure_win": false
+        "monotone": true
       },
-      "after_P1_deDNP_platt": {
+      "diagnostic_after_deDNP_platt": {
         "candidate": "P1_deDNP_platt",
         "n": 378,
         "n_folds": 14,
@@ -858,10 +942,38 @@
         "model_ece": 0.036584240868508214,
         "market_ece": 0.029281005611023186,
         "worst_fold_logloss_delta": 0.12996074002965885,
-        "monotone": true,
-        "genuine_pure_win": false
+        "monotone": true
       },
-      "genuine_pure_win": false
+      "diagnostic_after_bootstrap_ci": {
+        "logloss_delta_ci95": [
+          0.008032065972569408,
+          0.057242942885937176
+        ],
+        "brier_delta_ci95": [
+          0.003148659961682496,
+          0.027082838435050313
+        ],
+        "logloss_upper95_below_zero": false,
+        "brier_upper95_below_zero": false
+      },
+      "real_selection_contract": {
+        "selection_contract_pass": false,
+        "fail_reasons": [
+          "dLL>=0 (+0.03384)",
+          "dBrier>=0 (+0.01570)",
+          "AUC<market (0.532<0.633)",
+          "LL CI upper>=0 [0.008032065972569408, 0.057242942885937176]",
+          "Brier CI upper>=0 [0.003148659961682496, 0.027082838435050313]"
+        ]
+      },
+      "labels": [
+        "DIAGNOSTIC_POSTHOC_DEDNP_PLATT",
+        "DEVELOPMENT_SELECTION_ONLY",
+        "UPSTREAM_PURITY_UNVERIFIED",
+        "NOT_PRODUCTION_WIRED",
+        "NOT_PROOF_ELIGIBLE",
+        "NOT_CERTIFIED"
+      ]
     },
     "stl": {
       "status": "NO_EXACT_QUOTES",
@@ -876,7 +988,5 @@
       "note": "market comparison blocked until same-book quotes collected"
     }
   },
-  "genuine_pure_wins": [
-    "ast"
-  ]
+  "props_passing_real_selection_contract": []
 }
