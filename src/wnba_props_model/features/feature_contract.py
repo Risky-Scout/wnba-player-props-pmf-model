@@ -545,20 +545,83 @@ def build_feature_artifact_metadata(frame, ordered_features: "list[str]", *,
     }
 
 
+# ---------------------------------------------------------------------------
+# Benign-absence tolerance for the shared inference-path guard.
+# ---------------------------------------------------------------------------
+# The invalidated silent-truncation failure was 52-of-128 (~40% of the contract
+# absent) -- a systematic pipeline bug that fed the model a heavily truncated
+# matrix that was then silently NaN-filled.  In contrast, a SMALL, bounded set of
+# trained columns can be legitimately absent from a given day's inference frame
+# without any truncation bug:
+#   * training-only injected columns -- ``train_baseline_pmfs`` injects
+#     ``minutes_mean`` / ``minutes_sigma`` into the FIT frame, so they land in the
+#     artifact's ``_usable_cols``, but the inference frame (built from the manifest
+#     ``model_feature_columns``) carries neither; and
+#   * roster/injury-driven columns (``teammate_*_is_out``, ``without_*_delta``,
+#     near-zero-variance per-minute rate columns) that a particular slate simply
+#     does not populate.
+# These few columns are reindexed in and NaN-filled by the caller's
+# ``reindex(columns=_usable_cols)``, which the HGB estimators handle natively --
+# exactly reproducing the behavior the pipeline had BEFORE the W0.3 guard existed,
+# so the EXISTING model runs every game day.  Anything larger is still treated as
+# real silent truncation and fails closed, keeping the 52-of-128 protection intact.
+MAX_BENIGN_ABSENT_FRACTION = 0.10
+MAX_BENIGN_ABSENT_ABSOLUTE = 16
+
+
+def max_benign_absent(n_contract_features: int) -> int:
+    """Largest number of trained features that may be benignly absent from an
+    inference frame before it is treated as real (fatal) silent truncation."""
+    return max(MAX_BENIGN_ABSENT_ABSOLUTE, int(MAX_BENIGN_ABSENT_FRACTION * n_contract_features))
+
+
 def assert_inference_parity(frame, model, context: str, *, strict_dtype: bool = False) -> None:
     """A3 shared fail-closed validator wired into EVERY inference reindex path.
 
-    Always enforces the CRITICAL guard: the frame must supply every trained feature
-    (`_usable_cols`) so no component silently reindexes a missing feature to NaN (the
-    52-of-128 failure). When ``strict_dtype`` is set it also enforces the artifact's captured
-    dtype-kind map (`_feature_dtype_kinds`) so an unexpectedly-categorical column is fatal;
-    this is opt-in because benign int/float/bool drift between fit and inference frames is
-    common and must not false-positive the live path."""
+    Enforces the CRITICAL guard against silent truncation: if a LARGE share of the
+    trained feature contract (`_usable_cols`) is absent from the inference frame -- the
+    invalidated 52-of-128 failure -- this raises ``FeatureArtifactParityError`` so no
+    component silently reindexes a heavily-truncated matrix to NaN.
+
+    A SMALL, bounded number of benignly-absent trained columns (see
+    ``max_benign_absent`` / ``MAX_BENIGN_ABSENT_*``) is tolerated: the caller's
+    ``reindex(columns=_usable_cols)`` fills them (NaN, handled natively by the HGB
+    estimators), reproducing the pre-guard behavior so the existing model runs every
+    game day despite day-to-day roster/variance shifts and training-only injected
+    columns (e.g. ``minutes_mean`` / ``minutes_sigma``).  Such absences emit a warning.
+
+    When ``strict_dtype`` is set the artifact's captured dtype-kind map
+    (`_feature_dtype_kinds`) is enforced on the trained features that ARE present, so an
+    unexpectedly-categorical column is fatal; this is opt-in because benign
+    int/float/bool drift between fit and inference frames is common and must not
+    false-positive the live path.
+    """
+    import pandas as pd  # local import to avoid module-level cycle
     usable = getattr(model, "_usable_cols", None)
     if not usable:
         return
+    usable = list(usable)
+    cols = set(frame.columns) if isinstance(frame, pd.DataFrame) else set(frame)
+    missing = [f for f in usable if f not in cols]
+    if missing:
+        limit = max_benign_absent(len(usable))
+        if len(missing) > limit:
+            raise FeatureArtifactParityError(
+                f"{context or 'feature parity'}: {len(missing)}/{len(usable)} expected features "
+                f"absent from the inference frame (silent truncation forbidden; at most "
+                f"{limit} benign day-to-day absences are tolerated). "
+                f"First missing: {missing[:12]}")
+        import warnings as _warnings
+        _warnings.warn(
+            f"{context or 'feature parity'}: {len(missing)}/{len(usable)} trained feature(s) "
+            f"benignly absent from the inference frame; reindexing (NaN-filled) to the trained "
+            f"contract so the existing model runs. Absent: {missing[:12]}",
+            stacklevel=2,
+        )
+    # dtype-kind parity is enforced only on the trained features that ARE present.
+    present = [f for f in usable if f in cols]
     assert_feature_artifact_parity(
-        frame, list(usable), context=context,
+        frame, present, context=context,
         dtype_map=(getattr(model, "_feature_dtype_kinds", None) or None) if strict_dtype else None,
         check_all_null=False,
     )

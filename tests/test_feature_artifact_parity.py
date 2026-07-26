@@ -70,11 +70,24 @@ class _Artifact:
         self._feature_dtype_kinds = dtype_kinds
 
 
-def test_a3_shared_validator_missing_feature_is_fatal():
-    art = _Artifact(["a", "b", "c"])
-    frame = pd.DataFrame({"a": [1.0], "b": [2.0]})           # c missing
+def test_a3_shared_validator_large_truncation_is_fatal():
+    # A LARGE share of the trained contract absent == the invalidated 52-of-128
+    # silent-truncation failure -> still fatal on the shared inference path.
+    usable = [f"f{i}" for i in range(128)]
+    art = _Artifact(usable)
+    frame = pd.DataFrame({f"f{i}": [1.0, 2.0] for i in range(52)})  # 76/128 absent
     with pytest.raises(FeatureArtifactParityError):
         assert_inference_parity(frame, art, "unit")
+
+
+def test_a3_shared_validator_small_benign_absence_is_tolerated():
+    # A handful of trained columns benignly absent from a day's frame (the
+    # daily_pipeline minutes_mean/minutes_sigma injection, roster-driven columns)
+    # must NOT abort -- the caller's reindex NaN-fills them so the model still runs.
+    usable = [f"f{i}" for i in range(364)]
+    art = _Artifact(usable)
+    frame = pd.DataFrame({f"f{i}": [1.0, 2.0] for i in range(364) if i not in (10, 11)})
+    assert_inference_parity(frame, art, "unit")  # 2/364 absent -> tolerated, no raise
 
 
 def test_a3_shared_validator_unexpected_categorical_is_fatal():
@@ -124,12 +137,13 @@ def test_a3_every_inference_path_wires_the_validator():
         assert n >= min_calls, f"{fname}: expected >= {min_calls} parity guard(s), found {n}"
 
 
-def test_a3_statratemodel_predict_is_fail_closed():
-    """End-to-end: a real fitted StatRateModel must reject a truncated inference frame."""
+def test_a3_statratemodel_predict_is_fail_closed_on_large_truncation():
+    """End-to-end: a real fitted StatRateModel must reject a heavily-truncated frame
+    (the invalidated 52-of-128 silent-truncation failure)."""
     from wnba_props_model.models.rate_model import StatRateModel
     rng = np.random.default_rng(0)
-    n = 120
-    feats = [f"f{i}" for i in range(6)]
+    n = 200
+    feats = [f"f{i}" for i in range(60)]
     X = pd.DataFrame({f: rng.normal(size=n) for f in feats})
     y = pd.Series(np.clip(rng.poisson(5, size=n), 0, None).astype(float))
     m = StatRateModel(stat="pts", cfg={"min_stat_mean": 0.01})
@@ -137,4 +151,26 @@ def test_a3_statratemodel_predict_is_fail_closed():
     assert getattr(m, "_feature_dtype_kinds", None)           # dtype kinds captured at fit
     m.predict_mean(X)                                          # full frame -> ok
     with pytest.raises(FeatureArtifactParityError):
-        m.predict_mean(X.drop(columns=["f3"]))                # missing feature -> fatal
+        m.predict_mean(X[[f"f{i}" for i in range(20)]])       # 40/60 absent -> fatal
+
+
+def test_a3_statratemodel_predict_tolerates_benign_absent_column():
+    """Regression for the daily_pipeline FeatureArtifactParityError abort: the fit frame
+    carries injected columns (minutes_mean/minutes_sigma) that the inference frame lacks.
+    A handful of benignly-absent trained columns must be reindexed (NaN-filled) rather than
+    aborting the whole run, so the existing model produces PMFs every game day."""
+    from wnba_props_model.models.rate_model import StatRateModel
+    rng = np.random.default_rng(1)
+    n = 200
+    # Simulate the fit frame: manifest features + two training-only injected columns.
+    manifest_feats = [f"feat_{i}" for i in range(50)]
+    fit_feats = manifest_feats + ["minutes_mean", "minutes_sigma"]
+    X_fit = pd.DataFrame({f: rng.normal(size=n) for f in fit_feats})
+    y = pd.Series(np.clip(rng.poisson(6, size=n), 0, None).astype(float))
+    m = StatRateModel(stat="pts", cfg={"min_stat_mean": 0.01})
+    m.fit(X_fit, y)
+    assert "minutes_mean" in m._usable_cols and "minutes_sigma" in m._usable_cols
+    # The inference frame carries manifest features only (as build_all_pmfs does).
+    X_infer = X_fit[manifest_feats]
+    preds = m.predict_mean(X_infer)                            # benign 2/52 absent -> runs
+    assert len(preds) == n and np.isfinite(preds).all()

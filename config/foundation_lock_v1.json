@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "foundation_version": "v1",
-  "generated_from_commit": "63265773f2c9408ad494e5a5b509a0273a79efc3",
-  "created_utc": "2026-07-24T20:15:56.632046+00:00",
+  "generated_from_commit": "66f98e1a3a4b082013cd9a4fe20e551ace0a1320",
+  "created_utc": "2026-07-26T06:15:28.442221+00:00",
   "description": "Locks every currently completed foundational component: reproducible, hash-pinned, regression-tested, fail-closed, explicitly classified by what it does and does not prove, and required by the foundation-lock CI job. NO component here is promotion-eligible; none proves a market edge.",
   "items": [
     {
@@ -157,7 +157,7 @@
         {
           "path": "src/wnba_props_model/features/feature_contract.py",
           "availability": "in_repo",
-          "sha256": "46a3f28d92180b720c9a36d47e5d7171bdf14fab88a9fece1295b3864a87d3aa"
+          "sha256": "e0085acfdded7a74363ab5b48a8cd88b312e139998e0e48dbc4f8d822b0da888"
         }
       ],
       "invariants": [
@@ -362,8 +362,8 @@
       ]
     }
   ],
-  "previous_manifest_sha256": "440fe16d5d7a85868d94203f7079ef2ca2b623068514cccefd79d7ab68e21bf0",
-  "previous_lock_commit": "63265773f2c9408ad494e5a5b509a0273a79efc3",
-  "lock_revision": 9,
-  "change_authorization": "config/foundation_lock_change_a3.json"
+  "previous_manifest_sha256": "0b093bc321f8d30ee5c06ae163576326f821a4251c28736b1a4cb581c1f0a5a8",
+  "previous_lock_commit": "66f98e1a3a4b082013cd9a4fe20e551ace0a1320",
+  "lock_revision": 10,
+  "change_authorization": "config/foundation_lock_change_daily_parity.json"
 }
