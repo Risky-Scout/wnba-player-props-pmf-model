@@ -358,6 +358,10 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     sr = pd.read_parquet(srp)
     assert {"model_prob_over_settled_from_active_pmf", "model_prob_over_final",
             "p_dnp", "line"} <= set(sr.columns)
+    # Repair ladder: the pure recalibration candidate family is reported per prop.
+    for prop in metrics["holm_family"]:
+        cands = metrics["per_prop"][prop].get("pure_recalibration_candidates", {})
+        assert "P1_active_settled_platt" in cands
 
 
 def test_holm_adjustment_is_monotone_and_bounded():
@@ -371,6 +375,25 @@ def test_holm_adjustment_is_monotone_and_bounded():
     assert seq == sorted(seq), "Holm-adjusted p-values must be nondecreasing in raw rank"
     for k in raw:
         assert adj[k] >= raw[k] - 1e-12 and adj[k] <= 1.0
+
+
+def test_pure_recalibration_candidates_are_monotone():
+    """AST repair (owner item 7): isotonic + beta pure recalibrators fit and stay monotone,
+    consuming ONLY the model's active-PMF settled probability vs outcome (no market input)."""
+    rng = np.random.default_rng(5)
+    p = rng.uniform(0.05, 0.95, 400)
+    y = (rng.uniform(size=400) < p).astype(int)  # well-calibrated -> monotone increasing
+    tr = pd.DataFrame({"p_over_settled_active": p, "outcome_over": y})
+    grid = pd.DataFrame({"p_over_settled_active": np.linspace(0.05, 0.95, 50)})
+    for cand in ("P2_active_settled_isotonic", "P3_active_settled_beta"):
+        fn, mono = ev._fit_calibrator(cand, tr)
+        assert mono is True
+        out = fn(grid)
+        assert np.all(np.diff(out) >= -1e-9), f"{cand} must be monotone non-decreasing"
+        assert np.all((out >= 0) & (out <= 1))
+    assert set(ev.PURE_RECAL_CANDIDATES) == {
+        "P0_active_settled_identity", "P1_active_settled_platt",
+        "P2_active_settled_isotonic", "P3_active_settled_beta"}
 
 
 def test_onesided_bootstrap_pvalue_semantics():

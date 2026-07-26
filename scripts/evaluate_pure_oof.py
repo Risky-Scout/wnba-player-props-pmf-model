@@ -146,7 +146,35 @@ def _fit_calibrator(name, tr):
             b = _logit(d["p_over_settled_active"].to_numpy(float)).reshape(-1, 1)
             return _clip(lr.predict_proba(b)[:, 1])
         return _p, slope >= 0
+    if name == "P2_active_settled_isotonic":
+        from sklearn.isotonic import IsotonicRegression  # noqa: PLC0415
+        iso = IsotonicRegression(out_of_bounds="clip", increasing=True).fit(
+            tr["p_over_settled_active"].to_numpy(float), tr["outcome_over"].to_numpy(int))
+
+        def _pi(d):
+            return _clip(iso.predict(d["p_over_settled_active"].to_numpy(float)))
+        return _pi, True  # increasing=True -> monotone by construction
+    if name == "P3_active_settled_beta":
+        # Beta calibration (Kull et al.): logistic on [ln p, ln(1-p)]. Monotone in p iff both
+        # a := coef_lnp >= 0 and b := -coef_ln1mp >= 0.
+        p = _clip(tr["p_over_settled_active"].to_numpy(float))
+        feats = np.column_stack([np.log(p), np.log(1 - p)])
+        lr = LogisticRegression(C=1e6, solver="lbfgs").fit(feats, tr["outcome_over"].to_numpy(int))
+        a, b = float(lr.coef_[0][0]), float(lr.coef_[0][1])
+
+        def _pb(d):
+            q = _clip(d["p_over_settled_active"].to_numpy(float))
+            return _clip(lr.predict_proba(np.column_stack([np.log(q), np.log(1 - q)]))[:, 1])
+        return _pb, (a >= 0 and b <= 0)
     raise ValueError(name)
+
+
+# Pure recalibration candidate family (AST repair, owner item 7): all consume ONLY the model's
+# own active-PMF settled probability vs outcome (zero market input) and are monotone.
+PURE_RECAL_CANDIDATES = [
+    "P0_active_settled_identity", "P1_active_settled_platt",
+    "P2_active_settled_isotonic", "P3_active_settled_beta",
+]
 
 
 def nested_eval(pdf: pd.DataFrame, name: str, *, min_train_dates: int = MIN_TRAIN_DATES,
@@ -369,11 +397,25 @@ def main(
         ci = _bootstrap_ci(after, pdf) if after else None
         contract = (real_selection_contract(after, ci, pure_provenance_ok=pure_provenance_ok)
                     if (after and ci) else None)
+        # Pure recalibration ladder (AST repair): evaluate every monotone pure calibrator and
+        # record the best-by-OOS-LL among those that are monotone. Reporting only — the CI-gated
+        # contract still runs on the validated Platt candidate for continuity.
+        cand_results = {}
+        for cand in PURE_RECAL_CANDIDATES:
+            cr = nested_eval(pdf, cand, min_train_dates=min_train_dates,
+                             val_block_dates=val_block_dates)
+            if cr is not None:
+                cand_results[cand] = pub(cr)
+        monotone_cands = {k: v for k, v in cand_results.items() if v.get("monotone")}
+        best_cand = (min(monotone_cands, key=lambda k: monotone_cands[k]["model_logloss"])
+                     if monotone_cands else None)
         per_prop[prop] = {
             "before_active_settled_identity": pub(before),
             "after_active_settled_platt": pub(after),
             "after_bootstrap_ci": ci,
             "real_selection_contract": contract,
+            "pure_recalibration_candidates": cand_results,
+            "best_pure_recalibration_candidate": best_cand,
             "final_probability_column": FINAL_COL,
             "lineage": "active_pmf -> push_safe_settled -> monotone_platt(model_vs_outcome)",
         }
