@@ -1,9 +1,9 @@
 # Foundation Lock Report
 
 - Foundation version: **v1**
-- Generated from commit: `63265773f2c9408ad494e5a5b509a0273a79efc3` (base commit; NOT the commit containing this manifest)
-- Generated (manifest): 2026-07-24T19:52:48.632053+00:00
-- Overall: **PASS_WITH_DECLARED_DEFERRALS**  (failures: 0, deferrals: 2)
+- Generated from commit: `66f98e1a3a4b082013cd9a4fe20e551ace0a1320` (base commit; NOT the commit containing this manifest)
+- Generated (manifest): 2026-07-26T06:15:28.442221+00:00
+- Overall: **PASS_WITH_DECLARED_DEFERRALS**  (failures: 0, deferrals: 3)
 
 This report classifies each locked component by what it does and does not prove.
 No component below is promotion-eligible; the market edge is NOT proven by any of them.
@@ -77,4 +77,5 @@ No component below is promotion-eligible; the market edge is NOT proven by any o
 
 - tracking_data: wnba_tracking_2021_2026.parquet (data artifact) not present -> DEFERRED
 - tracking_data: wnba_hustle_2021_2026.parquet (data artifact) not present -> DEFERRED
+- feature_matrix_snapshot: data/processed/wnba_player_game_features_wide.parquet (data artifact) not present -> DEFERRED
 

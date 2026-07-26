@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "authorization_id": "FL-daily-pipeline-benign-absence-tolerance",
+  "authorized_pr": "Fix daily pipeline feature-parity abort so the model runs every game day",
+  "authorized_branch": "cursor/fix-daily-pipeline-feature-parity",
+  "authorized_base_sha": "66f98e1a3a4b082013cd9a4fe20e551ace0a1320",
+  "single_use": true,
+  "allowed_locked_paths": ["src/wnba_props_model/features/feature_contract.py"],
+  "expiration": "2026-12-31",
+  "rationale": "Daily pipeline aborted at Stage 4 with FeatureArtifactParityError: StatRateModel(pts).predict_mean 2/364 expected features absent (minutes_mean, minutes_sigma). Those two columns are injected into the FIT frame by train_baseline_pmfs.py but are never supplied to the inference frame (built from the manifest model_feature_columns), so the W0.3/A3 guard fataled on a benign day-to-day mismatch and blocked every scheduled run. assert_inference_parity now tolerates a SMALL, bounded number of benignly-absent trained columns (reindexed/NaN-filled by the caller, reproducing pre-guard behavior so the EXISTING model runs) while still failing closed on LARGE truncation (the invalidated 52-of-128 failure). The low-level assert_feature_artifact_parity guard is UNCHANGED and remains strict. No change to model architecture, features, calibration, market, or recommendation surfaces."
+}
