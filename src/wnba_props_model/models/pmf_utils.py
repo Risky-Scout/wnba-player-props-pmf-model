@@ -491,24 +491,57 @@ def apply_minutes_offset_rebuild(
             _rate_per_min = _old_means / _safe_feat
             _new_means = _rate_per_min * np.clip(_model_mins, 0, 45)
 
+            # p_dnp for the offset rows (default 0 when the column is absent, e.g. legacy frames).
+            if "p_dnp" in pmfs_long.columns:
+                _pdnp_vals = pmfs_long.loc[_idx, "p_dnp"].fillna(0.0).to_numpy(float)
+            else:
+                _pdnp_vals = np.zeros(len(_idx), dtype=float)
+            _has_active = "active_pmf_json" in pmfs_long.columns
+
             _new_json, _new_mean, _new_var, _new_p0 = [], [], [], []
             _tgt_mean, _mean_err, _tail = [], [], []
-            for _ridx, _tgt in zip(_idx, _new_means):
-                _old_pmf = from_json(pmfs_long.at[_ridx, "pmf_json"])
+            _new_active_json, _new_active_mean = [], []
+            for _ridx, _tgt, _d in zip(_idx, _new_means, _pdnp_vals):
+                # ``_new_means`` is the minutes-adjusted CONDITIONAL-on-play (active) mean:
+                # rate_per_min * projected_minutes, where rate_per_min = stat_mean/lagged_minutes and
+                # stat_mean is the conditional rate/hurdle mean (pre-DNP). We therefore rebuild the
+                # ACTIVE PMF at that target, THEN fold DNP to form the mixture — the correct order:
+                #   rebuild active -> active mean/var -> fold DNP -> mixture mean/var -> serialize both.
+                # Run 30236023013 revealed the prior code rebuilt the mixture pmf_json directly to the
+                # conditional target (never folding DNP) and left active_pmf_json stale, so ast/turnover
+                # were both UNSUPPRESSED for DNP and internally inconsistent (mixture[0] < p_dnp,
+                # active != mixture even at p_dnp==0).
+                _base = from_json(pmfs_long.at[_ridx, "active_pmf_json"]) if _has_active \
+                    else from_json(pmfs_long.at[_ridx, "pmf_json"])
                 if not np.isfinite(_tgt) or _tgt <= 0:
-                    _reb = np.asarray(_old_pmf, dtype=float)
+                    _act = np.asarray(_base, dtype=float)
                     _tgt_val = float("nan")
                 else:
-                    _reb = rebuild_count_pmf_at_mean(_old_pmf, float(_tgt))
+                    _act = rebuild_count_pmf_at_mean(_base, float(_tgt))
                     _tgt_val = float(_tgt)
+                _act = np.asarray(_act, dtype=float)
+                _asum = _act.sum()
+                if _asum > 0:
+                    _act = _act / _asum
+                _ka = np.arange(_act.size, dtype=float)
+                _am = float(np.dot(_ka, _act))
+                # Fold DNP onto outcome 0 (standard availability mixture; inline to keep pmf_utils a
+                # leaf module — identical formula to pmf_engine._blend_with_dnp, clip at 0.99).
+                _dc = float(min(max(_d, 0.0), 0.99))
+                _reb = _act.copy()
+                _reb[0] = _dc + (1.0 - _dc) * _act[0]
+                _reb[1:] = (1.0 - _dc) * _act[1:]
                 _k = np.arange(len(_reb), dtype=float)
                 _m = float(np.dot(_k, _reb))
                 _v = float(np.dot(_k ** 2, _reb)) - _m ** 2
-                _err = abs(_m - _tgt_val) if _tgt_val == _tgt_val else 0.0
+                # Rebuild error is measured against the CONDITIONAL target on the ACTIVE mean.
+                _err = abs(_am - _tgt_val) if _tgt_val == _tgt_val else 0.0
                 _new_json.append(to_json(_reb))
                 _new_mean.append(_m); _new_var.append(_v); _new_p0.append(float(_reb[0]))
                 _tgt_mean.append(_tgt_val); _mean_err.append(_err)
                 _tail.append(bool(_err > mean_rebuild_tol))
+                _new_active_json.append(to_json(_act))
+                _new_active_mean.append(_am)
             pmfs_long.loc[_idx, "pmf_json"] = _new_json
             pmfs_long.loc[_idx, "pmf_mean"] = _new_mean
             pmfs_long.loc[_idx, "pmf_variance"] = _new_var
@@ -519,6 +552,13 @@ def apply_minutes_offset_rebuild(
             pmfs_long.loc[_idx, "structural_target_mean"] = _tgt_mean
             pmfs_long.loc[_idx, "final_pmf_mean"] = _new_mean
             pmfs_long.loc[_idx, "mean_rebuild_error"] = _mean_err
+            # Keep the active + availability-mixture PMFs consistent with the rebuilt mixture so
+            # delivery settles ast/turnover from a correct active (void-on-DNP) and OOF == live.
+            if _has_active:
+                pmfs_long.loc[_idx, "active_pmf_json"] = _new_active_json
+                pmfs_long.loc[_idx, "active_pmf_mean"] = _new_active_mean
+            if "availability_mixture_pmf_json" in pmfs_long.columns:
+                pmfs_long.loc[_idx, "availability_mixture_pmf_json"] = _new_json
             # pandas>=3.0 rejects assigning a bool list into a partially-selected (float64/new)
             # column via .loc ("Invalid value '[...]' for dtype 'float64'"). Build the boolean
             # flag as a full-length array and assign the whole column so the dtype is bool

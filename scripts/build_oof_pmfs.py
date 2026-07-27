@@ -625,10 +625,13 @@ def build(
     # so active ⊕ p_dnp is consistent with the delivered mixture for EVERY stat — never the
     # invalid model_prob_over_final/(1-p_dnp) post-hoc shortcut.
     from wnba_props_model.models.availability_pmf import recover_active_pmf  # noqa: PLC0415
-    from wnba_props_model.models.simulation import pmf_to_json as _active_to_json  # noqa: PLC0415
+    from wnba_props_model.models.simulation import (  # noqa: PLC0415
+        json_to_pmf as _json_to_pmf,
+        pmf_to_json as _active_to_json,
+    )
     _pdnp_col = oof_df["p_dnp"].fillna(0.0).to_numpy(float) if "p_dnp" in oof_df.columns \
         else np.zeros(len(oof_df))
-    _active_jsons, _active_means, _active_vars = [], [], []
+    _active_jsons, _active_means, _active_vars, _mix_json_means = [], [], [], []
     for _js, _d in zip(oof_df["pmf_json"].to_numpy(), _pdnp_col):
         _a = recover_active_pmf(_js, float(_d))
         _k = np.arange(_a.size, dtype=float)
@@ -636,20 +639,40 @@ def build(
         _active_jsons.append(_active_to_json(_a))
         _active_means.append(_mn)
         _active_vars.append(float(np.dot(_k * _k, _a) - _mn * _mn))
+        # Mixture mean recomputed from the SAME serialized pmf_json used to recover the active
+        # PMF, so the lineage invariant below compares like-with-like (see run 30236023013:
+        # comparing the JSON-recovered active mean against the full-precision pmf_mean COLUMN
+        # produced 18 false positives for wide-support pts rows with p_dnp≈0 — the distributions
+        # were byte-identical, only exported-scalar rounding differed).
+        _m = _json_to_pmf(_js)
+        _mix_json_means.append(float(np.dot(np.arange(_m.size, dtype=float), _m)))
     oof_df["active_pmf_json"] = _active_jsons
     oof_df["active_pmf_mean"] = _active_means
     oof_df["active_pmf_variance"] = _active_vars
     oof_df["availability_mixture_pmf_json"] = oof_df["pmf_json"].to_numpy()
+    # Full-precision mixture mean recorded SEPARATELY (from the pmf_mean column) so downstream
+    # consumers keep the exact scalar; the invariant uses the json-consistent mean.
     oof_df["availability_mixture_mean"] = oof_df["pmf_mean"].to_numpy()
-    _mix_mean = oof_df["pmf_mean"].astype(float).to_numpy()
+    _mix_mean = np.asarray(_mix_json_means, float)
     _amn = np.asarray(_active_means, float)
+    # Construction invariant: folding DNP mass onto outcome 0 can only LOWER the mean, so the
+    # availability mixture mean must never exceed the active mean (both measured from pmf_json).
     _bad_active = int(np.sum(_mix_mean > _amn + 1e-6))
     if _bad_active:
         raise ValueError(
             f"active-PMF lineage FAILED: {_bad_active} rows have mixture mean > active mean "
             "(folding DNP mass onto 0 must not raise the mean).")
+    # Serialization diagnostic (documented, non-gating): max |mean(pmf_json) - pmf_mean_column|.
+    # Exported-scalar rounding of a wide count support is ~1e-6; this is recorded, not hidden.
+    _ser_err = float(np.max(np.abs(_mix_mean - oof_df["pmf_mean"].astype(float).to_numpy())))
+    _SER_TOL = 1e-4  # documented tolerance >> observed max serialization error (~3e-6)
+    if _ser_err > _SER_TOL:
+        raise ValueError(
+            f"mixture serialization error {_ser_err:.2e} exceeds documented tolerance "
+            f"{_SER_TOL:.0e} (json-derived mean vs exported pmf_mean column).")
     print(f"  active-PMF lineage: PASS (mean(active)-mean(mixture)="
-          f"{float(np.mean(_amn - _mix_mean)):.4f}; p_dnp kept separate)")
+          f"{float(np.mean(_amn - _mix_mean)):.4f}; p_dnp kept separate; "
+          f"max mixture serialization error={_ser_err:.2e} <= {_SER_TOL:.0e})")
 
     # ------------------------------------------------------------------
     # 5c. Persist contract + provenance fields on EVERY OOF row (owner item 2)

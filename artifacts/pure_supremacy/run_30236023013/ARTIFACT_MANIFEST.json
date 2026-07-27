@@ -1,0 +1,412 @@
+{
+  "run_id": 30236023013,
+  "run_conclusion": "failure",
+  "run_head_sha": "dad8a013ec830e711a93e8d09aa76c67f8fb30e7",
+  "expected_artifact_zip_digest": "cc8f8688ba7d44e14baf21a2a7df6ee58227dcc3865d74f9491232fd2aed0da2",
+  "frozen_utc": "2026-07-27T16:53:34.734748+00:00",
+  "source_location_readonly": "/tmp/oof_30236023013",
+  "n_files": 25,
+  "files": [
+    {
+      "path": "artifacts/audits/PURE_OOF_RUN_MANIFEST.json",
+      "bytes": 13467,
+      "sha256": "2d79f9a57d25cf664e1c512d958e990f3de1ec82842a62af5a7ae21ee356ab8f"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_0.json",
+      "bytes": 1544,
+      "sha256": "28071bbb335577fcb0df5bef17274982f5ea9065f3f7df9ea4ca3b613682ac6c"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_0.parquet",
+      "bytes": 2766485,
+      "sha256": "b95e80d124071097abee164f379784c3df5c290e63b8d224d672f6875eda986c"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_1.json",
+      "bytes": 1550,
+      "sha256": "61997cf02fbd6eadafbce4cab3c46ea6fcdc83b37c7e55f20ecc2cb63b5cff6f"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_1.parquet",
+      "bytes": 2467755,
+      "sha256": "1e773cc2cde3a940c465b5d67c163d12a25059de0c60d8a8d3c976788bb36660"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_10.json",
+      "bytes": 1551,
+      "sha256": "f049fa54f238d6f377155abe59bd2fc1cc561b9f8661d5f1b6b1febd0bd326c6"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_10.parquet",
+      "bytes": 3126195,
+      "sha256": "21e9eb5c6bbde5424f35de9045272bfba5f05ad9f138b1286358720a0a8739fa"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_11.json",
+      "bytes": 1544,
+      "sha256": "e247c4cf5978ab4db0dad805f2e729357e16633e831ecf4af45c1e7e65958b2b"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_11.parquet",
+      "bytes": 194612,
+      "sha256": "70b4c8ccb34aeb6e7e75864eb11072ff4d869668c4556f4b804c7793d3e83581"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_2.json",
+      "bytes": 1550,
+      "sha256": "428fdb39018d21841c0b15091f7f9391cf43b96c2bb5a0b53249f2a225415933"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_2.parquet",
+      "bytes": 3068922,
+      "sha256": "b2a6724751a0b374ad1ec644924918bfdb5427c2a28946a6378ce24d731bb40d"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_3.json",
+      "bytes": 1550,
+      "sha256": "652bd519dd2f495723f692c5bd69184d57e3eb67341ea5113ed8e670ede69a16"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_3.parquet",
+      "bytes": 2984125,
+      "sha256": "4ccd7ded7a8796fba8c587b90a5aa307814ff197792f6312116187b7ba902a84"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_4.json",
+      "bytes": 1550,
+      "sha256": "c4359ec9b7a46659224349ea486e5388822be3093a836f4f6d6e5058aca9f62f"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_4.parquet",
+      "bytes": 3237097,
+      "sha256": "312c50fd596826f29246a4da85316b9c099c3cdd03118ca977b7e93ad49144ca"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_5.json",
+      "bytes": 1550,
+      "sha256": "d8fb12da853da130bb48a2fd665f2001e12f9f74f2dfa323e369a5c25a0e14fb"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_5.parquet",
+      "bytes": 3314619,
+      "sha256": "99243f1029096a9fdfa37a4f9cec43678dbf8c6e7950b8e16205e90ac7ad7615"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_6.json",
+      "bytes": 1550,
+      "sha256": "df48a9c18cf45284a0c1cf305644acbf0ae063095d701e1f8724e93ea819bc01"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_6.parquet",
+      "bytes": 3021896,
+      "sha256": "d8e129d114240f1f459bb7285ae234a6ffe4a03eb77dd50da60e14034aad28b7"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_7.json",
+      "bytes": 1550,
+      "sha256": "132b57906fb9bb881504fd4e09a5ee5e9f37094f0c0e835ec5f62a490ae21850"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_7.parquet",
+      "bytes": 2195027,
+      "sha256": "b0b37b643bf4d2765de1c4cb77172c7ba046ea935d25554adf2dbd8640cdac46"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_8.json",
+      "bytes": 1550,
+      "sha256": "e767e59563122ff2e578b5b6155939e7959238d6e3a36264f70042b1a0a1cd4d"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_8.parquet",
+      "bytes": 2518269,
+      "sha256": "0c14b289f64430fdcffdb36ed7959d590962baa5eaefbc08fc6b30f64e15b565"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_9.json",
+      "bytes": 1550,
+      "sha256": "21177cd0ed919745964dc1455bb5e27fe28326950a90024f5b1e6df3e6424cb0"
+    },
+    {
+      "path": "data/oof/checkpoints/fold_9.parquet",
+      "bytes": 3343056,
+      "sha256": "7cbc76dec949131579a79e6b4f884c73cdb09eab79db21c9e3501960f9df4550"
+    }
+  ],
+  "run_manifest_hashes": {
+    "config_sha256": "d6b18bacd728151e7b2ca3bca65a4b1a990f958a99c7a399be1ca5692d1d2f94",
+    "ordered_feature_list_sha256": "fac2c6a24733d99bfcfa2318d462b7d92da7426e482fd4b614497a8c8395ebdd",
+    "pure_feature_count": 391,
+    "market_probability_weight": 0.0,
+    "market_prior_lambda": 0.0,
+    "forbidden_market_columns_present": []
+  },
+  "fold_metadata": {
+    "fold_0.json": {
+      "fold_id": 0,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 435,
+        "reb": 435,
+        "ast": 435,
+        "fg3m": 435,
+        "stl": 435,
+        "blk": 435,
+        "turnover": 435
+      },
+      "val_date_range": [
+        "2026-05-08",
+        "2026-05-14"
+      ]
+    },
+    "fold_1.json": {
+      "fold_id": 1,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 382,
+        "reb": 382,
+        "ast": 382,
+        "fg3m": 382,
+        "stl": 382,
+        "blk": 382,
+        "turnover": 382
+      },
+      "val_date_range": [
+        "2026-05-15",
+        "2026-05-21"
+      ]
+    },
+    "fold_10.json": {
+      "fold_id": 10,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 485,
+        "reb": 485,
+        "ast": 485,
+        "fg3m": 485,
+        "stl": 485,
+        "blk": 485,
+        "turnover": 485
+      },
+      "val_date_range": [
+        "2026-07-17",
+        "2026-07-23"
+      ]
+    },
+    "fold_11.json": {
+      "fold_id": 11,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 22,
+        "reb": 22,
+        "ast": 22,
+        "fg3m": 22,
+        "stl": 22,
+        "blk": 22,
+        "turnover": 22
+      },
+      "val_date_range": [
+        "2026-07-24",
+        "2026-07-30"
+      ]
+    },
+    "fold_2.json": {
+      "fold_id": 2,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 476,
+        "reb": 476,
+        "ast": 476,
+        "fg3m": 476,
+        "stl": 476,
+        "blk": 476,
+        "turnover": 476
+      },
+      "val_date_range": [
+        "2026-05-22",
+        "2026-05-28"
+      ]
+    },
+    "fold_3.json": {
+      "fold_id": 3,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 458,
+        "reb": 458,
+        "ast": 458,
+        "fg3m": 458,
+        "stl": 458,
+        "blk": 458,
+        "turnover": 458
+      },
+      "val_date_range": [
+        "2026-05-29",
+        "2026-06-04"
+      ]
+    },
+    "fold_4.json": {
+      "fold_id": 4,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 498,
+        "reb": 498,
+        "ast": 498,
+        "fg3m": 498,
+        "stl": 498,
+        "blk": 498,
+        "turnover": 498
+      },
+      "val_date_range": [
+        "2026-06-05",
+        "2026-06-11"
+      ]
+    },
+    "fold_5.json": {
+      "fold_id": 5,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 508,
+        "reb": 508,
+        "ast": 508,
+        "fg3m": 508,
+        "stl": 508,
+        "blk": 508,
+        "turnover": 508
+      },
+      "val_date_range": [
+        "2026-06-12",
+        "2026-06-18"
+      ]
+    },
+    "fold_6.json": {
+      "fold_id": 6,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 459,
+        "reb": 459,
+        "ast": 459,
+        "fg3m": 459,
+        "stl": 459,
+        "blk": 459,
+        "turnover": 459
+      },
+      "val_date_range": [
+        "2026-06-19",
+        "2026-06-25"
+      ]
+    },
+    "fold_7.json": {
+      "fold_id": 7,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 331,
+        "reb": 331,
+        "ast": 331,
+        "fg3m": 331,
+        "stl": 331,
+        "blk": 331,
+        "turnover": 331
+      },
+      "val_date_range": [
+        "2026-06-26",
+        "2026-07-02"
+      ]
+    },
+    "fold_8.json": {
+      "fold_id": 8,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 381,
+        "reb": 381,
+        "ast": 381,
+        "fg3m": 381,
+        "stl": 381,
+        "blk": 381,
+        "turnover": 381
+      },
+      "val_date_range": [
+        "2026-07-03",
+        "2026-07-09"
+      ]
+    },
+    "fold_9.json": {
+      "fold_id": 9,
+      "code_sha": "dad8a01",
+      "config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+      "feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+      "encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+      "fit_status": "model_oof",
+      "pmf_integrity_ok": true,
+      "rows_by_prop": {
+        "pts": 513,
+        "reb": 513,
+        "ast": 513,
+        "fg3m": 513,
+        "stl": 513,
+        "blk": 513,
+        "turnover": 513
+      },
+      "val_date_range": [
+        "2026-07-10",
+        "2026-07-16"
+      ]
+    }
+  },
+  "candidate_artifacts_present": false,
+  "calibration_artifacts_present": false
+}
