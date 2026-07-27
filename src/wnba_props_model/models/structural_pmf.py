@@ -239,6 +239,32 @@ def build_points_pmf(minutes: float, rates: dict[str, float], caps: dict[str, in
     return out / s if s > _EPS else out
 
 
+def build_points_pmf_fallback(minutes: float, rates: dict[str, float], caps: dict[str, int],
+                              usage_grid: np.ndarray, usage_weights: np.ndarray,
+                              cap: int) -> np.ndarray:
+    """Fallback structural points PMF when total FG-made / FT-made columns are unavailable.
+
+    Decomposes points into 3P scoring and NON-3P scoring (2P + FT combined), each of which needs
+    only columns that always exist:
+
+        3P points     = 3 * Binomial(3PA, p3)                    (3PA from fg3a rate, p3 shrunk)
+        non-3P points = a count PMF fit directly on realized (actual_pts - 3*fg3m) per minute
+
+    The two independent components are convolved under the shared usage latent. This lets pts be
+    supported on the production feature matrix (which carries actual_pts + fg3m + fg3a but NOT
+    total fgm/ftm), instead of abstaining."""
+    out = np.zeros(cap + 1)
+    for u, w in zip(usage_grid, usage_weights):
+        a3 = attempts_pmf(rates["fg3a_per_min"] * minutes * u, caps["fg3a"], rates["r_fg3a"])
+        pts3 = scale_support(binomial_makes_pmf(a3, rates["p3"]), 3)
+        non3 = attempts_pmf(rates["non3p_pts_per_min"] * minutes * u,
+                            caps["non3p_pts"], rates["r_non3p_pts"])
+        pts = convolve_pmfs(pts3, non3)
+        out += w * truncate_pmf(pts, cap)
+    s = out.sum()
+    return out / s if s > _EPS else out
+
+
 def build_reb_pmf(minutes: float, rates: dict[str, float], caps: dict[str, int],
                   usage_grid: np.ndarray, usage_weights: np.ndarray, cap: int) -> np.ndarray:
     """Structural rebounds PMF: OREB + DREB opportunity volumes convolved, shared usage latent."""
@@ -276,7 +302,26 @@ def build_fg3m_pmf(minutes: float, rates: dict[str, float], caps: dict[str, int]
 _DEFAULT_COLS = {
     "minutes": "actual_minutes", "fgm": "actual_fgm", "fga": "actual_fga",
     "fg3m": "actual_fg3m", "fg3a": "actual_fg3a", "ftm": "actual_ftm", "fta": "actual_fta",
-    "oreb": "actual_oreb", "dreb": "actual_dreb",
+    "oreb": "actual_oreb", "dreb": "actual_dreb", "pts": "actual_pts",
+}
+
+# Candidate column names probed at fit time (in order) so the model works whether the feature
+# matrix stores realized per-game volumes BARE (fga/fg3a/fta/oreb/dreb) or actual_-prefixed, and
+# whatever the settled-outcome prefix is. This is the ROOT-CAUSE fix for the 0aec00c0 all-NULL
+# structural output: the default map was actual_*-only, so production's bare volume columns were
+# never found and every prop silently abstained. Resolution is train-time only (predictions read
+# context keys + minutes, never box-score volumes), so no future information enters.
+_COL_ALIASES: dict[str, list[str]] = {
+    "minutes": ["actual_minutes", "minutes"],
+    "fgm": ["fgm", "actual_fgm"],
+    "fga": ["fga", "actual_fga"],
+    "fg3m": ["fg3m", "actual_fg3m"],
+    "fg3a": ["fg3a", "actual_fg3a"],
+    "ftm": ["ftm", "actual_ftm"],
+    "fta": ["fta", "actual_fta"],
+    "oreb": ["oreb", "actual_oreb"],
+    "dreb": ["dreb", "actual_dreb"],
+    "pts": ["actual_pts", "pts"],
 }
 
 
@@ -290,9 +335,11 @@ class StructuralRepairModel:
     kappa_rate: float = 30.0
     kappa_conv: float = 40.0
     supported: set[str] = field(default_factory=set)
+    pts_mode: str | None = None  # "full" (2P/3P/FT) | "fallback" (3P + non-3P) | None
     _rates: dict[str, HierarchicalRate] = field(default_factory=dict)
     _scalars: dict[str, float] = field(default_factory=dict)
     _caps: dict[str, int] = field(default_factory=dict)
+    _resolved: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         block = self.cfg.get("structural_repair", {}) or {}
@@ -302,14 +349,34 @@ class StructuralRepairModel:
         # Fail closed if any configured column name is market-derived.
         assert_no_market_inputs(list(self.cols.values()), context="StructuralRepairModel.cols")
 
-    def _has(self, df: pd.DataFrame, *keys: str) -> bool:
-        return all(self.cols[k] in df.columns for k in keys)
+    def _resolve(self, df: pd.DataFrame, key: str) -> str | None:
+        """First existing column for a logical field: the configured name (if present), else the
+        alias list. Returns None when none are present (that component/prop then abstains)."""
+        configured = self.cols.get(key)
+        if configured and configured in df.columns:
+            return configured
+        for cand in _COL_ALIASES.get(key, []):
+            if cand in df.columns:
+                return cand
+        return None
+
+    def _resolve_all(self, df: pd.DataFrame) -> None:
+        self._resolved = {k: c for k in _COL_ALIASES if (c := self._resolve(df, k)) is not None}
+        # Market-leakage guard on whatever we actually resolved to.
+        assert_no_market_inputs(list(self._resolved.values()), context="StructuralRepairModel.resolved")
+
+    def _has(self, *keys: str) -> bool:
+        return all(k in self._resolved for k in keys)
+
+    def _col(self, key: str) -> str:
+        return self._resolved[key]
 
     def fit(self, train_wide: pd.DataFrame, cfg: dict[str, Any]) -> "StructuralRepairModel":
         df = train_wide.copy()
-        mcol = self.cols["minutes"]
-        if mcol not in df.columns:
+        self._resolve_all(df)
+        if "minutes" not in self._resolved:
             return self  # cannot form per-minute rates -> everything abstains
+        mcol = self._col("minutes")
         df = df[pd.to_numeric(df[mcol], errors="coerce").fillna(0.0) > 0.0].copy()
         if df.empty:
             return self
@@ -322,18 +389,18 @@ class StructuralRepairModel:
             df[c] = df[c].astype(str)
         levels = default_key_levels()
         m = pd.to_numeric(df[mcol], errors="coerce").fillna(0.0)
+        df["_min"] = m
 
-        # ---- PTS components (2P / 3P / FT) ----
-        if self._has(df, "fgm", "fga", "fg3m", "fg3a", "ftm", "fta"):
-            fga = pd.to_numeric(df[self.cols["fga"]], errors="coerce").fillna(0.0)
-            fgm = pd.to_numeric(df[self.cols["fgm"]], errors="coerce").fillna(0.0)
-            fg3a = pd.to_numeric(df[self.cols["fg3a"]], errors="coerce").fillna(0.0)
-            fg3m = pd.to_numeric(df[self.cols["fg3m"]], errors="coerce").fillna(0.0)
-            fta = pd.to_numeric(df[self.cols["fta"]], errors="coerce").fillna(0.0)
-            ftm = pd.to_numeric(df[self.cols["ftm"]], errors="coerce").fillna(0.0)
+        def _num(key):
+            return pd.to_numeric(df[self._col(key)], errors="coerce").fillna(0.0)
+
+        # ---- PTS: prefer full 2P/3P/FT decomposition; else 3P + non-3P fallback ----
+        if self._has("fgm", "fga", "fg3m", "fg3a", "ftm", "fta"):
+            fga, fgm = _num("fga"), _num("fgm")
+            fg3a, fg3m = _num("fg3a"), _num("fg3m")
+            fta, ftm = _num("fta"), _num("ftm")
             df["_fg2a"] = np.clip(fga - fg3a, 0.0, None)
             df["_fg2m"] = np.clip(fgm - fg3m, 0.0, None)
-            df["_min"] = m
             self._fit_rate("fg2a_per_min", df, "_fg2a", "_min", levels, self.kappa_rate)
             self._fit_rate("fg3a_per_min", df.assign(_fg3a=fg3a), "_fg3a", "_min", levels, self.kappa_rate)
             self._fit_rate("fta_per_min", df.assign(_fta=fta), "_fta", "_min", levels, self.kappa_rate)
@@ -346,13 +413,27 @@ class StructuralRepairModel:
             self._scalars["r_fg2a"] = _disp(df["_fg2a"])
             self._scalars["r_fg3a"] = _disp(fg3a)
             self._scalars["r_fta"] = _disp(fta)
+            self.pts_mode = "full"
+            self.supported.add("pts")
+        elif self._has("pts", "fg3m", "fg3a"):
+            # Fallback: 3P points (3PA × p3 binomial × 3) + non-3P points fit directly on
+            # realized (actual_pts - 3*fg3m). Needs only actual_pts + fg3m + fg3a + minutes.
+            fg3a, fg3m = _num("fg3a"), _num("fg3m")
+            pts = _num("pts")
+            df["_non3p_pts"] = np.clip(pts - 3.0 * fg3m, 0.0, None)
+            self._fit_rate("fg3a_per_min", df.assign(_fg3a=fg3a), "_fg3a", "_min", levels, self.kappa_rate)
+            self._fit_rate("p3", df.assign(_m=fg3m, _a=fg3a), "_m", "_a", levels, self.kappa_conv)
+            self._fit_rate("non3p_pts_per_min", df, "_non3p_pts", "_min", levels, self.kappa_rate)
+            self._caps["fg3a"] = _cap_for(fg3a)
+            self._caps["non3p_pts"] = _cap_for(df["_non3p_pts"])
+            self._scalars["r_fg3a"] = _disp(fg3a)
+            self._scalars["r_non3p_pts"] = _disp(df["_non3p_pts"])
+            self.pts_mode = "fallback"
             self.supported.add("pts")
 
         # ---- REB components (OREB / DREB) ----
-        if self._has(df, "oreb", "dreb"):
-            oreb = pd.to_numeric(df[self.cols["oreb"]], errors="coerce").fillna(0.0)
-            dreb = pd.to_numeric(df[self.cols["dreb"]], errors="coerce").fillna(0.0)
-            df["_min"] = m
+        if self._has("oreb", "dreb"):
+            oreb, dreb = _num("oreb"), _num("dreb")
             self._fit_rate("oreb_per_min", df.assign(_o=oreb), "_o", "_min", levels, self.kappa_rate)
             self._fit_rate("dreb_per_min", df.assign(_d=dreb), "_d", "_min", levels, self.kappa_rate)
             self._caps["oreb"] = _cap_for(oreb)
@@ -362,10 +443,8 @@ class StructuralRepairModel:
             self.supported.add("reb")
 
         # ---- FG3M (shared with PTS 3P rate but adds a hurdle zero-rate) ----
-        if self._has(df, "fg3m", "fg3a"):
-            fg3a = pd.to_numeric(df[self.cols["fg3a"]], errors="coerce").fillna(0.0)
-            fg3m = pd.to_numeric(df[self.cols["fg3m"]], errors="coerce").fillna(0.0)
-            df["_min"] = m
+        if self._has("fg3m", "fg3a"):
+            fg3a, fg3m = _num("fg3a"), _num("fg3m")
             if "fg3a_per_min" not in self._rates:
                 self._fit_rate("fg3a_per_min", df.assign(_fg3a=fg3a), "_fg3a", "_min", levels, self.kappa_rate)
             if "p3" not in self._rates:
@@ -387,7 +466,10 @@ class StructuralRepairModel:
     def _row_rates(self, prop: str, row: Any) -> dict[str, float]:
         r = {k: v for k, v in self._scalars.items()}
         if prop == "pts":
-            for nm in ("fg2a_per_min", "fg3a_per_min", "fta_per_min", "p2", "p3", "pft"):
+            names = (("fg2a_per_min", "fg3a_per_min", "fta_per_min", "p2", "p3", "pft")
+                     if self.pts_mode == "full"
+                     else ("fg3a_per_min", "p3", "non3p_pts_per_min"))
+            for nm in names:
                 r[nm] = self._rates[nm].predict_one(row)
         elif prop == "reb":
             for nm in ("oreb_per_min", "dreb_per_min"):
@@ -410,7 +492,8 @@ class StructuralRepairModel:
         for c in ("role_bucket", "position", "team_id", "player_id"):
             ctx[c] = ctx[c].astype(str) if c in ctx.columns else "unknown"
         rows = ctx.to_dict("records")
-        builder = {"pts": build_points_pmf, "reb": build_reb_pmf, "fg3m": build_fg3m_pmf}[prop]
+        pts_builder = build_points_pmf if self.pts_mode == "full" else build_points_pmf_fallback
+        builder = {"pts": pts_builder, "reb": build_reb_pmf, "fg3m": build_fg3m_pmf}[prop]
         for i, row in enumerate(rows):
             minutes = float(max(min_means[i], _EPS))
             rr = self._row_rates(prop, row)

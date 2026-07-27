@@ -235,7 +235,7 @@ def test_nested_eval_runs_on_synthetic_join():
 
 def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     rng = np.random.default_rng(7)
-    stats = ["pts", "reb"]
+    stats = ["pts", "reb", "fg3m"]
     feats = ["player_minutes_mean_l5", "player_pts_mean_l5", "player_reb_mean_l5",
              "is_home", "position"]
     dates = pd.date_range("2026-05-01", periods=20, freq="D")
@@ -260,12 +260,12 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
                 "game_total": float(rng.uniform(150, 175)),
                 "implied_team_total": float(rng.uniform(75, 90)),
                 # Box-score components so the structural repair candidate can fit (train-only).
+                # NOTE: NO fgm/ftm columns — mirrors the production feature matrix, which lacks
+                # total FG-made / FT-made, so pts must populate via the 3P + non-3P fallback.
                 "actual_fga": float(rng.poisson(max(0.1, mm * 0.45)) if played else 0),
-                "actual_fgm": float(rng.poisson(max(0.1, mm * 0.20)) if played else 0),
                 "actual_fg3a": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
                 "actual_fg3m": float(rng.poisson(max(0.1, mm * 0.05)) if played else 0),
                 "actual_fta": float(rng.poisson(max(0.1, mm * 0.12)) if played else 0),
-                "actual_ftm": float(rng.poisson(max(0.1, mm * 0.10)) if played else 0),
                 "actual_oreb": float(rng.poisson(max(0.1, mm * 0.06)) if played else 0),
                 "actual_dreb": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
                 "actual_pts": float(rng.poisson(max(0.1, mm * 0.4)) if played else 0),
@@ -298,7 +298,7 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
                 "min_train_stat_rows": 30, "oof_first_val_date": "2026-05-08",
                 "validation_window_days": 5, "use_tuned_hyperparams": False,
                 "use_model_ensemble": False, "use_role_stratified_training": False})
-    cfg["pmf_support_caps"] = {"pts": 45, "reb": 25}
+    cfg["pmf_support_caps"] = {"pts": 45, "reb": 25, "fg3m": 12}
     cfg_p = tmp_path / "cfg.yaml"; cfg_p.write_text(yaml.safe_dump(cfg))
 
     out_dir = tmp_path / "oof"; audit = tmp_path / "audit.json"
@@ -324,14 +324,22 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
 
     oof = pd.read_parquet(out_dir / "oof_player_stat_pmfs.parquet")
     assert {"active_pmf_json", "availability_mixture_pmf_json", "p_dnp"} <= set(oof.columns)
-    # Structural repair candidate PMFs are persisted and non-null for supported props (pts/reb).
+    # Structural repair candidate PMFs are persisted and non-null for ALL structural props
+    # (pts via fallback, reb, fg3m) — regression guard for the 0aec00c0 all-NULL structural output.
     assert "structural_active_pmf_json" in oof.columns
-    for prop in ("pts", "reb"):
+    assert "structural_candidate_id" in oof.columns
+    _expected_cid = {"pts": "S_pts_opportunity_conversion",
+                     "reb": "S_reb_oreb_dreb_opportunity",
+                     "fg3m": "S_fg3m_3pa_hurdle_shrunk_conversion"}
+    for prop in ("pts", "reb", "fg3m"):
         sub = oof[oof["stat"] == prop]
-        assert sub["structural_active_pmf_json"].notna().any(), f"no structural PMF for {prop}"
-        assert (sub["structural_candidate_id"].dropna()
-                == {"pts": "S_pts_opportunity_conversion",
-                    "reb": "S_reb_oreb_dreb_opportunity"}[prop]).all()
+        s_json = sub["structural_active_pmf_json"].dropna()
+        assert len(s_json) > 0, f"no structural PMF for {prop}"
+        assert (sub["structural_candidate_id"].dropna() == _expected_cid[prop]).all()
+        # The persisted structural PMF must parse to a valid distribution (sum≈1).
+        parsed = json.loads(s_json.iloc[0])
+        pmf_vals = (list(parsed.values()) if isinstance(parsed, dict) else list(parsed))
+        assert abs(sum(float(v) for v in pmf_vals) - 1.0) < 1e-6, f"structural PMF for {prop} !=1"
     # GAP 4: line-independent provenance/contract + hash fields persisted on every OOF row.
     gap4 = {"active_pmf_variance", "availability_mixture_mean", "information_contract",
             "market_probability_weight", "model_hash", "config_hash", "feature_hash",
@@ -417,11 +425,23 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
         rc = metrics["per_prop"][prop].get("real_selection_contract")
         assert rc is not None
         assert "holm_pvalues_not_populated" not in rc["fail_reasons"]
-    # Structural repair candidate is registered + scored for a supported prop (pts).
-    sc = metrics["per_prop"]["pts"].get("structural_repair_candidate")
-    assert sc is not None and sc["candidate_id"] == "S_pts_opportunity_conversion"
-    assert sc["after_structural_settled_platt"] is not None
-    assert "advances" in sc
+    # ITEM 3: the S1-S3 structural candidates RECEIVE + SCORE the structural PMFs (not None) for
+    # every supported prop — pts (via fallback), reb, fg3m — so nested selection can surface them.
+    _struct_cid = {"pts": "S_pts_opportunity_conversion",
+                   "reb": "S_reb_oreb_dreb_opportunity",
+                   "fg3m": "S_fg3m_3pa_hurdle_shrunk_conversion"}
+    for prop in ("pts", "reb", "fg3m"):
+        if prop not in metrics.get("holm_family", []):
+            continue
+        sc = metrics["per_prop"][prop].get("structural_repair_candidate")
+        assert sc is not None, f"structural candidate not scored for {prop}"
+        assert sc["candidate_id"] == _struct_cid[prop]
+        assert sc["after_structural_settled_platt"] is not None
+        assert "advances" in sc
+        # The nested engine must have considered the S1-S3 candidates for this prop.
+        cands = metrics["per_prop"][prop].get("candidates_considered", [])
+        if cands:
+            assert any(c in ("S1", "S2", "S3") for c in cands), f"S* not considered for {prop}"
 
 
 def test_holm_adjustment_is_monotone_and_bounded():

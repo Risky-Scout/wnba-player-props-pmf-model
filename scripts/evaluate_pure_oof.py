@@ -525,6 +525,7 @@ def main(
         per_prop[prop] = {
             "selected_outer_oof": pub(res),
             "selected_candidate_distribution": sel_dist,
+            "candidates_considered": list(sel.candidates_considered),
             "n_independent_dates": n_dates,
             "after_bootstrap_ci": ci,
             "candidate_family": cand_results,

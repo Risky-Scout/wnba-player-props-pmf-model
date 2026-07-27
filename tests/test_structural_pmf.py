@@ -237,22 +237,27 @@ def test_structural_model_abstains_when_columns_missing():
 
 def _production_named_boxscore(n=400, seed=7):
     """Synthetic frame using the ACTUAL feature-matrix column names: realized per-game volumes are
-    bare (oreb/dreb/fga/fg3a/fta) and settled outcomes carry actual_ (actual_minutes/actual_fg3m).
-    No fgm/ftm column exists (BDL does not provide total FG-made / FT-made)."""
+    bare (oreb/dreb/fga/fg3a/fta) and settled outcomes carry actual_ (actual_minutes/actual_fg3m/
+    actual_pts). No fgm/ftm column exists (BDL does not provide total FG-made / FT-made), so pts is
+    supported only via the 3P + non-3P FALLBACK decomposition."""
     rng = np.random.default_rng(seed)
     minutes = np.clip(rng.normal(24, 6, n), 4, 40)
     fg3a = rng.poisson(np.clip(minutes * 0.12, 0.05, None))
     fg3m = rng.binomial(np.clip(fg3a, 0, None).astype(int), 0.35)
     fga = fg3a + rng.poisson(np.clip(minutes * 0.25, 0.05, None))
+    fg2a = np.clip(fga - fg3a, 0, None)
+    fg2m = rng.binomial(fg2a.astype(int), 0.48)
     fta = rng.poisson(np.clip(minutes * 0.10, 0.05, None))
+    ftm = rng.binomial(fta.astype(int), 0.82)
     oreb = rng.poisson(np.clip(minutes * 0.06, 0.05, None))
     dreb = rng.poisson(np.clip(minutes * 0.18, 0.05, None))
+    pts = 2 * fg2m + 3 * fg3m + ftm
     return pd.DataFrame({
         "player_id": rng.integers(0, 60, n).astype(str),
         "team_id": rng.integers(0, 12, n).astype(str),
         "position": rng.choice(["G", "F", "C"], n),
         "player_minutes_mean_l5": minutes + rng.normal(0, 2, n),
-        "actual_minutes": minutes, "actual_fg3m": fg3m,
+        "actual_minutes": minutes, "actual_fg3m": fg3m, "actual_pts": pts,
         "fga": fga, "fg3a": fg3a, "fta": fta, "oreb": oreb, "dreb": dreb,
     })
 
@@ -265,28 +270,45 @@ def _stage5_oof_config():
 
 
 def test_structural_wired_for_production_feature_columns():
-    """Regression: the production feature matrix names box-score volumes bare (oreb/dreb/fga/...)
-    while the structural model's defaults expect actual_-prefixed names. Without the config
-    ``structural_repair.columns`` map the model abstained on EVERY prop in the real OOF (leaving
-    structural_active_pmf_json empty). The shipped stage5_oof.yaml map must make reb + fg3m
-    supported on production-named columns (pts stays out — no fgm/ftm available)."""
+    """Regression for the 0aec00c0 all-NULL structural output: the production feature matrix names
+    box-score volumes bare (oreb/dreb/fga/fg3a/fta) while the defaults expected actual_-prefixed
+    names, so the model abstained on EVERY prop (structural_active_pmf_json 100% NULL). Column
+    AUTO-DETECTION now resolves bare vs actual_ names, so all three structural props populate on
+    production-named columns — pts via the 3P + non-3P fallback (no fgm/ftm needed)."""
     df = _production_named_boxscore()
     cfg = _stage5_oof_config()
     assert cfg.get("structural_repair", {}).get("enabled") is True
-    assert "columns" in cfg["structural_repair"], "stage5_oof.yaml must map box-score column names"
 
-    # Default (no map) abstains on everything for production-named columns — the original bug.
-    assert StructuralRepairModel({}).fit(df, {}).supported == set()
+    # Auto-detection alone (no config map) now resolves production-named columns for all three.
+    m0 = StructuralRepairModel({}).fit(df, {})
+    assert {"pts", "reb", "fg3m"} <= m0.supported
+    assert m0.pts_mode == "fallback"  # no fgm/ftm -> fallback pts decomposition
 
-    # With the shipped config map, reb + fg3m are supported and produce valid PMFs.
+    # The shipped config map likewise produces valid PMFs for all three structural props.
     m = StructuralRepairModel(cfg).fit(df, cfg)
-    assert "reb" in m.supported and "fg3m" in m.supported
-    assert "pts" not in m.supported  # no fgm/ftm in BDL data
-    for prop, cap in [("reb", 30), ("fg3m", 15)]:
+    assert {"pts", "reb", "fg3m"} <= m.supported
+    for prop, cap in [("pts", 60), ("reb", 30), ("fg3m", 15)]:
         mat = m.build_active_pmf_matrix(prop, df.head(25), df["actual_minutes"].to_numpy(float)[:25], cap)
         assert mat is not None and mat.shape == (25, cap + 1)
         assert np.allclose(mat.sum(axis=1), 1.0, atol=1e-6)
         assert (mat >= -1e-12).all()
+
+
+def test_pts_fallback_matches_realized_mean_without_fgm_ftm():
+    """The pts fallback (3P + non-3P) must build a genuine PMF (not just a mean) whose expected
+    value tracks the realized points mean, using only actual_pts + fg3m + fg3a + minutes."""
+    df = _production_named_boxscore(n=1200, seed=11)
+    m = StructuralRepairModel({}).fit(df, {})
+    assert m.pts_mode == "fallback" and "pts" in m.supported
+    val = df.head(200).reset_index(drop=True)
+    cap = 70
+    mat = m.build_active_pmf_matrix("pts", val, val["actual_minutes"].to_numpy(float), cap)
+    assert mat is not None and mat.shape == (200, cap + 1)
+    assert np.allclose(mat.sum(axis=1), 1.0, atol=1e-6)
+    pmf_means = mat @ np.arange(cap + 1)
+    assert np.all(pmf_means > 0.0)
+    # Cohort-level structural mean should be in the right ballpark of realized points.
+    assert abs(float(pmf_means.mean()) - float(val["actual_pts"].mean())) < 5.0
 
 
 def test_structural_predicted_mean_tracks_box_score():
