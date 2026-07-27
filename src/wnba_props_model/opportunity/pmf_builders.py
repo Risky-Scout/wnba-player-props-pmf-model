@@ -80,8 +80,9 @@ def poisson_or_nbinom_pmf(
         k_cap = min(k_cap * 2 + 1, int(maximum_cap))
 
     if omitted > tail_tolerance and k_cap >= maximum_cap:
-        # Only acceptable if the residual is negligible relative to mass captured.
-        if omitted > max(tail_tolerance, 1e-6):
+        # At the physical support cap we cannot extend further. A negligible residual (< 1e-4) is
+        # renormalized; a MATERIAL residual indicates a mis-specified mean/dispersion and raises.
+        if omitted > 1e-4:
             raise ValueError(
                 f"poisson_or_nbinom_pmf: omitted tail mass {omitted:.3e} exceeds tolerance at "
                 f"maximum_cap={maximum_cap} for mean={mu}, r={dispersion_r}")

@@ -66,10 +66,16 @@ class OpportunityRateModel:
         model.fit(Xn[mask], target, sample_weight=sw)
         self._model = model
 
-        # Training-only overdispersion (NB2): r = mu^2 / (var - mu) when overdispersed, else Poisson.
-        mean_c = float(np.mean(cnt[mask]))
-        var_c = float(np.var(cnt[mask]))
-        self._dispersion_r = float(mean_c ** 2 / (var_c - mean_c)) if var_c > mean_c + 1e-9 else None
+        # Training-only NB2 overdispersion estimated CONDITIONAL on the minutes-scaled predicted mean
+        # (method of moments on Pearson residuals): E[(y-mu)^2] = mu + mu^2/r. Conditioning on mu
+        # removes the minutes-driven variance that would otherwise inflate the tail.
+        rate_tr = np.clip(np.expm1(model.predict(Xn[mask])), 0.0, None)
+        mu = rate_tr * mins[mask]
+        resid2 = (cnt[mask] - mu) ** 2
+        num = float(np.sum(mu ** 2))
+        den = float(np.sum(resid2 - mu))
+        # Floor r to keep the count tail physically plausible (avoids absurd heavy tails from noise).
+        self._dispersion_r = float(np.clip(num / den, 2.0, 1e6)) if den > 1e-9 and num > 0 else None
 
         # Zero-inflation policy for sparse components.
         zero_frac = float(np.mean(cnt[mask] == 0))

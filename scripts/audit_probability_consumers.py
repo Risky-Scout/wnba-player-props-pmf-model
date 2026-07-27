@@ -91,6 +91,7 @@ CLASSIFICATION: dict[str, str] = {
     "scripts/build_pure_supremacy_metrics.py": "permitted_pmf_diagnostic",
     "scripts/evaluate_pure_oof.py": "permitted_pmf_diagnostic",
     "scripts/build_oof_pmfs.py": "permitted_pmf_diagnostic",
+    "scripts/evaluate_opportunity_oof.py": "permitted_pmf_diagnostic",
     "src/wnba_props_model/models/training.py": "permitted_pmf_diagnostic",
     "src/wnba_props_model/models/availability_pmf.py": "permitted_pmf_diagnostic",
     "scripts/verify_delivered_lineage.py": "permitted_pmf_diagnostic",
