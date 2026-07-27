@@ -1,0 +1,167 @@
+{
+  "created_at_utc": "2026-07-27T18:55:33.051433+00:00",
+  "headline": "The game-specific opportunity signals that distinguish Opportunity V2 from the existing structural model (point-in-time availability/lineups, roster-at-cutoff, vacated role, and player/team TRACKING opportunity) DO NOT EXIST historically in this repository. Only Tier-0 box-score opportunity + team environment are historically recoverable. Therefore V2 can be built and OOF-measured as a Tier-0 candidate now, but its distinctive value requires (a) forward availability/lineup snapshot collection and (b) a new tracking source before any Tier-2 historical certification is possible.",
+  "box_score_coverage": {
+    "2025": {
+      "rows": 7140,
+      "min_date": "2025-05-16",
+      "max_date": "2025-10-11",
+      "game_dates": 126
+    },
+    "2026": {
+      "rows": 4926,
+      "min_date": "2026-05-08",
+      "max_date": "2026-07-23",
+      "game_dates": 69
+    }
+  },
+  "injury_table": {
+    "rows": 42,
+    "is_historical_archive": false,
+    "distinct_pull_dates": [
+      "2026-07-25"
+    ],
+    "forward_json_snapshots": [
+      "2026-07-13.json",
+      "2026-07-28.json"
+    ]
+  },
+  "tracking_available": false,
+  "roster_interval_history_available": false,
+  "lineup_snapshot_source_available": false,
+  "feature_families": {
+    "player_baseline_box_rates": {
+      "state": "HISTORICAL_PREGAME_CONTEXT_COMPLETE",
+      "data_tier": 0,
+      "evidence": "wnba_player_game_stats has minutes/fga/fg3a/fta/oreb/dreb/makes/did_play for all rows; usable as strictly-lagged per-minute rates.",
+      "buildable_features": [
+        "player_minutes_ewma",
+        "player_fga_per_min_ewma",
+        "player_fg2a_per_min_ewma",
+        "player_fg3a_per_min_ewma",
+        "player_fta_per_min_ewma",
+        "player_oreb_chances_per_min_ewma (proxy=oreb)",
+        "player_dreb_chances_per_min_ewma (proxy=dreb)",
+        "player_2p_pct_ewma",
+        "player_3p_pct_ewma",
+        "player_ft_pct_ewma",
+        "player_active_rate_ewma"
+      ],
+      "proof_eligible": true
+    },
+    "team_opponent_environment": {
+      "state": "HISTORICAL_PREGAME_CONTEXT_COMPLETE",
+      "data_tier": 0,
+      "evidence": "Team possessions derivable from box (FGA+0.44*FTA-OREB+TOV); pace present in wnba_team_game_advanced. Strictly lagged team/opponent aggregates buildable.",
+      "buildable_features": [
+        "team_possessions_ewma",
+        "team_fga_ewma",
+        "team_fg3a_ewma",
+        "team_fta_ewma",
+        "team_turnover_ewma",
+        "team_fg_misses_ewma",
+        "opponent_*_allowed_ewma",
+        "team_rest_days",
+        "is_home",
+        "team_back_to_back"
+      ],
+      "proof_eligible": true
+    },
+    "point_in_time_availability": {
+      "state": "FORWARD_ONLY_CONTEXT",
+      "data_tier": null,
+      "evidence": "wnba_injuries is LATEST-STATE only (rows=42, single pull_timestamp, report_date null); injury JSON snapshots=['2026-07-13.json', '2026-07-28.json'] are only recent forward pulls. No historical daily availability archive exists.",
+      "buildable_features": [
+        "availability_status_code (forward only)",
+        "availability_snapshot_age_hours (forward only)",
+        "reported_minutes_limit (forward only)"
+      ],
+      "proof_eligible": false,
+      "remediation": "Begin append-only availability snapshot collection now (scripts/build_opportunity_snapshots.py) for forward proof; do NOT reconstruct historical pregame status from postgame DNP."
+    },
+    "point_in_time_lineups": {
+      "state": "NO_CONTEXT",
+      "data_tier": null,
+      "evidence": "No lineup snapshot table or source exists (no projected/confirmed starter feed). started_proxy is a postgame minutes proxy, not a pregame lineup.",
+      "buildable_features": [],
+      "proof_eligible": false,
+      "remediation": "Add a projected/confirmed-lineup source and collect append-only snapshots forward; certification requires forward data."
+    },
+    "roster_intervals": {
+      "state": "NO_CONTEXT",
+      "data_tier": null,
+      "evidence": "Only current team is known (wnba_players.team_id). No transaction history / valid_from/valid_to intervals -> teammate-at-cutoff cannot be reconstructed historically without risking latest-team leakage.",
+      "buildable_features": [],
+      "proof_eligible": false,
+      "remediation": "Build wnba_roster_intervals from a transaction/roster-history source; until then vacated-opportunity shares are not historically certifiable."
+    },
+    "vacated_role_and_opportunity_shares": {
+      "state": "NO_CONTEXT",
+      "data_tier": null,
+      "evidence": "Requires BOTH point-in-time availability AND roster intervals, neither of which is historically available. This is the distinctive V2 signal.",
+      "buildable_features": [],
+      "proof_eligible": false,
+      "remediation": "Depends on availability (forward) + roster intervals (new source)."
+    },
+    "player_tracking_opportunity_tier2": {
+      "state": "NO_CONTEXT",
+      "data_tier": 2,
+      "evidence": "No player tracking columns present (found tracking cols: []). potential_assists, rebound_chances, touches, catch&shoot/pullup 3PA absent. Shot locations table has 402 rows with 0 valid dates.",
+      "buildable_features": [],
+      "proof_eligible": false,
+      "remediation": "Requires a tracking data source (WNBA tracking / play-by-play). Until then ast/reb Tier-2 candidates CANNOT be built or certified; only Tier-0 proxies."
+    }
+  },
+  "prop_certifiability": {
+    "pts": {
+      "tier0_box_candidate": true,
+      "tier2_required": false,
+      "historically_certifiable": "TIER0_ONLY",
+      "note": "Attempts (fg2a/fg3a/fta) + conversion from box, lagged. Overlaps existing structural."
+    },
+    "fg3m": {
+      "tier0_box_candidate": true,
+      "tier2_required": false,
+      "historically_certifiable": "TIER0_ONLY",
+      "note": "3PA + 3P% from box, lagged. Catch&shoot/pullup shares NOT available (NO_CONTEXT)."
+    },
+    "reb": {
+      "tier0_box_candidate": true,
+      "tier2_required": true,
+      "historically_certifiable": "TIER0_PROXY_ONLY",
+      "note": "True OREB/DREB CHANCES require tracking (NO_CONTEXT). Only oreb/dreb counts (proxy)."
+    },
+    "ast": {
+      "tier0_box_candidate": true,
+      "tier2_required": true,
+      "historically_certifiable": "TIER0_PROXY_ONLY",
+      "note": "Potential assists (Tier-2) NOT available (NO_CONTEXT). Only ast-per-min proxy."
+    },
+    "turnover": {
+      "tier0_box_candidate": true,
+      "tier2_required": true,
+      "historically_certifiable": "TIER0_PROXY_ONLY",
+      "note": "Touches/time-of-possession (Tier-2) NOT available. Only tov-per-min proxy."
+    },
+    "stl": {
+      "tier0_box_candidate": true,
+      "tier2_required": true,
+      "historically_certifiable": "TIER0_PROXY_ONLY",
+      "note": "Opponent live-ball TO opportunities / matchup exposure NOT available."
+    },
+    "blk": {
+      "tier0_box_candidate": true,
+      "tier2_required": true,
+      "historically_certifiable": "TIER0_PROXY_ONLY",
+      "note": "Opponent rim-attempt exposure (tracking/pbp) NOT available."
+    }
+  },
+  "proof_eligible_historical_rows_tier2": 0,
+  "recommended_path": [
+    "Implement the point-in-time truth layer (DONE: contracts/snapshot_store/asof/audit).",
+    "Start append-only forward collection of availability + lineup snapshots immediately.",
+    "Build a Tier-0 OPP_V2 box-opportunity candidate now and OOF-measure vs P0 (development only).",
+    "Do NOT certify Tier-2 (ast/reb/turnover/stl/blk) historically; mark those rows proof_eligible=false.",
+    "Acquire a WNBA tracking / play-by-play source before Tier-2 modeling."
+  ]
+}
