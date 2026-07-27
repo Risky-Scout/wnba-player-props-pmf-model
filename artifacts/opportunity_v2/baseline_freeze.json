@@ -1,0 +1,9 @@
+{
+  "created_at_utc": "2026-07-27T18:49:40.789228+00:00",
+  "base_git_sha": "10aeadea74f0983c14f0c8abae806d3c08a66277",
+  "stage5_config_sha256": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+  "feature_manifest_sha256": "ed0983659c604bebef61f9f87e611dd81b5e2aeffe25b08704f90dcfb33f3c51",
+  "baseline_candidate_id": "P0",
+  "opportunity_candidate_id": "OPP_V2_RAW",
+  "notes": "Opportunity V2 is a parallel candidate. Baseline behavior is not modified."
+}
