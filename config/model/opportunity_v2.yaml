@@ -1,0 +1,100 @@
+version: opportunity_v2_v1
+random_seed: 42
+
+default_lead_minutes: 90
+strict_mode: true
+market_inputs_allowed: false
+
+availability:
+  enabled: true
+  max_snapshot_age_hours: 168
+  min_probability: 0.001
+  max_probability: 0.999
+
+lineup:
+  enabled: true
+  max_snapshot_age_hours: 48
+  allow_minutes_proxy_labels: false
+  proxy_label_weight: 0.25
+
+minutes:
+  conditional_on_active: true
+  quantiles: [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95]
+  deterministic_samples: 21
+  minimum_minutes: 0.5
+  maximum_minutes: 60.0
+  enforce_reported_cap: true
+
+history:
+  ewma_halflife_games: 6.0
+  recent_windows: [3, 5, 10, 20]
+  minimum_history_games: 3
+
+team_environment:
+  targets:
+    - possessions
+    - fga
+    - fg3a
+    - fta
+    - fg_misses
+    - turnovers
+    - rim_attempts
+    - potential_assists
+    - rebound_chances
+    - touches
+  reconcile_possessions: true
+
+shares:
+  epsilon: 0.000001
+  normalize_within_team: true
+  active_probability_weighted: true
+
+conversion:
+  hierarchy:
+    - [position]
+    - [role_bucket]
+    - [position, role_bucket]
+    - [team_id, role_bucket]
+    - [player_id]
+  prior_strength:
+    fg2: 75.0
+    fg3: 125.0
+    ft: 75.0
+    ast: 50.0
+    reb: 50.0
+    turnover: 100.0
+    steal: 100.0
+    block: 100.0
+
+pmf:
+  tail_tolerance: 0.00000001
+  maximum_support: 120
+  normalization_tolerance: 0.000000000001
+  use_active_pmf_for_sportsbook: true
+
+data_tiers:
+  require_tier2_for:
+    - ast
+    - reb
+  allow_tier1_diagnostic_fallback: true
+
+# Honest scope on current repository data (see artifacts/opportunity_v2/DATA_AVAILABILITY_AUDIT.json):
+# only Tier-0 box props are historically certifiable. Tier-2 props are disabled until a tracking
+# source and historical pregame availability/lineup snapshots exist.
+enabled_props_tier0:
+  - fg3m
+  - pts
+
+oof:
+  validation_window_days: 7
+  strict_baseline: true
+  checkpoint_each_fold: true
+  fail_on_fallback: true
+  fail_on_null_pmf: true
+
+evaluation:
+  bootstrap_cluster: game_date
+  bootstrap_iterations: 10000
+  minimum_rows: 300
+  minimum_dates: 30
+  holm_correction: true
