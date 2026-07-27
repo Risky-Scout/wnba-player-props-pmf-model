@@ -1,0 +1,2206 @@
+{
+  "cv": "nested rolling-origin: OUTER expanding folds (max(outer_train)<min(outer_val)); INNER expanding folds from outer-training dates ONLY choose the candidate; refit on all outer-training dates; score outer-validation once",
+  "candidate_family": {
+    "P0": "direct:identity",
+    "P1": "direct:platt",
+    "P2": "direct:beta",
+    "P3": "direct:isotonic",
+    "S1": "structural:identity",
+    "S2": "structural:platt",
+    "S3": "structural:beta",
+    "E1": "ensemble:nonneg_simplex"
+  },
+  "per_prop_folds": {
+    "pts": [
+      {
+        "outer_fold_id": 0,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-02",
+        "outer_val_date_min": "2026-06-03",
+        "outer_val_date_max": "2026-06-05",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7374000637942852,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.6797754675428633,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7095560458847429,
+            "inner_folds_used": 1,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "a97a4d35471634fa",
+        "outer_val_date_hash": "2f7542d6eef772e0",
+        "selection_hash": "89aee506a229d86e"
+      },
+      {
+        "outer_fold_id": 1,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-05",
+        "outer_val_date_min": "2026-06-06",
+        "outer_val_date_max": "2026-06-08",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7858694907263515,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.6987890609836638,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.741681723055695,
+            "inner_folds_used": 2,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "cb5a366c92f18747",
+        "outer_val_date_hash": "1ff1d7e03f61c469",
+        "selection_hash": "97a2127df0f2203a"
+      },
+      {
+        "outer_fold_id": 2,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-08",
+        "outer_val_date_min": "2026-06-09",
+        "outer_val_date_max": "2026-06-11",
+        "chronology_pass": true,
+        "selected_candidate": "S1",
+        "selected_source": "structural",
+        "selected_method": "identity",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7173100837599732,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.6886254545250319,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.6866023984336959,
+            "inner_folds_used": 3,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "36afdd4833ea53a8",
+        "outer_val_date_hash": "34340997b8a699d5",
+        "selection_hash": "a343817db2021d53"
+      },
+      {
+        "outer_fold_id": 3,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-11",
+        "outer_val_date_min": "2026-06-12",
+        "outer_val_date_max": "2026-06-14",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7393481161999842,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.6917150449029346,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7379666498747183,
+            "inner_folds_used": 4,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "ae5ba1ca6ebc2147",
+        "outer_val_date_hash": "cc04c3ddb4bcfb9f",
+        "selection_hash": "d7e7af77f6887d95"
+      },
+      {
+        "outer_fold_id": 4,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-14",
+        "outer_val_date_min": "2026-06-16",
+        "outer_val_date_max": "2026-06-18",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7177504961636328,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.689717796805367,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.6933982597414365,
+            "inner_folds_used": 5,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "fc40636ef812876c",
+        "outer_val_date_hash": "a31e36d7389c45f5",
+        "selection_hash": "47d215f8b9796b9a"
+      },
+      {
+        "outer_fold_id": 5,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-18",
+        "outer_val_date_min": "2026-06-19",
+        "outer_val_date_max": "2026-06-21",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7599521042765233,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.6986718541842999,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7620069143673921,
+            "inner_folds_used": 6,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "1b4f5c92e3fe47b1",
+        "outer_val_date_hash": "515e2f1e37ef143e",
+        "selection_hash": "d98a3557314779f5"
+      },
+      {
+        "outer_fold_id": 6,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-21",
+        "outer_val_date_min": "2026-06-22",
+        "outer_val_date_max": "2026-06-25",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7551339635112375,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7009101506905545,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7256787146318573,
+            "inner_folds_used": 7,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d50448dde14ccf41",
+        "outer_val_date_hash": "bcfe2782cbd44a75",
+        "selection_hash": "d6280df49955f4cd"
+      },
+      {
+        "outer_fold_id": 7,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-25",
+        "outer_val_date_min": "2026-06-26",
+        "outer_val_date_max": "2026-06-28",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7503974480470557,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7245053015494114,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7368382336258898,
+            "inner_folds_used": 8,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "3fc884f4ca165848",
+        "outer_val_date_hash": "dfd39bb58f2479ff",
+        "selection_hash": "022ba2563c312df3"
+      },
+      {
+        "outer_fold_id": 8,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-28",
+        "outer_val_date_min": "2026-06-30",
+        "outer_val_date_max": "2026-07-03",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7521394306973456,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7202643021226566,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7411458567558601,
+            "inner_folds_used": 9,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "06b9f49c689d4e32",
+        "outer_val_date_hash": "c2fdc0e9043a0ab2",
+        "selection_hash": "b2333a9d9bc2b7e8"
+      },
+      {
+        "outer_fold_id": 9,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-03",
+        "outer_val_date_min": "2026-07-04",
+        "outer_val_date_max": "2026-07-06",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.758908884267111,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7187319423095583,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7419174695685983,
+            "inner_folds_used": 10,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "7aa4d0ccecb69be4",
+        "outer_val_date_hash": "31a960429a4b23b1",
+        "selection_hash": "64751f07b6ada55f"
+      },
+      {
+        "outer_fold_id": 10,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-06",
+        "outer_val_date_min": "2026-07-08",
+        "outer_val_date_max": "2026-07-11",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7398726672601057,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7130202390455507,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7272034118655518,
+            "inner_folds_used": 11,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "dc8fd3899504b868",
+        "outer_val_date_hash": "f873bdec1e2c78b1",
+        "selection_hash": "5d8bce14c2b1bcf5"
+      },
+      {
+        "outer_fold_id": 11,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-11",
+        "outer_val_date_min": "2026-07-12",
+        "outer_val_date_max": "2026-07-14",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.757158467939854,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.714533522480809,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7407286020134117,
+            "inner_folds_used": 12,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "0503869bb2d4f395",
+        "outer_val_date_hash": "3fe6473c7f11f414",
+        "selection_hash": "953956e5935af5e9"
+      },
+      {
+        "outer_fold_id": 12,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-14",
+        "outer_val_date_min": "2026-07-15",
+        "outer_val_date_max": "2026-07-17",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7542706109876517,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7130334414066815,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7475176260663582,
+            "inner_folds_used": 13,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d6df1b7881cfcdab",
+        "outer_val_date_hash": "f47787dbabe1a957",
+        "selection_hash": "aba30bf1fcda835a"
+      },
+      {
+        "outer_fold_id": 13,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-17",
+        "outer_val_date_min": "2026-07-19",
+        "outer_val_date_max": "2026-07-19",
+        "chronology_pass": true,
+        "selected_candidate": "P3",
+        "selected_source": "direct",
+        "selected_method": "isotonic",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7498696766189834,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "P3": {
+            "inner_mean_logloss": 0.7118937139516927,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7457793712751293,
+            "inner_folds_used": 14,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "edcdce0cd489e7b1",
+        "outer_val_date_hash": "bc0d014812921636",
+        "selection_hash": "7b4517e522a66df9"
+      }
+    ],
+    "reb": [
+      {
+        "outer_fold_id": 0,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-02",
+        "outer_val_date_min": "2026-06-03",
+        "outer_val_date_max": "2026-06-05",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.1795984942495395
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 1.0074478782547625,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7880900877470679,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.9302557261830303,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7698758056967331,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7880900877470679,
+            "inner_folds_used": 1,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "a97a4d35471634fa",
+        "outer_val_date_hash": "2f7542d6eef772e0",
+        "selection_hash": "9187315eb547cfbf"
+      },
+      {
+        "outer_fold_id": 1,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-05",
+        "outer_val_date_min": "2026-06-06",
+        "outer_val_date_max": "2026-06-08",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.21180400279582376
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.9239537618472504,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7445810760777138,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.820160468524511,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.732171662104064,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7445810760777138,
+            "inner_folds_used": 2,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "cb5a366c92f18747",
+        "outer_val_date_hash": "1ff1d7e03f61c469",
+        "selection_hash": "2acebdd24ca91822"
+      },
+      {
+        "outer_fold_id": 2,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-08",
+        "outer_val_date_min": "2026-06-09",
+        "outer_val_date_max": "2026-06-11",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.9749894218109377,
+            0.02501057818906227
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7630586070880349,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6971841440517631,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7169806129751272,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7002674099003979,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6971394397434145,
+            "inner_folds_used": 3,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "36afdd4833ea53a8",
+        "outer_val_date_hash": "34340997b8a699d5",
+        "selection_hash": "3be9654140b22924"
+      },
+      {
+        "outer_fold_id": 3,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-11",
+        "outer_val_date_min": "2026-06-12",
+        "outer_val_date_max": "2026-06-14",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.29952451677495967
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7804130941080714,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7038688622454945,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7299289011876247,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.700061922523807,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7035394301821574,
+            "inner_folds_used": 4,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "ae5ba1ca6ebc2147",
+        "outer_val_date_hash": "cc04c3ddb4bcfb9f",
+        "selection_hash": "caa709d3f5a358aa"
+      },
+      {
+        "outer_fold_id": 4,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-14",
+        "outer_val_date_min": "2026-06-16",
+        "outer_val_date_max": "2026-06-18",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.28307058205836444
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7667116553415017,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7014542038611273,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7317352557429149,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6998213252626378,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7011579164735668,
+            "inner_folds_used": 5,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "fc40636ef812876c",
+        "outer_val_date_hash": "a31e36d7389c45f5",
+        "selection_hash": "6dcca80d67e92931"
+      },
+      {
+        "outer_fold_id": 5,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-18",
+        "outer_val_date_min": "2026-06-19",
+        "outer_val_date_max": "2026-06-21",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            1.0,
+            0.0
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7123650078378906,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6852267445687475,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7077316395352771,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6896399744412279,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6850067886425256,
+            "inner_folds_used": 6,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "1b4f5c92e3fe47b1",
+        "outer_val_date_hash": "515e2f1e37ef143e",
+        "selection_hash": "05e3df49774ccf69"
+      },
+      {
+        "outer_fold_id": 6,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-21",
+        "outer_val_date_min": "2026-06-22",
+        "outer_val_date_max": "2026-06-25",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            1.0,
+            5.551115123125783e-17
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7107473903197423,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6793531225341045,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.6977591495363475,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6869919063133139,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6791645888830572,
+            "inner_folds_used": 7,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d50448dde14ccf41",
+        "outer_val_date_hash": "bcfe2782cbd44a75",
+        "selection_hash": "62e80471db2782df"
+      },
+      {
+        "outer_fold_id": 7,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-25",
+        "outer_val_date_min": "2026-06-26",
+        "outer_val_date_max": "2026-06-28",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.3110028956437305
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7240097051863248,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6878144733845635,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.6927859604418268,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6854126629374215,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6873386716712565,
+            "inner_folds_used": 8,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "3fc884f4ca165848",
+        "outer_val_date_hash": "dfd39bb58f2479ff",
+        "selection_hash": "49cf5a309555a0cd"
+      },
+      {
+        "outer_fold_id": 8,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-28",
+        "outer_val_date_min": "2026-06-30",
+        "outer_val_date_max": "2026-07-03",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.3469484732484496
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7400877406116618,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6940838198689981,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7042477665154417,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.689432636017203,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6933578066718961,
+            "inner_folds_used": 9,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "06b9f49c689d4e32",
+        "outer_val_date_hash": "c2fdc0e9043a0ab2",
+        "selection_hash": "62a0f551cfa7f145"
+      },
+      {
+        "outer_fold_id": 9,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-03",
+        "outer_val_date_min": "2026-07-04",
+        "outer_val_date_max": "2026-07-06",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.3516862985060257
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7454597371572977,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.696475655327713,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7067976140471197,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6904505192739427,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6953358422769556,
+            "inner_folds_used": 10,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "7aa4d0ccecb69be4",
+        "outer_val_date_hash": "31a960429a4b23b1",
+        "selection_hash": "12f9eb6edc5fbdc9"
+      },
+      {
+        "outer_fold_id": 10,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-06",
+        "outer_val_date_min": "2026-07-08",
+        "outer_val_date_max": "2026-07-11",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.3000222237212811
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7343730181653179,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6920273033686152,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7111861596067766,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6916363011925261,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6921742283101674,
+            "inner_folds_used": 11,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "dc8fd3899504b868",
+        "outer_val_date_hash": "f873bdec1e2c78b1",
+        "selection_hash": "15ca25d58e866a52"
+      },
+      {
+        "outer_fold_id": 11,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-11",
+        "outer_val_date_min": "2026-07-12",
+        "outer_val_date_max": "2026-07-14",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.36029902287436566
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7341789277401722,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.692691008042782,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7142041629984961,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6930233736982006,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6928601903522066,
+            "inner_folds_used": 12,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "0503869bb2d4f395",
+        "outer_val_date_hash": "3fe6473c7f11f414",
+        "selection_hash": "978033fade676ef3"
+      },
+      {
+        "outer_fold_id": 12,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-14",
+        "outer_val_date_min": "2026-07-15",
+        "outer_val_date_max": "2026-07-17",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.3737180456628514
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7299734947094232,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6908874463310126,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7092690453309746,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6911739616464683,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.690994382639784,
+            "inner_folds_used": 13,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d6df1b7881cfcdab",
+        "outer_val_date_hash": "f47787dbabe1a957",
+        "selection_hash": "e54c325efb7e9b44"
+      },
+      {
+        "outer_fold_id": 13,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-17",
+        "outer_val_date_min": "2026-07-19",
+        "outer_val_date_max": "2026-07-19",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.2913546632666652
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7306379212317132,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6915311592770504,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7095917130757515,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6912262421059713,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6915539583693938,
+            "inner_folds_used": 14,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "edcdce0cd489e7b1",
+        "outer_val_date_hash": "bc0d014812921636",
+        "selection_hash": "a02b0e3c51335f18"
+      }
+    ],
+    "ast": [
+      {
+        "outer_fold_id": 0,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-02",
+        "outer_val_date_min": "2026-06-03",
+        "outer_val_date_max": "2026-06-05",
+        "chronology_pass": true,
+        "selected_candidate": "P0",
+        "selected_source": "direct",
+        "selected_method": "identity",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.5890728965122137,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6726986083297202,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "P2": {
+            "inner_mean_logloss": 0.6433498585651778,
+            "inner_folds_used": 1,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "a97a4d35471634fa",
+        "outer_val_date_hash": "2f7542d6eef772e0",
+        "selection_hash": "7e9521d2ff261766"
+      },
+      {
+        "outer_fold_id": 1,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-05",
+        "outer_val_date_min": "2026-06-06",
+        "outer_val_date_max": "2026-06-08",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.11360035363130945
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 1.133620597952297,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7498130866017343,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "P2": {
+            "inner_mean_logloss": 0.8107400346027009,
+            "inner_folds_used": 2,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "cb5a366c92f18747",
+        "outer_val_date_hash": "1ff1d7e03f61c469",
+        "selection_hash": "be577d7a17cdd805"
+      },
+      {
+        "outer_fold_id": 2,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-08",
+        "outer_val_date_min": "2026-06-09",
+        "outer_val_date_max": "2026-06-11",
+        "chronology_pass": true,
+        "selected_candidate": "P2",
+        "selected_source": "direct",
+        "selected_method": "beta",
+        "selected_detail": {
+          "a": -0.016053315100802698,
+          "b": -1.253451665463925
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7928755101453647,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.68950142422355,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "P2": {
+            "inner_mean_logloss": 0.6773348635675785,
+            "inner_folds_used": 3,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "36afdd4833ea53a8",
+        "outer_val_date_hash": "34340997b8a699d5",
+        "selection_hash": "2232189e530615f9"
+      },
+      {
+        "outer_fold_id": 3,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-11",
+        "outer_val_date_min": "2026-06-12",
+        "outer_val_date_max": "2026-06-14",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.11762384864459699
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.766346022794991,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7015332160145427,
+            "inner_folds_used": 4,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "ae5ba1ca6ebc2147",
+        "outer_val_date_hash": "cc04c3ddb4bcfb9f",
+        "selection_hash": "b46749c7ae62a121"
+      },
+      {
+        "outer_fold_id": 4,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-14",
+        "outer_val_date_min": "2026-06-16",
+        "outer_val_date_max": "2026-06-18",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.08862294111833775
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7828212268716501,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6963513633075001,
+            "inner_folds_used": 5,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "fc40636ef812876c",
+        "outer_val_date_hash": "a31e36d7389c45f5",
+        "selection_hash": "3334fa4672dff2cd"
+      },
+      {
+        "outer_fold_id": 5,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-18",
+        "outer_val_date_min": "2026-06-19",
+        "outer_val_date_max": "2026-06-21",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.08926195026651823
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7755470273730172,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6951051861239858,
+            "inner_folds_used": 6,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "1b4f5c92e3fe47b1",
+        "outer_val_date_hash": "515e2f1e37ef143e",
+        "selection_hash": "ea4bdaab7c5f5e50"
+      },
+      {
+        "outer_fold_id": 6,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-21",
+        "outer_val_date_min": "2026-06-22",
+        "outer_val_date_max": "2026-06-25",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.0838109066874185
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7584305908111342,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6915048561344346,
+            "inner_folds_used": 7,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d50448dde14ccf41",
+        "outer_val_date_hash": "bcfe2782cbd44a75",
+        "selection_hash": "4d91b1df2b2ee776"
+      },
+      {
+        "outer_fold_id": 7,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-25",
+        "outer_val_date_min": "2026-06-26",
+        "outer_val_date_max": "2026-06-28",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.07476273148658838
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7528746608663858,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.689171885002843,
+            "inner_folds_used": 8,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "3fc884f4ca165848",
+        "outer_val_date_hash": "dfd39bb58f2479ff",
+        "selection_hash": "eb7e617ee8ffcf9b"
+      },
+      {
+        "outer_fold_id": 8,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-28",
+        "outer_val_date_min": "2026-06-30",
+        "outer_val_date_max": "2026-07-03",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.06955453829038136
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7568156945479395,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6903781660056968,
+            "inner_folds_used": 9,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "06b9f49c689d4e32",
+        "outer_val_date_hash": "c2fdc0e9043a0ab2",
+        "selection_hash": "902e209a4bedf302"
+      },
+      {
+        "outer_fold_id": 9,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-03",
+        "outer_val_date_min": "2026-07-04",
+        "outer_val_date_max": "2026-07-06",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.0939486093218007
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7485028630858864,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6914112465260587,
+            "inner_folds_used": 10,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "7aa4d0ccecb69be4",
+        "outer_val_date_hash": "31a960429a4b23b1",
+        "selection_hash": "3141920832a3772c"
+      },
+      {
+        "outer_fold_id": 10,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-06",
+        "outer_val_date_min": "2026-07-08",
+        "outer_val_date_max": "2026-07-11",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.09721991568612942
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.708426350873384,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6778047691054444,
+            "inner_folds_used": 11,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "dc8fd3899504b868",
+        "outer_val_date_hash": "f873bdec1e2c78b1",
+        "selection_hash": "309079e9d90d2d16"
+      },
+      {
+        "outer_fold_id": 11,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-11",
+        "outer_val_date_min": "2026-07-12",
+        "outer_val_date_max": "2026-07-14",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.10757323974319817
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7343957937496844,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6858835413845515,
+            "inner_folds_used": 12,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "0503869bb2d4f395",
+        "outer_val_date_hash": "3fe6473c7f11f414",
+        "selection_hash": "79fce53e001e52f2"
+      },
+      {
+        "outer_fold_id": 12,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-14",
+        "outer_val_date_min": "2026-07-15",
+        "outer_val_date_max": "2026-07-17",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.1255443826918638
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7287931098594485,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6847372193919933,
+            "inner_folds_used": 13,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d6df1b7881cfcdab",
+        "outer_val_date_hash": "f47787dbabe1a957",
+        "selection_hash": "82e2810e8b6b1460"
+      },
+      {
+        "outer_fold_id": 13,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-17",
+        "outer_val_date_min": "2026-07-19",
+        "outer_val_date_max": "2026-07-19",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.124676717988466
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7397534874541895,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6877961272179653,
+            "inner_folds_used": 14,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "edcdce0cd489e7b1",
+        "outer_val_date_hash": "bc0d014812921636",
+        "selection_hash": "06184222f56017a0"
+      }
+    ],
+    "fg3m": [
+      {
+        "outer_fold_id": 0,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-02",
+        "outer_val_date_min": "2026-06-03",
+        "outer_val_date_max": "2026-06-05",
+        "chronology_pass": true,
+        "selected_candidate": "S1",
+        "selected_source": "structural",
+        "selected_method": "identity",
+        "selected_detail": {},
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.808683709888997,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 1.0190555090451512,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "P2": {
+            "inner_mean_logloss": 1.027872123475285,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7872266654624787,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.9385534408313765,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "S3": {
+            "inner_mean_logloss": 0.9385439602931085,
+            "inner_folds_used": 1,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.9396393710714266,
+            "inner_folds_used": 1,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "a97a4d35471634fa",
+        "outer_val_date_hash": "2f7542d6eef772e0",
+        "selection_hash": "5891bb09df63b39d"
+      },
+      {
+        "outer_fold_id": 1,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-05",
+        "outer_val_date_min": "2026-06-06",
+        "outer_val_date_max": "2026-06-08",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.10564782344693276
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7647738284925323,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.737509655970809,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.9189207486840139,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7976865252278742,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "S3": {
+            "inner_mean_logloss": 0.7993188926684294,
+            "inner_folds_used": 2,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7978441556318683,
+            "inner_folds_used": 2,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "cb5a366c92f18747",
+        "outer_val_date_hash": "1ff1d7e03f61c469",
+        "selection_hash": "eee4fd881ffc92a7"
+      },
+      {
+        "outer_fold_id": 2,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-08",
+        "outer_val_date_min": "2026-06-09",
+        "outer_val_date_max": "2026-06-11",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.46270215225868594
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.8196073449986114,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7413663193804126,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7321418828322234,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7241306009669155,
+            "inner_folds_used": 3,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7242385520710107,
+            "inner_folds_used": 3,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "36afdd4833ea53a8",
+        "outer_val_date_hash": "34340997b8a699d5",
+        "selection_hash": "1bbd99daf8be4ef5"
+      },
+      {
+        "outer_fold_id": 3,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-11",
+        "outer_val_date_min": "2026-06-12",
+        "outer_val_date_max": "2026-06-14",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.34194837507386183,
+            0.6580516249261382
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7996073484267837,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7249957094930526,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7643117864365844,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7282776067769299,
+            "inner_folds_used": 4,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7243046220982514,
+            "inner_folds_used": 4,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "ae5ba1ca6ebc2147",
+        "outer_val_date_hash": "cc04c3ddb4bcfb9f",
+        "selection_hash": "28ca26dd18764c12"
+      },
+      {
+        "outer_fold_id": 4,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-14",
+        "outer_val_date_min": "2026-06-16",
+        "outer_val_date_max": "2026-06-18",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.3196540463249751,
+            0.6803459536750248
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.8314007806273939,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.730090284181885,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7806085004336014,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.729828726441131,
+            "inner_folds_used": 5,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7273153410601515,
+            "inner_folds_used": 5,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "fc40636ef812876c",
+        "outer_val_date_hash": "a31e36d7389c45f5",
+        "selection_hash": "5b5b98001237149d"
+      },
+      {
+        "outer_fold_id": 5,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-18",
+        "outer_val_date_min": "2026-06-19",
+        "outer_val_date_max": "2026-06-21",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.17991381531168216
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7450817851363043,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7015763893925101,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7534411705233482,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7147433421388931,
+            "inner_folds_used": 6,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.70583608900552,
+            "inner_folds_used": 6,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "1b4f5c92e3fe47b1",
+        "outer_val_date_hash": "515e2f1e37ef143e",
+        "selection_hash": "968ebf04e8f00bdb"
+      },
+      {
+        "outer_fold_id": 6,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-21",
+        "outer_val_date_min": "2026-06-22",
+        "outer_val_date_max": "2026-06-25",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.37673390603974183,
+            0.6232660939602581
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7629966557419078,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7027622664262582,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7247396210083145,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7013046406045502,
+            "inner_folds_used": 7,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6998983000474445,
+            "inner_folds_used": 7,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d50448dde14ccf41",
+        "outer_val_date_hash": "bcfe2782cbd44a75",
+        "selection_hash": "441536ae0a95e42e"
+      },
+      {
+        "outer_fold_id": 7,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-25",
+        "outer_val_date_min": "2026-06-26",
+        "outer_val_date_max": "2026-06-28",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.42128457250445406
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7848333733462636,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7109409431585041,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7300773780875298,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7038309571779221,
+            "inner_folds_used": 8,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7041344753391803,
+            "inner_folds_used": 8,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "3fc884f4ca165848",
+        "outer_val_date_hash": "dfd39bb58f2479ff",
+        "selection_hash": "d270bd36f06910bd"
+      },
+      {
+        "outer_fold_id": 8,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-06-28",
+        "outer_val_date_min": "2026-06-30",
+        "outer_val_date_max": "2026-07-03",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.2540407265322255,
+            0.7459592734677745
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7657140026000712,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7046067790038656,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7244761248431003,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7007256193996931,
+            "inner_folds_used": 9,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7000646651630948,
+            "inner_folds_used": 9,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "06b9f49c689d4e32",
+        "outer_val_date_hash": "c2fdc0e9043a0ab2",
+        "selection_hash": "ac7ec656edca3818"
+      },
+      {
+        "outer_fold_id": 9,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-03",
+        "outer_val_date_min": "2026-07-04",
+        "outer_val_date_max": "2026-07-06",
+        "chronology_pass": true,
+        "selected_candidate": "S2",
+        "selected_source": "structural",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.4136010663176248
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7852897223046182,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.7126960242849792,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7271363452412329,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.7042487137251408,
+            "inner_folds_used": 10,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.7049915413382277,
+            "inner_folds_used": 10,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "7aa4d0ccecb69be4",
+        "outer_val_date_hash": "31a960429a4b23b1",
+        "selection_hash": "cf719ba56f4fce09"
+      },
+      {
+        "outer_fold_id": 10,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-06",
+        "outer_val_date_min": "2026-07-08",
+        "outer_val_date_max": "2026-07-11",
+        "chronology_pass": true,
+        "selected_candidate": "P1",
+        "selected_source": "direct",
+        "selected_method": "platt",
+        "selected_detail": {
+          "slope": 0.2323815909471609
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7301705112369781,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6883456520845024,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.713642047328225,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6916098581737327,
+            "inner_folds_used": 11,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6891247410524421,
+            "inner_folds_used": 11,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "dc8fd3899504b868",
+        "outer_val_date_hash": "f873bdec1e2c78b1",
+        "selection_hash": "3713e08b7b41d6f2"
+      },
+      {
+        "outer_fold_id": 11,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-11",
+        "outer_val_date_min": "2026-07-12",
+        "outer_val_date_max": "2026-07-14",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.3627788343692378,
+            0.6372211656307623
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7508726249805622,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6995202108756905,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7165415780885348,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6960328033028471,
+            "inner_folds_used": 12,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6956557909036886,
+            "inner_folds_used": 12,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "0503869bb2d4f395",
+        "outer_val_date_hash": "3fe6473c7f11f414",
+        "selection_hash": "ec60f026987b7abf"
+      },
+      {
+        "outer_fold_id": 12,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-14",
+        "outer_val_date_min": "2026-07-15",
+        "outer_val_date_max": "2026-07-17",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.4190260523449966,
+            0.5809739476550033
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7266503091686959,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.6897322604287923,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7124356708259334,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6911322834987298,
+            "inner_folds_used": 13,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6880197555322043,
+            "inner_folds_used": 13,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "d6df1b7881cfcdab",
+        "outer_val_date_hash": "f47787dbabe1a957",
+        "selection_hash": "113b4cfc6c1b1e6b"
+      },
+      {
+        "outer_fold_id": 13,
+        "outer_train_date_min": "2026-05-08",
+        "outer_train_date_max": "2026-07-17",
+        "outer_val_date_min": "2026-07-19",
+        "outer_val_date_max": "2026-07-19",
+        "chronology_pass": true,
+        "selected_candidate": "E1",
+        "selected_source": "ensemble",
+        "selected_method": "nonneg_simplex",
+        "selected_detail": {
+          "bases": [
+            "P1",
+            "S2"
+          ],
+          "weights": [
+            0.38660878422205586,
+            0.6133912157779442
+          ]
+        },
+        "inner_candidate_scores": {
+          "P0": {
+            "inner_mean_logloss": 0.7426319339185828,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "P1": {
+            "inner_mean_logloss": 0.694502311965808,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "S1": {
+            "inner_mean_logloss": 0.7137757567674329,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "S2": {
+            "inner_mean_logloss": 0.6924966918015005,
+            "inner_folds_used": 14,
+            "monotone": true
+          },
+          "E1": {
+            "inner_mean_logloss": 0.6914637458243489,
+            "inner_folds_used": 14,
+            "monotone": true
+          }
+        },
+        "outer_train_date_hash": "edcdce0cd489e7b1",
+        "outer_val_date_hash": "bc0d014812921636",
+        "selection_hash": "09a604bf1e3bdfde"
+      }
+    ]
+  }
+}
