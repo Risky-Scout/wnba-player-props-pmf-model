@@ -138,11 +138,25 @@ def _full_pmf_logscore(pmf_json: str, actual: float) -> float:
 
 def _settled_over_from_active(active_pmf_json: str, line: float) -> float | None:
     """Push-safe P(over) settled from the ACTIVE (conditional-on-play) PMF, or None if
-    undefined (all settled mass on the push)."""
+    undefined (all settled mass on the push).
+
+    Owner item 3: this delegates to the SHARED settlement entrypoint
+    ``build_settled_probability_from_active_pmf`` so OOF scoring/replay and live delivery use
+    the exact same code path (there is no second active-PMF settlement implementation). With a
+    disabled (identity) registry the returned settled probability is pre-calibration, matching
+    the previous behaviour bit-for-bit while routing through the single shared function.
+    """
+    from wnba_props_model.models.probability_lineage import (  # noqa: PLC0415
+        build_settled_probability_from_active_pmf,
+    )
     try:
-        return float(settle_over_from_active_pmf(active_pmf_json, float(line)).p_over_settled)
+        lin = build_settled_probability_from_active_pmf(
+            active_pmf=json_to_pmf(active_pmf_json), line=float(line),
+            prop="", role="all", binary_calibration_registry=None,
+        )
     except (UndefinedSettledProbabilityError, ValueError):
         return None
+    return lin.model_prob_over_settled_from_final_pmf
 
 
 def _fit_calibrator(cid, tr):

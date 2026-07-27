@@ -204,3 +204,63 @@ def test_missing_did_play_non_strict_falls_back_and_warns():
     model.fit(X, y, meta_no_didplay)
     assert model._fitted
     assert model.get_training_summary()["trained_minutes_on_appearances_only"] is False
+
+
+# ---------------------------------------------------------------------------
+# Owner item 9 — explicitly-named appearance/DNP/temporal tests
+# ---------------------------------------------------------------------------
+
+def _fit_with_regressor_row_spy():
+    X, y, meta, dnp_mask = _synth()
+    n_appear = int((~dnp_mask).sum())
+    rows: list[int] = []
+    orig = mm.HistGradientBoostingRegressor.fit
+
+    def spy(self, Xf, yf, sample_weight=None):  # noqa: ANN001
+        rows.append(len(Xf))
+        return orig(self, Xf, yf, sample_weight=sample_weight)
+
+    model = MinutesModel({"hgb_regressor": {"max_iter": 40}})
+    with mock.patch.object(mm.HistGradientBoostingRegressor, "fit", spy):
+        model.fit(X, y, meta)
+    return model, rows, n_appear, len(X)
+
+
+def test_minutes_mean_uses_appearances_only():
+    model, rows, n_appear, _ = _fit_with_regressor_row_spy()
+    # The mean regressor is the FIRST HGB regressor fitted -> appearance rows only.
+    assert rows[0] == n_appear
+    assert model.get_training_summary()["trained_minutes_on_appearances_only"] is True
+
+
+def test_minutes_quantiles_use_appearances_only():
+    _, rows, n_appear, _ = _fit_with_regressor_row_spy()
+    # mean + 5 quantile regressors: EVERY conditional regressor saw appearances only.
+    assert len(rows) == 6
+    assert all(r == n_appear for r in rows)
+
+
+def test_dnp_classifier_uses_all_rows():
+    model, _, n_appear, n_total = _fit_with_regressor_row_spy()
+    assert n_appear < n_total  # the fixture has genuine DNP rows
+    assert model._dnp_model is not None
+    assert model.get_training_summary()["dnp_model_fitted"] is True
+
+
+def test_dnp_classifier_uses_temporal_weights():
+    X, y, meta, dnp_mask = _synth()
+    n = len(X)
+    sw = np.linspace(0.1, 2.0, n)  # temporal-decay-like weights
+    captured = {}
+    orig_pipe_fit = mm.Pipeline.fit
+
+    def spy_pipe(self, Xf, yf=None, **kw):  # noqa: ANN001
+        captured["dnp_w"] = kw.get("clf__sample_weight")
+        captured["rows"] = len(Xf)
+        return orig_pipe_fit(self, Xf, yf, **kw)
+
+    model = MinutesModel({"hgb_regressor": {"max_iter": 40}})
+    with mock.patch.object(mm.Pipeline, "fit", spy_pipe):
+        model.fit(X, y, meta, sample_weight=sw)
+    assert captured["rows"] == n  # DNP head sees ALL rows...
+    np.testing.assert_allclose(np.asarray(captured["dnp_w"], float), sw)  # ...with full weights

@@ -138,3 +138,77 @@ def build_probability_lineage(
         structural_model_hash=structural_model_hash,
         binary_score_eligible=binary_eligible,
     )
+
+
+def build_settled_probability_from_active_pmf(
+    *,
+    active_pmf: "Mapping[int, float] | Sequence[float]",
+    line: float,
+    prop: str,
+    role: str,
+    binary_calibration_registry: BinaryCalibrationRegistry | None = None,
+    structural_model_id: str | None = None,
+    structural_model_hash: str | None = None,
+) -> ProbabilityLineage:
+    """SHARED sportsbook settlement for the VOID_DNP rule (owner item 3).
+
+    This is the SINGLE settlement implementation used by BOTH live delivery
+    (``deliver.build_market_comparison``) and OOF scoring/replay
+    (``scripts/evaluate_pure_oof.py``). It settles the binary from the ACTIVE
+    (conditional-on-appearance) PMF — push-safe, void-on-DNP — then applies the
+    monotone pure binary calibrator, via ``build_probability_lineage``.
+
+    ``p_dnp`` is intentionally NOT an argument: under VOID_DNP a did-not-play voids
+    the wager and must not move the settled Over/Under probability. Availability
+    suppression / void-risk status is handled separately by the caller.
+
+    Returns a :class:`ProbabilityLineage` exposing p_over/under_unconditional,
+    p_push, p_over_settled (``model_prob_over_settled_from_final_pmf``),
+    model_prob_over_binary_calibrated, model_prob_over_final, binary_score_eligible,
+    and calibration provenance.
+    """
+    return build_probability_lineage(
+        final_pmf=active_pmf,
+        line=float(line),
+        prop=str(prop),
+        role=str(role),
+        binary_calibration_registry=binary_calibration_registry,
+        market_anchor=None,
+        structural_model_id=structural_model_id,
+        structural_model_hash=structural_model_hash,
+        probability_track="pure_forecast",
+    )
+
+
+def fail_closed_lineage(
+    status: str,
+    *,
+    probability_track: str = "pure_forecast",
+    structural_model_id: str | None = None,
+    structural_model_hash: str | None = None,
+) -> ProbabilityLineage:
+    """A fully fail-closed lineage: NO settled/final probability, binary-ineligible.
+
+    Used when a certified sportsbook probability cannot legitimately be produced —
+    a missing active PMF in certified mode, or an unknown book DNP-settlement rule.
+    NEVER fabricates 0.5, an identity fallback, a legacy PMF, or a ``/(1-p_dnp)``
+    shortcut. ``status`` records the reason (audited downstream).
+    """
+    import math as _math
+    return ProbabilityLineage(
+        model_prob_over_unconditional=_math.nan,
+        model_prob_under_unconditional=_math.nan,
+        model_prob_push=_math.nan,
+        model_prob_over_settled_from_final_pmf=None,
+        model_prob_over_binary_calibrated=None,
+        model_prob_over_market_anchored=None,
+        model_prob_over_final=None,
+        probability_track=probability_track,
+        probability_lineage_version=PROBABILITY_LINEAGE_VERSION,
+        calibration_status=status,
+        calibrator_id=None,
+        calibrator_hash=None,
+        structural_model_id=structural_model_id,
+        structural_model_hash=structural_model_hash,
+        binary_score_eligible=False,
+    )
