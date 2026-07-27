@@ -223,7 +223,7 @@ def test_nested_eval_runs_on_synthetic_join():
                 "crps_active": 1.0,
             })
     pdf = pd.DataFrame(rows)
-    res = ev.nested_eval(pdf, "P1_active_settled_platt", min_train_dates=6, val_block_dates=2)
+    res = ev.nested_eval(pdf, "P1", min_train_dates=6, val_block_dates=2)
     assert res is not None
     assert res["n"] > 0
     assert "model_logloss" in res and "model_crps_active_pmf" in res
@@ -401,7 +401,17 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
     # Repair ladder: the pure recalibration candidate family is reported per prop.
     for prop in metrics["holm_family"]:
         cands = metrics["per_prop"][prop].get("pure_recalibration_candidates", {})
-        assert "P1_active_settled_platt" in cands
+        assert "P1" in cands
+        # ITEM 4: nested selection fold manifest + selected outer-OOF rows are emitted.
+        assert metrics["per_prop"][prop].get("selected_outer_oof") is not None
+        assert "selected_candidate_distribution" in metrics["per_prop"][prop]
+    assert (ev_out / "NESTED_SELECTION_FOLD_MANIFEST.json").exists()
+    assert (ev_out / "NESTED_SELECTED_OOF_ROWS.parquet").exists()
+    # ITEM 5: no verdict may exist without Holm-adjusted p-values populated.
+    for prop in metrics["holm_family"]:
+        rc = metrics["per_prop"][prop].get("real_selection_contract")
+        assert rc is not None
+        assert "holm_pvalues_not_populated" not in rc["fail_reasons"]
     # Structural repair candidate is registered + scored for a supported prop (pts).
     sc = metrics["per_prop"]["pts"].get("structural_repair_candidate")
     assert sc is not None and sc["candidate_id"] == "S_pts_opportunity_conversion"
@@ -430,15 +440,14 @@ def test_pure_recalibration_candidates_are_monotone():
     y = (rng.uniform(size=400) < p).astype(int)  # well-calibrated -> monotone increasing
     tr = pd.DataFrame({"p_over_settled_active": p, "outcome_over": y})
     grid = pd.DataFrame({"p_over_settled_active": np.linspace(0.05, 0.95, 50)})
-    for cand in ("P2_active_settled_isotonic", "P3_active_settled_beta"):
+    for cand in ("P2", "P3"):  # P2 = monotone Beta, P3 = isotonic (owner item 3 naming)
         fn, mono = ev._fit_calibrator(cand, tr)
         assert mono is True
         out = fn(grid)
         assert np.all(np.diff(out) >= -1e-9), f"{cand} must be monotone non-decreasing"
         assert np.all((out >= 0) & (out <= 1))
-    assert set(ev.PURE_RECAL_CANDIDATES) == {
-        "P0_active_settled_identity", "P1_active_settled_platt",
-        "P2_active_settled_isotonic", "P3_active_settled_beta"}
+    assert set(ev.PURE_RECAL_CANDIDATES) == {"P0", "P1", "P2", "P3"}
+    assert set(ev.CANDIDATE_FAMILY) == {"P0", "P1", "P2", "P3", "S1", "S2", "S3", "E1"}
 
 
 def test_onesided_bootstrap_pvalue_semantics():
@@ -454,7 +463,7 @@ def test_onesided_bootstrap_pvalue_semantics():
                          "market_prob_over_no_vig": 0.5,
                          "p_over_settled_active": 0.95 if y else 0.05, "crps_active": 0.1})
     pdf = pd.DataFrame(rows)
-    res = ev.nested_eval(pdf, "P0_active_settled_identity", min_train_dates=6, val_block_dates=2)
+    res = ev.nested_eval(pdf, "P0", min_train_dates=6, val_block_dates=2)
     ci = ev._bootstrap_ci(res, pdf, n_boot=2000)
     assert ci["logloss_p_onesided"] < 0.05
     assert ci["brier_p_onesided"] < 0.05
