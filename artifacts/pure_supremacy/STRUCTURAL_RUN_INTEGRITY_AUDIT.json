@@ -1,0 +1,48 @@
+{
+  "_record_note": {
+    "purpose": "Committed for the record. Result of scripts/audit_structural_run_integrity.py run locally by the owner on the downloaded OOF parquet (too large to commit; only this JSON is committed).",
+    "audited_run_id": "30226689297",
+    "audited_commit": "0aec00c0",
+    "audited_parquet": "data/oof/oof_player_stat_pmfs.parquet (34,636 rows)",
+    "result_summary": "15/16 invariants PASS; 1 FAIL: support_tail_warning.",
+    "support_tail_warning_resolution": "The support_tail_warning FAIL is the pandas>=3.0 bool-dtype issue fixed by commit 55de67e (validation-restoration fix already on head). It is NOT a modeling defect and is resolved on the current branch head.",
+    "structural_repair_finding": {
+      "status": "BLOCKER_ON_AUDITED_RUN_FIXED_ON_HEAD",
+      "structural_active_pmf_json_non_null": 0,
+      "structural_candidate_id_non_null": 0,
+      "structural_active_pmf_json_total": 34636,
+      "note": "On 0aec00c0 the structural repair emitted NO PMF and NO candidate id for any prop (100% NULL). Root cause: the StructuralRepairModel column map defaulted to actual_*-prefixed names while the production feature matrix stores realized per-game volumes BARE (oreb/dreb/fga/fg3a/fta), so _has() found no columns and every prop silently abstained. NOTE: the 'structural_target_mean' column (9,896 non-null) is UNRELATED — it is the AST/TOV minutes-offset rebuild target (pmf_utils.apply_minutes_offset_rebuild), not the structural repair candidate.",
+      "fix_commit": "on current head",
+      "fix": "Added train-time column AUTO-DETECTION (bare vs actual_ aliases) so all three structural props resolve on production column names, plus a pts 3P+non-3P FALLBACK decomposition (uses actual_pts+fg3m+fg3a; no fgm/ftm required). Proven via synthetic build_oof_pmfs --strict-baseline dry-run: structural_active_pmf_json non-null + structural_candidate_id populated for pts/reb/fg3m."
+    }
+  },
+  "overall_passed": false,
+  "n_rows": 34636,
+  "row_checks": {
+    "pmf_parses": {"passed": true, "n_fail": 0, "examples": []},
+    "pmf_finite_nonnegative": {"passed": true, "n_fail": 0, "examples": []},
+    "pmf_sums_to_one": {"passed": true, "n_fail": 0, "examples": []},
+    "pmf_mean_matches": {"passed": true, "n_fail": 0, "examples": []},
+    "pmf_variance_matches": {"passed": true, "n_fail": 0, "examples": []},
+    "active_pmf_valid": {"passed": true, "n_fail": 0, "examples": []},
+    "availability_mixture_valid": {"passed": true, "n_fail": 0, "examples": []},
+    "no_prior_only_or_failed": {"passed": true, "n_fail": 0, "examples": []},
+    "information_contract_pure": {"passed": true, "n_fail": 0, "examples": []},
+    "market_weight_zero": {"passed": true, "n_fail": 0, "examples": []},
+    "no_temporal_leakage": {"passed": true, "n_fail": 0, "examples": []},
+    "ast_tov_integrity": {"passed": true, "n_fail": 0, "examples": []},
+    "structural_fields_valid": {"passed": true, "n_fail": 0, "examples": []}
+  },
+  "all_seven_props_present": {
+    "passed": true,
+    "props_present": ["ast", "blk", "fg3m", "pts", "reb", "stl", "turnover"],
+    "missing_props": []
+  },
+  "no_forbidden_market_feature": {"passed": true, "forbidden_columns_present": []},
+  "support_tail_warning": {
+    "passed": false,
+    "reason": "pandas>=3.0 bool-dtype issue (non-boolean / missing values); resolved by 55de67e on head",
+    "resolved_by_commit": "55de67e"
+  },
+  "source_parquet": "data/oof/oof_player_stat_pmfs.parquet"
+}
