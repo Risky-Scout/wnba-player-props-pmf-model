@@ -33,6 +33,18 @@
         ".github/workflows/pregame_final.yml"
       ],
       "expiration": "2026-12-31"
+    },
+    {
+      "schema_version": 1,
+      "approved_branch": "cursor/pure-model-supremacy-v1",
+      "approved_base_sha": "e450d462f14a15c7b41d41fe33276f5c235a3aa1",
+      "purpose": "PR #87 - repair the confirmed delivery<->OOF settlement mismatch: certified sportsbook scoring must settle model_prob_over_final from the ACTIVE (conditional-on-appearance, void-on-DNP) PMF, not the DNP availability-mixture PMF.",
+      "approved_by": "owner directive (principal ML engineer: audit/repair participation-minutes-stat factorization)",
+      "reason": "Only the settlement call-site in deliver.build_market_comparison changes: it now settles from active_pmf_json via the shared build_settled_probability_from_active_pmf, is book-DNP-rule aware (VOID_DNP->active, SETTLES_DNP_AS_UNDER->mixture, UNKNOWN->fail closed), fails closed when the active PMF is missing (no mixture/identity/division fallback), and keeps a labeled NON_CERTIFIED legacy replay path. No change to production calibration defaults.",
+      "approved_paths": [
+        "src/wnba_props_model/pipeline/deliver.py"
+      ],
+      "expiration": "2026-12-31"
     }
   ]
 }
