@@ -1,0 +1,77 @@
+{
+  "assets": {
+    "tracking": "wnba_tracking_2021_2026.parquet (hash-verified)",
+    "hustle": "171 rows - unusable"
+  },
+  "canonical_box_seasons": [
+    2025,
+    2026
+  ],
+  "note": "Canonical box exists only for 2025-2026; pre-2025 tracking games have NO canonical game to map to and are out-of-scope for certified use, not identity failures.",
+  "per_season": {
+    "2021": {
+      "tracking_games": 209,
+      "mapped_games": 0,
+      "coverage": 0.0,
+      "in_canonical_box": false
+    },
+    "2022": {
+      "tracking_games": 239,
+      "mapped_games": 0,
+      "coverage": 0.0,
+      "in_canonical_box": false
+    },
+    "2023": {
+      "tracking_games": 260,
+      "mapped_games": 0,
+      "coverage": 0.0,
+      "in_canonical_box": false
+    },
+    "2024": {
+      "tracking_games": 262,
+      "mapped_games": 0,
+      "coverage": 0.0,
+      "in_canonical_box": false
+    },
+    "2025": {
+      "tracking_games": 310,
+      "mapped_games": 310,
+      "coverage": 1.0,
+      "in_canonical_box": true
+    },
+    "2026": {
+      "tracking_games": 196,
+      "mapped_games": 196,
+      "coverage": 1.0,
+      "in_canonical_box": true
+    }
+  },
+  "player_crosswalk": {
+    "one_to_one_persons": 262,
+    "conflicts": 0
+  },
+  "gates": {
+    "canonical_seasons_coverage": 1.0,
+    "canonical_coverage_ok(>=0.99)": true,
+    "each_canonical_season_ge_0.975": true,
+    "market_eligible_games": 99,
+    "market_eligible_covered": 98,
+    "market_eligible_100pct": false,
+    "ambiguous_player_conflicts": 0,
+    "duplicate_canonical_game_keys": 0,
+    "all_gates_pass": false
+  },
+  "market_eligible_uncovered_detail": [
+    {
+      "game_id": 24896,
+      "date": "2026-06-30",
+      "season": 2026,
+      "teams": [
+        "LV",
+        "NY"
+      ],
+      "reason": "absent_from_tracking_release_upstream_coverage_gap"
+    }
+  ],
+  "classification": "PARTIALLY_USABLE"
+}
