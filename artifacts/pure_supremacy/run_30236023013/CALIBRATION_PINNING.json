@@ -1,0 +1,24 @@
+{
+  "purpose": "Owner step 5 — pin the calibration package used to score the recovered OOF run 30236023013.",
+  "oof_run_commit": "dad8a013ec830e711a93e8d09aa76c67f8fb30e7",
+  "oof_config_hash": "24f66d2eb90d5734071d0f2994d075bf9d3601802299cd2827725a922f7dff57",
+  "oof_feature_contract_hash": "fd46f2445f8b1792d220df8358e43a3928df5e3b695a0f51f31b365c6273a9a9",
+  "oof_encoder_hash": "6f49cdbd80e1b95d5e6427e1501fc217790daee87055fa5b4e71064288bddede",
+  "oof_features_wide_hash": "2d026e1bbba000c5c2f0d1dbde946d3ef1362ae658f8f64b64967e68bf04b39a",
+  "oof_features_long_hash": "5bd185623b73931eedd56ddc83e32e780d7db44e40a815439e8faa562e8071b4",
+  "oof_is_calibrated": false,
+  "oof_rows_total": 34636,
+  "oof_rows_is_calibrated_false": 34636,
+  "oof_calibrator_hash": "uncalibrated_oof_is_calibrated_false",
+  "current_main_commit": "24c2618df80e8a94a996fadacaf3a9e820f91e5a",
+  "current_main_calibrator_commit_subject": "chore: biday calibrator refit run 30260832495 [skip ci]",
+  "current_main_calibrator_files_changed": [
+    "models/calibration/calibration_metadata.json",
+    "models/calibration/conformal_predictor.pkl",
+    "models/calibration/player_variance_compress.json",
+    "models/calibration/pmf_cal_role_stocks.pkl",
+    "models/calibration/variance_compress.json"
+  ],
+  "classification": "COMPATIBLE_AND_FROZEN",
+  "classification_rationale": "The recovered OOF is UNCALIBRATED by design (walk-forward, is_calibrated=False for all 34,636 rows) to avoid validation/test calibration leakage. evaluate_pure_oof scores these uncalibrated PMFs directly against exact same-book no-vig quotes, so NO calibrator (neither the run-time nor the post-merge 24c2618d refit) is applied to the historical OOF rows. The post-merge calibrator refit therefore cannot leak into or alter the authoritative historical evaluation. A CALIBRATED historical evaluation would instead REQUIRE_NEW_CROSSFIT (per-fold chronological calibrators referenced by the run manifest); that is out of scope for the uncalibrated authoritative OOF measurement."
+}
