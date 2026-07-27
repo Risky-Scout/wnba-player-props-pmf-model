@@ -147,6 +147,20 @@ structural_repair:
   kappa_conversion: 40.0
   usage_grid: [0.85, 1.0, 1.15]
   usage_weights: [0.25, 0.5, 0.25]
+  # Map the structural model's logical box-score inputs to the ACTUAL feature-matrix column
+  # names. The realized per-game box-score volumes are stored bare (oreb/dreb/fga/fg3a/fta) while
+  # the settled outcomes carry the actual_ prefix (actual_minutes/actual_fg3m). Without this map
+  # the model looked for actual_oreb/actual_fg3a/... , found none, and silently abstained on every
+  # prop. With it, reb (oreb+dreb) and fg3m (3PA hurdle × 3P conversion) are supported; pts stays
+  # unsupported because BDL provides no total FG-made / FT-made (fgm/ftm) column to split 2P/FT.
+  columns:
+    minutes: actual_minutes
+    fg3m: actual_fg3m
+    fg3a: fg3a
+    fga: fga
+    fta: fta
+    oreb: oreb
+    dreb: dreb
 use_positional_defense_features: true
 use_ewma_features: true
 use_matchup_features: true

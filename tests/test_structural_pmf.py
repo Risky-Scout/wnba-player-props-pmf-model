@@ -235,6 +235,60 @@ def test_structural_model_abstains_when_columns_missing():
     assert m.build_active_pmf_matrix("pts", df.head(3), df["actual_minutes"].to_numpy(float)[:3], 60) is None
 
 
+def _production_named_boxscore(n=400, seed=7):
+    """Synthetic frame using the ACTUAL feature-matrix column names: realized per-game volumes are
+    bare (oreb/dreb/fga/fg3a/fta) and settled outcomes carry actual_ (actual_minutes/actual_fg3m).
+    No fgm/ftm column exists (BDL does not provide total FG-made / FT-made)."""
+    rng = np.random.default_rng(seed)
+    minutes = np.clip(rng.normal(24, 6, n), 4, 40)
+    fg3a = rng.poisson(np.clip(minutes * 0.12, 0.05, None))
+    fg3m = rng.binomial(np.clip(fg3a, 0, None).astype(int), 0.35)
+    fga = fg3a + rng.poisson(np.clip(minutes * 0.25, 0.05, None))
+    fta = rng.poisson(np.clip(minutes * 0.10, 0.05, None))
+    oreb = rng.poisson(np.clip(minutes * 0.06, 0.05, None))
+    dreb = rng.poisson(np.clip(minutes * 0.18, 0.05, None))
+    return pd.DataFrame({
+        "player_id": rng.integers(0, 60, n).astype(str),
+        "team_id": rng.integers(0, 12, n).astype(str),
+        "position": rng.choice(["G", "F", "C"], n),
+        "player_minutes_mean_l5": minutes + rng.normal(0, 2, n),
+        "actual_minutes": minutes, "actual_fg3m": fg3m,
+        "fga": fga, "fg3a": fg3a, "fta": fta, "oreb": oreb, "dreb": dreb,
+    })
+
+
+def _stage5_oof_config():
+    import yaml  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+    cfg_path = Path(__file__).resolve().parent.parent / "config" / "model" / "stage5_oof.yaml"
+    return yaml.safe_load(cfg_path.read_text())
+
+
+def test_structural_wired_for_production_feature_columns():
+    """Regression: the production feature matrix names box-score volumes bare (oreb/dreb/fga/...)
+    while the structural model's defaults expect actual_-prefixed names. Without the config
+    ``structural_repair.columns`` map the model abstained on EVERY prop in the real OOF (leaving
+    structural_active_pmf_json empty). The shipped stage5_oof.yaml map must make reb + fg3m
+    supported on production-named columns (pts stays out — no fgm/ftm available)."""
+    df = _production_named_boxscore()
+    cfg = _stage5_oof_config()
+    assert cfg.get("structural_repair", {}).get("enabled") is True
+    assert "columns" in cfg["structural_repair"], "stage5_oof.yaml must map box-score column names"
+
+    # Default (no map) abstains on everything for production-named columns — the original bug.
+    assert StructuralRepairModel({}).fit(df, {}).supported == set()
+
+    # With the shipped config map, reb + fg3m are supported and produce valid PMFs.
+    m = StructuralRepairModel(cfg).fit(df, cfg)
+    assert "reb" in m.supported and "fg3m" in m.supported
+    assert "pts" not in m.supported  # no fgm/ftm in BDL data
+    for prop, cap in [("reb", 30), ("fg3m", 15)]:
+        mat = m.build_active_pmf_matrix(prop, df.head(25), df["actual_minutes"].to_numpy(float)[:25], cap)
+        assert mat is not None and mat.shape == (25, cap + 1)
+        assert np.allclose(mat.sum(axis=1), 1.0, atol=1e-6)
+        assert (mat >= -1e-12).all()
+
+
 def test_structural_predicted_mean_tracks_box_score():
     df = _synth_boxscore(n=2500, seed=3)
     m = StructuralRepairModel({}).fit(df, {})
