@@ -20,13 +20,13 @@
     "contestedFieldGoalsMade": true,
     "uncontestedFieldGoalsMade": true,
     "total_FGM_reconstructable": true,
-    "note": "FGM = contested + uncontested made (tracking, 2021-2026). FG2M = FGM - FG3M."
+    "note": "Make-COUNT columns are unpopulated, BUT fieldGoalPercentage is fully populated: FGM = round(fieldGoalPercentage * box FGA), integer-consistent 99.98%. See PTS_RECONSTRUCTION_REPORT.json"
   },
   "conclusions": {
-    "FGM_available": "NO in box/raw; RECONSTRUCTABLE from tracking (contested+uncontested made) after id crosswalk",
-    "FTM_available": "NO anywhere (box, raw, tracking). Free-throw MAKES are absent in all authorized sources.",
+    "FGM_available": "RECOVERABLE via fieldGoalPercentage*FGA on tracking-covered games (2025-2026)",
+    "FTM_available": "RECOVERABLE via points identity on tracking-covered games; absent elsewhere",
     "FGA_FG3A_FG3M_FTA_available": "YES (box + raw)",
-    "full_pts_decomposition_feasible": "PARTIAL: 2PA=FGA-FG3A and 3PA available; 3P/2P makes derivable via tracking FGM+box FG3M; but FTM absent => FT points component cannot be exactly decomposed.",
-    "verdict": "Full 2PA/2P% + 3PA/3P% + FTA/FT% convolution is NOT fully realizable because FTM is absent in every authorized source. FT-points must remain a shrunk-rate proxy (FTA x league/player FT% prior). This is an honest data limit, not an omission."
+    "full_pts_decomposition_feasible": "YES on tracking-covered games (98/99 market games); proxy elsewhere",
+    "verdict": "Full 2PA/2P% + 3PA/3P% + FTA/FT% decomposition IS feasible on tracking-covered games. Implement decomposition there; retain proxy for pre-2025 and the 1 tracking-absent game."
   }
 }

@@ -1,0 +1,22 @@
+{
+  "rows_compared": 11771,
+  "season_coverage": {
+    "2025": 7071,
+    "2026": 4700
+  },
+  "method": "FGM = round(fieldGoalPercentage * box FGA); FTM via points identity",
+  "make_count_columns_unpopulated": true,
+  "fieldGoalPercentage_populated_rate": 1.0,
+  "constraint_pass_rates": {
+    "fgpct_to_FGM_integer_consistent(<=0.02)": 0.9998,
+    "FGM_ge_FG3M": 1.0,
+    "FG2M_ge_0": 1.0,
+    "FG2A_ge_FG2M": 1.0,
+    "FTM_in_0_FTA": 1.0,
+    "pts_recon_eq_pts": 1.0
+  },
+  "full_pts_decomposition_feasible": true,
+  "coverage_limit": "Feasible ONLY on tracking-covered games (2025-2026; 98/99 market games). Pre-2025 and the 1 absent game (24896) lack fieldGoalPercentage -> proxy remains there.",
+  "conversion_labels_persisted": "data/processed/pts_conversion_labels.parquet",
+  "verdict": "FEASIBLE: implement full PTS = 2PA*2P% (x) 3PA*3P% (x) FTA*FT% with shrunk Beta conversions on tracking-covered games. FGM recovered from fieldGoalPercentage; FTM recovered from the points identity; all physical constraints hold at 100%."
+}
