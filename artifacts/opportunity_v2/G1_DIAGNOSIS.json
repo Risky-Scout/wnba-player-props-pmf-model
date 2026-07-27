@@ -1,5 +1,18 @@
 {
   "candidate": "OPP_V2_TEAM_SHARE (G1)",
+  "candidate_naming": {
+    "R1_OPP_V2_RATE": "rate-only candidate = direct per-minute 3PA opportunity rate x minutes x shrunk 3P conversion (bundle CANDIDATE_RAW='OPP_V2_RAW', labeled R1 in the comparison).",
+    "G1_OPP_V2_TEAM_SHARE": "team/share candidate = predicted team 3PA total (TeamEnvironmentModelV2) x player 3PA share (TeamOpportunityShareModel) x shrunk 3P conversion (bundle CANDIDATE_TEAM_SHARE, labeled G1).",
+    "distinct": true,
+    "note": "R1 and G1 are distinct candidates in code (different bundle candidate ids) and in every artifact (comparison keys 'r1' vs 'g1'). R1 is NEVER relabeled as G1."
+  },
+  "forward_varying_share_inputs_status": {
+    "currently_used_by_share_model": ["player_fg3a_per_min_ewma (lagged)", "player_minutes_ewma (lagged)", "active_roster_renormalization", "inactive_zeroing_via_p_active"],
+    "true_pregame_varying_inputs_needed": ["projected active probability", "projected minutes", "starter role", "teammate availability / absences", "vacated shares"],
+    "why_absent_from_backtest": "These are FORWARD availability signals (what is known pregame about tonight's lineup). They are NOT present in the historical 2026 backtest data. Reconstructing them from postgame box outcomes would fabricate pregame knowledge from the future (leakage) and is FORBIDDEN, so they cannot be added to the backtest.",
+    "consequence": "G1 cannot improve in the backtest beyond a lossy reparameterization of R1's lagged rate, because at Tier-0 it has NO information R1 lacks. This is the honest reason G1 does not beat R1 in the 2026 backtest.",
+    "path_forward": "These inputs become available ONLY going forward via the scheduled forward snapshot workflow (.github/workflows/opportunity_v2_snapshots.yml), which captures pregame availability/lineup at decision time. No fabrication from outcomes."
+  },
   "prop_measured": "fg3m",
   "paired_universe_n": 498,
   "headline": "G1 does NOT advance: it worsens discrimination and every proper score vs BOTH P0 and R1.",
