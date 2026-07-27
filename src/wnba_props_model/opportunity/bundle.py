@@ -32,6 +32,7 @@ from .pmf_builders import (
     poisson_or_nbinom_pmf,
     weighted_mix_pmfs,
 )
+from .pts_decomposition import build_pts_pmf_over_minutes
 from .share_model import TeamOpportunityShareModel
 from .team_environment import TeamEnvironmentModelV2
 
@@ -41,6 +42,12 @@ CANDIDATE_RAW = "OPP_V2_RAW"
 #   x predicted player 3PA share (TeamOpportunityShareModel)
 #   x shrunk 3P conversion  ->  FG3M PMF
 CANDIDATE_TEAM_SHARE = "OPP_V2_TEAM_SHARE"
+# OPP_V2_PTS_DECOMP is the full PTS decomposition candidate (owner directive section 7):
+#   PTS = stretch(2PM,2) (x) stretch(3PM,3) (x) FTM, where each makes-count is a Beta-Binomial of an
+#   attempt-count opportunity distribution and a shrunk conversion. 2P%/FT% conversions are fit ONLY
+#   from the verified tracking-based reconstruction labels; rows without that grounding fall back to
+#   the diagnostic proxy and are tagged pts_construction="proxy".
+CANDIDATE_PTS_DECOMP = "OPP_V2_PTS_DECOMP"
 _DEFAULT_HIER = [("position",), ("position", "role_bucket"), ("team_id", "role_bucket"), ("player_id",)]
 
 # strictly-prior team features used to predict tonight's team 3PA total.
@@ -77,9 +84,19 @@ class OpportunityModelBundleV2:
             team_total_col="team_fg3a_actual", baseline_share_col="_fg3a_share_baseline",
             feature_columns=_SHARE_FEATURE_COLS)
         self._team_share_available = False
+        # full PTS decomposition components (candidate PTS_DECOMP)
+        self._fg2a_rate = OpportunityRateModel(source_tier=DATA_TIER_BOX)
+        self._fta_rate = OpportunityRateModel(source_tier=DATA_TIER_BOX)
+        self._conv_2p = HierarchicalBetaConversionModel()
+        self._conv_ft = HierarchicalBetaConversionModel()
+        self._pts_decomp_available = False
+        self._pts_decomp_players: set = set()
         self._n_samples = int(self.config.get("minutes", {}).get("deterministic_samples", 21))
         self._hierarchy = _DEFAULT_HIER
-        self._prior_strength = float(self.config.get("conversion", {}).get("prior_strength", {}).get("fg3", 125.0))
+        _ps = self.config.get("conversion", {}).get("prior_strength", {})
+        self._prior_strength = float(_ps.get("fg3", 125.0))
+        self._prior_strength_2p = float(_ps.get("fg2", 200.0))
+        self._prior_strength_ft = float(_ps.get("ft", 60.0))
         self._pmf_cfg = self.config.get("pmf", {})
         self.training_cutoff_utc: str | None = None
         self.feature_schema_hash: str | None = None
@@ -88,7 +105,8 @@ class OpportunityModelBundleV2:
 
     # --- fit ---------------------------------------------------------------
     def fit(self, train_frame: pd.DataFrame, team_train_frame: pd.DataFrame,
-            config: dict[str, Any] | None = None) -> "OpportunityModelBundleV2":
+            config: dict[str, Any] | None = None,
+            pts_recon_labels: pd.DataFrame | None = None) -> "OpportunityModelBundleV2":
         if config:
             self.config.update(config)
         df = train_frame
@@ -116,6 +134,10 @@ class OpportunityModelBundleV2:
         # team_train_frame is now genuinely consumed: aggregate it into team-game rows and
         # fit TeamEnvironmentModelV2 (team 3PA total) + TeamOpportunityShareModel (player 3PA share).
         self._fit_team_share(team_train_frame if team_train_frame is not None else df)
+
+        # --- full PTS decomposition fit (candidate PTS_DECOMP) ---
+        # 2P%/FT% conversions are fit ONLY on tracking-reconstruction labels merged into training rows.
+        self._fit_pts_decomposition(df, pts_recon_labels)
 
         self.training_cutoff_utc = str(pd.to_datetime(df["prediction_cutoff_utc"], utc=True,
                                                        errors="coerce").max())
@@ -179,11 +201,61 @@ class OpportunityModelBundleV2:
         except Exception:
             self._team_share_available = False
 
+    def _fit_pts_decomposition(self, df: pd.DataFrame, recon: pd.DataFrame | None) -> None:
+        """Fit 2PA/FTA opportunity rates (box) + 2P%/FT% conversions (tracking-reconstruction labels).
+
+        The 2P% and FT% conversions require MAKE counts (FG2M, FTM) that only exist in the verified
+        tracking-based reconstruction (``pts_conversion_labels``). If those labels are absent, the
+        full-decomposition candidate is marked unavailable and callers fall back to the proxy.
+        """
+        if recon is None or len(recon) == 0:
+            self._pts_decomp_available = False
+            return
+        try:
+            played = df["did_play"].astype(bool)
+            fg2a = (pd.to_numeric(df["fga"], errors="coerce")
+                    - pd.to_numeric(df["fg3a"], errors="coerce")).clip(lower=0)
+            self._fg2a_rate.fit(df.assign(_fg2a=fg2a), df.assign(_fg2a=fg2a)["_fg2a"],
+                                df["minutes"], played,
+                                feature_columns=_present(df, ["player_fga_per_min_ewma",
+                                                              "player_minutes_ewma"]))
+            fta = pd.to_numeric(df["fta"], errors="coerce").fillna(0.0)
+            self._fta_rate.fit(df.assign(_fta=fta), df.assign(_fta=fta)["_fta"],
+                               df["minutes"], played,
+                               feature_columns=_present(df, ["player_fga_per_min_ewma",
+                                                             "player_minutes_ewma"]))
+            # Merge reconstruction makes/attempts onto training rows (which carry the hierarchy cols).
+            lab = recon.copy()
+            key = ["game_id", "player_id"]
+            need = key + ["FG2M", "FG2A", "FTM", "FTA"]
+            merged = df.merge(lab[need], on=key, how="inner")
+            if len(merged) < 30:
+                self._pts_decomp_available = False
+                return
+            m2 = merged[pd.to_numeric(merged["FG2A"], errors="coerce") > 0].assign(
+                _s=lambda x: pd.to_numeric(x["FG2M"], errors="coerce").fillna(0.0),
+                _a=lambda x: pd.to_numeric(x["FG2A"], errors="coerce").fillna(0.0))
+            mft = merged[pd.to_numeric(merged["FTA"], errors="coerce") > 0].assign(
+                _s=lambda x: pd.to_numeric(x["FTM"], errors="coerce").fillna(0.0),
+                _a=lambda x: pd.to_numeric(x["FTA"], errors="coerce").fillna(0.0))
+            if len(m2) < 30 or len(mft) < 30:
+                self._pts_decomp_available = False
+                return
+            self._conv_2p.fit(m2, "_s", "_a", self._hierarchy, self._prior_strength_2p)
+            self._conv_ft.fit(mft, "_s", "_a", self._hierarchy, self._prior_strength_ft)
+            # Only players grounded by reconstruction labels are full-decomposition eligible.
+            self._pts_decomp_players = set(merged["player_id"].unique().tolist())
+            self._pts_decomp_available = True
+        except Exception:
+            self._pts_decomp_available = False
+
     # --- predict -----------------------------------------------------------
     def predict_active_pmfs(self, player_frame: pd.DataFrame, team_frame: pd.DataFrame | None,
                             props: Sequence[str], candidate: str = CANDIDATE_RAW) -> pd.DataFrame:
         if candidate == CANDIDATE_TEAM_SHARE:
             return self._predict_team_share(player_frame, team_frame, props)
+        if candidate == CANDIDATE_PTS_DECOMP:
+            return self._predict_pts_decomposition(player_frame, props)
         if not self._fitted:
             raise RuntimeError("OpportunityModelBundleV2.predict before fit")
         supported = [p for p in props if p in ("fg3m", "pts")]
@@ -304,6 +376,85 @@ class OpportunityModelBundleV2:
                 "player_fg3a_mean": player_3pa_mean,
                 "opportunity_data_tier": DATA_TIER_BOX,
                 "conversion_mean": float(conv_post[i].mean),
+                "feature_schema_hash": self.feature_schema_hash,
+                "model_bundle_hash": self.model_bundle_hash,
+                "training_cutoff_utc": self.training_cutoff_utc,
+            })
+        return pd.DataFrame(out_rows)
+
+    def _predict_pts_decomposition(self, player_frame: pd.DataFrame,
+                                   props: Sequence[str]) -> pd.DataFrame:
+        """Full PTS decomposition candidate: 2PM/3PM/FTM convolution, with per-row proxy fallback.
+
+        A row is full-decomposition eligible iff its player was grounded by tracking-reconstruction
+        conversion labels in training (``_pts_decomp_players``). Ineligible rows fall back to the
+        diagnostic proxy (3*FG3M convolved with a direct non-3PT points count) and are tagged
+        ``pts_construction="proxy"`` so they cannot enter full-PTS candidate evidence.
+        """
+        if not self._fitted:
+            raise RuntimeError("OpportunityModelBundleV2.predict before fit")
+        if not self._pts_decomp_available:
+            raise RuntimeError("OPP_V2_PTS_DECOMP unavailable: reconstruction conversion labels "
+                               "(pts_recon_labels) were not provided/fit")
+        unsupported = [p for p in props if p != "pts"]
+        if unsupported:
+            raise ValueError(f"OPP_V2_PTS_DECOMP supports pts only; got {unsupported}")
+
+        df = player_frame.reset_index(drop=True)
+        samples, weights = self._minutes.deterministic_samples(df, n_samples=self._n_samples)
+        p_active = self._availability.predict_active_probability(df)
+        ones = np.ones(len(df))
+        rate_2pa = self._fg2a_rate.predict_for_minutes(df, ones).mean
+        rate_3pa = self._fg3a_rate.predict_for_minutes(df, ones).mean
+        rate_fta = self._fta_rate.predict_for_minutes(df, ones).mean
+        non3_rate = self._non3pt_rate.predict_for_minutes(df, ones).mean
+        r_2pa, r_3pa = self._fg2a_rate._dispersion_r, self._fg3a_rate._dispersion_r
+        r_fta, r_non3 = self._fta_rate._dispersion_r, self._non3pt_rate._dispersion_r
+        post2 = self._conv_2p.predict_posterior(df)
+        post3 = self._conv_3p.predict_posterior(df)
+        postft = self._conv_ft.predict_posterior(df)
+        tail = float(self._pmf_cfg.get("tail_tolerance", 1e-8))
+        cap = int(self._pmf_cfg.get("maximum_support", 120))
+
+        out_rows = []
+        for i in range(len(df)):
+            mins = samples[i]
+            eligible = df.at[i, "player_id"] in self._pts_decomp_players
+            if eligible:
+                active = build_pts_pmf_over_minutes(
+                    mins, weights,
+                    rate_2pa=float(rate_2pa[i]), r_2pa=r_2pa,
+                    alpha2=float(post2[i].alpha), beta2=float(post2[i].beta),
+                    rate_3pa=float(rate_3pa[i]), r_3pa=r_3pa,
+                    alpha3=float(post3[i].alpha), beta3=float(post3[i].beta),
+                    rate_fta=float(rate_fta[i]), r_fta=r_fta,
+                    alpha_ft=float(postft[i].alpha), beta_ft=float(postft[i].beta),
+                    tail_tolerance=tail, maximum_cap=cap)
+                construction = "full_decomposition"
+            else:
+                per_sample = []
+                for m in mins:
+                    att3 = poisson_or_nbinom_pmf(max(rate_3pa[i] * m, 1e-6), r_3pa,
+                                                 tail_tolerance=tail, maximum_cap=cap)
+                    fg3m_pmf = marginal_beta_binomial_pmf(att3, post3[i].alpha, post3[i].beta)
+                    non3 = poisson_or_nbinom_pmf(max(non3_rate[i] * m, 1e-6), r_non3,
+                                                 tail_tolerance=tail, maximum_cap=cap)
+                    per_sample.append(convolve_pmfs(_stretch(fg3m_pmf, 3), non3))
+                active = weighted_mix_pmfs(per_sample, weights)
+                construction = "proxy"
+            out_rows.append({
+                "game_id": df.at[i, "game_id"], "player_id": df.at[i, "player_id"],
+                "team_id": df.at[i, "team_id"],
+                "game_date": df.at[i, "game_date"] if "game_date" in df.columns else pd.NaT,
+                "prediction_cutoff_utc": df.at[i, "prediction_cutoff_utc"],
+                "stat": "pts", "candidate_id": CANDIDATE_PTS_DECOMP,
+                "pts_construction": construction,
+                "active_pmf_json": json.dumps([round(float(x), 10) for x in active]),
+                "active_pmf_mean": pmf_mean(active), "active_pmf_variance": pmf_variance(active),
+                "p_active": float(p_active[i]),
+                "opportunity_data_tier": DATA_TIER_BOX,
+                "conversion_2p_mean": float(post2[i].mean), "conversion_3p_mean": float(post3[i].mean),
+                "conversion_ft_mean": float(postft[i].mean),
                 "feature_schema_hash": self.feature_schema_hash,
                 "model_bundle_hash": self.model_bundle_hash,
                 "training_cutoff_utc": self.training_cutoff_utc,

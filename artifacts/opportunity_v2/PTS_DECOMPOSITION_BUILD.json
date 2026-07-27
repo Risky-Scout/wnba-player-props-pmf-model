@@ -1,0 +1,43 @@
+{
+  "generated_utc": "2026-07-27T23:56:48.761022+00:00",
+  "purpose": "Coverage of the full PTS decomposition path vs diagnostic proxy, from verified tracking-reconstruction labels.",
+  "code_path": {
+    "module": "src/wnba_props_model/opportunity/pts_decomposition.py",
+    "bundle_candidate": "OPP_V2_PTS_DECOMP (src/wnba_props_model/opportunity/bundle.py:_predict_pts_decomposition)",
+    "construction": "PTS = stretch(2PM,2) (x) stretch(3PM,3) (x) FTM; 2PM=BetaBinom(2PA,2P%), 3PM=BetaBinom(3PA,3P%), FTM=BetaBinom(FTA,FT%), averaged over conditional-active minutes",
+    "conversion_grounding": "2P% and FT% fit ONLY from tracking-reconstruction labels; ungrounded players fall back to proxy (pts_construction='proxy')",
+    "unit_tests": "tests/opportunity/test_pts_decomposition.py (7 tests: stretch, normalized/nonneg, mean==2*E[2PM]+3*E[3PM]+E[FTM], minutes-averaging, reconstruction identity on persisted labels, bundle full-vs-proxy, unavailable-without-labels)",
+    "full_12fold_oof_run": "NOT RUN per owner instruction (no long OOF now); build + unit-test only"
+  },
+  "reconstruction_labels": {
+    "path": "data/processed/pts_conversion_labels.parquet",
+    "rows": 11771,
+    "seasons": {
+      "2025": 7071,
+      "2026": 4700
+    },
+    "identity_and_physical_constraint_pass_rate": 1.0
+  },
+  "coverage_vs_box_played_universe": {
+    "box_source": "data/processed/wnba_player_game_stats.parquet",
+    "total_played_rows": 9886,
+    "full_decomposition_eligible": 9684,
+    "proxy": 202,
+    "pct_full_decomposition": 97.96,
+    "by_season": {
+      "2025": {
+        "played_rows": 5869,
+        "full_decomposition_eligible": 5827,
+        "proxy": 42,
+        "pct_full_decomposition": 99.28
+      },
+      "2026": {
+        "played_rows": 4017,
+        "full_decomposition_eligible": 3857,
+        "proxy": 160,
+        "pct_full_decomposition": 96.02
+      }
+    }
+  },
+  "honest_note": "Full decomposition is available only on tracking-covered seasons (2025-2026). Pre-2025 rows and the 1 SOURCE_MISSING tracking game (24896) have no reconstruction and remain on the proxy. This path is built and unit-tested; it has NOT yet been scored in a full OOF."
+}
