@@ -1,0 +1,230 @@
+{
+  "version": "root-cause-decomposition-v1",
+  "source_oof": "artifacts/models/calibration/oof_predictions.parquet",
+  "method": "sequential multiplicative decomposition count = availability x conditional minutes x per-active-minute rate; pmf_shape_residual absorbs distribution/tail; binary_calibration_bias from exact-quote P(over line) vs empirical over-rate",
+  "no_market_inputs": true,
+  "per_prop": {
+    "pts": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 8.297525495849218,
+      "pmf_mean": 6.185738270951814,
+      "actual_outcome": 7.121212121212121,
+      "pred_per_active_min_rate": 0.5462492305705772,
+      "actual_per_active_min_rate": 0.3853298088231182,
+      "pmf_variance": 44.92201724711853,
+      "mean_sq_residual": 33.1738766410537,
+      "variance_coverage_ratio": 1.3541383098870676,
+      "total_mean_bias": -0.9354738502603075,
+      "availability_bias": -1.518714044537082,
+      "minutes_bias": -0.5614745223106561,
+      "rate_bias": 2.6716882227811163,
+      "pmf_shape_residual_bias": -1.5269735061936855,
+      "pct_of_abs_error": {
+        "availability": 24.1877728084633,
+        "conditional_minutes": 8.942314211316962,
+        "opportunity_rate_conversion": 42.550595999376675,
+        "pmf_variance_tail_shape": 24.31931698084306
+      },
+      "binary_calibration": {
+        "n_exact_quote_rows": 851,
+        "mean_model_p_over": 0.37897548045843377,
+        "empirical_over_rate": 0.4794359576968273,
+        "binary_calibration_bias": -0.10046047723839352
+      }
+    },
+    "reb": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 3.0782774788867457,
+      "pmf_mean": 2.2610700454620805,
+      "actual_outcome": 2.740930431071276,
+      "pred_per_active_min_rate": 0.21856320466269996,
+      "actual_per_active_min_rate": 0.16297249396845861,
+      "pmf_variance": 8.219320758143333,
+      "mean_sq_residual": 5.812043078746369,
+      "variance_coverage_ratio": 1.414187859033592,
+      "total_mean_bias": -0.47986038560919564,
+      "availability_bias": -0.6076621987980777,
+      "minutes_bias": -0.22465509160441757,
+      "rate_bias": 0.9229529005574001,
+      "pmf_shape_residual_bias": -0.5704959957641005,
+      "pct_of_abs_error": {
+        "availability": 26.12739845762451,
+        "conditional_minutes": 9.659401400140741,
+        "opportunity_rate_conversion": 39.68382143595628,
+        "pmf_variance_tail_shape": 24.52937870627846
+      },
+      "binary_calibration": {
+        "n_exact_quote_rows": 742,
+        "mean_model_p_over": 0.3255759349736208,
+        "empirical_over_rate": 0.4582210242587601,
+        "binary_calibration_bias": -0.1326450892851393
+      }
+    },
+    "ast": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 1.8949606081436607,
+      "pmf_mean": 1.3206734463482768,
+      "actual_outcome": 1.6681604780196329,
+      "pred_per_active_min_rate": 0.11846984619574735,
+      "actual_per_active_min_rate": 0.09247512030308201,
+      "pmf_variance": 4.42674771192454,
+      "mean_sq_residual": 3.002440478142007,
+      "variance_coverage_ratio": 1.474383170674522,
+      "total_mean_bias": -0.3474870316713561,
+      "availability_bias": -0.3293767921351479,
+      "minutes_bias": -0.12177188832191835,
+      "rate_bias": 0.43158123654489194,
+      "pmf_shape_residual_bias": -0.3279195877591818,
+      "pct_of_abs_error": {
+        "availability": 27.206618500218493,
+        "conditional_minutes": 10.058393270969356,
+        "opportunity_rate_conversion": 35.64873523241911,
+        "pmf_variance_tail_shape": 27.086252996393036
+      },
+      "binary_calibration": {
+        "n_exact_quote_rows": 522,
+        "mean_model_p_over": 0.3233186061303792,
+        "empirical_over_rate": 0.4444444444444444,
+        "binary_calibration_bias": -0.1211258383140652
+      }
+    },
+    "fg3m": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 0.9145076790056439,
+      "pmf_mean": 0.6720233977120641,
+      "actual_outcome": 0.6929150661545028,
+      "pred_per_active_min_rate": 0.06549062957518997,
+      "actual_per_active_min_rate": 0.03763976127388205,
+      "pmf_variance": 1.4768491188188688,
+      "mean_sq_residual": 1.144993058636948,
+      "variance_coverage_ratio": 1.2898323773045206,
+      "total_mean_bias": -0.020891668442438727,
+      "availability_bias": -0.18208087692412014,
+      "minutes_bias": -0.06731601235967864,
+      "rate_bias": 0.4623981122154837,
+      "pmf_shape_residual_bias": -0.23389289137412367,
+      "pct_of_abs_error": {
+        "availability": 19.253802263543868,
+        "conditional_minutes": 7.118206002949206,
+        "opportunity_rate_conversion": 48.89542476963722,
+        "pmf_variance_tail_shape": 24.732566963869715
+      },
+      "binary_calibration": {
+        "n_exact_quote_rows": 504,
+        "mean_model_p_over": 0.33477037934642007,
+        "empirical_over_rate": 0.42658730158730157,
+        "binary_calibration_bias": -0.0918169222408815
+      }
+    },
+    "stl": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 0.3896411313590311,
+      "pmf_mean": 0.2914745932736733,
+      "actual_outcome": 0.6122492530943235,
+      "pred_per_active_min_rate": 0.025540100636688014,
+      "actual_per_active_min_rate": 0.035021014887268234,
+      "pmf_variance": 0.46562849261018024,
+      "mean_sq_residual": 0.8605423222063818,
+      "variance_coverage_ratio": 0.5410872662443087,
+      "total_mean_bias": -0.32077465982065023,
+      "availability_bias": -0.07100808086322238,
+      "minutes_bias": -0.026251965224320252,
+      "rate_bias": -0.15740826476635533,
+      "pmf_shape_residual_bias": -0.06610634896675227,
+      "pct_of_abs_error": {
+        "availability": 22.136437118481876,
+        "conditional_minutes": 8.183927383477892,
+        "opportunity_rate_conversion": 49.071290373860755,
+        "pmf_variance_tail_shape": 20.608345124179476
+      },
+      "binary_calibration": {
+        "status": "NO_EXACT_QUOTES"
+      }
+    },
+    "blk": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 0.15944390909318176,
+      "pmf_mean": 0.11831339217234094,
+      "actual_outcome": 0.32437046521553564,
+      "pred_per_active_min_rate": 0.010108408555115644,
+      "actual_per_active_min_rate": 0.01938482089796317,
+      "pmf_variance": 0.21283523428056797,
+      "mean_sq_residual": 0.4613006299503493,
+      "variance_coverage_ratio": 0.4613807579310608,
+      "total_mean_bias": -0.2060570730431947,
+      "availability_bias": -0.02810398840202928,
+      "minutes_bias": -0.010390154433492055,
+      "rate_bias": -0.15401299194911172,
+      "pmf_shape_residual_bias": -0.013549938258561656,
+      "pct_of_abs_error": {
+        "availability": 13.638934100620746,
+        "conditional_minutes": 5.042367282055889,
+        "opportunity_rate_conversion": 74.7428805401049,
+        "pmf_variance_tail_shape": 6.575818077218466
+      },
+      "binary_calibration": {
+        "status": "NO_EXACT_QUOTES"
+      }
+    },
+    "turnover": {
+      "n": 4686,
+      "n_appear": 3824,
+      "pred_active_minutes": 19.085614489439536,
+      "actual_minutes_appear": 20.34518828451883,
+      "pred_dnp": 0.3296251844366,
+      "actual_dnp": 0.18395219803670504,
+      "pred_stat_mean": 1.4255996904492254,
+      "pmf_mean": 0.9314949285203488,
+      "actual_outcome": 1.1039265898420827,
+      "pred_per_active_min_rate": 0.09610145492170748,
+      "actual_per_active_min_rate": 0.0687059014588901,
+      "pmf_variance": 1.5594243633133338,
+      "mean_sq_residual": 1.4553463380408818,
+      "variance_coverage_ratio": 1.0715142660904737,
+      "total_mean_bias": -0.17243166132173393,
+      "availability_bias": -0.2671868830599426,
+      "minutes_bias": -0.0987800356975572,
+      "rate_bias": 0.4548386810514707,
+      "pmf_shape_residual_bias": -0.26130342361570486,
+      "pct_of_abs_error": {
+        "availability": 24.691309034125364,
+        "conditional_minutes": 9.128473523391998,
+        "opportunity_rate_conversion": 42.03261142874405,
+        "pmf_variance_tail_shape": 24.147606013738592
+      },
+      "binary_calibration": {
+        "status": "NO_EXACT_QUOTES"
+      }
+    }
+  }
+}

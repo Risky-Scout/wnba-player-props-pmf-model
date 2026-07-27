@@ -519,7 +519,20 @@ def apply_minutes_offset_rebuild(
             pmfs_long.loc[_idx, "structural_target_mean"] = _tgt_mean
             pmfs_long.loc[_idx, "final_pmf_mean"] = _new_mean
             pmfs_long.loc[_idx, "mean_rebuild_error"] = _mean_err
-            pmfs_long.loc[_idx, "support_tail_warning"] = _tail
+            # pandas>=3.0 rejects assigning a bool list into a partially-selected (float64/new)
+            # column via .loc ("Invalid value '[...]' for dtype 'float64'"). Build the boolean
+            # flag as a full-length array and assign the whole column so the dtype is bool
+            # regardless of prior state (older pandas silently up-cast; this is version-robust).
+            _existing_stw = pmfs_long.get("support_tail_warning")
+            if _existing_stw is None:
+                _stw_arr = np.zeros(len(pmfs_long), dtype=bool)
+            else:
+                _stw_vals = _existing_stw.to_numpy()
+                _stw_arr = (_stw_vals.astype(bool) if _stw_vals.dtype == bool
+                            else np.nan_to_num(np.asarray(_stw_vals, dtype=float),
+                                               nan=0.0).astype(bool))
+            _stw_arr[pmfs_long.index.get_indexer(_idx)] = np.asarray(_tail, dtype=bool)
+            pmfs_long["support_tail_warning"] = _stw_arr
             for _ridx in _idx:
                 validate_pmf_row_integrity(pmfs_long.loc[_ridx], mean_tol=mean_tol)
             logger.info(

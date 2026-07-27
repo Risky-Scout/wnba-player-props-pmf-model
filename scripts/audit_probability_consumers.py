@@ -88,6 +88,11 @@ CLASSIFICATION: dict[str, str] = {
     "scripts/audit_exact_quote_readiness.py": "permitted_pmf_diagnostic",
     "scripts/audit_probability_semantics.py": "permitted_pmf_diagnostic",
     "scripts/phase3_a4_feature_residual.py": "permitted_pmf_diagnostic",
+    "scripts/build_pure_supremacy_metrics.py": "permitted_pmf_diagnostic",
+    "scripts/evaluate_pure_oof.py": "permitted_pmf_diagnostic",
+    "scripts/build_oof_pmfs.py": "permitted_pmf_diagnostic",
+    "src/wnba_props_model/models/training.py": "permitted_pmf_diagnostic",
+    "src/wnba_props_model/models/availability_pmf.py": "permitted_pmf_diagnostic",
     "scripts/verify_delivered_lineage.py": "permitted_pmf_diagnostic",
     "scripts/validate_forecast_pages.py": "permitted_pmf_diagnostic",
     # the audit itself references the symbols as detection strings

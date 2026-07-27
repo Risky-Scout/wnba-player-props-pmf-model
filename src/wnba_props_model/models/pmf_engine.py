@@ -153,6 +153,30 @@ def build_all_pmfs(
         pmf_mean, pmf_variance, p0, p_ge_1, p_ge_2, p_ge_3, p_ge_5, p_ge_10,
         model_version, pmf_source, is_calibrated
     """
+    # PHASE 0 pure-model contract (fail-closed, BEFORE any compute): a pure champion carries
+    # ZERO market weight/nudge, no market-derived feature, and no market-derived model head.
+    from wnba_props_model.models.pure_model_contract import (
+        assert_no_market_head,
+        assert_pure_feature_columns,
+        assert_pure_model_config,
+        drop_forbidden_market_columns,
+        is_pure_model,
+    )
+    assert_pure_model_config(cfg, context="build_all_pmfs")
+    _pure_mode = is_pure_model(cfg)
+    if _pure_mode:
+        # DROP forbidden market-derived columns so the live-delivery path predicts on the SAME
+        # pure feature list the OOF path trains on (delivery↔OOF parity via the shared resolver).
+        # The assert below is then a safety net that must pass post-drop.
+        model_feature_cols, _dropped_market = drop_forbidden_market_columns(model_feature_cols)
+        if _dropped_market:
+            import logging as _log_pure  # noqa: PLC0415
+            _log_pure.getLogger(__name__).info(
+                "[pmf_engine] pure_forecast: dropped %d market-derived feature(s) from the "
+                "delivery feature set: %s", len(_dropped_market), sorted(_dropped_market))
+        assert_pure_feature_columns(model_feature_cols, context="build_all_pmfs")
+        assert_no_market_head(stat_models, hurdle_models, bb_models, context="build_all_pmfs")
+
     # ------------------------------------------------------------------ #
     # Prepare wide-table features (used for minutes prediction and as
     # the base features for each stat model)
@@ -345,7 +369,8 @@ def build_all_pmfs(
         # mean_final = (1 - λ) * mean_model + λ * mean_market
         # The sportsbook line is the market's best estimate of the median; using it
         # as an anchor reduces extreme premiums (40-74% combo OVERs) toward realistic levels.
-        _mpl = cfg.get("market_prior_lambda", 0.0)
+        # A pure model is forbidden from anchoring its mean toward the market line.
+        _mpl = 0.0 if _pure_mode else cfg.get("market_prior_lambda", 0.0)
         if _mpl > 0 and "market_line" in stat_rows.columns:
             _market_lines = stat_rows["market_line"].values
             _valid_market = np.isfinite(_market_lines) & (_market_lines > 0)
@@ -359,7 +384,8 @@ def build_all_pmfs(
 
         # Part 6: CLV head signal — soft-nudge stat_mean by ≤5% based on
         # whether the model's direction beats the closing line historically.
-        if stat in stat_models:
+        # The CLV head is market-derived (closing line) → OFF for pure models.
+        if stat in stat_models and not _pure_mode:
             _clv_model = stat_models[stat]
             _clv_head = getattr(_clv_model, "clv_head", None)
             if _clv_head is not None:
@@ -620,23 +646,33 @@ def build_all_pmfs(
                 pos_mus    = _pos_mus_nc
                 stat_means = p_nz * pos_mus
 
-        # ---- Apply DNP blending -------------------------------------------
+        # ---- Availability decomposition (owner item 1): ACTIVE PMF vs MIXTURE ----
+        # The PMF built above is conditional on the player APPEARING == the ACTIVE PMF
+        # (minutes + stat-rate models train on appearances only). The AVAILABILITY MIXTURE
+        # folds P(DNP) onto outcome 0 exactly ONCE. Certified sportsbook scoring settles from
+        # the ACTIVE pmf (void-on-DNP); the mixture is display/scenario-only. See
+        # models/availability_pmf.py + models/probability_lineage.py.
         p_dnp_arr = stat_rows["p_dnp"].fillna(0.0).values.astype(float)
+        active_pmf_mat, _n_fixed_a = sanitize_pmf_matrix(np.asarray(pmf_mat, dtype=float))
+        validate_pmf_matrix(active_pmf_mat)
         if use_marginalization and np.any(p_dnp_arr > 0.0):
-            pmf_mat = _blend_with_dnp(pmf_mat, p_dnp_arr)
-
-        # Sanitize before validation — prevents single-row numerical issues aborting pipeline
-        pmf_mat, _n_fixed = sanitize_pmf_matrix(pmf_mat)
-        if _n_fixed > 0:
+            mixture_pmf_mat = _blend_with_dnp(active_pmf_mat, p_dnp_arr)
+        else:
+            # No DNP fold applied (no DNP risk and/or no marginalization): mixture == active.
+            mixture_pmf_mat = active_pmf_mat.copy()
+        mixture_pmf_mat, _n_fixed_m = sanitize_pmf_matrix(mixture_pmf_mat)
+        if (_n_fixed_a + _n_fixed_m) > 0:
             import warnings as _w_san
             _w_san.warn(
-                f"[pmf_engine] {stat}: {_n_fixed} PMF row(s) sanitized (non-finite/zero-sum) before validation",
-                stacklevel=2,
-            )
-        validate_pmf_matrix(pmf_mat)
+                f"[pmf_engine] {stat}: sanitized PMF rows (active={_n_fixed_a}, mixture={_n_fixed_m}) "
+                "before validation", stacklevel=2)
+        validate_pmf_matrix(mixture_pmf_mat)
+        # ``pmf_mat`` remains the backward-compatible delivered PMF == availability mixture.
+        pmf_mat = mixture_pmf_mat
 
-        # ---- Extract summary statistics -----------------------------------
+        # ---- Extract summary statistics (both distributions) ---------------
         pmf_means, pmf_vars = pmf_mean_var(pmf_mat)
+        active_means, active_vars = pmf_mean_var(active_pmf_mat)
         p0_arr = pmf_mat[:, 0]
         p_ge_1_arr = pmf_pge(pmf_mat, 1)
         p_ge_2_arr = pmf_pge(pmf_mat, 2)
@@ -646,6 +682,7 @@ def build_all_pmfs(
 
         # ---- Build PMF JSON strings ----------------------------------------
         pmf_jsons = pmf_matrix_to_json_list(pmf_mat)
+        active_pmf_jsons = pmf_matrix_to_json_list(active_pmf_mat)
 
         # ---- Assemble output frame ----------------------------------------
         model_version = getattr(model, "VERSION", "stage4_baseline_v1")
@@ -683,14 +720,25 @@ def build_all_pmfs(
                                         if "did_play" in stat_rows.columns else None,
             "minutes_mean":             stat_rows["minutes_mean"].values,
             "minutes_sigma":            stat_rows["minutes_sigma"].values,
+            "p_dnp":                    p_dnp_arr,
             "stat_mean":                stat_means,
             "stat_variance":            stat_var_arr,
+            # ``pmf_json`` == ``availability_mixture_pmf_json`` (backward-compatible alias, DNP
+            # folded onto 0). Certified sportsbook consumers must read ``active_pmf_json``.
             "pmf_json":                 pmf_jsons,
             "pmf_support_min":          0,
             "pmf_support_max":          cap,
             "pmf_mean":                 pmf_means,
             "pmf_mean_engine":          pmf_means,  # engine float64 mean, not JSON-recomputed
             "pmf_variance":             pmf_vars,
+            # --- Availability decomposition (owner item 1), first-class outputs ---
+            "active_pmf_json":               active_pmf_jsons,
+            "active_pmf_mean":               active_means,
+            "active_pmf_variance":           active_vars,
+            "availability_mixture_pmf_json": pmf_jsons,
+            "availability_mixture_mean":     pmf_means,
+            "availability_mixture_variance": pmf_vars,
+            "sportsbook_settlement_basis":   "active_pmf_push_safe_void_on_dnp",
             "p0":                       p0_arr,
             "p_ge_1":                   p_ge_1_arr,
             "p_ge_2":                   p_ge_2_arr,
@@ -923,8 +971,10 @@ def _build_marginalized_pmf_matrix(
       PMF_i = PMF at mu_i
     Final PMF = sum(weight_i * PMF_i)
 
-    For hurdle models the p_nz component is held fixed (non-playing probability
-    does not change with minute variance); only the positive tail is blended.
+    For hurdle/ZINB models the structural-zero / hurdle-cross probability is
+    minutes-sensitive (owner item 5): π(minutes) = π0 ** (minutes/median_minutes),
+    so more minutes ⇒ lower structural-zero ⇒ higher P(Y>0); the positive tail is
+    scaled by the same minute ratio. ``scale == 1`` leaves the median untouched.
 
     Args:
         stat_means: Predicted stat counts from the stat model (e.g. 3.5 reb).
@@ -952,14 +1002,23 @@ def _build_marginalized_pmf_matrix(
 
         if stat in hurdle_models:
             model = hurdle_models[stat]
-            # Scale pos_mus/mu by the minute ratio; p_nz / π unchanged
+            # Owner item 5: the zero-inflation / hurdle-cross probability must be
+            # minutes-sensitive, not held fixed while only the positive-count mean scales.
+            # Scale the positive-count mean by the minute ratio AND treat the structural zero as
+            # an opportunity-exposure survival term: π(minutes) = π0 ** (minutes/median_minutes).
+            # More minutes ⇒ more opportunity ⇒ lower structural-zero ⇒ higher P(Y>0);
+            # ``scale == 1`` (the median quadrature point) leaves the base prediction untouched.
             scaled_pos_mus = np.clip(pos_mus * scale, 1e-9, None)  # type: ignore[operator]
+            _exp = np.clip(scale, 1e-6, None)
             from wnba_props_model.models.hurdle import ZINBStatModel as _ZINBStatModel  # noqa: PLC0415
             if isinstance(model, _ZINBStatModel):
-                _pi_arr = np.clip(1.0 - p_nz, 0.0, 1.0)  # type: ignore[arg-type]
+                _pi0 = np.clip(1.0 - p_nz, 0.0, 1.0)  # type: ignore[arg-type]
+                _pi_arr = np.clip(_pi0 ** _exp, 0.0, 1.0)
                 pmf_i = zinb_pmf_batch(_pi_arr, scaled_pos_mus, model._r, cap)
             else:
-                pmf_i = hurdle_pmf_batch(p_nz, scaled_pos_mus, model.pos_dispersion_r, cap)
+                # ``p_nz`` is P(Y>0); grow it with exposure: 1 - (1 - p_nz) ** scale.
+                _p_nz_scaled = np.clip(1.0 - (1.0 - np.clip(p_nz, 0.0, 1.0)) ** _exp, 0.0, 1.0)
+                pmf_i = hurdle_pmf_batch(_p_nz_scaled, scaled_pos_mus, model.pos_dispersion_r, cap)
         else:
             model = stat_models.get(stat)
             # Scale the actual stat-model predictions by the minute ratio.

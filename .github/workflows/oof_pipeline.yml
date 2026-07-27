@@ -3,10 +3,13 @@ name: Stage 5 -- Walk-Forward OOF Backfill
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   oof-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
 
     steps:
       - name: Checkout
@@ -47,7 +50,11 @@ jobs:
       - name: Validate features
         run: python scripts/validate_features.py
 
-      - name: Build OOF PMFs (Stage 5)
+      # Fail-closed trusted baseline: --strict-baseline aborts (nonzero exit, NO silent
+      # fallback to prior PMFs) on prior_only / failed_model_fit / missing prop / invalid PMF /
+      # missing active_pmf / market weight != 0 / temporal leakage. --checkpoint-dir + --resume
+      # persist immutable per-fold checkpoints so a re-dispatch resumes instead of recomputing.
+      - name: Build OOF PMFs (Stage 5, strict + resumable)
         run: |
           python scripts/build_oof_pmfs.py \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
@@ -55,7 +62,10 @@ jobs:
             --manifest data/processed/feature_schema_manifest.json \
             --config config/model/stage5_oof.yaml \
             --out-dir data/oof \
-            --audit-out artifacts/audits/stage5_oof_audit.json
+            --audit-out artifacts/audits/stage5_oof_audit.json \
+            --strict-baseline \
+            --checkpoint-dir data/oof/checkpoints \
+            --resume
 
       - name: Validate OOF PMFs
         run: |
@@ -71,6 +81,36 @@ jobs:
             --audit-out artifacts/audits/stage5_oof_scoring_audit.json \
             --summary-out artifacts/audits/stage5_oof_summary.md
 
+      # Authoritative PURE before/after measurement: join the fresh pure OOF (active-PMF
+      # lineage) with the exact same-book no-vig quotes committed in the repo and emit
+      # per-prop model-vs-market metrics + the REAL acceptance contract verdict.
+      - name: Evaluate PURE OOF vs exact market
+        run: |
+          python scripts/evaluate_pure_oof.py \
+            --oof data/oof/oof_player_stat_pmfs.parquet \
+            --scored artifacts/market_feature_proof/G0_v2/PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet \
+            --oof-manifest artifacts/audits/PURE_OOF_RUN_MANIFEST.json \
+            --out-dir artifacts/pure_supremacy
+
+      # Commit the authoritative metrics back to the branch (best-effort). The metrics are
+      # ALSO uploaded as a retained artifact below, so a read-only token does not lose them.
+      - name: Commit PURE OOF metrics
+        if: always()
+        continue-on-error: true
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.json \
+                  artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.csv \
+                  artifacts/pure_supremacy/PRODUCTION_PURE_OOF_SCORED_ROWS.parquet \
+                  artifacts/audits/PURE_OOF_RUN_MANIFEST.json || true
+          if git diff --cached --quiet; then
+            echo "No PURE OOF metric changes to commit."
+          else
+            git commit -m "Stage5 pure OOF metrics (run ${{ github.run_id }}) [skip ci]"
+            git push origin HEAD:${{ github.ref_name }} || echo "PUSH_BLOCKED_TOKEN (metrics retained as artifact)"
+          fi
+
       - name: Upload OOF artifacts
         uses: actions/upload-artifact@v4
         if: always()
@@ -79,4 +119,8 @@ jobs:
           path: |
             data/oof/
             artifacts/audits/stage5_*
+            artifacts/audits/PURE_OOF_RUN_MANIFEST.json
+            artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.json
+            artifacts/pure_supremacy/PRODUCTION_PURE_OOF_METRICS.csv
+            artifacts/pure_supremacy/PRODUCTION_PURE_OOF_SCORED_ROWS.parquet
           retention-days: 30

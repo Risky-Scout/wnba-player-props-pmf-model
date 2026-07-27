@@ -3,9 +3,13 @@
 Predicts expected playing time and uncertainty for each player-game row.
 
 Key design:
-- Mean regressor: HistGradientBoostingRegressor fitted on all rows (including DNPs).
-- Quantile regressors: 5 quantile HGBRs (q10, q25, q50, q75, q90) for uncertainty.
-- DNP model: LogisticRegression predicting P(did_not_play).
+- Availability is represented ONCE: the DNP classifier owns P(did_not_play); the minute
+  regressors own the conditional minute distribution GIVEN the player appears.
+- Mean regressor: HistGradientBoostingRegressor fitted on APPEARANCES ONLY (did_play==1),
+  so DNP-zero rows do not deflate the conditional-minute estimate (no double-count).
+- Quantile regressors: 5 quantile HGBRs (q10, q25, q50, q75, q90) for uncertainty,
+  also fitted on appearances only.
+- DNP model: LogisticRegression predicting P(did_not_play), fitted on ALL eligible rows.
 - Sigma estimated from IQR of quantile predictions (IQR/1.35 ≈ std for normal).
 - Minimum sigma enforced to prevent overconfident projections.
 - actual_minutes is NEVER included as a model feature.
@@ -25,11 +29,38 @@ from sklearn.preprocessing import StandardScaler
 
 _QUANTILES = [0.10, 0.25, 0.50, 0.75, 0.90]
 
+# The SINGLE canonical minutes maximum. This is the ONLY hard-coded minutes-maximum literal in
+# the production minutes path: fit/mean/quantile/sigma/serialization all resolve the clip through
+# ``MinutesModel._clip_max()`` (which reads ``cfg['minutes_clip_max']`` once and persists it on the
+# model). Any second hard-coded production minutes maximum (e.g. 42 or 45) is a bug — see
+# tests/test_minutes_model_common_fixes.py::test_no_second_minutes_maximum_literal.
+DEFAULT_MINUTES_CLIP_MAX = 48.0
+DEFAULT_MINUTES_CLIP_MIN = 0.0
+
+
+class MissingMinutesMetadataError(ValueError):
+    """Raised in strict mode when appearance-only minutes training is requested but the
+    ``did_play`` metadata needed to build the appearance mask / DNP head is absent."""
+
 
 class MinutesModel:
     """Predicts (minutes_mean, minutes_sigma, p_dnp) for each player-game row."""
 
-    VERSION = "stage4_baseline_v2"
+    VERSION = "stage4_baseline_v3_appearance_conditional"
+
+    def _clip_max(self) -> float:
+        """Resolve the ONE minutes maximum: the value persisted at fit time, else the config
+        value, else the single canonical default. Used by every clip/serialization path."""
+        v = getattr(self, "_minutes_clip_max", None)
+        if v is not None:
+            return float(v)
+        return float(self.cfg.get("minutes_clip_max", DEFAULT_MINUTES_CLIP_MAX))
+
+    def _clip_min(self) -> float:
+        v = getattr(self, "_minutes_clip_min", None)
+        if v is not None:
+            return float(v)
+        return float(self.cfg.get("minutes_clip_min", DEFAULT_MINUTES_CLIP_MIN))
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
@@ -59,7 +90,11 @@ class MinutesModel:
         """
         seed = self.cfg.get("random_seed", 42)
         hgb_kw = self.cfg.get("hgb_regressor", {})
-        clip_max = self.cfg.get("minutes_clip_max", 45.0)
+        # Read the minutes maximum ONCE and persist it on the model; every downstream clip
+        # (mean/quantile/sigma/serialization) resolves it via ``_clip_max()``.
+        self._minutes_clip_max = float(self.cfg.get("minutes_clip_max", DEFAULT_MINUTES_CLIP_MAX))
+        self._minutes_clip_min = float(self.cfg.get("minutes_clip_min", DEFAULT_MINUTES_CLIP_MIN))
+        clip_max = self._minutes_clip_max
 
         # Drop all-NaN columns (common in early-season data)
         all_nan = [c for c in X.columns if X[c].isna().all()]
@@ -70,7 +105,34 @@ class MinutesModel:
         from wnba_props_model.features.feature_contract import capture_feature_dtype_kinds
         self._feature_dtype_kinds = capture_feature_dtype_kinds(X, self._usable_cols)
 
-        # --- Mean regressor --------------------------------------------------
+        # --- Availability / conditional-minutes decomposition ----------------
+        # Availability must be represented ONCE (by the DNP classifier), not twice. The
+        # conditional-minute mean/quantile regressors are therefore trained ONLY on
+        # appearances (did_play==1); leaving DNP-zero rows in would deflate the conditional
+        # minute estimate and double-count availability with the DNP head.
+        appearances_only = bool(self.cfg.get("train_minutes_on_appearances_only", True))
+        strict_meta = bool(self.cfg.get("strict_minutes_metadata", False))
+        did_play_series = None
+        if metadata_df is not None and "did_play" in metadata_df.columns:
+            did_play_series = metadata_df["did_play"]
+        if appearances_only and did_play_series is None and strict_meta:
+            # STRICT production/OOF: never silently train the conditional minute model on ALL
+            # rows (DNP zeros would deflate the conditional mean and double-count availability).
+            raise MissingMinutesMetadataError(
+                "train_minutes_on_appearances_only=true but metadata_df has no 'did_play' column; "
+                "strict_minutes_metadata forbids the silent train-on-all-rows fallback.")
+        if appearances_only and did_play_series is not None:
+            appear_mask = np.asarray(did_play_series.values).astype(bool)
+        else:
+            appear_mask = np.ones(len(X), dtype=bool)
+        self._trained_minutes_on_appearances_only = bool(appearances_only and appear_mask.any()
+                                                         and not appear_mask.all())
+        X_cond = X[appear_mask] if appear_mask.any() else X
+        y_cond = y[appear_mask] if appear_mask.any() else y
+        sw_cond = (sample_weight[appear_mask] if sample_weight is not None and appear_mask.any()
+                   else sample_weight)
+
+        # --- Mean regressor (conditional on appearance) ----------------------
         self._model = HistGradientBoostingRegressor(
             max_iter=hgb_kw.get("max_iter", 200),
             max_leaf_nodes=hgb_kw.get("max_leaf_nodes", 31),
@@ -81,9 +143,9 @@ class MinutesModel:
             tol=hgb_kw.get("tol", 1e-7),
             random_state=seed,
         )
-        self._model.fit(X, y, sample_weight=sample_weight)
+        self._model.fit(X_cond, y_cond, sample_weight=sw_cond)
 
-        # --- Quantile regressors (q10, q25, q50, q75, q90) ------------------
+        # --- Quantile regressors (q10, q25, q50, q75, q90), conditional -----
         self._quantile_models = {}
         for q in _QUANTILES:
             qm = HistGradientBoostingRegressor(
@@ -98,7 +160,7 @@ class MinutesModel:
                 tol=hgb_kw.get("tol", 1e-7),
                 random_state=seed,
             )
-            qm.fit(X, y, sample_weight=sample_weight)
+            qm.fit(X_cond, y_cond, sample_weight=sw_cond)
             self._quantile_models[q] = qm
 
         # --- DNP logistic regression (P(did_not_play)) -----------------------
@@ -120,27 +182,36 @@ class MinutesModel:
                         random_state=seed,
                     )),
                 ])
-                self._dnp_model.fit(X, dnp_y)
+                # The DNP head is trained on ALL eligible rows (X, dnp_y both full-length), so it
+                # must receive the FULL-row sample weights — NOT the appearance-subset weights the
+                # conditional-minute regressors use. X, dnp_y and sample_weight are all aligned to
+                # the full row set here (only all-NaN COLUMNS were dropped, never rows).
+                if sample_weight is None:
+                    self._dnp_model.fit(X, dnp_y)
+                else:
+                    self._dnp_model.fit(
+                        X, dnp_y, clf__sample_weight=np.asarray(sample_weight, dtype=float))
             else:
                 # All same class — skip DNP model (everyone plays or no one plays)
                 self._dnp_model = None
         else:
             self._dnp_model = None
 
-        # --- Residual-based sigma fallback (legacy) --------------------------
-        y_pred = np.clip(self._model.predict(X), 0.0, clip_max)
-        residuals = y.values - y_pred
+        # --- Residual-based sigma fallback (legacy), on appearances only -----
+        y_pred = np.clip(self._model.predict(X_cond), 0.0, clip_max)
+        residuals = np.asarray(y_cond.values, dtype=float) - y_pred
         global_std = float(np.std(residuals))
         self._global_sigma = max(global_std, self.cfg.get("min_minutes_sigma", 3.0))
 
         # Stratify by (projected_minutes_bucket × role_uncertainty_bucket)
+        _meta_cond = metadata_df[appear_mask] if appear_mask.any() else metadata_df
         bucket_df = pd.DataFrame({
             "residual": residuals,
-            "min_bucket": metadata_df["projected_minutes_bucket"].values
-                          if "projected_minutes_bucket" in metadata_df.columns
+            "min_bucket": _meta_cond["projected_minutes_bucket"].values
+                          if "projected_minutes_bucket" in _meta_cond.columns
                           else "unknown",
-            "unc_bucket": metadata_df["role_uncertainty_bucket"].values
-                          if "role_uncertainty_bucket" in metadata_df.columns
+            "unc_bucket": _meta_cond["role_uncertainty_bucket"].values
+                          if "role_uncertainty_bucket" in _meta_cond.columns
                           else "unknown",
         })
         for (mb, ub), grp in bucket_df.groupby(["min_bucket", "unc_bucket"]):
@@ -164,8 +235,9 @@ class MinutesModel:
         from wnba_props_model.features.feature_contract import assert_inference_parity
         assert_inference_parity(X, self, "MinutesModel.predict_quantiles")
         X_aligned = X.reindex(columns=self._usable_cols)
-        # Use full clip_max from config (no 42.0 hard cap — stars in OT can play 43-48 min).
-        clip_max = self.cfg.get("minutes_clip_max", 48.0)
+        # Single persisted minutes maximum (no legacy hard cap — stars in OT can play into the
+        # mid/high forties).
+        clip_max = self._clip_max()
         _qm = getattr(self, "_quantile_models", {}) or {}
         cols = []
         for q in _QUANTILES:
@@ -174,7 +246,10 @@ class MinutesModel:
             else:
                 raw = self._model.predict(X_aligned)  # fallback
             cols.append(np.clip(raw, 0.0, clip_max))
-        return np.column_stack(cols)  # (n, 5)
+        q = np.column_stack(cols)  # (n, 5)
+        # Repair quantile crossing: independently-fit quantile regressors can cross; enforce
+        # non-decreasing q10<=q25<=q50<=q75<=q90 per row so the derived IQR/sigma is valid.
+        return np.sort(q, axis=1)
 
     def predict(
         self,
@@ -200,8 +275,8 @@ class MinutesModel:
 
         y_pred = np.clip(
             self._model.predict(X),
-            self.cfg.get("minutes_clip_min", 0.0),
-            self.cfg.get("minutes_clip_max", 45.0),
+            self._clip_min(),
+            self._clip_max(),
         )
 
         # --- Sigma from IQR of quantile predictions -------------------------
@@ -210,9 +285,17 @@ class MinutesModel:
 
         _qm = getattr(self, "_quantile_models", {}) or {}
         if _qm:
-            clip_max = min(self.cfg.get("minutes_clip_max", 45.0), 42.0)
-            q25_pred = np.clip(_qm[0.25].predict(X), 0.0, clip_max)
-            q75_pred = np.clip(_qm[0.75].predict(X), 0.0, clip_max)
+            # Use the single persisted clip_max consistently with predict_quantiles (no legacy
+            # sub-maximum hard cap — capping q75 low shrinks the IQR/sigma for high-minute
+            # starters) and derive sigma from crossing-repaired (sorted) quantiles so q75>=q25.
+            clip_max = self._clip_max()
+            q_all = np.column_stack([
+                np.clip(_qm[q].predict(X), 0.0, clip_max) if q in _qm
+                else np.clip(self._model.predict(X), 0.0, clip_max)
+                for q in _QUANTILES
+            ])
+            q_all = np.sort(q_all, axis=1)
+            q25_pred, q75_pred = q_all[:, 1], q_all[:, 3]
             sigmas = np.maximum((q75_pred - q25_pred) / 1.35, min_sigma)
         else:
             # Legacy fallback: role-stratified residual sigma
@@ -249,6 +332,10 @@ class MinutesModel:
             "sigma_by_bucket": {f"{k[0]}_{k[1]}": v for k, v in self._sigma_lookup.items()},
             "quantile_models_fitted": len(self._quantile_models),
             "dnp_model_fitted": self._dnp_model is not None,
+            "trained_minutes_on_appearances_only": getattr(
+                self, "_trained_minutes_on_appearances_only", False),
+            "minutes_clip_max": self._clip_max(),
+            "minutes_clip_min": self._clip_min(),
         }
 
     def save(self, path: str) -> None:

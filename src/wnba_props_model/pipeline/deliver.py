@@ -284,7 +284,11 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame, *,
     # player_name is intentionally excluded from PMF sel_cols — it comes from the
     # props side of the join to avoid _x/_y duplicate column collisions.
     _must_have = ["game_id", "player_id", "stat", "pmf_json", "pmf_mean"]
-    _optional  = ["role_bucket", "model_version", "game_date"]
+    _optional  = ["role_bucket", "model_version", "model_hash", "game_date",
+                  # Availability decomposition (owner items 1/2): the ACTIVE pmf is authoritative
+                  # for certified sportsbook settlement; the mixture is display/DNP-as-Under only.
+                  "active_pmf_json", "active_pmf_mean", "availability_mixture_pmf_json",
+                  "p_dnp", "sportsbook_settlement_basis"]
     sel_cols   = _must_have + [c for c in _optional if c in pmfs_sel.columns]
 
     # Primary join: game_id + player_id + stat (BDL-sourced props)
@@ -342,8 +346,17 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame, *,
     # model_prob_over column tracks model_prob_over_final (push-safe settled), falling back
     # to the unconditional value only for binary-ineligible all-push rows so downstream
     # never sees NaN.
-    from wnba_props_model.models.probability_lineage import build_probability_lineage  # noqa: PLC0415
+    from wnba_props_model.models.probability_lineage import (  # noqa: PLC0415
+        build_probability_lineage,
+        build_settled_probability_from_active_pmf,
+        fail_closed_lineage,
+    )
+    from wnba_props_model.models.availability_pmf import recover_active_pmf  # noqa: PLC0415
     from wnba_props_model.models.binary_probability_calibration import BinaryCalibrationRegistry  # noqa: PLC0415
+    from wnba_props_model.models.settlement_rules import (  # noqa: PLC0415
+        resolve_dnp_settlement_rule, settlement_basis_for_rule,
+        VOID_DNP, SETTLES_DNP_AS_UNDER, BASIS_FAIL_CLOSED,
+    )
     # Binary calibration is applied INSIDE the lineage (before model_prob_over_final exists).
     # Callers may inject an approved registry (e.g. Venn-Abers); default is identity-disabled.
     _bincal_registry = binary_calibration_registry or BinaryCalibrationRegistry(enabled=False)
@@ -357,20 +370,70 @@ def build_market_comparison(pmfs: pd.DataFrame, raw_props: pd.DataFrame, *,
         "calibrator_hash", "structural_model_id", "structural_model_hash",
         "binary_score_eligible",
     )
+    # Owner items 2/6: certified sportsbook settlement is book-DNP-rule aware.
+    #   VOID_DNP            -> settle from the ACTIVE pmf (void-on-DNP); fail closed if absent.
+    #   SETTLES_DNP_AS_UNDER-> settle from the availability-mixture pmf (DNP folded onto 0).
+    #   UNKNOWN             -> fail closed (no certified prob, no Edge Board row).
+    # p_dnp is NEVER divided out post-hoc and NEVER silently defaulted to zero.
+    _has_active = "active_pmf_json" in joined.columns
     _lineages = []
+    _rule_ids: list[str] = []
+    _bases: list[str] = []
     for _, r in joined.iterrows():
-        _lineages.append(build_probability_lineage(
-            final_pmf=json_to_pmf(r["pmf_json"]),
-            line=float(r["line"]),
-            prop=str(r.get("stat", "")),
-            role=str(r.get("role_bucket", "all")),
-            binary_calibration_registry=_bincal_registry,
-            structural_model_id=(str(r.get("model_version")) if r.get("model_version") else None),
-            structural_model_hash=(str(r.get("model_hash")) if r.get("model_hash") else None),
-            probability_track="pure_forecast",
-        ))
+        _rule_id, _dnp_rule = resolve_dnp_settlement_rule(r.get("vendor"))
+        _rule_ids.append(_rule_id)
+        _line = float(r["line"])
+        _prop = str(r.get("stat", ""))
+        _role = str(r.get("role_bucket", "all"))
+        _smid = (str(r.get("model_version")) if r.get("model_version") else None)
+        _smh = (str(r.get("model_hash")) if r.get("model_hash") else None)
+        if not _has_active:
+            # LEGACY / NON-CERTIFIED replay: the frame carries no first-class active PMF. Recover
+            # it from the mixture (pmf_json) + p_dnp — with p_dnp==0 (or absent) this is exactly
+            # the mixture, i.e. bit-for-bit historical behaviour. NEVER a certified Edge Board row.
+            _pdnp = float(r.get("p_dnp") or 0.0)
+            _lineages.append(build_settled_probability_from_active_pmf(
+                active_pmf=recover_active_pmf(r["pmf_json"], _pdnp),
+                line=_line, prop=_prop, role=_role,
+                binary_calibration_registry=_bincal_registry,
+                structural_model_id=_smid, structural_model_hash=_smh))
+            _bases.append("LEGACY_RECOVERED_ACTIVE_PMF_NON_CERTIFIED")
+            continue
+        _active_json = r.get("active_pmf_json")
+        if _dnp_rule == VOID_DNP:
+            if not (isinstance(_active_json, str) and _active_json):
+                # Certified mode: never fall back to the mixture / identity / legacy pmf.
+                _lineages.append(fail_closed_lineage("active_pmf_missing_fail_closed"))
+                _bases.append("active_pmf_missing_fail_closed")
+                continue
+            _lineages.append(build_settled_probability_from_active_pmf(
+                active_pmf=json_to_pmf(_active_json),
+                line=_line, prop=_prop, role=_role,
+                binary_calibration_registry=_bincal_registry,
+                structural_model_id=_smid, structural_model_hash=_smh,
+            ))
+            _bases.append(settlement_basis_for_rule(VOID_DNP))
+        elif _dnp_rule == SETTLES_DNP_AS_UNDER:
+            _mix_json = r.get("availability_mixture_pmf_json")
+            if not (isinstance(_mix_json, str) and _mix_json):
+                _mix_json = r.get("pmf_json")  # alias == mixture
+            _lineages.append(build_probability_lineage(
+                final_pmf=json_to_pmf(_mix_json),
+                line=_line, prop=_prop, role=_role,
+                binary_calibration_registry=_bincal_registry,
+                structural_model_id=_smid, structural_model_hash=_smh,
+                probability_track="pure_forecast",
+            ))
+            _bases.append(settlement_basis_for_rule(SETTLES_DNP_AS_UNDER))
+        else:
+            # UNKNOWN book DNP rule -> fail closed.
+            _lineages.append(fail_closed_lineage("unknown_book_dnp_rule_fail_closed"))
+            _bases.append(BASIS_FAIL_CLOSED)
     for _col in _lineage_cols:
         joined[_col] = [getattr(_lin, _col) for _lin in _lineages]
+    # Persist the resolved book rule + settlement basis on every row (auditable).
+    joined["sportsbook_rule_id"] = _rule_ids
+    joined["sportsbook_settlement_basis"] = _bases
     # Preserve full float64 precision; None (binary-ineligible all-push) -> NaN.
     joined["model_prob_over_final"] = np.array(
         [(_lin.model_prob_over_final if _lin.model_prob_over_final is not None else np.nan)

@@ -1,0 +1,31 @@
+{
+  "status": "EXTERNAL_DATA_BLOCKER",
+  "blocks_steps": [
+    "STEP 6 rerun production OOF",
+    "STEP 7 exact-quote evaluation on fresh OOF",
+    "STEP 8 structural challengers",
+    "STEP 9 selection on fresh OOF",
+    "STEP 10 freeze + prospective proof",
+    "STEP 11 stl/blk/turnover + combo quotes"
+  ],
+  "required_inputs_absent": {
+    "feature_matrix": {
+      "path": "data/processed/wnba_player_game_features_wide.parquet",
+      "present": false,
+      "role": "point-in-time training/inference features for all 7 props + combos"
+    },
+    "provider_api_keys": {
+      "BDL_API_KEY": "required to pull box scores / rebuild the feature matrix",
+      "ODDS_API_KEY": "required for stl/blk/turnover + combo exact same-book quotes",
+      "present": false
+    }
+  },
+  "why": "A fresh pure production OOF requires refitting the minutes/DNP/stat models on the raw point-in-time feature matrix with the pure_forecast contract active. The matrix is a deferred data artifact (absent) and no provider API keys are present, so the OOF cannot be regenerated here. The current committed OOF was built by a config with market_prior_lambda>0 and a CLV head, so its probabilities are UPSTREAM_PURITY_UNVERIFIED and are used only for labelled diagnostics.",
+  "unblock_action": "Run the pure production OOF where the feature matrix + BDL/ODDS keys exist (e.g. a data-enabled CI/agent), then re-run STEP 6-10 here.",
+  "code_readiness": {
+    "pure_forecast_contract_enforced": true,
+    "market_prior_lambda_and_clv_disabled_in_pure": true,
+    "active_pmf_dnp_correction_available": "src/wnba_props_model/models/availability_pmf.py",
+    "minutes_repair_available": true
+  }
+}
