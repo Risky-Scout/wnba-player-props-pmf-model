@@ -125,3 +125,20 @@ def test_raw_candidate_still_default_and_unchanged(fitted):
     val = df[df["game_id"] < 1005].copy()
     raw = bundle.predict_active_pmfs(val, None, ["fg3m"])  # default candidate
     assert (raw["candidate_id"] == "OPP_V2_RAW").all()
+
+
+def test_counterfactual_teammate_removal_reallocates_share(fitted):
+    """Remove a high-opportunity teammate pregame -> remaining active shares reallocate upward and
+    still sum to 1 (team total stays coherent). Proves shares are team-coherent, not per-player fixed."""
+    bundle, df = fitted
+    one = df[df["game_id"] == 1000].copy()
+    team = one[one["team_id"] == one["team_id"].iloc[0]].copy()
+    full = bundle.predict_active_pmfs(team, team, ["fg3m"], candidate=CANDIDATE_TEAM_SHARE)
+    # identify the highest-share player and remove them
+    top_pid = full.sort_values("player_fg3a_share", ascending=False)["player_id"].iloc[0]
+    reduced = team[team["player_id"] != top_pid].copy()
+    cf = bundle.predict_active_pmfs(reduced, reduced, ["fg3m"], candidate=CANDIDATE_TEAM_SHARE)
+    # remaining players' shares still sum to 1 and each remaining share is >= its original
+    assert np.isclose(cf["player_fg3a_share"].sum(), 1.0, atol=1e-6)
+    merged = full.merge(cf, on="player_id", suffixes=("_full", "_cf"))
+    assert (merged["player_fg3a_share_cf"] >= merged["player_fg3a_share_full"] - 1e-9).all()

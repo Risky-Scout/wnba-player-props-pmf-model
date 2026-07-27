@@ -1,0 +1,30 @@
+{
+  "candidate": "OPP_V2_TEAM_SHARE (G1)",
+  "prop_measured": "fg3m",
+  "paired_universe_n": 498,
+  "headline": "G1 does NOT advance: it worsens discrimination and every proper score vs BOTH P0 and R1.",
+  "metrics": {
+    "fg3m_auc": {"p0": 0.5676, "r1": 0.5929, "g1": 0.5496, "market": 0.617},
+    "fg3m_log_loss": {"p0": 0.7619, "r1": 0.6758, "g1": 0.8028, "market": 0.6653},
+    "g1_minus_r1": {"delta_auc": -0.0433, "delta_log_loss": 0.1270, "delta_brier": 0.0420,
+                    "ci95_delta_log_loss": [0.0711, 0.1887]},
+    "g1_minus_p0": {"delta_auc": -0.0141, "delta_log_loss": 0.0347, "delta_brier": 0.0192},
+    "g1_minus_market": {"delta_auc": -0.0684, "delta_log_loss": 0.1374, "delta_brier": 0.0463},
+    "full_pmf_log_score": {"r1": 1.6588, "g1": 1.8411},
+    "crps": {"r1": 0.7812, "g1": 0.9085}
+  },
+  "root_cause": {
+    "structural": "G1 = (coarse predicted team 3PA total) x (player 3PA share). This is a lossy reparameterization of R1's direct per-minute 3PA rate x minutes: multiplying two noisy estimates compounds error and discards the direct player-rate signal that R1 keeps.",
+    "team_environment_features": ["team_fg3a_ewma"],
+    "team_environment_note": "Team 3PA total is predicted from a SINGLE lagged team EWMA -> coarse, low-resolution.",
+    "share_model_features": ["player_fg3a_per_min_ewma", "player_minutes_ewma"],
+    "share_model_is_mostly_lagged_share": true,
+    "share_game_varying_drivers_present": ["active_roster_renormalization", "inactive_zeroing_via_p_active"],
+    "share_game_varying_drivers_absent": ["expected_lineup", "projected_minutes_as_share_driver",
+      "starter_role_change", "teammate_absences", "vacated_opportunity", "opponent_context"],
+    "plain_statement": "The share model is driven almost entirely by LAGGED historical share (prior per-minute 3PA x prior minutes), with the only game-varying element being active-roster renormalization and zeroing of inactive players. It carries NO expected-lineup / teammate-absence / vacated-opportunity / opponent-context signal at Tier-0, which is why it adds no incremental discrimination over R1."
+  },
+  "decision": "Do NOT advance G1. Do NOT add calibration to mask the discrimination gap. Keep R1 as the best (still sub-market) fg3m model. R1 fg3m AUC 0.593 vs market 0.617.",
+  "recommended_next": "G2: feed AUDITED tracking-derived, game-varying share drivers (rebound chances, touches, passes are now identity-matched at 98/99 market games) and real forward lineup/availability context (G3). Only these introduce information R1 lacks; team-total x lagged-share alone does not.",
+  "constraints_respected": ["no market inputs added", "no calibrator added", "P0 unchanged", "no uncertified candidate activated"]
+}
