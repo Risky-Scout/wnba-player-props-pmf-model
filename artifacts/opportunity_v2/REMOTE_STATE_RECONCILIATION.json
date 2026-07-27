@@ -1,0 +1,109 @@
+{
+  "generated_utc": "2026-07-27T23:50:08.717688+00:00",
+  "purpose": "Objectively prove the remote branch contains the coherent, executable components (refuting stale-diff audit claims #1-#4).",
+  "local_HEAD": "032fb2c24632079f83376ca52ce8f4a6c3c90e61",
+  "remote_HEAD": "032fb2c24632079f83376ca52ce8f4a6c3c90e61",
+  "heads_equal": true,
+  "git_status_short": "?? data/snapshots/",
+  "git_log_oneline_20": "032fb2c2 opp-v2: register build_candidate_comparison.py as permitted_pmf_diagnostic (fix foundation-lock)\n608b4e3f opp-v2(F): add scheduled forward snapshot collector + honest status\nb38b3c49 opp-v2(D/E/C): real P0/R1/G1/market comparison + G1 diagnosis + counterfactual test\n25d93d66 opp-v2(A): PTS decomposition FEASIBLE on tracking-covered games via fieldGoalPercentage\n4cbc0eb7 opp-v2(B): tracking<->canonical identity crosswalk (reviewed, no fuzzy auto-accept)\nb5c48096 opp-v2: wire team-env/share candidate, full evaluator contract, deterministic cutoff + hash-safe checkpoints, tracking/PTS audits\nfb959dd3 feat(opportunity): forward snapshot collection, Tier-0 tables, smoke + CI gate\n25dfc225 feat(opportunity): add strict walk-forward OOF, exact-quote evaluation, and measured results\nbd231d05 feat(opportunity): add point-in-time feature builder and active-PMF bundle\n87411e57 feat(opportunity): add minutes-sensitive component opportunity-rate models\nc3fb7cde feat(opportunity): add availability, role, and conditional-minutes models\n49a977ee feat(opportunity): add team environment and coherent opportunity shares\n02763861 feat(opportunity): add PMF builders and hierarchical rate/conversion estimators\n118dc28d feat(opportunity): add strict point-in-time asof joins and temporal audit\n174e2ef7 feat(opportunity): add snapshot contracts and append-only storage\n10aeadea Post-merge OOF recovery: ast/tov active-PMF construction fix + json-consistent lineage validator + authoritative metrics (#88)\na3e52fe7 chore: update league priors from 2026-07-27 season data [skip ci]\n24c2618d chore: biday calibrator refit run 30260832495 [skip ci]\n7621b3c5 Merge PR #87: certified settlement from ACTIVE PMF (void-on-DNP) + minutes-sensitive zero-inflation\nce0f5dd2 chore(phase0-scope): authorize PR #87 deliver.py settlement change",
+  "clean_clone_pytest": "tests/opportunity/ = 119 passed (from /tmp/oppv2_cleanclone at 032fb2c2)",
+  "clean_clone_api_check": "build_candidate_comparison imports EV.log_loss/brier/auc/expected_calibration_error/holm/calibration_intercept_slope/_paired_bootstrap -> all resolve+execute (SYNTHETIC_INTEGRATION_OK); OOF parquets gitignored so absent in clone, synthetic check used per instruction",
+  "components": {
+    "evaluator_api": {
+      "file": "scripts/evaluate_opportunity_oof.py",
+      "proof": "clean-clone: EV.log_loss/brier/auc/expected_calibration_error/build_canonical_scored_rows import+execute; 16 contract tests pass",
+      "remote_blob_sha": "a873f2a08f5fa91550f2bef24e56833b7c2030d2",
+      "remote_present": true,
+      "introduced_commit": "25dfc225",
+      "last_commit": "b5c48096"
+    },
+    "deterministic_cutoff": {
+      "file": "scripts/build_opportunity_oof.py",
+      "proof": "_build_deterministic_cutoffs present; test_oof_cutoff_checkpoint.py::test_cutoff_is_deterministic_and_per_game",
+      "remote_blob_sha": "bee43e0a117e5e67d911971abf7c2ea3ab49c31d",
+      "remote_present": true,
+      "introduced_commit": "25dfc225",
+      "last_commit": "b5c48096"
+    },
+    "hash_safe_checkpoint": {
+      "file": "scripts/build_opportunity_oof.py",
+      "proof": "_verify_checkpoint + _code_sha present; test_checkpoint_reuse_rejects_on_mismatch passes",
+      "remote_blob_sha": "bee43e0a117e5e67d911971abf7c2ea3ab49c31d",
+      "remote_present": true,
+      "introduced_commit": "25dfc225",
+      "last_commit": "b5c48096"
+    },
+    "team_share_wiring": {
+      "file": "src/wnba_props_model/opportunity/bundle.py",
+      "proof": "CANDIDATE_TEAM_SHARE + _predict_team_share; imports TeamEnvironmentModelV2/TeamOpportunityShareModel; test_team_share_wiring.py 8/8",
+      "remote_blob_sha": "d41bc92a35c20c883b13b6af8efb1f3f20c23245",
+      "remote_present": true,
+      "introduced_commit": "bd231d05",
+      "last_commit": "b5c48096"
+    },
+    "tracking_crosswalk_code": {
+      "file": "scripts/build_tracking_crosswalk.py",
+      "proof": "produces tracking_identity_report.json: 262 players, 100% canonical games, 98/99 market",
+      "remote_blob_sha": "6878b5c509986136945688537c103e174c090f5c",
+      "remote_present": true,
+      "introduced_commit": "3efb4cf4",
+      "last_commit": "4cbc0eb7"
+    },
+    "tracking_identity_report": {
+      "file": "artifacts/opportunity_v2/tracking_identity_report.json",
+      "proof": "artifact committed on origin",
+      "remote_blob_sha": "2b67eb901f887a65184f74835b022b093d1c19f8",
+      "remote_present": true,
+      "introduced_commit": "4cbc0eb7",
+      "last_commit": "4cbc0eb7"
+    },
+    "pts_audit_code": {
+      "file": "scripts/audit_pts_reconstruction.py",
+      "proof": "produces PTS_RECONSTRUCTION_REPORT.json: full_pts_decomposition_feasible=true",
+      "remote_blob_sha": "c00df99a690020ddd67c4515d60937212a60f748",
+      "remote_present": true,
+      "introduced_commit": "25d93d66",
+      "last_commit": "25d93d66"
+    },
+    "pts_reconstruction_report": {
+      "file": "artifacts/opportunity_v2/PTS_RECONSTRUCTION_REPORT.json",
+      "proof": "artifact committed on origin",
+      "remote_blob_sha": "0142d04f53614e0ced73134e90459008f39c618b",
+      "remote_present": true,
+      "introduced_commit": "25d93d66",
+      "last_commit": "25d93d66"
+    },
+    "candidate_comparison_code": {
+      "file": "scripts/build_candidate_comparison.py",
+      "proof": "clean-clone: imports EV.* (all names resolve); registered permitted_pmf_diagnostic",
+      "remote_blob_sha": "2d32acf93834605577b403d57b7137c603d5dc95",
+      "remote_present": true,
+      "introduced_commit": "b38b3c49",
+      "last_commit": "b38b3c49"
+    },
+    "candidate_comparison_result": {
+      "file": "artifacts/opportunity_v2/CANDIDATE_COMPARISON_P0_R1_G1.json",
+      "proof": "artifact committed on origin with measured P0/R1/G1/market metrics",
+      "remote_blob_sha": "fd383a9fe22e56bcfa95bfbf5ca950b329e93bfc",
+      "remote_present": true,
+      "introduced_commit": "b38b3c49",
+      "last_commit": "b38b3c49"
+    },
+    "config_promotion": {
+      "file": "config/model/opportunity_v2.yaml",
+      "proof": "promotion block (required_rows>=300, dates>=30, Holm/AUC/ECE/calibration gates) loaded by evaluator",
+      "remote_blob_sha": "81fd25ea0f064ce3c7d6b07796d9d40a08d88c4b",
+      "remote_present": true,
+      "introduced_commit": "25dfc225",
+      "last_commit": "b5c48096"
+    },
+    "forward_snapshot_workflow": {
+      "file": ".github/workflows/opportunity_v2_snapshots.yml",
+      "proof": "actionlint clean; 3 crons; newly added, zero historical runs",
+      "remote_blob_sha": "5ebc30cf9d464e7ed7994a223be03e461589a0de",
+      "remote_present": true,
+      "introduced_commit": "608b4e3f",
+      "last_commit": "608b4e3f"
+    }
+  }
+}
