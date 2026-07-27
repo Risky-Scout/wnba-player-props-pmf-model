@@ -272,6 +272,11 @@ def test_build_oof_pmfs_dry_run_routes_through_active_pmf(tmp_path):
                 "actual_reb": float(rng.poisson(max(0.1, mm * 0.15)) if played else 0),
             })
     wide = pd.DataFrame(rows)
+    # Production stores realized per-game box-score VOLUMES bare (oreb/dreb/fga/fg3a/fta) while
+    # settled outcomes carry the actual_ prefix; stage5_oof.yaml's structural_repair.columns map
+    # points at the bare names. Mirror that here so the structural repair candidate fires.
+    for _c in ("fga", "fg3a", "fta", "oreb", "dreb"):
+        wide[_c] = wide[f"actual_{_c}"]
     long_rows = []
     for st in stats:
         sub = wide[["player_id", "game_id", "game_date", "season", "player_name", "team_id",
