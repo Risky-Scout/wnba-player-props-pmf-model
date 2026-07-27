@@ -1,0 +1,32 @@
+{
+  "audit_utc": "2026-07-27T21:58:58.650900+00:00",
+  "canonical_wnba_player_game_stats": {
+    "fgm": false,
+    "fga": true,
+    "fg3m": true,
+    "fg3a": true,
+    "ftm": false,
+    "fta": true
+  },
+  "raw_bdl_wnba_player_game_stats": {
+    "fgm": false,
+    "fga": true,
+    "fg3m": true,
+    "fg3a": true,
+    "ftm": false,
+    "fta": true
+  },
+  "tracking_makes": {
+    "contestedFieldGoalsMade": true,
+    "uncontestedFieldGoalsMade": true,
+    "total_FGM_reconstructable": true,
+    "note": "FGM = contested + uncontested made (tracking, 2021-2026). FG2M = FGM - FG3M."
+  },
+  "conclusions": {
+    "FGM_available": "NO in box/raw; RECONSTRUCTABLE from tracking (contested+uncontested made) after id crosswalk",
+    "FTM_available": "NO anywhere (box, raw, tracking). Free-throw MAKES are absent in all authorized sources.",
+    "FGA_FG3A_FG3M_FTA_available": "YES (box + raw)",
+    "full_pts_decomposition_feasible": "PARTIAL: 2PA=FGA-FG3A and 3PA available; 3P/2P makes derivable via tracking FGM+box FG3M; but FTM absent => FT points component cannot be exactly decomposed.",
+    "verdict": "Full 2PA/2P% + 3PA/3P% + FTA/FT% convolution is NOT fully realizable because FTM is absent in every authorized source. FT-points must remain a shrunk-rate proxy (FTA x league/player FT% prior). This is an honest data limit, not an omission."
+  }
+}

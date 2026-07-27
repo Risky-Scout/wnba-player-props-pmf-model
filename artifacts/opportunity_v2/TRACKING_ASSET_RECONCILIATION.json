@@ -1,0 +1,69 @@
+{
+  "audit_utc": "2026-07-27T21:58:58.647123+00:00",
+  "assets": {
+    "wnba_tracking": {
+      "remote_asset_found": true,
+      "hash_match": true,
+      "rows": 33259,
+      "columns": 39,
+      "distinct_games": 1476,
+      "distinct_persons": 386,
+      "seasons": {
+        "2021": 4575,
+        "2022": 5261,
+        "2023": 5749,
+        "2024": 5877,
+        "2025": 7071,
+        "2026": 4726
+      },
+      "covers_2026_proof_window": true,
+      "rows_2026": 4726,
+      "has_game_date": false,
+      "id_scheme": "nba_stats (gameId/personId) - DIFFERS from BDL (game_id/player_id)",
+      "duplicate_game_person_keys": 0,
+      "person_ids_with_multiple_names": 0,
+      "name_overlap_2026_box": {
+        "covered": 226,
+        "of": 228
+      },
+      "name_overlap_2025_box": {
+        "covered": 183,
+        "of": 185
+      },
+      "signal_coverage": [
+        "reboundChancesOffensive/Defensive/Total",
+        "touches",
+        "passes",
+        "secondaryAssists",
+        "freeThrowAssists",
+        "assists",
+        "contested/uncontestedFieldGoalsMade/Attempted",
+        "defendedAtRimFieldGoalsMade/Attempted"
+      ],
+      "fgm_reconstructable_from_tracking": true,
+      "fgm_recon_nonnull_frac": 1.0
+    },
+    "wnba_hustle": {
+      "remote_asset_found": true,
+      "hash_match": true,
+      "rows": 171,
+      "columns": 25,
+      "distinct_games": 171,
+      "verdict_note": "Only 171 rows \u2014 negligible coverage; NOT usable for modeling."
+    }
+  },
+  "identity_reconciliation": {
+    "game_bridge_required": true,
+    "game_bridge_method": "map NBA gameId -> BDL game_id via (season, both team tricodes, per-player minutes signature); tracking lacks game_date so date-only bridge impossible",
+    "player_crosswalk_method": "personId -> BDL player_id via exact normalized full_name within season+team; 226/228 2026 names present",
+    "fuzzy_auto_accept": false
+  },
+  "classification": "PARTIALLY_USABLE",
+  "classification_rationale": [
+    "Asset exists, hash-verified, and DOES cover the 2026 proof window (4726 rows) \u2014 earlier 'no tracking source' was WRONG.",
+    "BLOCKER_PARTIAL: NBA-stats ids (gameId/personId) require a reviewed crosswalk + game bridge before certified use; no game_date column.",
+    "Rich Tier-2 signals present (rebound chances, touches, passes, rim FG defense) directly relevant to REB/AST/TOV/BLK.",
+    "Hustle asset unusable (171 rows).",
+    "Not yet ingested into a canonical, as-of-joinable snapshot table; forward 2026 point-in-time tracking would still lag by design."
+  ]
+}

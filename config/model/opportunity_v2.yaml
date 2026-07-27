@@ -78,6 +78,25 @@ data_tiers:
     - reb
   allow_tier1_diagnostic_fallback: true
 
+# Frozen promotion / market-superiority contract. The evaluator loads these and
+# MUST NOT hard-code a weaker standard. A candidate may be selection-eligible only
+# when it satisfies BOTH the log-loss and Brier families under Holm correction.
+promotion:
+  required_rows: 300
+  required_dates: 30
+  holm_alpha: 0.05
+  # frozen AUC rule: candidate AUC must be strictly above chance and not worse
+  # than the market AUC beyond this tolerance.
+  auc_min: 0.5
+  auc_vs_market_tol: 0.0
+  # calibration gates (logistic re-fit of outcome on logit(p))
+  calibration_slope_min: 0.80
+  calibration_slope_max: 1.25
+  calibration_intercept_abs_max: 0.25
+  ece_max: 0.05
+  bootstrap_iters: 10000
+  bootstrap_seed: 42
+
 # Honest scope on current repository data (see artifacts/opportunity_v2/DATA_AVAILABILITY_AUDIT.json):
 # only Tier-0 box props are historically certifiable. Tier-2 props are disabled until a tracking
 # source and historical pregame availability/lineup snapshots exist.
