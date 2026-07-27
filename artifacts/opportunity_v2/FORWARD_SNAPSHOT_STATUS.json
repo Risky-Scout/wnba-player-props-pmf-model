@@ -1,0 +1,31 @@
+{
+  "audit_utc": "2026-07-27",
+  "question": "Is Opportunity V2 forward pregame snapshot collection actually running on schedule?",
+  "answer_before_this_change": "NO.",
+  "evidence": {
+    "opportunity_snapshot_scripts_exist": ["scripts/build_opportunity_snapshots.py", "scripts/pull_pregame_context.py"],
+    "scheduled_workflow_invoking_them_before": "NONE",
+    "opportunity_v2_smoke.yml": "CI-only (push/pull_request); no cron -> not a forward collector",
+    "pregame_workflows": {
+      "pregame_initial.yml": "scheduled (P0 pipeline) — does NOT call opportunity snapshot scripts",
+      "pregame_injury_update.yml": "scheduled (P0 pipeline) — does NOT call opportunity snapshot scripts",
+      "pregame_final.yml": "scheduled (P0 pipeline) — does NOT call opportunity snapshot scripts"
+    },
+    "existing_snapshot_data": {
+      "path": "data/snapshots/availability/snapshot_date_utc=2026-07-25/source=bdl/snapshots.parquet",
+      "rows": 42,
+      "note": "single one-off latest-state pull (matches owner finding #7); NOT a scheduled multi-snapshot archive"
+    },
+    "historical_lineup_archive": "none",
+    "roster_interval_history": "none",
+    "vacated_opportunity_history": "none"
+  },
+  "change_made": {
+    "added_workflow": ".github/workflows/opportunity_v2_snapshots.yml",
+    "schedule": ["14:00 UTC initial", "18:00 UTC injury_update", "21:30 UTC final"],
+    "actions": "pull current-season BDL -> append append-only availability snapshot -> upload durable artifact",
+    "actionlint": "clean (exit 0)"
+  },
+  "honest_status_after_change": "Scheduled collector is now DEFINED and actionlint-clean, but has ZERO historical scheduled runs yet. A real multi-snapshot-per-slate archive will accrue only from its first scheduled execution onward. Lineup/roster-interval collection remains a no-op until a projected/confirmed-lineup source exists (not faked from postgame).",
+  "workflow_run_urls": "none yet (newly added; verify with `gh run list --workflow opportunity_v2_snapshots.yml` after the next 14:00/18:00/21:30 UTC cron)"
+}
