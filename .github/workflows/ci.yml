@@ -82,21 +82,18 @@ jobs:
       # CERTIFIED mode (push to main, or repo var CERTIFIED_CI=true) MUST fail closed on any
       # missing required artifact. In non-certified dev (PR/branch) the download may be absent and
       # the gate is skipped with an explicit NON-CERTIFIED label (never a silent pass).
-      - name: Download latest model artifacts (for manifest + features)
-        uses: actions/download-artifact@v4
+      # Phase 3E: fetch required feature artifacts from the IMMUTABLE, hash-pinned data release
+      # (config/data_registry.json, sha256-verified) instead of an expiring same-run Actions
+      # artifact — a same-run `actions/download-artifact` can NEVER exist on a push event, which is
+      # why certified main previously failed. In non-certified dev the fetch may be absent and the
+      # gate is skipped (explicitly labeled); certified mode fails closed in the gate step below.
+      - name: Fetch immutable feature artifacts (hash-pinned release)
         continue-on-error: ${{ github.ref != 'refs/heads/main' && vars.CERTIFIED_CI != 'true' }}
-        with:
-          name: model-stage4-latest
-          path: artifacts/models/stage4_baseline
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download processed features
-        uses: actions/download-artifact@v4
-        continue-on-error: ${{ github.ref != 'refs/heads/main' && vars.CERTIFIED_CI != 'true' }}
-        with:
-          name: processed-features-latest
-          path: data/processed
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          PRIVATE_DATA_GH_TOKEN: ${{ secrets.PRIVATE_DATA_GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/fetch_data.py wnba_player_game_features_wide feature_schema_manifest
 
       - name: Feature variance gate
         env:

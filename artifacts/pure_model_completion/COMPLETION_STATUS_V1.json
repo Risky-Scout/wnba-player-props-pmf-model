@@ -13,7 +13,17 @@
     "branch_deleted": true,
     "production_path_unchanged_across_merge": true,
     "flags_all_false": true,
-    "foundation_lock": "PASS_WITH_DECLARED_DEFERRALS"
+    "foundation_lock": "PASS_WITH_DECLARED_DEFERRALS",
+    "post_merge_main_ci": {
+      "unit_tests": "SUCCESS",
+      "lint_actionlint": "SUCCESS",
+      "opportunity_v2_smoke": "SUCCESS",
+      "foundation_lock": "SUCCESS",
+      "clv_backtest": "SKIPPED (conditional)",
+      "feature_variance_gate": "FAILURE — CORRECT fail-closed: required 'model-stage4-latest' Actions artifact not found (a same-run download can never exist on a push). Per directive: NOT weakened.",
+      "fix_applied": "ci.yml feature_variance_gate now fetches wnba_player_game_features_wide + feature_schema_manifest from the IMMUTABLE hash-pinned release via scripts/fetch_data.py (sha256-verified), replacing the broken same-run actions/download-artifact. Fail-closed retained.",
+      "remaining_blocker": "Both assets are LOCAL_ONLY_UNPUBLISHED (features_wide) / hash-drifted (feature_schema_manifest) and the box source (processed-data-v1) is unpublished, so the immutable fetch cannot retrieve them and certified main stays RED until the owner publishes processed-features-v2 (features_wide + reconciled manifest) + processed-data-v1 via publish_data.py with the PRIVATE_DATA_WRITER token, and sets a CI read token (PRIVATE_DATA_GH_TOKEN). This is a permissions/data-publish blocker, not a gate-weakening one."
+    }
   },
 
   "phase3_correctness": {
@@ -21,7 +31,7 @@
     "3B_feature_artifact_parity": "ALREADY ENFORCED (merged) — FeatureArtifactParityError + assert_inference_parity in features/feature_contract.py (names/order/dtype/all-null/contract).",
     "3C_fail_closed_pmf": "PARTIAL — sanitize_pmf_matrix exists and runs on active+mixture in pmf_engine; hardening to RAISE in certified mode (vs sanitize+flag) and stamp certification_eligible=false per sanitized row REMAINS.",
     "3D_active_mixture_dnp_contract": "ALREADY ENFORCED (merged) — availability_pmf.build_availability_mixture / recover_active_pmf; void-on-DNP settles from active_pmf; DNP folded once; delivery==OOF parity tests present.",
-    "3E_reproducible_data_env": "BLOCKED — wnba_player_game_stats (box) is LOCAL_ONLY_UNPUBLISHED; real_data_clean_fetch_pass=false. code_clean_clone_pass=true. Immutable publish of box + quotes + crosswalks REMAINS.",
+    "3E_reproducible_data_env": "PARTIAL — CI feature_variance_gate fetch path FIXED to use immutable hash-pinned release (fetch_data.py, sha256) instead of expiring same-run Actions artifact. BLOCKED on publish: wnba_player_game_stats (box), wnba_player_game_features_wide, and feature_schema_manifest are LOCAL_ONLY_UNPUBLISHED / hash-drifted; real_data_clean_fetch_pass=false. code_clean_clone_pass=true. Owner must publish immutable assets + provide CI read token.",
     "3F_certified_delivery_safety": "AUDIT PENDING — probability-consumer audit passes (permitted_pmf_diagnostic classification); a full sweep for the enumerated unsafe fallbacks in the certified delivery path REMAINS."
   },
 
