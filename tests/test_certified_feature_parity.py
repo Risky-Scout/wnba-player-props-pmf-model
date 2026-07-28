@@ -10,12 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from wnba_props_model.features.feature_contract import (
+from wnba_props_model.features.certified_parity import (
     FEATURE_MODE_CERTIFIED,
     FEATURE_MODE_DIAGNOSTIC,
-    FeatureArtifactParityError,
     assert_certified_inference_parity,
     assert_inference_parity_mode,
+)
+from wnba_props_model.features.feature_contract import (
+    FeatureArtifactParityError,
     capture_feature_dtype_kinds,
     feature_schema_hash,
 )
