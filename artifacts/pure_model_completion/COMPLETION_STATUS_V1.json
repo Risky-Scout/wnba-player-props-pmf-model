@@ -1,0 +1,87 @@
+{
+  "generated_utc": "2026-07-28",
+  "branch": "cursor/pure-model-completion-v1",
+  "base_main_sha": "e3ad965ae0789953f5a612aff3aad591c8a7eab5",
+  "scope_note": "Records the immediately-executable results and the precise, evidence-backed blockers that prevent any prop from passing the frozen market-superiority contract this turn. No progress is fabricated.",
+
+  "phase0_merge": {
+    "pr": 89,
+    "pre_merge_main_sha": "10aeadea74f0983c14f0c8abae806d3c08a66277",
+    "merge_squash_sha": "e3ad965ae0789953f5a612aff3aad591c8a7eab5",
+    "post_merge_main_sha": "e3ad965ae0789953f5a612aff3aad591c8a7eab5",
+    "match_head_commit": "060ce6643f3a41440a7b7df2b6b37b301df89a03",
+    "branch_deleted": true,
+    "production_path_unchanged_across_merge": true,
+    "flags_all_false": true,
+    "foundation_lock": "PASS_WITH_DECLARED_DEFERRALS"
+  },
+
+  "phase3_correctness": {
+    "3A_canonical_minutes_cap": "FIXED — apply_minutes_offset_rebuild now clips at canonical DEFAULT_MINUTES_CLIP_MAX (48.0), not a hard-coded 45; optional minutes_cap override; boundary tests 0/44/45/47/48/above-cap.",
+    "3B_feature_artifact_parity": "ALREADY ENFORCED (merged) — FeatureArtifactParityError + assert_inference_parity in features/feature_contract.py (names/order/dtype/all-null/contract).",
+    "3C_fail_closed_pmf": "PARTIAL — sanitize_pmf_matrix exists and runs on active+mixture in pmf_engine; hardening to RAISE in certified mode (vs sanitize+flag) and stamp certification_eligible=false per sanitized row REMAINS.",
+    "3D_active_mixture_dnp_contract": "ALREADY ENFORCED (merged) — availability_pmf.build_availability_mixture / recover_active_pmf; void-on-DNP settles from active_pmf; DNP folded once; delivery==OOF parity tests present.",
+    "3E_reproducible_data_env": "BLOCKED — wnba_player_game_stats (box) is LOCAL_ONLY_UNPUBLISHED; real_data_clean_fetch_pass=false. code_clean_clone_pass=true. Immutable publish of box + quotes + crosswalks REMAINS.",
+    "3F_certified_delivery_safety": "AUDIT PENDING — probability-consumer audit passes (permitted_pmf_diagnostic classification); a full sweep for the enumerated unsafe fallbacks in the certified delivery path REMAINS."
+  },
+
+  "exact_quote_evidence": {
+    "certified_atomic_quote_store_present": false,
+    "certified_store_status": "EXACT_QUOTE_READINESS.json: 0 rows, ALL props BLOCKED_MISSING_ATOMIC_QUOTES (required 300 rows / 30 dates each).",
+    "raw_two_sided_quotes_present": true,
+    "raw_quote_coverage_p1_quotes_parquet": {
+      "pts": {"rows": 18949, "dates": 56},
+      "reb": {"rows": 14308, "dates": 56},
+      "fg3m": {"rows": 10182, "dates": 56},
+      "ast": {"rows": 8917, "dates": 56},
+      "pts_reb_ast": {"rows": 8384, "dates": 56},
+      "pts_reb": {"rows": 6870, "dates": 56},
+      "pts_ast": {"rows": 4938, "dates": 56},
+      "reb_ast": {"rows": 4072, "dates": 56},
+      "stl": {"rows": 0, "dates": 0},
+      "blk": {"rows": 0, "dates": 0},
+      "turnover": {"rows": 0, "dates": 0}
+    },
+    "interpretation": "Raw two-sided quotes exist for pts/reb/ast/fg3m (+combos) across 56 dates, but the CERTIFIED atomic store (quote_pair_id + delivered prob + settled non-push) required by Phase 7 is absent. stl/blk/turnover have ZERO quotes of any kind."
+  },
+
+  "measured_market_vs_model": {
+    "source": "CANDIDATE_COMPARISON_ALL.json (10k date-cluster bootstrap)",
+    "fg3m": {"best_model": "R1", "model_LL": 0.6758, "market_LL": 0.6653, "LL_deficit_model_minus_market": 0.0105, "model_AUC": 0.593, "market_AUC": 0.617, "verdict": "market superior"},
+    "pts":  {"best_model": "R1/PTS_DECOMP", "model_LL": 0.782, "market_LL": 0.693, "LL_deficit_model_minus_market": 0.089, "model_AUC": 0.503, "market_AUC": 0.520, "verdict": "market superior"},
+    "ast":  {"best_model": "P0", "model_LL": 0.7728, "market_LL": 0.6919, "LL_deficit_model_minus_market": 0.0809, "model_AUC": 0.5405, "market_AUC": 0.5344, "verdict": "market superior on LL; model AUC marginally higher -> PMF-shape not ranking, matches Phase-5 P1 note"},
+    "reb":  {"best_model": "none (no OPP_V2 candidate built; P0-only)", "verdict": "not evaluated as OPP candidate"}
+  },
+
+  "signal_acquisition": {
+    "tracking_data_v1": "SCHEMA_PRESENT_SIGNAL_EMPTY — every Tier-2 signal 0.0% nonzero; only fieldGoalPercentage (68.67%) + assists (60.64%) populated. G2 BLOCKED_EMPTY_TRACKING_SIGNAL.",
+    "play_by_play_source": "NONE present on disk (no pbp/play_by_play asset). Phase 4B PBP opportunity proxies cannot be derived without a source.",
+    "historical_pregame_context": "FORWARD_ONLY — no timestamped historical availability/lineup/roster archive; cannot backfill without postgame leakage."
+  },
+
+  "per_prop_verdict": {
+    "pts": "NO_CERTIFICATION — market superior (LL deficit +0.089); no new signal; certified atomic store absent.",
+    "reb": "NO_CERTIFICATION — no OPP_V2 candidate built; would need OREB/DREB opp-share signal (unavailable) + certified quotes.",
+    "ast": "NO_CERTIFICATION — market superior on LL (+0.081); PMF-shape issue; needs assist-opportunity signal (proxy source unavailable) + certified quotes.",
+    "fg3m": "NO_CERTIFICATION — closest prop but market still superior (LL deficit +0.0105, CI straddles/negative not achieved); no incremental signal available.",
+    "stl": "NO_EVIDENCE — zero exact quotes AND no opportunity signal.",
+    "blk": "NO_EVIDENCE — zero exact quotes AND no opportunity signal.",
+    "turnover": "NO_EVIDENCE — zero exact quotes AND no opportunity signal."
+  },
+
+  "combos_status": "NOT STARTED — gated on >=1 direct prop passing (Phase 10 precondition). None passes.",
+
+  "root_blockers_ranked": [
+    "No incremental pregame signal exists historically (tracking empty; no PBP; no timestamped availability/lineup archive) — the market already prices the box-derivable information, so pure Tier-0 models cannot beat it.",
+    "Certified atomic two-sided quote store (quote_pair_id + delivered prob + settled) is not built/collected — Phase 7 certification cannot run even where raw quotes exist.",
+    "Box asset (processed-data-v1) is LOCAL_ONLY_UNPUBLISHED — blocks real_data_clean_fetch/rebuild reproducibility.",
+    "stl/blk/turnover have zero exact quotes of any kind — cannot certify regardless of model."
+  ],
+
+  "exact_next_evidence_actions": {
+    "signal": "Acquire a real WNBA play-by-play feed (or a tracking source with POPULATED metrics) to derive strictly-lagged, honestly-named opportunity proxies (assist_opportunity_proxy, rim_attempt_proxy, rebound_opportunity_proxy, handling_opportunity_proxy). Verify nonzero variation + pre-cutoff timestamps before use.",
+    "quotes": "Stand up forward atomic two-sided same-book timestamped quote collection into the certified store (quote_pair_id, over/under price, quote_timestamp_utc, scheduled_tip_utc) for pts/reb/ast/fg3m; begin stl/blk/turnover collection from zero.",
+    "forward_context": "Run the now-merged opportunity_v2_snapshots.yml forward collector against a real slate with official scheduled tips + versioned time-to-tip windows (Phase 1) to accrue genuine pregame availability/lineup snapshots.",
+    "reproducibility": "Publish the box asset (processed-data-v1) and identity crosswalks to immutable releases with sha256 so real_data_clean_fetch_pass + real_data_pipeline_rebuild_pass can turn true."
+  }
+}
