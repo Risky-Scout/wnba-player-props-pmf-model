@@ -457,6 +457,7 @@ def apply_minutes_offset_rebuild(
     lagged_minutes_col: str = "player_minutes_mean_l5",
     mean_rebuild_tol: float = 0.05,
     mean_tol: float = 1e-6,
+    minutes_cap: float | None = None,
     logger=None,
 ):
     """SHARED minutes-offset PMF rebuild for delivery AND OOF (PR 1A B6 / W0.2).
@@ -474,6 +475,16 @@ def apply_minutes_offset_rebuild(
     if logger is None:
         import logging  # noqa: PLC0415
         logger = logging.getLogger(__name__)
+    # ONE canonical minutes cap shared across training/OOF/replay/live/AST-TOV rebuild.
+    # Sourced from the canonical MinutesModel contract (DEFAULT_MINUTES_CLIP_MAX) rather than
+    # a path-local hard-coded value, so every path clips identically. Lazy import keeps pmf_utils
+    # a leaf module at import time.
+    if minutes_cap is None:
+        from wnba_props_model.models.minutes_model import (  # noqa: PLC0415
+            DEFAULT_MINUTES_CLIP_MAX,
+        )
+        minutes_cap = float(DEFAULT_MINUTES_CLIP_MAX)
+    minutes_cap = float(minutes_cap)
     for _stat in stats:
         _mask = pmfs_long["stat"] == _stat
         if not _mask.any() or minutes_pred_col not in pmfs_long.columns:
@@ -489,7 +500,7 @@ def apply_minutes_offset_rebuild(
             _model_mins = pmfs_long.loc[_idx, minutes_pred_col].values
             _old_means = pmfs_long.loc[_idx, "stat_mean"].values.astype(float)
             _rate_per_min = _old_means / _safe_feat
-            _new_means = _rate_per_min * np.clip(_model_mins, 0, 45)
+            _new_means = _rate_per_min * np.clip(_model_mins, 0.0, minutes_cap)
 
             # p_dnp for the offset rows (default 0 when the column is absent, e.g. legacy frames).
             if "p_dnp" in pmfs_long.columns:
