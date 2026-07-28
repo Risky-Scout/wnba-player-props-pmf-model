@@ -1,0 +1,105 @@
+{
+  "date": "2026-07-28",
+  "region": "us,us2",
+  "collected_utc": "2026-07-28T18:41:59.623395+00:00",
+  "markets": [
+    "player_points",
+    "player_rebounds",
+    "player_assists",
+    "player_threes",
+    "player_steals",
+    "player_blocks",
+    "player_turnovers"
+  ],
+  "n_events": 5,
+  "atomic_side_rows_written": 2437,
+  "quote_path": "data/snapshots/soft_book_quotes/snapshot_date_utc=2026-07-28/quotes_20260728T184159Z.parquet",
+  "max_books_per_market": {
+    "player_points": 10,
+    "player_rebounds": 10,
+    "player_assists": 10,
+    "player_threes": 10,
+    "player_steals": 0,
+    "player_blocks": 0,
+    "player_turnovers": 0
+  },
+  "per_event": [
+    {
+      "event_id": "e4dc370d08264200533bf3816f82c622",
+      "matchup": "Connecticut Sun @ Washington Mystics",
+      "commence_time": "2026-07-28T23:30:00Z",
+      "book_counts": {
+        "player_points": 9,
+        "player_rebounds": 9,
+        "player_assists": 9,
+        "player_threes": 9,
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "side_rows": 331
+    },
+    {
+      "event_id": "786c1161bd8d7bbab01efa2e850df8bb",
+      "matchup": "Toronto Tempo @ Minnesota Lynx",
+      "commence_time": "2026-07-29T00:00:00Z",
+      "book_counts": {
+        "player_points": 10,
+        "player_rebounds": 10,
+        "player_assists": 10,
+        "player_threes": 10,
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "side_rows": 492
+    },
+    {
+      "event_id": "c2e520af9bd7e828a76959862d941068",
+      "matchup": "Indiana Fever @ Seattle Storm",
+      "commence_time": "2026-07-29T01:30:00Z",
+      "book_counts": {
+        "player_points": 10,
+        "player_rebounds": 10,
+        "player_assists": 10,
+        "player_threes": 10,
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "side_rows": 571
+    },
+    {
+      "event_id": "606c87e74c7cc6048113e44a4f33506f",
+      "matchup": "Portland Fire @ Las Vegas Aces",
+      "commence_time": "2026-07-29T02:00:00Z",
+      "book_counts": {
+        "player_points": 10,
+        "player_rebounds": 10,
+        "player_assists": 10,
+        "player_threes": 10,
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "side_rows": 519
+    },
+    {
+      "event_id": "fa632e2d144f67960024500509077a4a",
+      "matchup": "New York Liberty @ Los Angeles Sparks",
+      "commence_time": "2026-07-29T02:00:00Z",
+      "book_counts": {
+        "player_points": 10,
+        "player_rebounds": 10,
+        "player_assists": 10,
+        "player_threes": 10,
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "side_rows": 524
+    }
+  ],
+  "status": "ok",
+  "fail_open": true
+}

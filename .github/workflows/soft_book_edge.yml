@@ -1,0 +1,131 @@
+name: Soft-Book +EV Edge Board (Definition B)
+
+# Path B — pure market-vs-market line shopping (NO model, NO information edge).
+# Collects two-sided player-prop quotes across all US books (us,us2) for today's WNBA
+# slate, scans for individual books whose price beats the no-vig median consensus of the
+# OTHER books (self-excluded), and publishes the +EV board.
+#
+# Runs a few times pre-tip in the afternoon/evening ET so late line moves and newly-posted
+# soft prices are captured. FAIL-OPEN throughout: no key / no games / no quotes is a clean
+# no-op (never a hard failure), and out-of-season days simply produce no board and skip the
+# commit. Only the board JSON artifacts are committed — raw quote snapshots live under the
+# gitignored data/ dir and are NEVER committed.
+#
+# REQUIRED secret IN THIS repository's Actions secrets:
+#   ODDS_API_KEY   The Odds API key (exposes player_* markets across us,us2 books)
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date YYYY-MM-DD (default: today UTC)"
+        required: false
+        default: ""
+      ev_threshold:
+        description: "EV threshold fraction (default 0.025 = 2.5%)"
+        required: false
+        default: "0.025"
+  schedule:
+    # Hourly through the afternoon/evening ET window (EDT = UTC-4).
+    - cron: "0 18-23 * * *"   # 14:00–19:00 ET
+    - cron: "0 0-3 * * *"     # 20:00–23:00 ET (spills into next UTC day)
+
+concurrency:
+  group: soft-book-edge
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      EV_THRESHOLD: ${{ github.event.inputs.ev_threshold || '0.025' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Resolve target date
+        id: d
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            echo "date=${{ github.event.inputs.date }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Warn (not fail) if ODDS_API_KEY is missing
+        run: |
+          if [ -z "$ODDS_API_KEY" ]; then
+            echo "::warning::ODDS_API_KEY not set — collector will fail-open (no board produced)."
+          fi
+
+      # FAIL-OPEN: collector exits 0 on no key / no events / no quotes.
+      - name: Collect two-sided quotes (all US books, all markets)
+        run: |
+          python scripts/collect_soft_book_quotes.py --date "${{ steps.d.outputs.date }}" --region "us,us2"
+
+      # FAIL-OPEN: builder exits 0 and writes an honest zero-edge board if no quotes.
+      - name: Build soft-book +EV edge board
+        run: |
+          python scripts/build_soft_book_edge_board.py \
+            --date "${{ steps.d.outputs.date }}" \
+            --ev-threshold "$EV_THRESHOLD"
+
+      - name: Determine whether a slate ran (out-of-season no-op guard)
+        id: slate
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          d = os.environ.get("DATE")
+          try:
+              art = json.load(open(f"artifacts/edge_board/SOFT_BOOK_EDGE_{d}.json"))
+              n_events = int(art["summary"].get("n_events", 0))
+              n_qual = int(art["summary"].get("n_qualifying", 0))
+          except Exception:
+              n_events, n_qual = 0, 0
+          print(f"n_events={n_events}")
+          print(f"n_qualifying={n_qual}")
+          print(f"has_slate={'true' if n_events > 0 else 'false'}")
+          PY
+        env:
+          DATE: ${{ steps.d.outputs.date }}
+
+      - name: Commit board artifacts (only when a slate ran; never commit raw data)
+        if: steps.slate.outputs.has_slate == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add artifacts/edge_board/SOFT_BOOK_EDGE_${{ steps.d.outputs.date }}.json \
+                  tools/odds-scanner/predictions/WNBA/Soft-Book-Edge/latest.json \
+                  tools/odds-scanner/predictions/WNBA/Soft-Book-Edge/${{ steps.d.outputs.date }}.json
+          if git diff --cached --quiet; then
+            echo "No board changes to commit."
+          else
+            git commit -m "chore: soft-book +EV edge board ${{ steps.d.outputs.date }} (${{ steps.slate.outputs.n_qualifying }} edges) [skip ci]"
+            git push
+          fi
+
+      - name: Out-of-season / off-night no-op notice
+        if: steps.slate.outputs.has_slate != 'true'
+        run: echo "No WNBA slate for ${{ steps.d.outputs.date }} — fail-open no-op, nothing committed."
+
+      # Raw quote snapshots (gitignored) uploaded as a durable workflow artifact for audit.
+      - name: Upload raw quote snapshot (durable, never committed to git)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soft-book-quotes-${{ steps.d.outputs.date }}-${{ github.run_id }}
+          path: data/snapshots/soft_book_quotes/**
+          if-no-files-found: ignore
+          retention-days: 30
