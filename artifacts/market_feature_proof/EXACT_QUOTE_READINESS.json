@@ -1,6 +1,6 @@
 {
   "version": "exact-quote-readiness-v1",
-  "generated_at_utc": "2026-07-25T01:35:11.754525+00:00",
+  "generated_at_utc": "2026-07-28T06:00:37.921016+00:00",
   "atomic_quote_store_present": false,
   "total_rows_in_store": 0,
   "per_prop": {
@@ -88,6 +88,122 @@
       "date_shortfall": 30,
       "status": "BLOCKED_MISSING_ATOMIC_QUOTES"
     }
+  },
+  "three_level_readiness": {
+    "migrated_pairs_present": true,
+    "migrated_pairs_total": 23469,
+    "RAW_QUOTE_PAIR_READY_decision": {
+      "pts": {
+        "rows": 3088,
+        "dates": 56,
+        "meets_min": true
+      },
+      "reb": {
+        "rows": 2533,
+        "dates": 56,
+        "meets_min": true
+      },
+      "ast": {
+        "rows": 1559,
+        "dates": 56,
+        "meets_min": true
+      },
+      "fg3m": {
+        "rows": 1734,
+        "dates": 56,
+        "meets_min": true
+      },
+      "stl": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "blk": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "turnover": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      }
+    },
+    "HISTORICAL_REPLAY_READY_decision": {
+      "pts": {
+        "rows": 3003,
+        "dates": 56,
+        "meets_min": true
+      },
+      "reb": {
+        "rows": 2452,
+        "dates": 56,
+        "meets_min": true
+      },
+      "ast": {
+        "rows": 1524,
+        "dates": 56,
+        "meets_min": true
+      },
+      "fg3m": {
+        "rows": 1699,
+        "dates": 56,
+        "meets_min": true
+      },
+      "stl": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "blk": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "turnover": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      }
+    },
+    "PROSPECTIVE_DELIVERY_READY": {
+      "pts": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "reb": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "ast": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "fg3m": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "stl": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "blk": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      },
+      "turnover": {
+        "rows": 0,
+        "dates": 0,
+        "meets_min": false
+      }
+    },
+    "prospective_note": "requires delivered probability + lineage captured AT prediction time; not synthesisable historically."
   },
   "any_prop_ready_for_g0v2": false,
   "mission_is_compute_only": false,

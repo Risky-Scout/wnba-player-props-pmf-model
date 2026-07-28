@@ -52,14 +52,15 @@
       "blk": {"rows": 0, "dates": 0},
       "turnover": {"rows": 0, "dates": 0}
     },
-    "interpretation": "Raw two-sided quotes exist for pts/reb/ast/fg3m (+combos) across 56 dates, but the CERTIFIED atomic store (quote_pair_id + delivered prob + settled non-push) required by Phase 7 is absent. stl/blk/turnover have ZERO quotes of any kind."
+    "interpretation": "SUPERSEDED by phase-5 migration (scripts/migrate_p1_quotes_to_atomic.py): raw two-sided quotes were migrated into an atomic sides+pairs store with HISTORICAL_REPLAY_READY decision-snapshot pairs meeting the >=300 rows / >=30 dates minimum for pts (3003/56), reb (2452/56), ast (1524/56), fg3m (1699/56). The remaining Phase-7 gap is the DELIVERED-prob prospective join, NOT quote availability. stl/blk/turnover still have ZERO quotes of any kind."
   },
 
   "measured_market_vs_model": {
     "source": "CANDIDATE_COMPARISON_ALL.json (10k date-cluster bootstrap)",
-    "fg3m": {"best_model": "R1", "model_LL": 0.6758, "market_LL": 0.6653, "LL_deficit_model_minus_market": 0.0105, "model_AUC": 0.593, "market_AUC": 0.617, "verdict": "market superior"},
-    "pts":  {"best_model": "R1/PTS_DECOMP", "model_LL": 0.782, "market_LL": 0.693, "LL_deficit_model_minus_market": 0.089, "model_AUC": 0.503, "market_AUC": 0.520, "verdict": "market superior"},
-    "ast":  {"best_model": "P0", "model_LL": 0.7728, "market_LL": 0.6919, "LL_deficit_model_minus_market": 0.0809, "model_AUC": 0.5405, "market_AUC": 0.5344, "verdict": "market superior on LL; model AUC marginally higher -> PMF-shape not ranking, matches Phase-5 P1 note"},
+    "language_convention": "LL_deficit_model_minus_market > 0 means the MARKET is superior (lower loss). The MODEL is never described as market-superior while this delta is positive.",
+    "fg3m": {"best_model": "R1", "model_LL": 0.6758, "market_LL": 0.6653, "LL_deficit_model_minus_market": 0.0105, "model_AUC": 0.593, "market_AUC": 0.617, "verdict": "MARKET superior (model worse; +0.0105 LL)"},
+    "pts":  {"best_model": "R1/PTS_DECOMP", "model_LL": 0.782, "market_LL": 0.693, "LL_deficit_model_minus_market": 0.089, "model_AUC": 0.503, "market_AUC": 0.520, "verdict": "MARKET superior (model worse; +0.089 LL)"},
+    "ast":  {"best_model": "P0", "model_LL": 0.7728, "market_LL": 0.6919, "LL_deficit_model_minus_market": 0.0809, "model_AUC": 0.5405, "market_AUC": 0.5344, "verdict": "MARKET superior on LL (model worse; +0.0809); model AUC marginally higher -> PMF-shape not ranking, matches Phase-5 P1 note"},
     "reb":  {"best_model": "none (no OPP_V2 candidate built; P0-only)", "verdict": "not evaluated as OPP candidate"}
   },
 
@@ -70,10 +71,10 @@
   },
 
   "per_prop_verdict": {
-    "pts": "NO_CERTIFICATION — market superior (LL deficit +0.089); no new signal; certified atomic store absent.",
-    "reb": "NO_CERTIFICATION — no OPP_V2 candidate built; would need OREB/DREB opp-share signal (unavailable) + certified quotes.",
-    "ast": "NO_CERTIFICATION — market superior on LL (+0.081); PMF-shape issue; needs assist-opportunity signal (proxy source unavailable) + certified quotes.",
-    "fg3m": "NO_CERTIFICATION — closest prop but market still superior (LL deficit +0.0105, CI straddles/negative not achieved); no incremental signal available.",
+    "pts": "NO_CERTIFICATION — MARKET superior (model worse; +0.089 LL); no validated incremental pregame signal in the currently audited assets. Atomic quotes NOW migrated (3003 replay-ready pairs/56 dates).",
+    "reb": "NO_CERTIFICATION — no OPP_V2 candidate built; box-derived proxy screen pending (phase 8C). Atomic quotes NOW migrated (2452 replay-ready pairs/56 dates).",
+    "ast": "NO_CERTIFICATION — MARKET superior on LL (model worse; +0.081); PMF-shape issue; no validated incremental assist-opportunity signal in the currently audited assets. Atomic quotes NOW migrated (1524 replay-ready pairs/56 dates).",
+    "fg3m": "NO_CERTIFICATION — closest prop but MARKET still superior (model worse; +0.0105 LL, CI negative not achieved); no validated incremental signal in the currently audited assets. Atomic quotes NOW migrated (1699 replay-ready pairs/56 dates).",
     "stl": "NO_EVIDENCE — zero exact quotes AND no opportunity signal.",
     "blk": "NO_EVIDENCE — zero exact quotes AND no opportunity signal.",
     "turnover": "NO_EVIDENCE — zero exact quotes AND no opportunity signal."
@@ -82,8 +83,8 @@
   "combos_status": "NOT STARTED — gated on >=1 direct prop passing (Phase 10 precondition). None passes.",
 
   "root_blockers_ranked": [
-    "No incremental pregame signal exists historically (tracking empty; no PBP; no timestamped availability/lineup archive) — the market already prices the box-derivable information, so pure Tier-0 models cannot beat it.",
-    "Certified atomic two-sided quote store (quote_pair_id + delivered prob + settled) is not built/collected — Phase 7 certification cannot run even where raw quotes exist.",
+    "No validated incremental pregame signal is present in the currently audited assets (tracking Tier-2 empty; no PBP asset on disk; no timestamped availability/lineup archive) — the market already prices the box-derivable information, so pure Tier-0 models have not beaten it. This is a statement about audited assets, not a proof that no such signal can exist.",
+    "SUPERSEDED: raw historical quotes have now been migrated to an atomic sides+pairs store (phase 5). HISTORICAL_REPLAY_READY pairs meet the row/date minimum for all 4 direct props. The remaining Phase-7 gap is prospective DELIVERED-prob lineage, not raw quote availability.",
     "Box asset (processed-data-v1) is LOCAL_ONLY_UNPUBLISHED — blocks real_data_clean_fetch/rebuild reproducibility.",
     "stl/blk/turnover have zero exact quotes of any kind — cannot certify regardless of model."
   ],

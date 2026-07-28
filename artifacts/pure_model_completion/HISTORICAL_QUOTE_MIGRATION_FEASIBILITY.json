@@ -1,0 +1,119 @@
+{
+  "generated_utc": "2026-07-28T05:59:25.362924+00:00",
+  "source": "artifacts/p1/p1_quotes.parquet",
+  "source_rows_direct": 52356,
+  "quote_selection_policy": "latest_snapshot_at_or_before_tip_per_(key,side,snapshot_label); per-book; no consensus",
+  "max_side_skew_seconds": 300.0,
+  "identity": "canonical game_id + player_id present 100%; identity_method=exact_roster_name",
+  "books": [
+    "betonlineag",
+    "betrivers",
+    "draftkings",
+    "fanduel",
+    "williamhill_us"
+  ],
+  "consensus_used": false,
+  "side_validation": {
+    "ok": 52356
+  },
+  "pair_rejections": {
+    "one_sided_market": 5020
+  },
+  "RAW_QUOTE_PAIR_READY": {
+    "all_snapshots": {
+      "pts": {
+        "pairs": 8129,
+        "dates": 56
+      },
+      "reb": {
+        "pairs": 6663,
+        "dates": 56
+      },
+      "ast": {
+        "pairs": 4105,
+        "dates": 56
+      },
+      "fg3m": {
+        "pairs": 4572,
+        "dates": 56
+      }
+    },
+    "decision_snapshot": {
+      "pts": {
+        "pairs": 3088,
+        "dates": 56
+      },
+      "reb": {
+        "pairs": 2533,
+        "dates": 56
+      },
+      "ast": {
+        "pairs": 1559,
+        "dates": 56
+      },
+      "fg3m": {
+        "pairs": 1734,
+        "dates": 56
+      }
+    }
+  },
+  "HISTORICAL_REPLAY_READY": {
+    "all_snapshots": {
+      "pts": {
+        "pairs": 7994,
+        "dates": 56
+      },
+      "reb": {
+        "pairs": 6537,
+        "dates": 56
+      },
+      "ast": {
+        "pairs": 4045,
+        "dates": 56
+      },
+      "fg3m": {
+        "pairs": 4512,
+        "dates": 56
+      }
+    },
+    "decision_snapshot": {
+      "pts": {
+        "pairs": 3003,
+        "dates": 56
+      },
+      "reb": {
+        "pairs": 2452,
+        "dates": 56
+      },
+      "ast": {
+        "pairs": 1524,
+        "dates": 56
+      },
+      "fg3m": {
+        "pairs": 1699,
+        "dates": 56
+      }
+    },
+    "note": "settled binary (played, non-push); join a FROZEN OOF/replay prob on (game_id,player_id,prop,line) at replay time. model_prob NOT required to declare RAW pair valid."
+  },
+  "PROSPECTIVE_DELIVERY_READY": {
+    "pairs": 0,
+    "note": "requires delivered probability + full lineage captured AT prediction time; cannot be synthesised historically."
+  },
+  "outputs": {
+    "atomic_sides": {
+      "path": "data/processed/atomic_quotes/atomic_sides.parquet",
+      "rows": 52356,
+      "sha256": "6819f0d3b6855d2cfbb2388d7464a38bfdacc804bd5407520a30f45cd634b3cb"
+    },
+    "atomic_pairs": {
+      "path": "data/processed/atomic_quotes/atomic_pairs.parquet",
+      "rows": 23469,
+      "sha256": "152bf8ed17d77824f0d54f86b9e5bea07b91e5485ad6ff8637ed9254ba2f0a20"
+    }
+  },
+  "certification_threshold": {
+    "required_rows": 300,
+    "required_dates": 30
+  }
+}
