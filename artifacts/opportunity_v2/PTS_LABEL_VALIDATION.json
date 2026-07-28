@@ -1,0 +1,49 @@
+{
+  "rows_total": 11771,
+  "reconstruction_method": "FGM=round(fieldGoalPercentage*FGA); 2PM=FGM-FG3M; FTM=PTS-2*FGM-FG3M (points identity)",
+  "inferred_labels": [
+    "FGM",
+    "FTM",
+    "FG2M"
+  ],
+  "source_hashes": {
+    "wnba_tracking_2021_2026.parquet": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
+    "tracking_game_crosswalk.parquet": "d6875cdbcecd29604c03eadb38a1e86c8c3565859df8418261f12ea39b3302f2",
+    "tracking_player_crosswalk.parquet": "fadc9d83e39884f645f3b89a289f15e87d7777bcc93911ffca40afa485b2ce3d",
+    "wnba_player_game_stats.parquet": "fd1eed934055e37c2d5dd7d2c57d28abd6e130e091d778c4d12ab7ef72710ac1"
+  },
+  "source_tag": "baed386e62a90b3b",
+  "label_status_counts": {
+    "validated": 11769,
+    "excluded": 2
+  },
+  "confidence_counts": {
+    "high": 11184,
+    "medium": 585,
+    "low": 2
+  },
+  "constraint_fail_counts": {
+    "fgm_lt_fg3m": 0,
+    "fg2m_neg": 0,
+    "fg2a_lt_fg2m": 0,
+    "ftm_out_of_range": 0,
+    "pts_identity_violation": 0,
+    "rounding_residual_high": 2
+  },
+  "rounding_residual": {
+    "mean": 0.0012487469203976045,
+    "p99": 0.008000000000000007,
+    "max": 0.4599999999999991
+  },
+  "contested_cross_check": {
+    "contested_uncontested_populated": false,
+    "usable_rows": 0,
+    "note": "tracking contested/uncontested FieldGoalsMade columns are present (non-null) but STRUCTURALLY ALL-ZERO in tracking-data-v1, so contested+uncontested FGM cannot validate reconstructed FGM. Primary validation is the rounding-residual + physical constraints + points identity below.",
+    "contested_made_nonzero": 0,
+    "uncontested_made_nonzero": 0
+  },
+  "validated_rows_persisted": 11769,
+  "validated_parquet": "data/processed/pts_conversion_labels.parquet",
+  "audited_parquet": "data/processed/pts_conversion_labels_audited.parquet",
+  "honest_note": "FGM/FTM are INFERRED, not measured. They are validated by exact rounding consistency of fieldGoalPercentage*FGA and by the points identity + physical constraints. The tracking contested/uncontested make columns are structurally empty and provide no independent make-count validation."
+}

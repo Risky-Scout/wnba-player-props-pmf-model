@@ -26,6 +26,7 @@ from wnba_props_model.opportunity.pts_decomposition import (
 )
 
 _LABELS = Path("data/processed/pts_conversion_labels.parquet")
+_VALIDATION = Path("artifacts/opportunity_v2/PTS_LABEL_VALIDATION.json")
 
 
 # --- pure PMF primitives ----------------------------------------------------
@@ -80,6 +81,27 @@ def test_reconstruction_identity_holds_on_persisted_labels():
     assert (lab["FG2M"] >= 0).all() and (lab["FG2A"] >= lab["FG2M"]).all()
     assert (lab["FTM"] >= 0).all() and (lab["FTA"] >= lab["FTM"]).all()
     assert (lab["FGM"] >= lab["FG3M"]).all()
+
+
+@pytest.mark.skipif(not _LABELS.exists(), reason="pts_conversion_labels.parquet not present")
+def test_persisted_labels_carry_inferred_provenance():
+    lab = pd.read_parquet(_LABELS)
+    for col in ("reconstruction_method", "label_status", "confidence",
+                "rounding_residual", "source_tag"):
+        assert col in lab.columns, f"missing provenance column {col}"
+    # only validated rows may feed conversion fits
+    assert (lab["label_status"] == "validated").all()
+
+
+@pytest.mark.skipif(not _VALIDATION.exists(), reason="PTS_LABEL_VALIDATION.json not present")
+def test_pts_label_validation_reports_contested_cross_check():
+    import json
+    rep = json.loads(_VALIDATION.read_text())
+    assert "contested_cross_check" in rep
+    assert "source_hashes" in rep and rep["source_hashes"]
+    assert "label_status_counts" in rep
+    # inferred-label honesty is documented
+    assert "INFERRED" in rep["honest_note"]
 
 
 # --- bundle integration + proxy fallback ------------------------------------
