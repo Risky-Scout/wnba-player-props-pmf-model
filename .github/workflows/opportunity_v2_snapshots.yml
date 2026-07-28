@@ -62,26 +62,31 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "Resolved phase=$PHASE season=$(date -u +%Y)"
 
+      # FAIL CLOSED: a failed BDL pull fails the job (no soft `|| echo warning`).
       - name: Pull current-season BDL (injuries endpoint is current-state)
         run: |
           python scripts/pull_bdl_history.py \
             --start-season "$SEASON" --end-season "$SEASON" \
-            --out-dir data/raw/bdl || echo "::warning::BDL pull failed (missing key?) — snapshot may be skipped"
+            --out-dir data/raw/bdl
 
-      - name: Append forward availability snapshot
+      # FAIL CLOSED: missing injuries / zero rows / missing hashes / invalid timestamps all exit non-zero
+      # (scheduled-games=-1 => unknown => treated STRICT). Always writes a coverage manifest.
+      - name: Append forward availability snapshot (fail-closed)
         run: |
-          if [ ! -f data/raw/bdl/wnba_injuries.parquet ]; then
-            echo "::warning::no injuries parquet — nothing to snapshot this run"; exit 0
-          fi
           python scripts/build_opportunity_snapshots.py \
             --injuries data/raw/bdl/wnba_injuries.parquet \
-            --availability-root data/snapshots/availability
+            --availability-root data/snapshots/availability \
+            --coverage-manifest "data/snapshots/availability/coverage_manifest_${SNAP_DATE}_${PHASE}.json" \
+            --phase "$PHASE" \
+            --game-date "$SNAP_DATE" \
+            --scheduled-games -1
 
+      # FAIL CLOSED: a missing artifact is an error, not a warning.
       - name: Upload snapshot archive (durable)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: opp-v2-availability-${{ env.SNAP_DATE }}-${{ env.PHASE }}
           path: data/snapshots/availability/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 90
