@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-28T18:42:10.275313+00:00",
+  "generated_at": "2026-07-28T18:50:37.291528+00:00",
   "game_date": "2026-07-28",
   "method": {
     "definition": "Definition B: soft book vs sharp consensus. Find individual books whose posted price is better for the bettor than the no-vig consensus of the wider book set. No model and no information edge is used \u2014 pure market-vs-market line shopping.",
@@ -13,7 +13,7 @@
   },
   "summary": {
     "date": "2026-07-28",
-    "generated_utc": "2026-07-28T18:42:10.275313+00:00",
+    "generated_utc": "2026-07-28T18:50:37.291528+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 5,

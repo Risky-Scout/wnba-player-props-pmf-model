@@ -217,7 +217,7 @@ def main() -> None:
     if quotes is None or len(quotes) == 0:
         summary["status"] = "no_quotes"
     else:
-        summary["n_quote_rows"] = int(len(quotes))
+        summary["n_quote_rows"] = len(quotes)
         summary["n_events"] = int(quotes["event_id"].nunique())
         books = sorted({str(b) for b in quotes["book"].dropna().unique()})
         summary["n_books_seen"] = len(books)
@@ -233,10 +233,10 @@ def main() -> None:
             sharp_books=SHARP_BOOKS,
             drop_stale=not args.keep_stale,
         )
-        summary["n_scored_rows"] = int(len(board))
+        summary["n_scored_rows"] = len(board)
 
     board_q = board[board["qualified"]].copy() if len(board) else board
-    summary["n_qualifying"] = int(len(board_q))
+    summary["n_qualifying"] = len(board_q)
 
     # Near-miss transparency: top plays by EV regardless of threshold.
     top_all = []

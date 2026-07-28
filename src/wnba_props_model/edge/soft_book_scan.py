@@ -34,8 +34,8 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Iterable
 from datetime import datetime, timezone
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
