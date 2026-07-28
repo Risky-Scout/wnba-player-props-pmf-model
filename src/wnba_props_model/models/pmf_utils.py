@@ -198,14 +198,95 @@ def validate_pmf(pmf: dict[int, float], tol: float = 1e-6) -> None:
         raise ValueError(f"PMF sum = {total:.8f} (expected 1.0 ± {tol})")
 
 
-def sanitize_pmf_matrix(pmf_mat: np.ndarray) -> tuple[np.ndarray, int]:
+# ---------------------------------------------------------------------------
+# Frozen certified-PMF contract (owner phase 3C). Any correction larger than the
+# tiny float-drift tolerance is a DEFECT: it RAISES in CERTIFIED mode and is
+# retained+labelled non-certifiable in DIAGNOSTIC mode. A uniform distribution is
+# NEVER used as a certified prediction.
+# ---------------------------------------------------------------------------
+PMF_CONTRACT_VERSION = "pmf-contract-v1"
+FROZEN_PMF_SUM_TOL = 1e-6           # permitted floating-point normalisation drift only
+FROZEN_PMF_TAIL_MASS_TOL = 1e-3     # max mass allowed to fall off the truncated top of support
+
+
+class PmfCertificationError(ValueError):
+    """Structured, fail-closed PMF defect carrying identity + defect magnitude."""
+
+    def __init__(self, reason: str, *, magnitude=None, row=None, context=None):
+        self.reason = reason
+        self.magnitude = magnitude
+        self.row = row
+        self.context = dict(context or {})
+        self.contract_version = PMF_CONTRACT_VERSION
+        parts = [f"PMF certification failure: {reason}"]
+        if magnitude is not None:
+            parts.append(f"magnitude={magnitude}")
+        if row is not None:
+            parts.append(f"row={row}")
+        if self.context:
+            parts.append("context=" + ", ".join(f"{k}={v}" for k, v in self.context.items()))
+        super().__init__("; ".join(parts))
+
+
+def validate_pmf_matrix_certified(
+    pmf_mat: np.ndarray,
+    *,
+    tol: float = FROZEN_PMF_SUM_TOL,
+    tail_mass_tol: float = FROZEN_PMF_TAIL_MASS_TOL,
+    raw_upper_tail: np.ndarray | None = None,
+    context: dict | None = None,
+) -> None:
+    """Fail-closed certified PMF validation. NEVER sanitises; raises ``PmfCertificationError``.
+
+    Rejects: any non-finite mass, any negative mass beyond ``-tol``, any all-zero row, any row whose
+    sum deviates from 1 by more than ``tol`` (i.e. anything larger than tiny float drift), and (when
+    ``raw_upper_tail`` is supplied) excessive tail truncation beyond ``tail_mass_tol``.
+    """
+    mat = np.asarray(pmf_mat, dtype=float)
+    if mat.ndim == 1:
+        mat = mat[None, :]
+    if not np.isfinite(mat).all():
+        bad = np.argwhere(~np.isfinite(mat))
+        raise PmfCertificationError("non_finite_mass", magnitude=float(mat[~np.isfinite(mat)][:1].sum()
+                                    if bad.size else np.nan), row=int(bad[0, 0]) if bad.size else None,
+                                    context=context)
+    neg = mat < -tol
+    if neg.any():
+        r = int(np.argwhere(neg)[0, 0])
+        raise PmfCertificationError("negative_mass", magnitude=float(mat[neg].min()), row=r, context=context)
+    sums = mat.sum(axis=1)
+    zero_rows = np.argwhere(sums == 0.0)
+    if zero_rows.size:
+        raise PmfCertificationError("zero_mass_row", magnitude=0.0, row=int(zero_rows[0, 0]), context=context)
+    dev = np.abs(sums - 1.0)
+    if (dev > tol).any():
+        r = int(np.argmax(dev))
+        raise PmfCertificationError("normalization_out_of_tolerance", magnitude=float(dev[r]),
+                                    row=r, context=context)
+    if raw_upper_tail is not None:
+        tail = np.asarray(raw_upper_tail, dtype=float)
+        if (tail > tail_mass_tol).any():
+            r = int(np.argmax(tail))
+            raise PmfCertificationError("excessive_tail_truncation", magnitude=float(tail[r]),
+                                        row=r, context=context)
+
+
+def sanitize_pmf_matrix(pmf_mat: np.ndarray, *, certified: bool = False,
+                        context: dict | None = None) -> tuple[np.ndarray, int]:
     """Replace non-finite / negative values with a uniform fallback and renormalize.
 
     Returns (sanitized_matrix, n_rows_fixed).  Rows that are entirely non-finite
     or zero are replaced with a uniform distribution so they still sum to 1.
     This prevents downstream ``validate_pmf_matrix`` from raising on edge-case
     model outputs (e.g. a fold that hits a numerical boundary in the NegBin fit).
+
+    In ``certified=True`` mode this NEVER sanitises: it delegates to
+    ``validate_pmf_matrix_certified`` and raises a structured ``PmfCertificationError``
+    on any defect. Silent uniform fallback is diagnostic-only.
     """
+    if certified:
+        validate_pmf_matrix_certified(pmf_mat, context=context)
+        return np.asarray(pmf_mat, dtype=float).copy(), 0
     mat = pmf_mat.copy()
     n_fixed = 0
     bad_mask = ~np.isfinite(mat)
