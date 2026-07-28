@@ -90,10 +90,21 @@
       "detail": "Gated on >=1 direct prop passing the frozen market-superiority contract; none passes yet. Combos start only after a direct-prop champion exists."
     }
   ],
+  "cycle2_updates": {
+    "P8A_ast_pmf_shape": "COMPLETE_AND_PROVEN (NO_PASS): scripts/sprint_pmf_shape.py on 511 atomic rows/55 dates. A0 LL 0.808 -> best pure calibration (A1 temperature) 0.742; market 0.692. Both model & market AUC ~0.535 => near-zero line-level signal; residual +0.05 LL is calibration-floor + information gap, not fixable by PMF shape. No candidate passes full contract.",
+    "P8B_fg3m_close_gap": "COMPLETE_AND_PROVEN (NO_PASS): 494 rows. A0 0.767 -> best 0.728; market 0.667. Deficit ~0.06 LL; ranking/calibration limited, information gap. No pass.",
+    "P8C_box_reb_proxy": "COMPLETE_AND_PROVEN (REJECT): proxy does not beat P0-proxy.",
+    "P2_certified_feature_parity": "GUARD_COMPLETE + TESTED; wiring of CERTIFIED mode into every stage (training load/OOF/replay/live/Distributions/Edge Board) REMAINS (EXECUTABLE_NOW).",
+    "P3C_failclosed_pmf": "CONTRACT_COMPLETE + adversarial tests; full transform-graph wiring (active/mixture/calibrated/combo in pmf_engine) REMAINS (EXECUTABLE_NOW, P0-frozen-adjacent).",
+    "P3F_delivery_safety_audit": "AUDIT_COMPLETE (CERTIFIED_DELIVERY_SAFETY_AUDIT.json): 3 PASS / 3 FAIL / 1 REVIEW. FAIL fixes touch frozen P0 delivery -> owner-authorized regression-proven change required.",
+    "P6_reproducible_publication": "INVENTORY_COMPLETE (artifacts/publish_ready/*). PUBLICATION BLOCKED: configured store Risky-Scout/wnba-player-props-pmf-model is PUBLIC; restricted BDL/odds/derived assets cannot be published there (license). PRIVATE_DATA_WRITER_TOKEN is CI-only (absent locally). verdicts: code_clean_clone_pass=true; real_data_clean_fetch/rebuild/hash_parity/env_lock=false.",
+    "P7_forward_workflows": "REMAINS (EXECUTABLE_NOW; keys present): freeze versioned time-to-tip window config + derive collector phase from scheduled_tip-source_timestamp before a truthful dispatch; complete+test forward atomic-quote workflow."
+  },
   "summary_counts": {
-    "COMPLETE_AND_PROVEN": ["P1_reconcile_matrix", "P5_historical_quote_migration"],
-    "EXECUTABLE_NOW": ["P2_certified_feature_parity", "P3C_failclosed_pmf", "P3F_delivery_safety_audit", "P7_forward_snapshot_collection", "P7_forward_quote_workflow"],
-    "EXECUTABLE_WITH_LOCAL_DATA": ["P6_reproducible_publication", "P8A_ast_pmf_shape", "P8B_fg3m_close_gap", "P8C_box_reb_proxy"],
+    "COMPLETE_AND_PROVEN": ["P1_reconcile_matrix", "P5_historical_quote_migration", "P8A_ast_pmf_shape", "P8B_fg3m_close_gap", "P8C_box_reb_proxy", "P3F_delivery_safety_audit(as audit)"],
+    "PARTIAL_GUARD_COMPLETE_WIRING_REMAINS": ["P2_certified_feature_parity", "P3C_failclosed_pmf"],
+    "EXECUTABLE_NOW_REMAINING": ["P2_wiring", "P3C_wiring", "P7_forward_workflows"],
+    "BLOCKED_PUBLIC_STORE_LICENSE": ["P6_reproducible_publication"],
     "BLOCKED_MISSING_EXTERNAL_SOURCE": ["P9_external_signal_spike"],
     "BLOCKED_FUTURE_DATA_ACCRUAL": ["P10_combos"],
     "BLOCKED_MISSING_SECRET": []
