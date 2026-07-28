@@ -1,0 +1,53 @@
+{
+  "date": "2026-07-28",
+  "pulled_at_utc": "2026-07-28T18:48:52.186471+00:00",
+  "n_games": 5,
+  "teams_playing": [
+    {
+      "game_id": 24956,
+      "status": "pre",
+      "home_team_id": 5,
+      "home_team_abbr": "WSH",
+      "away_team_id": 2,
+      "away_team_abbr": "CON"
+    },
+    {
+      "game_id": 24957,
+      "status": "pre",
+      "home_team_id": 7,
+      "home_team_abbr": "MIN",
+      "away_team_id": 30,
+      "away_team_abbr": "TOR"
+    },
+    {
+      "game_id": 24958,
+      "status": "pre",
+      "home_team_id": 9,
+      "home_team_abbr": "SEA",
+      "away_team_id": 3,
+      "away_team_abbr": "IND"
+    },
+    {
+      "game_id": 24959,
+      "status": "pre",
+      "home_team_id": 8,
+      "home_team_abbr": "LV",
+      "away_team_id": 31,
+      "away_team_abbr": "POR"
+    },
+    {
+      "game_id": 24960,
+      "status": "pre",
+      "home_team_id": 12,
+      "home_team_abbr": "LA",
+      "away_team_id": 1,
+      "away_team_abbr": "NY"
+    }
+  ],
+  "n_injury_rows": 37,
+  "n_out_players": 32,
+  "snapshot_path": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/injuries_20260728T184852Z.parquet",
+  "games_snapshot_path": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/games_20260728T184852Z.parquet",
+  "status": "ok",
+  "fail_open": true
+}
