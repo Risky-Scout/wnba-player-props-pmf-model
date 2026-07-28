@@ -1,0 +1,130 @@
+{
+  "games_parsed": 203,
+  "player_game_rows": 3913,
+  "total_plays_parsed": 83550,
+  "attributable_play_rate": 0.6574,
+  "unmatched_actor_play_rate": 0.0029,
+  "unmatched_actor_examples": [
+    "Sha Carter makes driving layup (Alyssa Thomas assists)",
+    "Sha Carter misses 25-foot three point jumper",
+    "Megan Gustafson misses 25-foot three point jumper",
+    "Megan Gustafson misses 25-foot three point jumper",
+    "Megan Gustafson makes driving layup (Carla Leite assists)",
+    "Megan Gustafson misses free throw 1 of 2",
+    "Megan Gustafson misses free throw 2 of 2",
+    "Megan Gustafson makes 3-foot two point shot (Bridget Carleton assists)",
+    "Megan Gustafson makes 25-foot three point jumper (Jordan Harrison assists)",
+    "Megan Gustafson makes 25-foot three point step back jumpshot (Jordan Harrison assists)",
+    "Sha Carter misses 22-foot running jump shot",
+    "Megan Gustafson misses 26-foot three point jumper",
+    "Megan Gustafson makes two point shot",
+    "Megan Gustafson makes free throw 1 of 2",
+    "Megan Gustafson makes free throw 2 of 2",
+    "Megan Gustafson misses 25-foot three point jumper",
+    "Megan Gustafson makes 8-foot two point shot (Sarah Ashlee Barker assists)",
+    "Megan Gustafson makes 1-foot layup (Sug Sutton assists)",
+    "Megan Gustafson makes 2-foot two point shot (Sug Sutton assists)",
+    "Megan Gustafson makes 8-foot two point shot (Sug Sutton assists)",
+    "Megan Gustafson makes free throw 1 of 2",
+    "Megan Gustafson makes free throw 2 of 2",
+    "Megan Gustafson makes 2-foot layup (Sug Sutton assists)",
+    "Megan Gustafson makes layup (Haley Jones assists)",
+    "Megan Gustafson misses 24-foot three point jumper"
+  ],
+  "reconciliation_rows": 3912,
+  "reconciliation_games": 203,
+  "min_validation_games_required": 20,
+  "meets_min_validation_games": true,
+  "per_stat_reconciliation": {
+    "pts": {
+      "vs_box_col": "pts",
+      "exact_match_rate": 0.9994887525562373,
+      "within_1_rate": 0.9994887525562373,
+      "mean_abs_error": 0.0010224948875255625,
+      "max_abs_error": 2.0,
+      "parsed_total": 34964.0,
+      "box_total": 34964.0
+    },
+    "reb": {
+      "vs_box_col": "reb",
+      "exact_match_rate": 0.9979550102249489,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.002044989775051125,
+      "max_abs_error": 1.0,
+      "parsed_total": 13419.0,
+      "box_total": 13419.0
+    },
+    "ast": {
+      "vs_box_col": "ast",
+      "exact_match_rate": 0.983640081799591,
+      "within_1_rate": 0.9936094069529653,
+      "mean_abs_error": 0.028885480572597138,
+      "max_abs_error": 5.0,
+      "parsed_total": 8138.0,
+      "box_total": 8249.0
+    },
+    "stl": {
+      "vs_box_col": "stl",
+      "exact_match_rate": 0.9989775051124744,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.0010224948875255625,
+      "max_abs_error": 1.0,
+      "parsed_total": 2986.0,
+      "box_total": 2986.0
+    },
+    "blk": {
+      "vs_box_col": "blk",
+      "exact_match_rate": 0.9997443762781186,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.0002556237218813906,
+      "max_abs_error": 1.0,
+      "parsed_total": 1595.0,
+      "box_total": 1596.0
+    },
+    "tov": {
+      "vs_box_col": "turnover",
+      "exact_match_rate": 0.998721881390593,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.001278118609406953,
+      "max_abs_error": 1.0,
+      "parsed_total": 5389.0,
+      "box_total": 5388.0
+    },
+    "fg3m": {
+      "vs_box_col": "fg3m",
+      "exact_match_rate": 1.0,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.0,
+      "max_abs_error": 0.0,
+      "parsed_total": 3404.0,
+      "box_total": 3404.0
+    },
+    "fga": {
+      "vs_box_col": "fga",
+      "exact_match_rate": 0.9992331288343558,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.0007668711656441718,
+      "max_abs_error": 1.0,
+      "parsed_total": 27534.0,
+      "box_total": 27533.0
+    },
+    "fg3a": {
+      "vs_box_col": "fg3a",
+      "exact_match_rate": 0.8773006134969326,
+      "within_1_rate": 0.9841513292433538,
+      "mean_abs_error": 0.14084867075664623,
+      "max_abs_error": 4.0,
+      "parsed_total": 9561.0,
+      "box_total": 10112.0
+    },
+    "fta": {
+      "vs_box_col": "fta",
+      "exact_match_rate": 1.0,
+      "within_1_rate": 1.0,
+      "mean_abs_error": 0.0,
+      "max_abs_error": 0.0,
+      "parsed_total": 8563.0,
+      "box_total": 8563.0
+    }
+  }
+}

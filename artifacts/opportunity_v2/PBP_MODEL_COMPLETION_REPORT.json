@@ -1,0 +1,135 @@
+{
+  "question": "Does the PBP opportunity signal let a pure (no-market) model beat or close the gap to the market on FG3M and AST?",
+  "ingestion": {
+    "games_with_pbp": 203,
+    "total_plays": 83551,
+    "exhibitions_skipped": [
+      24955
+    ]
+  },
+  "parser_validation": {
+    "reconciliation_games": 203,
+    "reconciliation_rows": 3912,
+    "attributable_play_rate": 0.6574,
+    "unmatched_actor_play_rate": 0.0029,
+    "per_stat_exact_match": {
+      "pts": 0.9994887525562373,
+      "reb": 0.9979550102249489,
+      "ast": 0.983640081799591,
+      "stl": 0.9989775051124744,
+      "blk": 0.9997443762781186,
+      "tov": 0.998721881390593,
+      "fg3m": 1.0,
+      "fga": 0.9992331288343558,
+      "fg3a": 0.8773006134969326,
+      "fta": 1.0
+    },
+    "per_stat_mean_abs_error": {
+      "pts": 0.0010224948875255625,
+      "reb": 0.002044989775051125,
+      "ast": 0.028885480572597138,
+      "stl": 0.0010224948875255625,
+      "blk": 0.0002556237218813906,
+      "tov": 0.001278118609406953,
+      "fg3m": 0.0,
+      "fga": 0.0007668711656441718,
+      "fg3a": 0.14084867075664623,
+      "fta": 0.0
+    }
+  },
+  "feature_leakage_guard": {
+    "rows_checked": 287,
+    "mismatches": 0,
+    "feature_rows": 4926,
+    "leakage_free": true
+  },
+  "fg3m": {
+    "n": 504,
+    "game_dates": 55,
+    "log_loss": {
+      "p0": 0.7619067448063898,
+      "pbp_pure": 0.7032170048036659,
+      "r1_box_opp": 0.6758318168612988,
+      "market": 0.6652977901408331
+    },
+    "brier": {
+      "p0": 0.2612872904606633,
+      "pbp_pure": 0.2522625486068781,
+      "market": 0.2365087034496151
+    },
+    "auc": {
+      "p0": 0.5675545183873822,
+      "pbp_pure": 0.5862513330963384,
+      "market": 0.6170193932566187
+    },
+    "ece": {
+      "p0": 0.11706317470404026,
+      "pbp_pure": 0.0922585218077993,
+      "market": 0.049950945053654286
+    },
+    "pbp_vs_p0": {
+      "delta_log_loss": -0.06695143862154862,
+      "p_ll": 0.0007,
+      "delta_brier": -0.01617492942865295,
+      "p_brier": 0.0134
+    },
+    "pbp_vs_market": {
+      "delta_log_loss": 0.04052937196593642,
+      "p_ll": 0.9987,
+      "holm_p_ll": 1.0,
+      "holm_p_brier": 1.0
+    },
+    "p0_to_market_ll_gap": 0.09660895466555663,
+    "pbp_ll_gap_closed_vs_p0": 0.05868974000272387,
+    "pbp_fraction_of_gap_closed": 0.6074979302477448,
+    "pbp_residual_ll_to_market": 0.03791921466283277,
+    "beats_market": false
+  },
+  "ast": {
+    "n": 522,
+    "game_dates": 55,
+    "log_loss": {
+      "p0": 0.7728265033303804,
+      "pbp_pure": 0.7375061755002261,
+      "r1_box_opp": null,
+      "market": 0.6919136835447349
+    },
+    "brier": {
+      "p0": 0.2689995892768986,
+      "pbp_pure": 0.26602140960406706,
+      "market": 0.24939254841528347
+    },
+    "auc": {
+      "p0": 0.5405023781212842,
+      "pbp_pure": 0.518039074673379,
+      "market": 0.5344381688466112
+    },
+    "ece": {
+      "p0": 0.1374657632807146,
+      "pbp_pure": 0.11461366963061954,
+      "market": 0.056108057634446096
+    },
+    "pbp_vs_p0": {
+      "delta_log_loss": -0.02328851865177939,
+      "p_ll": 0.0915,
+      "delta_brier": -0.004427532070444551,
+      "p_brier": 0.2154
+    },
+    "pbp_vs_market": {
+      "delta_log_loss": 0.04760639963895563,
+      "p_ll": 0.9991,
+      "holm_p_ll": 0.9991,
+      "holm_p_brier": 0.9966
+    },
+    "p0_to_market_ll_gap": 0.08091281978564546,
+    "pbp_ll_gap_closed_vs_p0": 0.03532032783015426,
+    "pbp_fraction_of_gap_closed": 0.4365232595245723,
+    "pbp_residual_ll_to_market": 0.0455924919554912,
+    "beats_market": false
+  },
+  "verdict": {
+    "fg3m_beats_market": false,
+    "ast_beats_market": false,
+    "summary": "The pure PBP-opportunity model does NOT beat the market on FG3M or AST (Holm-adjusted p_ll = 1.0 for FG3M, 0.9991 for AST). It significantly beats the P0 baseline on FG3M (delta LL -0.06695143862154862, p_ll 0.0007), closing 0.6074979302477448 of the P0->market gap, and improves on P0 directionally for AST (delta LL -0.02328851865177939, p_ll 0.0915). For FG3M the existing box-opportunity candidate (r1) is at least as good as PBP, so PBP's genuine incremental value is the new AST opportunity candidate and the stl/blk/tov label side."
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "date": "2026-07-28",
+  "collected_utc": "2026-07-28T15:56:14.814075+00:00",
+  "n_events": 5,
+  "target_markets": [
+    "player_steals",
+    "player_blocks",
+    "player_turnovers"
+  ],
+  "reference_markets": [
+    "player_points",
+    "player_rebounds",
+    "player_assists"
+  ],
+  "max_books_offering_target": {
+    "player_steals": 0,
+    "player_blocks": 0,
+    "player_turnovers": 0
+  },
+  "max_books_offering_reference": {
+    "player_points": 5,
+    "player_rebounds": 5,
+    "player_assists": 5
+  },
+  "atomic_side_rows_written": 0,
+  "quote_path": null,
+  "per_event": [
+    {
+      "event_id": "e4dc370d08264200533bf3816f82c622",
+      "matchup": "Connecticut Sun @ Washington Mystics",
+      "target_book_counts": {
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "reference_book_counts": {
+        "player_points": 5,
+        "player_rebounds": 5,
+        "player_assists": 5
+      }
+    },
+    {
+      "event_id": "786c1161bd8d7bbab01efa2e850df8bb",
+      "matchup": "Toronto Tempo @ Minnesota Lynx",
+      "target_book_counts": {
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "reference_book_counts": {
+        "player_points": 5,
+        "player_rebounds": 5,
+        "player_assists": 5
+      }
+    },
+    {
+      "event_id": "c2e520af9bd7e828a76959862d941068",
+      "matchup": "Indiana Fever @ Seattle Storm",
+      "target_book_counts": {
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "reference_book_counts": {
+        "player_points": 5,
+        "player_rebounds": 5,
+        "player_assists": 5
+      }
+    },
+    {
+      "event_id": "606c87e74c7cc6048113e44a4f33506f",
+      "matchup": "Portland Fire @ Las Vegas Aces",
+      "target_book_counts": {
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "reference_book_counts": {
+        "player_points": 5,
+        "player_rebounds": 5,
+        "player_assists": 5
+      }
+    },
+    {
+      "event_id": "fa632e2d144f67960024500509077a4a",
+      "matchup": "New York Liberty @ Los Angeles Sparks",
+      "target_book_counts": {
+        "player_steals": 0,
+        "player_blocks": 0,
+        "player_turnovers": 0
+      },
+      "reference_book_counts": {
+        "player_points": 5,
+        "player_rebounds": 5,
+        "player_assists": 5
+      }
+    }
+  ],
+  "conclusion": "stl/blk/tov are forward-collect-only this early: books post pts/reb/ast broadly while stl/blk/tov are thin/unoffered. Prior live check measured 0 books for stl/blk/tov vs 9 books for pts/reb/ast at T-8h. These markets are NOT backfillable (no historical store); this collector accrues them going forward, fail-open when 0 books post.",
+  "fail_open": true
+}
