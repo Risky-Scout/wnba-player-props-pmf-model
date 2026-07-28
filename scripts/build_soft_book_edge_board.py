@@ -36,7 +36,6 @@ from wnba_props_model.edge.soft_book_scan import (
     SHARP_BOOKS,
     scan_soft_book_edges,
 )
-from wnba_props_model.models.market import kelly_fraction
 
 BOARD_VERSION = "soft_book_edge_v1"
 
@@ -124,7 +123,8 @@ def _to_render_json(board_q: pd.DataFrame, date: str, generated: str, summary: d
         fair_side = float(r["fair_p"])
         # Signed edge drives OVER (green) / UNDER (red) in the shared card widget.
         signed_edge = ev_frac if side == "over" else -ev_frac
-        kelly = kelly_fraction(fair_side, offered, fractional_kelly=0.25)
+        # MANDATE: this is a MARKET_DISLOCATION diagnostic, not a model edge. NO stake / NO
+        # Kelly is emitted during the validation period — kelly_fraction stays null.
         fe_stat = _STAT_TO_FRONTEND.get(str(r["stat"]), str(r["stat"]))
         odds_str = f"+{offered}" if offered > 0 else str(offered)
         games[eid]["players"].append({
@@ -146,13 +146,18 @@ def _to_render_json(board_q: pd.DataFrame, date: str, generated: str, summary: d
                         "market_line": line,
                         "p_over": round(float(r["consensus_p_over"]), 4),
                         "edge_vs_market": round(signed_edge, 6),
-                        "kelly_fraction": round(float(kelly), 4),
+                        # No Kelly / no stake during the validation period (MARKET_DISLOCATION).
+                        "kelly_fraction": None,
                     },
                     "soft_book": {
                         "book": r["book"],
                         "side": side,
                         "offered_odds": offered,
                         "ev_pct": round(ev_pct, 3),
+                        "theoretical_ev_pct": round(ev_pct, 3),
+                        "executable_ev_pct": None,
+                        "source_type": "MARKET_DISLOCATION",
+                        "actionable": False,
                         "fair_p_side": round(fair_side, 4),
                         "consensus_p_over": round(float(r["consensus_p_over"]), 4),
                         "consensus_n_books": int(r["consensus_n_books"]),
@@ -253,6 +258,12 @@ def main() -> None:
         "schema_version": BOARD_VERSION,
         "generated_at": generated,
         "game_date": args.date,
+        "source_type": "MARKET_DISLOCATION",
+        "actionable_default": False,
+        "disclaimer": (
+            "MARKET DISLOCATION diagnostics only — NOT a model edge, NOT claimed "
+            "profitable/executable. No stake/Kelly emitted during the validation period."
+        ),
         "method": _METHOD_BLOCK,
         "summary": summary,
         "board": tidy_board,             # qualifying +EV plays, sorted by EV desc
