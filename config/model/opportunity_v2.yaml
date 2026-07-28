@@ -96,6 +96,18 @@ promotion:
   ece_max: 0.05
   bootstrap_iters: 10000
   bootstrap_seed: 42
+  # Full-PMF certification gates (frozen). A candidate's discrete predictive distribution must be
+  # proper, well-supported, calibrated and informative — not merely finite. Each gate can
+  # independently fail a candidate (see tests/opportunity/test_full_pmf_gates.py).
+  full_pmf_log_score_max: 2.5          # absolute cap when no reference log-score supplied
+  crps_max: 1.5                        # absolute cap when no reference CRPS supplied
+  full_pmf_log_score_noninferiority_tol: 0.05   # candidate <= reference + tol
+  crps_noninferiority_tol: 0.05                 # candidate <= reference + tol
+  tail_bin_mass_max: 0.02              # max mass allowed to pile on the final support bin (truncation)
+  out_of_support_frac_max: 0.01        # max fraction of realized counts beyond the PMF support
+  coverage_tol_50: 0.12                # |empirical central-50% coverage - 0.50| bound
+  coverage_tol_90: 0.08                # |empirical central-90% coverage - 0.90| bound
+  sharpness_max_width_90: 60.0         # mean central-90% interval width must be finite, >0, and <= this
 
 # Honest scope on current repository data (see artifacts/opportunity_v2/DATA_AVAILABILITY_AUDIT.json):
 # only Tier-0 box props are historically certifiable. Tier-2 props are disabled until a tracking

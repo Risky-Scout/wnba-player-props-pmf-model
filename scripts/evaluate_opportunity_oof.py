@@ -131,6 +131,94 @@ def crps_discrete(pmf_json, actual) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# full-PMF certification gates (proper, supported, calibrated, informative)
+# --------------------------------------------------------------------------- #
+def _pmf_quantile_idx(cdf: np.ndarray, q: float) -> int:
+    """Smallest support index k with CDF(k) >= q."""
+    return int(np.searchsorted(cdf, q, side="left"))
+
+
+def full_pmf_certification(pmf_json, actual, contract: dict, reference: dict | None = None):
+    """Frozen full-PMF gates. Returns (gates, measures).
+
+    Replaces the old "finite full_pmf_log_score" check with independent gates for: normalization,
+    tail-truncation, PMF-log-score noninferiority (vs reference or an absolute cap), CRPS
+    noninferiority, central-50%/90% interval coverage, and sharpness. Any gate can independently
+    fail a candidate.
+    """
+    tol_norm = float(contract.get("normalization_tolerance", 1e-6))
+    # Randomized PIT coverage: for discrete forecasts, non-randomized central intervals over-cover.
+    # U = F(k-1) + V*(F(k)-F(k-1)), V~U(0,1) is Uniform(0,1) under a calibrated forecast, so
+    # P(0.25<=U<=0.75)=0.5 and P(0.05<=U<=0.95)=0.9 in expectation. Deterministic seed for reproducibility.
+    rng = np.random.default_rng(int(contract.get("coverage_pit_seed", 12345)))
+    logs, crps, w90, in50, in90, top = [], [], [], [], [], []
+    n, oos, norm_bad = 0, 0, 0
+    for js, a in zip(pmf_json, actual):
+        if js is None or (isinstance(js, float) and np.isnan(js)) or a is None or not np.isfinite(a):
+            continue
+        arr = np.asarray(json.loads(js), float)
+        n += 1
+        s = float(arr.sum())
+        if (not np.all(arr >= -1e-9)) or abs(s - 1.0) > tol_norm:
+            norm_bad += 1
+        k = int(round(float(a)))
+        pk = arr[k] if 0 <= k < arr.size else 0.0
+        logs.append(-np.log(max(pk, _EPS)))
+        cdf = np.cumsum(arr)
+        kk = np.arange(arr.size)
+        crps.append(float(np.sum((cdf - (kk >= k).astype(float)) ** 2)))
+        # sharpness measure: central-90% support width from the discrete CDF
+        lo90, hi90 = _pmf_quantile_idx(cdf, 0.05), _pmf_quantile_idx(cdf, 0.95)
+        w90.append(hi90 - lo90)
+        # randomized PIT for calibration-correct coverage
+        f_k = float(cdf[k]) if 0 <= k < arr.size else (1.0 if k >= arr.size else 0.0)
+        f_km1 = float(cdf[k - 1]) if 0 <= k - 1 < arr.size else (0.0 if k - 1 < 0 else 1.0)
+        u = f_km1 + rng.random() * max(f_k - f_km1, 0.0)
+        in50.append(0.25 <= u <= 0.75)
+        in90.append(0.05 <= u <= 0.95)
+        top.append(float(arr[-1]))
+        if k >= arr.size:
+            oos += 1
+
+    def _m(x):
+        return float(np.mean(x)) if len(x) else float("nan")
+
+    mean_log, mean_crps = _m(logs), _m(crps)
+    cov50, cov90, mean_w90 = _m(in50), _m(in90), _m(w90)
+    max_top = float(np.max(top)) if top else float("nan")
+    oos_frac = (oos / n) if n else float("nan")
+    ref_log = (reference or {}).get("full_pmf_log_score", contract.get("full_pmf_log_score_max"))
+    ref_crps = (reference or {}).get("crps", contract.get("crps_max"))
+    tol_log = float(contract.get("full_pmf_log_score_noninferiority_tol", 0.05))
+    tol_crps = float(contract.get("crps_noninferiority_tol", 0.05))
+
+    gates = {
+        "pmf_normalization_ok": bool(n > 0 and norm_bad == 0),
+        "pmf_tail_truncation_ok": bool(np.isfinite(max_top) and np.isfinite(oos_frac)
+                                       and max_top <= float(contract.get("tail_bin_mass_max", 0.02))
+                                       and oos_frac <= float(contract.get("out_of_support_frac_max", 0.01))),
+        "pmf_log_score_noninferiority_ok": bool(np.isfinite(mean_log) and ref_log is not None
+                                                and mean_log <= float(ref_log) + tol_log),
+        "crps_noninferiority_ok": bool(np.isfinite(mean_crps) and ref_crps is not None
+                                       and mean_crps <= float(ref_crps) + tol_crps),
+        "coverage_50_ok": bool(np.isfinite(cov50)
+                               and abs(cov50 - 0.50) <= float(contract.get("coverage_tol_50", 0.12))),
+        "coverage_90_ok": bool(np.isfinite(cov90)
+                               and abs(cov90 - 0.90) <= float(contract.get("coverage_tol_90", 0.08))),
+        "sharpness_ok": bool(np.isfinite(mean_w90) and 0.0 < mean_w90
+                             <= float(contract.get("sharpness_max_width_90", 60.0))),
+    }
+    measures = {
+        "n_scored": int(n), "full_pmf_log_score": mean_log, "crps": mean_crps,
+        "coverage_50": cov50, "coverage_90": cov90, "mean_width_90": mean_w90,
+        "max_top_bin_mass": max_top, "out_of_support_frac": oos_frac,
+        "reference_full_pmf_log_score": (None if ref_log is None else float(ref_log)),
+        "reference_crps": (None if ref_crps is None else float(ref_crps)),
+    }
+    return gates, measures
+
+
+# --------------------------------------------------------------------------- #
 # canonical scored-row builder (fail-closed)
 # --------------------------------------------------------------------------- #
 KEY = ["game_id", "player_id", "prop"]
@@ -294,7 +382,7 @@ def holm(pvals: dict) -> dict:
 
 def evaluate_candidate(g: pd.DataFrame, contract: dict, *,
                        ci_ll, ci_bs, holm_p_ll: float, holm_p_brier: float,
-                       parity_pass: bool = True) -> dict:
+                       parity_pass: bool = True, reference_pmf: dict | None = None) -> dict:
     """Apply the frozen promotion gate. Returns a dict incl. ``selection_eligible``
     and every sub-gate so no single metric/p-value alone can produce a PASS."""
     y = g["outcome_over"].to_numpy()
@@ -303,6 +391,16 @@ def evaluate_candidate(g: pd.DataFrame, contract: dict, *,
     mk = candidate_metrics(g, "market_prob_over_no_vig")
     d_ll = mm["log_loss"] - mk["log_loss"]
     d_bs = mm["brier"] - mk["brier"]
+
+    # frozen full-PMF certification (proper / supported / calibrated / informative)
+    if "active_pmf_json" in g.columns and "actual" in g.columns:
+        pmf_gates, pmf_measures = full_pmf_certification(
+            g["active_pmf_json"], g["actual"], contract, reference=reference_pmf)
+    else:
+        pmf_gates = {k: False for k in ("pmf_normalization_ok", "pmf_tail_truncation_ok",
+                     "pmf_log_score_noninferiority_ok", "crps_noninferiority_ok",
+                     "coverage_50_ok", "coverage_90_ok", "sharpness_ok")}
+        pmf_measures = {}
 
     gates = {
         "rows_ok": n >= int(contract["required_rows"]),
@@ -320,10 +418,11 @@ def evaluate_candidate(g: pd.DataFrame, contract: dict, *,
                            and float(contract["calibration_slope_min"]) <= mm["calibration_slope"]
                            <= float(contract["calibration_slope_max"])
                            and abs(mm["calibration_intercept"]) <= float(contract["calibration_intercept_abs_max"])),
-        "full_pmf_ok": np.isfinite(mm.get("full_pmf_log_score", np.nan)),
         "parity_ok": bool(parity_pass),
     }
+    gates.update(pmf_gates)
     gates = {k: bool(v) for k, v in gates.items()}
+    mm = {**mm, "full_pmf_certification": pmf_measures}
     return {
         "n": int(n), "game_dates": ndates,
         "opp_v2": mm, "market": mk,
@@ -343,7 +442,12 @@ def _load_contract(path: str | None) -> dict:
     default = {"required_rows": 300, "required_dates": 30, "holm_alpha": 0.05,
                "auc_min": 0.5, "auc_vs_market_tol": 0.0, "calibration_slope_min": 0.80,
                "calibration_slope_max": 1.25, "calibration_intercept_abs_max": 0.25,
-               "ece_max": 0.05, "bootstrap_iters": 10000, "bootstrap_seed": 42}
+               "ece_max": 0.05, "bootstrap_iters": 10000, "bootstrap_seed": 42,
+               "normalization_tolerance": 1e-6,
+               "full_pmf_log_score_max": 2.5, "crps_max": 1.5,
+               "full_pmf_log_score_noninferiority_tol": 0.05, "crps_noninferiority_tol": 0.05,
+               "tail_bin_mass_max": 0.02, "out_of_support_frac_max": 0.01,
+               "coverage_tol_50": 0.12, "coverage_tol_90": 0.08, "sharpness_max_width_90": 60.0}
     if path and Path(path).exists():
         import yaml
         cfg = yaml.safe_load(open(path)) or {}
