@@ -59,6 +59,7 @@ _CODE_FILES = [
     "src/wnba_props_model/opportunity/share_model.py",
     "src/wnba_props_model/opportunity/component_models.py",
     "src/wnba_props_model/opportunity/pmf_builders.py",
+    "src/wnba_props_model/opportunity/pts_decomposition.py",
 ]
 
 
@@ -141,7 +142,9 @@ def main() -> None:
     ap.add_argument("--checkpoint-dir", default=None)
     ap.add_argument("--props", nargs="+", default=["fg3m", "pts"])
     ap.add_argument("--candidate", default="OPP_V2_RAW",
-                    help="OPP_V2_RAW (per-minute rate) or OPP_V2_TEAM_SHARE (game-specific)")
+                    help="OPP_V2_RAW | OPP_V2_TEAM_SHARE | OPP_V2_PTS_DECOMP")
+    ap.add_argument("--pts-recon-labels", default="data/processed/pts_conversion_labels.parquet",
+                    help="validated inferred PTS conversion labels (required for OPP_V2_PTS_DECOMP)")
     ap.add_argument("--strict-baseline", action="store_true", default=True)
     args = ap.parse_args()
 
@@ -170,6 +173,18 @@ def main() -> None:
     if args.quotes and Path(args.quotes).exists():
         input_hashes["quotes"] = _sha(args.quotes)
     code_sha = _code_sha(repo)
+
+    # PTS full-decomposition candidate consumes validated inferred conversion labels (item 7/8).
+    pts_recon = None
+    props = list(args.props)
+    if args.candidate == "OPP_V2_PTS_DECOMP":
+        props = ["pts"]
+        rp = Path(args.pts_recon_labels)
+        if not rp.exists():
+            raise SystemExit(f"OPP_V2_PTS_DECOMP requires --pts-recon-labels; missing {rp}")
+        pts_recon = pd.read_parquet(rp)
+        input_hashes["pts_recon"] = _sha(rp)
+
     # persist the frozen cutoff policy alongside the OOF output
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(cutoff_policy, open(Path(args.out).parent / "CUTOFF_POLICY.json", "w"), indent=2)
@@ -201,8 +216,8 @@ def main() -> None:
         if len(train) < 200 or len(val) == 0:
             continue
 
-        bundle = OpportunityModelBundleV2(cfg).fit(train, train)
-        pred = bundle.predict_active_pmfs(val, val, args.props, candidate=args.candidate)
+        bundle = OpportunityModelBundleV2(cfg).fit(train, train, pts_recon_labels=pts_recon)
+        pred = bundle.predict_active_pmfs(val, val, props, candidate=args.candidate)
         pred["fold_id"] = fold_id
         pred["oof_fold"] = fold_id
         pred["fold_validation_start_date"] = vstart
