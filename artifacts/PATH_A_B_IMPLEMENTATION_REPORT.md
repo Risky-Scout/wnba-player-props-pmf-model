@@ -196,10 +196,12 @@ The 14 pre-existing `tests/test_soft_book_scan.py` tests remain green after the 
 
 ## Brutally honest remaining blockers / limitations
 
-1. **Forward-CLV validation is NOT done and cannot be done in one run.** It requires
-   post-tip closing lines accrued across multiple slates. Until then **no row is actionable**
-   and `executable_ev_pct` is intentionally null. This is the designed validation-period
-   state, not a bug — but it means the board is **diagnostic only**.
+1. **Forward-CLV validation** (this section is superseded by the **CLV Backtest &
+   Actionability** section below). The original forward approach needed post-tip closing lines
+   accrued across future slates. Per the owner's spec change we instead validate on the
+   historical open/decision/close snapshots we already hold; see the CLV backtest below. The
+   net conclusion is still **no row is actionable today** — but now for a measured,
+   sample-size reason, not because CLV is unmeasured.
 2. **Price-survival is partial by design.** The live recheck covered **1** candidate event
    (credit-conserving `--recheck-events 1`). The per-row `price_survived_30s/60s` and
    `executable_ev_pct` fields on the broader board remain null; only the `price_survival`
@@ -216,3 +218,101 @@ The 14 pre-existing `tests/test_soft_book_scan.py` tests remain green after the 
    in their consensus (`consensus_includes_sharp=false`), which lowers confidence further.
 6. **`LIVE_SCAN_AUDIT.json` is large (~2.7 MB)** because it embeds full per-row provenance for
    all 2,158 rows (capped at 2,000 board rows). Committed as the required audit artifact.
+
+---
+
+# CLV Backtest & Actionability (spec change: validate on data we already have)
+
+The owner changed the spec: instead of waiting multiple future slates for forward-CLV, the
+model must be made **actionable now**, validated by a **CLV backtest on historical data we
+already hold**. This section reports that backtest and the actionability wiring it drives.
+
+## What was built (extends the acceptance-gate work, does not duplicate it)
+
+- **`src/wnba_props_model/edge/clv_backtest.py`** — replays the **unchanged**
+  `scan_soft_book_edges` at the **decision** snapshot (falling back to **open**) per slate,
+  reusing the repo's Shin no-vig (`models.market.shin_no_vig_two_way`), leave-one-book-out
+  consensus, atomic line matching and fail-closed guards; computes **price CLV** (closing
+  no-vig **consensus** P(side) − the candidate book's own decision no-vig P(side)) and
+  **same-book CLV**; aggregates by market / book / EV-bucket / market×EV-bucket with a
+  **date-cluster bootstrap 95% CI** (resample the 56 game_date clusters); and emits the
+  fail-closed validation table.
+- **`scripts/run_clv_backtest.py`** — writes `artifacts/path_b/CLV_BACKTEST.json` (full
+  methodology + per-segment tables + verdict + limitations) and
+  `artifacts/path_b/CLV_VALIDATION_TABLE.json` (the compact table the board + gate consume).
+- **Actionability wiring** — `scripts/build_soft_book_edge_board.py` now loads the validation
+  table and sets `actionable` per row (fail closed); `edge/path_b_gate.py` now permits
+  `actionable=true` **only** when a row carries qualifying backtest-CLV evidence (a positive
+  mean with a 95% CI whose lower bound > 0) plus resolved identity, `forward_clv_validated`,
+  and `VALIDATED_EXECUTABLE`. `source_type=MARKET_DISLOCATION` is unchanged and **no
+  stake/Kelly** is emitted.
+
+## Data & method
+
+`artifacts/p1/p1_quotes.parquet`: 76,620 rows, **56 game dates** (2026-05-08 → 2026-07-22),
+**5 books** (betonlineag, betrivers, draftkings, fanduel, williamhill_us), snapshot labels
+open/decision/close. Replay config = production defaults (`ev_threshold=2.5%`,
+`min_consensus_books=3`); date-cluster bootstrap = 5,000 resamples, seed 20260728; a segment
+needs ≥2 date clusters. Actionability metric = **price CLV**. CLV is reported in probability
+percentage points ("cents" = prob×100).
+
+## Headline results (price CLV vs the closing consensus)
+
+Only **17** decision-time flags clear 2.5% EV in the whole 56-date panel (a 5-book market's
+no-vig consensus sits close to each book, so >2.5% dislocations are rare); **13** have a
+closing consensus to score against.
+
+| Segment | N | dates | mean CLV | median | % beat close | 95% CI (date-cluster) | CI excludes 0 |
+|---|---:|---:|---:|---:|---:|---|:--:|
+| **Overall (price CLV)** | 13 | 9 | **+3.77c** | +3.17c | **100%** | **[+2.57c, +4.94c]** | ✅ |
+| Overall (same-book CLV) | 10 | 8 | +2.66c | +2.54c | 100% | [+1.40c, +3.92c] | ✅ |
+| market = player_points | 7 | 6 | +3.72c | +4.33c | 100% | [+2.24c, +4.85c] | ✅ |
+| market = player_rebounds | 3 | 3 | +2.48c | +2.41c | 100% | [+1.87c, +3.17c] | ✅ |
+| market = player_threes | 3 | 3 | +5.15c | +4.55c | 100% | [+1.85c, +9.06c] | ✅ |
+| EV bucket 2.5–5% | 12 | 9 | +3.92c | +3.75c | 100% | [+2.60c, +5.19c] | ✅ |
+| book = betonlineag | 11 | 8 | +3.14c | +2.41c | 100% | [+2.01c, +4.04c] | ✅ |
+| book = draftkings | 2 | 2 | +7.20c | +7.20c | 100% | [+5.35c, +9.06c] | ✅ |
+
+Sensitivity — relaxing `min_consensus_books` to 2 (defensible in a 5-book universe) yields
+**N=21** flags (mean **+3.36c**, 90.5% beat close, CI **[+1.41c, +4.94c]**): more flags,
+**same qualitative conclusion**.
+
+## Honest verdict & the exact actionable set
+
+**The soft-book / MARKET_DISLOCATION edges DO beat the close.** The overall signal is
+positive and the date-cluster bootstrap 95% CI **excludes 0** (+3.77 cents, 100% beat close),
+and every populated market segment is individually positive with a CI excluding 0.
+
+**But under the fail-closed actionability rule, NO segment qualifies, so ZERO board rows are
+marked `actionable` today.** The blocker is **sample size, not sign or significance**: with
+only 56 dates and 5 books the strategy fires ~13–21 times total, so the largest market
+segment is `player_points` at **N=7–10**, far below the `min_segment_n=50` bar. The persisted
+`CLV_VALIDATION_TABLE.json` therefore has `actionable_segments = []`, and each board row is
+stamped `actionable=false` with reason `insufficient_sample:market=… n=… < min_segment_n=50`.
+
+This is the brutally honest outcome the spec anticipated: the edge is real and +CLV, but it
+is **underpowered per segment** on the data we currently hold. It is **not** faked to please
+the request. Actionability will flip on automatically — no code change — once accrued slates
+push a market (or market×EV-bucket) segment past `min_segment_n` while keeping mean CLV > 0
+and its CI above 0. (`min_segment_n` is a CLI knob; lowering it is a policy decision the owner
+can make with these numbers in hand, but the committed default stays fail-closed at 50.)
+
+## Artifacts
+
+- `artifacts/path_b/CLV_BACKTEST.json` — methodology, per-segment CLV tables with CIs,
+  overall verdict, coverage, and honest limitations.
+- `artifacts/path_b/CLV_VALIDATION_TABLE.json` — the fail-closed table consumed by the board
+  and gate (`actionable_segments = []` on current data).
+- `artifacts/path_b/CLV_ROWS.csv` — the 17 per-candidate CLV rows (auditable).
+
+## Honest limitations of the backtest
+
+1. **Only 5 books** — the no-vig consensus (and its leave-one-out subset) is thin; one
+   mispriced book moves it more than in a 10+ book market.
+2. **Only 56 dates** — few bootstrap clusters ⇒ wide CIs and tiny per-segment N.
+3. **Closing snapshot is the last collected price**, a proxy for the true settle-time close; a
+   market pulled before tip has no closing row (excluded, never imputed).
+4. **Consensus is median-of-all** — sharp books are annotated but not up-weighted, so
+   "beating the close" means beating a median-of-all close, not a Pinnacle close.
+5. **CLV is a +EV proxy, not realized P&L** — it ignores bet availability at the quoted price,
+   limits, and settlement vig.
