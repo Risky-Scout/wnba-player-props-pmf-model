@@ -1091,11 +1091,14 @@
         0.08095974006477806
       ],
       "p_ll_raw": 1.0,
-      "p_brier_raw": 1.0
+      "p_brier_raw": 1.0,
+      "holm_adjusted_p_ll": 1.0,
+      "holm_adjusted_p_brier": 1.0
     }
   },
   "closes_gap_fraction": -0.45482904337429864,
   "beats_market_pointwise": false,
   "selected_auc": 0.4896344358284539,
-  "market_auc": 0.6368491849976261
+  "market_auc": 0.6368491849976261,
+  "verdict": "INFORMATION_GAP"
 }

@@ -1,10 +1,11 @@
 {
-  "prop": "ast",
+  "prop": "reb",
   "kind": "binary",
-  "n_rows": 522,
+  "n_rows": 742,
   "n_dates": 55,
   "sufficient_data": true,
   "min_data_note": null,
+  "player_box_form_group": "INCLUDED_rebuilt_from_BDL_standard_feature_pipeline_no_recovered_v2_embeddings",
   "feature_groups": {
     "player_pbp_rate": [
       "pbp_ast_per_fga_ewma",
@@ -38,6 +39,11 @@
       "pbp_tov_per_min_ewma"
     ],
     "player_box_form": [
+      "blowout_risk",
+      "close_game_indicator",
+      "game_spread_home",
+      "game_total",
+      "implied_team_total",
       "is_running_cold",
       "is_running_hot",
       "player_ast_away_mean_l10",
@@ -98,14 +104,6 @@
       "player_blk_season_support",
       "player_blk_season_zscore",
       "player_efg_pct_l10",
-      "player_embed_0",
-      "player_embed_1",
-      "player_embed_2",
-      "player_embed_3",
-      "player_embed_4",
-      "player_embed_5",
-      "player_embed_6",
-      "player_embed_7",
       "player_fg3_attempt_rate_l10",
       "player_fg3_attempt_rate_l5",
       "player_fg3_attempt_rate_season",
@@ -269,6 +267,7 @@
       "player_usage_rate_l5",
       "player_usage_rate_season",
       "player_usage_trend_l5_vs_l15",
+      "predicted_spread_abs",
       "pts_momentum_l3_vs_l20",
       "pts_per_scoring_attempt_l10",
       "season_segment",
@@ -391,14 +390,6 @@
       "team_ast_for_mean_l5",
       "team_blk_for_mean_l10",
       "team_blk_for_mean_l5",
-      "team_embed_0",
-      "team_embed_1",
-      "team_embed_2",
-      "team_embed_3",
-      "team_embed_4",
-      "team_embed_5",
-      "team_embed_6",
-      "team_embed_7",
       "team_fg3m_for_mean_l10",
       "team_fg3m_for_mean_l5",
       "team_pace_proxy_l10",
@@ -521,9 +512,9 @@
   },
   "group_sizes": {
     "player_pbp_rate": 29,
-    "player_box_form": 237,
+    "player_box_form": 235,
     "opponent_defense": 105,
-    "pace_env": 31,
+    "pace_env": 23,
     "schedule": 36,
     "role": 35,
     "dispersion": 25
@@ -587,407 +578,401 @@
   "outer_folds": 5,
   "importance_permutation_top": [
     {
-      "feature": "pbp_fta_per_min_ewma",
-      "delta_loss": 0.012261903272080965,
-      "group": "player_pbp_rate"
-    },
-    {
-      "feature": "cumulative_minutes_l7",
-      "delta_loss": 0.007430440219782687,
-      "group": "schedule"
-    },
-    {
-      "feature": "team_turnover_for_mean_l5",
-      "delta_loss": 0.005168865460728548,
-      "group": "pace_env"
-    },
-    {
-      "feature": "player_turnover_form_delta_l5_vs_l10",
-      "delta_loss": 0.00472635857626054,
-      "group": "player_box_form"
-    },
-    {
-      "feature": "pbp_reb_per_min_ewma",
-      "delta_loss": 0.003836341513106461,
-      "group": "player_pbp_rate"
-    },
-    {
-      "feature": "player_stl_pi_home_form",
-      "delta_loss": 0.003530597402712532,
-      "group": "player_box_form"
-    },
-    {
-      "feature": "team_pace_proxy_l5",
-      "delta_loss": 0.003337627097385312,
-      "group": "pace_env"
-    },
-    {
-      "feature": "player_pts_mean_l3",
-      "delta_loss": 0.0030256709041297956,
-      "group": "player_box_form"
-    },
-    {
-      "feature": "pbp_reb_per_game_ewma",
-      "delta_loss": 0.002864080485792777,
-      "group": "player_pbp_rate"
-    },
-    {
-      "feature": "opp_fg3a_allowed_mean_l5",
-      "delta_loss": 0.0028560721038470003,
+      "feature": "opp_stl_allowed_per_100_poss_l5",
+      "delta_loss": 0.00866983436195171,
       "group": "opponent_defense"
+    },
+    {
+      "feature": "player_pts_per_min_l3",
+      "delta_loss": 0.007193472674235074,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_pts_per_min_l5",
+      "delta_loss": 0.005890792998294967,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_fg3m_pi_away_form",
+      "delta_loss": 0.004891839861671441,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "oppdef_poss_allowed_l5",
+      "delta_loss": 0.004331595119406888,
+      "group": "opponent_defense"
+    },
+    {
+      "feature": "player_pts_per_min_l5_x_opp_pts_per_100_l5",
+      "delta_loss": 0.004297227125900127,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_ast_pi_home_form",
+      "delta_loss": 0.004027123873636818,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_turnover_per_min_l10",
+      "delta_loss": 0.003934583597945309,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_reb_momentum_ewma3_vs_ewma5",
+      "delta_loss": 0.0028577759950736727,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "implied_team_total",
+      "delta_loss": 0.0028467064493306582,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_ast_pi_away_form",
+      "delta_loss": 0.0024817547724272247,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_svd_dim_0",
+      "delta_loss": 0.0023135357345372884,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_blk_pi_home_form",
+      "delta_loss": 0.0021720263735273892,
+      "group": "player_box_form"
     },
     {
       "feature": "oppdef_blk_allowed_ewma",
-      "delta_loss": 0.0024930653945174084,
+      "delta_loss": 0.001947988999039105,
       "group": "opponent_defense"
     },
     {
-      "feature": "opp_ast_allowed_mean_l10",
-      "delta_loss": 0.0024136196302503078,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "team_embed_1",
-      "delta_loss": 0.0023997112819723167,
+      "feature": "team_blk_for_mean_l5",
+      "delta_loss": 0.0018788695882043522,
       "group": "pace_env"
     },
     {
-      "feature": "player_turnover_per_min_l5",
-      "delta_loss": 0.0023424573040001207,
-      "group": "player_box_form"
-    },
-    {
-      "feature": "rotation_minutes_q50",
-      "delta_loss": 0.0023254585045929103,
+      "feature": "player_blk_std_l10",
+      "delta_loss": 0.0017540015794547958,
       "group": "dispersion"
     },
     {
-      "feature": "player_minutes_last2",
-      "delta_loss": 0.00228898768620672,
+      "feature": "player_usage_proxy_l15",
+      "delta_loss": 0.0017022193822012668,
       "group": "role"
     },
     {
-      "feature": "player_stl_ewma_halflife3",
-      "delta_loss": 0.0020754166147352836,
+      "feature": "team_stl_def_pi",
+      "delta_loss": 0.0016893123210769499,
+      "group": "opponent_defense"
+    },
+    {
+      "feature": "player_usage_trend_l5_vs_l15",
+      "delta_loss": 0.0016264820893338076,
       "group": "player_box_form"
     },
     {
-      "feature": "player_pts_last1",
-      "delta_loss": 0.002066802298098991,
-      "group": "player_box_form"
-    },
-    {
-      "feature": "player_free_throw_rate_l5",
-      "delta_loss": 0.001955581100771884,
-      "group": "player_box_form"
-    },
-    {
-      "feature": "player_stl_per_min_l5",
-      "delta_loss": 0.0019152057591246628,
-      "group": "player_box_form"
+      "feature": "player_minutes_momentum_ewma3_vs_ewma5",
+      "delta_loss": 0.0015263536669853825,
+      "group": "role"
     }
   ],
   "importance_l1_top": [
     {
-      "feature": "opp_reb_allowed_per_100_poss_l5",
+      "feature": "opp_stl_allowed_per_100_poss_l5",
       "select_freq": 0.4,
-      "mean_abs_coef": 0.035551366550380326,
+      "mean_abs_coef": 0.040807562571700026,
       "group": "opponent_defense"
     },
     {
-      "feature": "player_turnover_last1",
+      "feature": "starter_rate_l10",
       "select_freq": 0.4,
-      "mean_abs_coef": 0.01702880264745189,
+      "mean_abs_coef": 0.03646206174755754,
+      "group": "role"
+    },
+    {
+      "feature": "player_ast_pi_home_form",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.02507794979209347,
       "group": "player_box_form"
     },
     {
-      "feature": "player_games_in_last_7_days",
+      "feature": "pbp_dreb_per_game_ewma",
       "select_freq": 0.4,
-      "mean_abs_coef": 0.010442131813827695,
-      "group": "schedule"
+      "mean_abs_coef": 0.024556115961048508,
+      "group": "player_pbp_rate"
     },
     {
-      "feature": "player_games_in_last_7d",
+      "feature": "starter_proxy_prior",
       "select_freq": 0.4,
-      "mean_abs_coef": 0.010442131813827695,
-      "group": "schedule"
+      "mean_abs_coef": 0.013518336266426267,
+      "group": "role"
     },
     {
-      "feature": "rotation_minutes_q50",
-      "select_freq": 0.2,
-      "mean_abs_coef": 0.0008902314179539657,
-      "group": "dispersion"
+      "feature": "player_minutes_last1",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.013479833952339764,
+      "group": "role"
     },
     {
-      "feature": "player_pts_last1",
+      "feature": "player_blk_pi_home_form",
       "select_freq": 0.2,
-      "mean_abs_coef": 0.0007276055457554019,
+      "mean_abs_coef": 0.009384088152380921,
       "group": "player_box_form"
     },
     {
-      "feature": "cumulative_minutes_l7",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "schedule"
+      "feature": "opp_stl_allowed_per_100_poss_l10",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.009334643549446561,
+      "group": "opponent_defense"
     },
     {
-      "feature": "game_number_in_season",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "schedule"
+      "feature": "player_minutes_median_l5",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.007466623627661435,
+      "group": "role"
+    },
+    {
+      "feature": "player_turnover_vs_opp_career_mean",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.006344990367081166,
+      "group": "opponent_defense"
     },
     {
       "feature": "is_back_to_back",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.006108642749944158,
       "group": "schedule"
     },
     {
-      "feature": "is_playoff_game",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "schedule"
+      "feature": "player_usage_proxy_season",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.005822835826232016,
+      "group": "role"
     },
     {
-      "feature": "is_running_cold",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
+      "feature": "team_ast_for_mean_l10",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.005742543715141807,
+      "group": "pace_env"
+    },
+    {
+      "feature": "team_blk_for_mean_l10",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.004859064517643487,
+      "group": "pace_env"
+    },
+    {
+      "feature": "player_stl_mean_season",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.004724058826117319,
       "group": "player_box_form"
     },
     {
-      "feature": "is_running_hot",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
+      "feature": "player_fg3m_home_mean_l5",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.0016968934562786627,
       "group": "player_box_form"
     },
     {
-      "feature": "opp_3in4_flag",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
+      "feature": "player_fta_rate_l10",
+      "select_freq": 0.2,
+      "mean_abs_coef": 0.0011512372632462456,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "implied_team_total",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.0009539576069911392,
+      "group": "player_box_form"
+    },
+    {
+      "feature": "player_ast_vs_opp_support",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.0007681128432147724,
       "group": "opponent_defense"
     },
     {
-      "feature": "opp_ast_allowed_mean_l10",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "opp_ast_allowed_mean_l5",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "opp_ast_allowed_per_100_poss_l10",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "opp_ast_allowed_per_100_poss_l5",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "opp_ast_vs_C_allowed_l5",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "opp_ast_vs_F_allowed_l5",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
-      "group": "opponent_defense"
-    },
-    {
-      "feature": "opp_ast_vs_G_allowed_l5",
-      "select_freq": 0.0,
-      "mean_abs_coef": 0.0,
+      "feature": "player_blk_vs_opp_support",
+      "select_freq": 0.4,
+      "mean_abs_coef": 0.0007681128432147724,
       "group": "opponent_defense"
     }
   ],
   "only_one_group": {
     "player_pbp_rate": {
-      "n": 414,
-      "log_loss": 0.8554135086419408,
-      "brier": 0.3099257632008909,
-      "auc": 0.4899929111531191,
-      "ece": 0.23401345917731922,
-      "calibration_intercept": -0.2264278596832532,
-      "calibration_slope": -0.012810382603150887
+      "n": 577,
+      "log_loss": 0.8451122272459782,
+      "brier": 0.3053008061915434,
+      "auc": 0.4978274513590498,
+      "ece": 0.20114209471309344,
+      "calibration_intercept": -0.1338473056185564,
+      "calibration_slope": 0.006878717370478759
     },
     "player_box_form": {
-      "n": 414,
-      "log_loss": 0.8734440593531961,
-      "brier": 0.31077653236589525,
-      "auc": 0.47967863894139895,
-      "ece": 0.20354059224712837,
-      "calibration_intercept": -0.2546016824361228,
-      "calibration_slope": -0.06408628210405962
+      "n": 577,
+      "log_loss": 0.853073811981756,
+      "brier": 0.30298787122531096,
+      "auc": 0.5161492782310626,
+      "ece": 0.20069179650678384,
+      "calibration_intercept": -0.11040609842671617,
+      "calibration_slope": 0.042657834151833024
     },
     "opponent_defense": {
-      "n": 414,
-      "log_loss": 0.8132858233552738,
-      "brier": 0.29103212544165136,
-      "auc": 0.5096762759924385,
-      "ece": 0.17219414410621056,
-      "calibration_intercept": -0.20197426068832314,
-      "calibration_slope": 0.03555419068936933
+      "n": 577,
+      "log_loss": 0.8368223498606352,
+      "brier": 0.298001233941122,
+      "auc": 0.5072176893738232,
+      "ece": 0.18006680793608026,
+      "calibration_intercept": -0.13844710767186336,
+      "calibration_slope": -0.008661227533305319
     },
     "pace_env": {
-      "n": 414,
-      "log_loss": 0.759853680248218,
-      "brier": 0.27159549072387235,
-      "auc": 0.5545604914933837,
-      "ece": 0.128523407440304,
-      "calibration_intercept": -0.11944309707431765,
-      "calibration_slope": 0.18350528042396574
+      "n": 577,
+      "log_loss": 0.7692533873524968,
+      "brier": 0.27947936201362383,
+      "auc": 0.5225945058658813,
+      "ece": 0.16088707715506056,
+      "calibration_intercept": -0.1029532696721742,
+      "calibration_slope": 0.10074951495281569
     },
     "schedule": {
-      "n": 414,
-      "log_loss": 0.8149204051949729,
-      "brier": 0.2973284676280572,
-      "auc": 0.5059310018903591,
-      "ece": 0.21165365913638812,
-      "calibration_intercept": -0.21481623696340613,
-      "calibration_slope": 0.02776920597473314
+      "n": 577,
+      "log_loss": 0.8037453826347312,
+      "brier": 0.2926930591593552,
+      "auc": 0.5023777337903732,
+      "ece": 0.1863833375155787,
+      "calibration_intercept": -0.1211521953624348,
+      "calibration_slope": 0.03463339761091154
     },
     "role": {
-      "n": 414,
-      "log_loss": 0.8382398329489222,
-      "brier": 0.2980720148742506,
-      "auc": 0.5194234404536863,
-      "ece": 0.19728200298916046,
-      "calibration_intercept": -0.19622012523458324,
-      "calibration_slope": 0.05845751679721344
+      "n": 577,
+      "log_loss": 0.8414622753706646,
+      "brier": 0.3078447254824388,
+      "auc": 0.4693187853039154,
+      "ece": 0.24050480846468428,
+      "calibration_intercept": -0.16003541415845074,
+      "calibration_slope": -0.07727463843447732
     },
     "dispersion": {
-      "n": 414,
-      "log_loss": 0.8709622834262549,
-      "brier": 0.31248430696622936,
-      "auc": 0.47457466918714564,
-      "ece": 0.22181394870620005,
-      "calibration_intercept": -0.26502568027805834,
-      "calibration_slope": -0.0767508646340826
+      "n": 577,
+      "log_loss": 0.8468628063806551,
+      "brier": 0.3066069975686253,
+      "auc": 0.4762709409549558,
+      "ece": 0.2032793326412344,
+      "calibration_intercept": -0.1606956210247066,
+      "calibration_slope": -0.07617477758975691
     }
   },
   "leave_one_group_out": {
     "player_pbp_rate": {
-      "n": 414,
-      "delta_log_loss_vs_all": 0.012405322293248866,
-      "delta_brier_vs_all": 0.0032057291356430984,
-      "delta_auc_vs_all": 0.002599243856332756,
-      "log_loss": 0.8877095874202999,
-      "brier": 0.3154558255521277,
-      "auc": 0.4680529300567108,
-      "ece": 0.22127928939472186,
-      "calibration_intercept": -0.2831127268472517,
-      "calibration_slope": -0.10308168602221673
+      "n": 577,
+      "delta_log_loss_vs_all": -0.004221889976997684,
+      "delta_brier_vs_all": -0.0003816327543036957,
+      "delta_auc_vs_all": -0.00539516245835947,
+      "log_loss": 0.803435227933385,
+      "brier": 0.285988045791408,
+      "auc": 0.5436682276830975,
+      "ece": 0.17162103562159392,
+      "calibration_intercept": -0.0696165631258601,
+      "calibration_slope": 0.12902788581147803
     },
     "player_box_form": {
-      "n": 414,
-      "delta_log_loss_vs_all": -0.048631956568402024,
-      "delta_brier_vs_all": -0.015422117551215031,
-      "delta_auc_vs_all": 0.03794896030245759,
-      "log_loss": 0.826672308558649,
-      "brier": 0.29682797886526957,
-      "auc": 0.5034026465028356,
-      "ece": 0.20818319269805458,
-      "calibration_intercept": -0.21900682786575387,
-      "calibration_slope": 0.008404253855212832
+      "n": 577,
+      "delta_log_loss_vs_all": 0.01948369424413443,
+      "delta_brier_vs_all": 0.010201637844519162,
+      "delta_auc_vs_all": -0.038538598947520875,
+      "log_loss": 0.8271408121545171,
+      "brier": 0.2965713163902309,
+      "auc": 0.5105247911939361,
+      "ece": 0.18413275509042246,
+      "calibration_intercept": -0.12989339045812967,
+      "calibration_slope": 0.01569363334703236
     },
     "opponent_defense": {
-      "n": 414,
-      "delta_log_loss_vs_all": -0.012707681758069134,
-      "delta_brier_vs_all": -0.002970630669776264,
-      "delta_auc_vs_all": 0.006923440453686258,
-      "log_loss": 0.8625965833689819,
-      "brier": 0.30927946574670834,
-      "auc": 0.4723771266540643,
-      "ece": 0.20718491566504957,
-      "calibration_intercept": -0.26361361184057347,
-      "calibration_slope": -0.08255411928142187
+      "n": 577,
+      "delta_log_loss_vs_all": 0.015728213170450922,
+      "delta_brier_vs_all": 0.005837585435914727,
+      "delta_auc_vs_all": -0.019661565200598585,
+      "log_loss": 0.8233853310808336,
+      "brier": 0.29220726398162644,
+      "auc": 0.5294018249408584,
+      "ece": 0.16669207922020454,
+      "calibration_intercept": -0.09055496931246933,
+      "calibration_slope": 0.0844599777530358
     },
     "pace_env": {
-      "n": 414,
-      "delta_log_loss_vs_all": 0.014003449057873762,
-      "delta_brier_vs_all": 0.007178712129258247,
-      "delta_auc_vs_all": -0.009451795841209809,
-      "log_loss": 0.8893077141849248,
-      "brier": 0.31942880854574285,
-      "auc": 0.4560018903591682,
-      "ece": 0.23297426714245437,
-      "calibration_intercept": -0.2940458668009626,
-      "calibration_slope": -0.13483861114884368
+      "n": 577,
+      "delta_log_loss_vs_all": 0.005008934295004597,
+      "delta_brier_vs_all": 0.0022335007019753106,
+      "delta_auc_vs_all": -0.010247187756481368,
+      "log_loss": 0.8126660522053872,
+      "brier": 0.288603179247687,
+      "auc": 0.5388162023849756,
+      "ece": 0.1740280374440479,
+      "calibration_intercept": -0.08570859899730453,
+      "calibration_slope": 0.10632099899920398
     },
     "schedule": {
-      "n": 414,
-      "delta_log_loss_vs_all": -0.007519409659660803,
-      "delta_brier_vs_all": -0.0024269945172030183,
-      "delta_auc_vs_all": -0.002882797731568909,
-      "log_loss": 0.8677848554673903,
-      "brier": 0.3098231018992816,
-      "auc": 0.4625708884688091,
-      "ece": 0.21651028656725138,
-      "calibration_intercept": -0.29137352226604707,
-      "calibration_slope": -0.12984222170724347
+      "n": 577,
+      "delta_log_loss_vs_all": 0.0003242224191611909,
+      "delta_brier_vs_all": 3.9608606779262256e-05,
+      "delta_auc_vs_all": 6.0348573359791935e-05,
+      "log_loss": 0.8079813403295438,
+      "brier": 0.286409287152491,
+      "auc": 0.5491237387148168,
+      "ece": 0.170903338459864,
+      "calibration_intercept": -0.0676256646023036,
+      "calibration_slope": 0.13609220468678968
     },
     "role": {
-      "n": 414,
-      "delta_log_loss_vs_all": 0.010469029397716767,
-      "delta_brier_vs_all": 0.0033914823707010266,
-      "delta_auc_vs_all": -0.0015359168241965704,
-      "log_loss": 0.8857732945247678,
-      "brier": 0.31564157878718563,
-      "auc": 0.46391776937618145,
-      "ece": 0.22598602607497917,
-      "calibration_intercept": -0.282145744269245,
-      "calibration_slope": -0.10716784957447767
+      "n": 577,
+      "delta_log_loss_vs_all": 0.0030415032437480782,
+      "delta_brier_vs_all": 0.0002640374913869814,
+      "delta_auc_vs_all": -8.448800270355328e-05,
+      "log_loss": 0.8106986211541307,
+      "brier": 0.2866337160370987,
+      "auc": 0.5489789021387534,
+      "ece": 0.16969239544368633,
+      "calibration_intercept": -0.07022754146416836,
+      "calibration_slope": 0.1315760682083133
     },
     "dispersion": {
-      "n": 414,
-      "delta_log_loss_vs_all": -0.004113337030519082,
-      "delta_brier_vs_all": -0.00342426449792238,
-      "delta_auc_vs_all": 0.01680056710775052,
-      "log_loss": 0.871190928096532,
-      "brier": 0.3088258319185622,
-      "auc": 0.48225425330812854,
-      "ece": 0.19754784656800986,
-      "calibration_intercept": -0.2579308772579199,
-      "calibration_slope": -0.06283384380371668
+      "n": 577,
+      "delta_log_loss_vs_all": 0.003972591680823978,
+      "delta_brier_vs_all": -3.6304653577845514e-07,
+      "delta_auc_vs_all": 0.008653985419784793,
+      "log_loss": 0.8116297095912066,
+      "brier": 0.28636931549917594,
+      "auc": 0.5577173755612418,
+      "ece": 0.17932387883577702,
+      "calibration_intercept": -0.062148919889015934,
+      "calibration_slope": 0.14437094979828827
     }
   },
   "most_valuable_group_only_one": "pace_env",
   "selected_feature_set": [
-    "player_games_in_last_7_days",
-    "player_turnover_last1"
+    "pbp_dreb_per_game_ewma"
   ],
   "selected_per_fold": {
     "0": [
-      "cumulative_minutes_l7",
-      "player_minutes_max_l10",
-      "player_reb_pi_away_form",
-      "player_reb_last1",
-      "opp_reb_allowed_mean_l10",
-      "player_reb_momentum_ewma3_vs_ewma5"
+      "opp_pts_vs_G_allowed_l5",
+      "game_spread_home"
     ],
     "1": [
-      "team_total_score_mean_l5",
-      "player_turnover_last1",
-      "player_embed_7",
-      "opp_reb_allowed_mean_l10",
-      "player_pts_std_l10"
+      "team_blk_for_mean_l10",
+      "team_timezone_diff",
+      "team_pts_for_mean_l5"
     ],
     "2": [
-      "player_games_in_last_7_days"
+      "pbp_dreb_per_game_ewma"
     ],
-    "3": [],
+    "3": [
+      "starter_proxy_prior"
+    ],
     "4": [
-      "player_turnover_pi_away_form",
-      "player_games_in_last_7_days"
+      "starter_proxy_prior"
     ]
   },
   "selection_meta": {
@@ -1004,92 +989,92 @@
     "bootstrap_iters": 3000,
     "hgb_max_iter": 160
   },
-  "oof_n": 414,
+  "oof_n": 577,
   "oof_dates": 43,
   "metrics": {
     "P0_naive": {
-      "log_loss": 0.8026818472283996,
-      "brier": 0.2927273340177304,
-      "auc": 0.48862240075614366,
-      "ece": 0.17163216740620255,
-      "calibration_intercept": -0.23956025663879454,
-      "calibration_slope": -0.05562414576686274
+      "log_loss": 0.782595106656696,
+      "brier": 0.281612255484209,
+      "auc": 0.531894221020615,
+      "ece": 0.15637782426295427,
+      "calibration_intercept": -0.11328404146998612,
+      "calibration_slope": 0.1040020210403362
     },
     "all_features": {
-      "log_loss": 0.8753042651270511,
-      "brier": 0.3122500964164846,
-      "auc": 0.465453686200378,
-      "ece": 0.2196686868465811,
-      "calibration_intercept": -0.28587770031673937,
-      "calibration_slope": -0.11446898997148984
+      "log_loss": 0.8076571179103826,
+      "brier": 0.2863696785457117,
+      "auc": 0.549063390141457,
+      "ece": 0.17923627272934003,
+      "calibration_intercept": -0.0688418484131331,
+      "calibration_slope": 0.13437853532713953
     },
     "selected": {
-      "log_loss": 0.7967929960990471,
-      "brier": 0.28803172101227353,
-      "auc": 0.49718809073724,
-      "ece": 0.16662528210784197,
-      "calibration_intercept": -0.22019383009730295,
-      "calibration_slope": 0.013354191077337076
+      "log_loss": 0.7618208187610577,
+      "brier": 0.27692274431378877,
+      "auc": 0.4947979529763917,
+      "ece": 0.1111317312784434,
+      "calibration_intercept": -0.15576627128303464,
+      "calibration_slope": -0.06302206716395786
     },
     "market": {
-      "log_loss": 0.690250461414627,
-      "brier": 0.2485709259037999,
-      "auc": 0.5403000945179584,
-      "ece": 0.056227563617972195,
-      "calibration_intercept": -0.19933982907921596,
-      "calibration_slope": 0.5388201119979129
+      "log_loss": 0.6815464259777803,
+      "brier": 0.2442380698463059,
+      "auc": 0.5932325109834403,
+      "ece": 0.02703281939558018,
+      "calibration_intercept": -0.09975018485993906,
+      "calibration_slope": 1.4173767218232127
     },
     "production_baseline": {
-      "log_loss": 0.7446784342950311,
-      "brier": 0.2659091964899466,
-      "auc": 0.5294896030245747,
-      "ece": 0.13145046367488322,
-      "calibration_intercept": -0.07520026619169623,
-      "calibration_slope": 0.194695425014778
+      "log_loss": 0.7665450304951661,
+      "brier": 0.2728447897379713,
+      "auc": 0.5443441317047265,
+      "ece": 0.14201684281483623,
+      "calibration_intercept": 0.04292538381670683,
+      "calibration_slope": 0.22440143225626794
     }
   },
   "vs_market": {
     "P0_naive": {
-      "delta_log_loss": 0.11243138581377266,
-      "delta_brier": 0.044156408113930484,
-      "delta_auc": -0.05167769376181469,
+      "delta_log_loss": 0.1010486806789157,
+      "delta_brier": 0.037374185637903096,
+      "delta_auc": -0.06133828996282531,
       "ci95_delta_log_loss": [
-        0.06381745458057457,
-        0.15956160315753798
+        0.0677193978343175,
+        0.13391421822589752
       ],
       "ci95_delta_brier": [
-        0.02374065430225529,
-        0.06377899748037319
+        0.02430384816913578,
+        0.049878217699221426
       ],
       "p_ll_raw": 1.0,
       "p_brier_raw": 1.0
     },
     "all_features": {
-      "delta_log_loss": 0.18505380371242408,
-      "delta_brier": 0.06367917051268471,
-      "delta_auc": -0.07484640831758033,
+      "delta_log_loss": 0.12611069193260238,
+      "delta_brier": 0.042131608699405826,
+      "delta_auc": -0.04416912084198332,
       "ci95_delta_log_loss": [
-        0.12052099734718896,
-        0.25884449317804314
+        0.06982992221005757,
+        0.18132416435551993
       ],
       "ci95_delta_brier": [
-        0.03992823753052407,
-        0.08980182630652093
+        0.019314649522355197,
+        0.06478674487431056
       ],
       "p_ll_raw": 1.0,
       "p_brier_raw": 1.0
     },
     "selected": {
-      "delta_log_loss": 0.1065425346844201,
-      "delta_brier": 0.03946079510847364,
-      "delta_auc": -0.04311200378071833,
+      "delta_log_loss": 0.08027439278327742,
+      "delta_brier": 0.03268467446748288,
+      "delta_auc": -0.09843455800704864,
       "ci95_delta_log_loss": [
-        0.05417849755526045,
-        0.1657118301327773
+        0.03767470274912146,
+        0.12885387636102497
       ],
       "ci95_delta_brier": [
-        0.018236653701420885,
-        0.06323358658544462
+        0.01491449580461997,
+        0.05285806080572142
       ],
       "p_ll_raw": 1.0,
       "p_brier_raw": 1.0,
@@ -1097,9 +1082,9 @@
       "holm_adjusted_p_brier": 1.0
     }
   },
-  "closes_gap_fraction": 0.05237728848336567,
+  "closes_gap_fraction": 0.20558692855821664,
   "beats_market_pointwise": false,
-  "selected_auc": 0.49718809073724,
-  "market_auc": 0.5403000945179584,
+  "selected_auc": 0.4947979529763917,
+  "market_auc": 0.5932325109834403,
   "verdict": "INFORMATION_GAP"
 }
