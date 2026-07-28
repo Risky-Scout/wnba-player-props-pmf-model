@@ -566,6 +566,13 @@ def normalize_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def normalize_plays(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Normalize BDL WNBA play-by-play rows.
+
+    The WNBA /wnba/v1/plays endpoint carries player attribution ONLY inside the
+    free-text ``text`` field (there is no per-play player_id). The ``text`` and
+    ``type`` fields are therefore preserved verbatim so the downstream parser
+    (:mod:`wnba_props_model.data.pbp_parse`) can attribute events to players.
+    """
     flat = []
     for r in rows:
         player = r.get("player") or {}
@@ -576,12 +583,18 @@ def normalize_plays(rows: list[dict[str, Any]]) -> pd.DataFrame:
             "period": r.get("period"),
             "clock": r.get("clock"),
             "event_type": r.get("type") or r.get("event_type"),
-            "description": r.get("description"),
+            # WNBA PBP: attribution lives here. Keep description as a legacy alias.
+            "text": r.get("text") or r.get("description"),
+            "description": r.get("description") or r.get("text"),
             "player_id": player.get("id") or r.get("player_id"),
             "team_id": team.get("id") or r.get("team_id"),
+            "team_abbreviation": team.get("abbreviation"),
+            "scoring_play": bool(r.get("scoring_play", False)),
+            "score_value": _to_numeric(r.get("score_value")),
             "points_scored": _to_numeric(r.get("pts") or r.get("points_scored")),
             "home_score": _to_numeric(r.get("home_score")),
-            "visitor_score": _to_numeric(r.get("visitor_score")),
+            "away_score": _to_numeric(r.get("away_score")),
+            "visitor_score": _to_numeric(r.get("visitor_score") or r.get("away_score")),
         })
     df = pd.DataFrame(flat)
     if df.empty:

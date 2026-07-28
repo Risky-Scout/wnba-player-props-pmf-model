@@ -80,6 +80,38 @@ def _prop_report(df: pd.DataFrame, prop: str) -> dict:
     }
 
 
+def _three_level_readiness() -> dict:
+    """Report RAW_QUOTE_PAIR_READY / HISTORICAL_REPLAY_READY / PROSPECTIVE_DELIVERY_READY from the
+    migrated atomic pairs (scripts/migrate_p1_quotes_to_atomic.py). RAW does NOT require a model prob;
+    REPLAY additionally requires a canonically-settled binary outcome; PROSPECTIVE requires a delivered
+    probability captured at prediction time (never synthesised historically)."""
+    mig = REPO / "data" / "processed" / "atomic_quotes" / "atomic_pairs.parquet"
+    if not mig.exists():
+        return {"migrated_pairs_present": False,
+                "note": "run scripts/migrate_p1_quotes_to_atomic.py first"}
+    p = pd.read_parquet(mig)
+    dec = p[p.get("snapshot_label", pd.Series(dtype=str)) == "decision"]
+
+    def _by(df):
+        out = {}
+        for prop in PROPS:
+            d = df[df.get("prop", pd.Series(dtype=str)).astype(str) == prop]
+            rows = int(len(d)); dates = int(d["game_date"].nunique()) if len(d) else 0
+            out[prop] = {"rows": rows, "dates": dates,
+                         "meets_min": bool(rows >= REQUIRED_ROWS and dates >= REQUIRED_DATES)}
+        return out
+
+    replay = dec[dec.get("binary_settled_eligible", pd.Series(dtype=bool)) == True]  # noqa: E712
+    return {
+        "migrated_pairs_present": True,
+        "migrated_pairs_total": int(len(p)),
+        "RAW_QUOTE_PAIR_READY_decision": _by(dec),
+        "HISTORICAL_REPLAY_READY_decision": _by(replay),
+        "PROSPECTIVE_DELIVERY_READY": {p2: {"rows": 0, "dates": 0, "meets_min": False} for p2 in PROPS},
+        "prospective_note": "requires delivered probability + lineage captured AT prediction time; not synthesisable historically.",
+    }
+
+
 def main() -> int:
     df = _load_pairs()
     per = {p: _prop_report(df, p) for p in PROPS}
@@ -90,6 +122,7 @@ def main() -> int:
         "atomic_quote_store_present": bool(len(df)),
         "total_rows_in_store": int(len(df)),
         "per_prop": per,
+        "three_level_readiness": _three_level_readiness(),
         "any_prop_ready_for_g0v2": any_ready,
         "mission_is_compute_only": bool(any_ready),
         "note": ("No exact player-prop atomic quote store exists yet; game-level odds are NOT "

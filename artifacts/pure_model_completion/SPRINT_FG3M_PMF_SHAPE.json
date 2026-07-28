@@ -1,0 +1,106 @@
+{
+  "generated_utc": "2026-07-28T06:18:02.109155+00:00",
+  "prop": "fg3m",
+  "canonical_universe": {
+    "rows": 494,
+    "dates": 55,
+    "book_policy": "one row per (game,player,line); priority draftkings>fanduel>betonlineag>williamhill_us>betrivers",
+    "meets_min_rows_dates": true
+  },
+  "market": {
+    "LL": 0.667314915558338,
+    "Brier": 0.2374687418930381,
+    "AUC": 0.6139201467033425
+  },
+  "candidate_metrics": {
+    "A0": {
+      "LL": 0.7666758873361607,
+      "Brier": 0.2630136819870738,
+      "AUC": 0.5689922480620154,
+      "ECE": 0.12091961588682335,
+      "cal_slope": 0.1862820119230451,
+      "cal_intercept": -0.1038188998507222,
+      "CRPS": 0.8979011121333614,
+      "full_pmf_logscore": 1.8629799087204812
+    },
+    "A1_temp": {
+      "LL": 0.72791496969421,
+      "Brier": 0.2545677381618547,
+      "AUC": 0.5710927731932983,
+      "ECE": 0.1089496565593176,
+      "cal_slope": 0.23462377656820402,
+      "cal_intercept": -0.13429094698225139,
+      "CRPS": 0.8841700808883978,
+      "full_pmf_logscore": 1.8209151270548039
+    },
+    "A2_zeromass": {
+      "LL": 0.7377715182779251,
+      "Brier": 0.25820112953422136,
+      "AUC": 0.5707426856714177,
+      "ECE": 0.11888711448200472,
+      "cal_slope": 0.24615634130175817,
+      "cal_intercept": -0.09078563439257492,
+      "CRPS": 0.8747862246197471,
+      "full_pmf_logscore": 1.808914976729275
+    },
+    "A3_tilt": {
+      "LL": 0.7468494024911029,
+      "Brier": 0.25873515280103754,
+      "AUC": 0.5650079186463283,
+      "ECE": 0.12752114156010214,
+      "cal_slope": 0.1896013225876403,
+      "cal_intercept": -0.137691098484853,
+      "CRPS": 0.8549151380247696,
+      "full_pmf_logscore": 1.8011427893052554
+    },
+    "A4_isocdf": {
+      "LL": 0.757875903994668,
+      "Brier": 0.2622920796708531,
+      "AUC": 0.5674835375510545,
+      "ECE": 0.12488798804717244,
+      "cal_slope": 0.20181545078600419,
+      "cal_intercept": -0.10342208071044333,
+      "CRPS": 0.8975556996715433,
+      "full_pmf_logscore": 2.0327176217985765
+    },
+    "A5_ensemble": {
+      "LL": 0.7424900305636974,
+      "Brier": 0.2590143461080393,
+      "AUC": 0.5686755022088855,
+      "ECE": 0.10929932465787245,
+      "cal_slope": 0.22800210371763038,
+      "cal_intercept": -0.10121023889549798,
+      "CRPS": 0.8705472822515915,
+      "full_pmf_logscore": 1.8085640594529728
+    }
+  },
+  "screen_pass": {
+    "A1_temp": false,
+    "A2_zeromass": true,
+    "A3_tilt": false,
+    "A4_isocdf": false,
+    "A5_ensemble": true
+  },
+  "full_contract": {
+    "A2_zeromass": {
+      "delta_LL_mean": 0.07041142200806502,
+      "delta_LL_ci95_upper": 0.11839989731750554,
+      "delta_Brier_mean": 0.020684871408505067,
+      "delta_Brier_ci95_upper": 0.03872281891735515,
+      "holm_p_LL": 0.998,
+      "holm_p_Brier": 1.0,
+      "passes_full_contract": false
+    },
+    "A5_ensemble": {
+      "delta_LL_mean": 0.07513724497752576,
+      "delta_LL_ci95_upper": 0.12360060842116272,
+      "delta_Brier_mean": 0.021505957561301466,
+      "delta_Brier_ci95_upper": 0.03934613920577697,
+      "holm_p_LL": 0.9991,
+      "holm_p_Brier": 1.0,
+      "passes_full_contract": false
+    }
+  },
+  "any_prop_passes": false,
+  "verdict": "NO_PASS"
+}

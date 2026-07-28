@@ -1,0 +1,19 @@
+{
+  "generated_utc": "2026-07-28T06:05:06.731690+00:00",
+  "screen": "box-derived REB opportunity proxy (diagnostic, strictly-lagged, no market)",
+  "n_rows": 2446,
+  "n_dates": 56,
+  "nb_variance_mean_ratio_phi": 1.7658703701125564,
+  "proxies_are_derived_not_measured": true,
+  "baseline": {
+    "log_loss": 0.7597954589693311,
+    "brier": 0.27310785090593226,
+    "auc": 0.528828698183537
+  },
+  "proxy": {
+    "log_loss": 0.7654995652325834,
+    "brier": 0.27481190132937133,
+    "auc": 0.5258565359371812
+  },
+  "verdict": "REJECT_PROXY_DOES_NOT_IMPROVE_P0 (stop per phase-8C rule)"
+}
