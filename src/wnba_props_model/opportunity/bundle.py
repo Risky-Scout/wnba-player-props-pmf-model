@@ -56,6 +56,19 @@ _TEAM_FEATURE_COLS = ["team_fg3a_ewma"]
 _SHARE_FEATURE_COLS = ["player_fg3a_per_min_ewma", "player_minutes_ewma"]
 
 
+class BundleFitError(RuntimeError):
+    """Raised in strict (certified) mode when a required submodel genuinely fails to fit.
+
+    Replaces the previous broad ``except Exception: available=False`` swallowing so real defects
+    surface instead of silently degrading to a non-certifiable state.
+    """
+
+    def __init__(self, component: str, cause: BaseException) -> None:
+        super().__init__(f"strict fit failure in {component}: {type(cause).__name__}: {cause}")
+        self.component = component
+        self.cause = cause
+
+
 def _stretch(pmf: np.ndarray, mult: int) -> np.ndarray:
     if mult == 1:
         return pmf
@@ -91,6 +104,12 @@ class OpportunityModelBundleV2:
         self._conv_ft = HierarchicalBetaConversionModel()
         self._pts_decomp_available = False
         self._pts_decomp_players: set = set()
+        # strict (certified) mode: genuine submodel fit failures RAISE instead of silently degrading.
+        # Diagnostic fallback (labeled non-certifiable) is allowed only when strict_mode is False.
+        self._strict = bool(self.config.get("strict_mode", True))
+        self._team_share_reason: str | None = None
+        self._pts_decomp_reason: str | None = None
+        self.non_certifiable_reasons: list[str] = []
         self._n_samples = int(self.config.get("minutes", {}).get("deterministic_samples", 21))
         self._hierarchy = _DEFAULT_HIER
         _ps = self.config.get("conversion", {}).get("prior_strength", {})
@@ -178,7 +197,9 @@ class OpportunityModelBundleV2:
         team_fit = team.rename(columns={"fg3a": "fg3a"})  # fg3a already the team total
         feat = [c for c in _TEAM_FEATURE_COLS if c in team_fit.columns]
         if not feat or len(team_fit) < 5 or team_fit["fg3a"].notna().sum() < 5:
+            # data-availability skip (not a fit failure): unavailable but not an error in either mode.
             self._team_share_available = False
+            self._team_share_reason = "insufficient team-game coverage for team-environment fit"
             return
         try:
             # TeamEnvironmentModelV2 only fits targets with >= _MIN_COVERAGE rows; with fewer rows
@@ -198,8 +219,14 @@ class OpportunityModelBundleV2:
                 player = player.assign(p_active=1.0)
             self._share_fg3a.fit(player)
             self._team_share_available = bool(self._team_env.target_available.get("fg3a", False))
-        except Exception:
+            if not self._team_share_available:
+                self._team_share_reason = "team-environment fg3a target not available after fit"
+        except Exception as e:
+            if self._strict:
+                raise BundleFitError("team_share", e) from e
             self._team_share_available = False
+            self._team_share_reason = f"non_certifiable_fallback: {type(e).__name__}: {e}"
+            self.non_certifiable_reasons.append(f"team_share: {self._team_share_reason}")
 
     def _fit_pts_decomposition(self, df: pd.DataFrame, recon: pd.DataFrame | None) -> None:
         """Fit 2PA/FTA opportunity rates (box) + 2P%/FT% conversions (tracking-reconstruction labels).
@@ -210,6 +237,7 @@ class OpportunityModelBundleV2:
         """
         if recon is None or len(recon) == 0:
             self._pts_decomp_available = False
+            self._pts_decomp_reason = "no reconstruction labels supplied"
             return
         try:
             played = df["did_play"].astype(bool)
@@ -231,6 +259,7 @@ class OpportunityModelBundleV2:
             merged = df.merge(lab[need], on=key, how="inner")
             if len(merged) < 30:
                 self._pts_decomp_available = False
+                self._pts_decomp_reason = f"insufficient reconstruction-matched rows ({len(merged)}<30)"
                 return
             m2 = merged[pd.to_numeric(merged["FG2A"], errors="coerce") > 0].assign(
                 _s=lambda x: pd.to_numeric(x["FG2M"], errors="coerce").fillna(0.0),
@@ -240,14 +269,19 @@ class OpportunityModelBundleV2:
                 _a=lambda x: pd.to_numeric(x["FTA"], errors="coerce").fillna(0.0))
             if len(m2) < 30 or len(mft) < 30:
                 self._pts_decomp_available = False
+                self._pts_decomp_reason = f"insufficient conversion rows (2P={len(m2)}, FT={len(mft)})"
                 return
             self._conv_2p.fit(m2, "_s", "_a", self._hierarchy, self._prior_strength_2p)
             self._conv_ft.fit(mft, "_s", "_a", self._hierarchy, self._prior_strength_ft)
             # Only players grounded by reconstruction labels are full-decomposition eligible.
             self._pts_decomp_players = set(merged["player_id"].unique().tolist())
             self._pts_decomp_available = True
-        except Exception:
+        except Exception as e:
+            if self._strict:
+                raise BundleFitError("pts_decomposition", e) from e
             self._pts_decomp_available = False
+            self._pts_decomp_reason = f"non_certifiable_fallback: {type(e).__name__}: {e}"
+            self.non_certifiable_reasons.append(f"pts_decomposition: {self._pts_decomp_reason}")
 
     # --- predict -----------------------------------------------------------
     def predict_active_pmfs(self, player_frame: pd.DataFrame, team_frame: pd.DataFrame | None,
