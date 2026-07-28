@@ -30,6 +30,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from wnba_props_model.edge.clv_backtest import apply_validation_table_to_board
 from wnba_props_model.edge.soft_book_scan import (
     DEFAULT_EV_THRESHOLD,
     DEFAULT_MIN_CONSENSUS_BOOKS,
@@ -38,6 +39,7 @@ from wnba_props_model.edge.soft_book_scan import (
 )
 
 BOARD_VERSION = "soft_book_edge_v1"
+DEFAULT_CLV_VALIDATION_TABLE = "artifacts/path_b/CLV_VALIDATION_TABLE.json"
 
 # internal stat key -> odds-scanner frontend stat key
 _STAT_TO_FRONTEND = {
@@ -55,6 +57,7 @@ _TIDY_COLS = [
     "fair_p", "ev_pct", "consensus_n_books", "consensus_p_over", "is_sharp_book",
     "sharp_consensus_p_over", "best_book", "best_odds", "event_id",
     "home_team", "away_team", "commence_time",
+    "actionable", "actionable_reason", "clv_segment", "clv_mean", "clv_ci_low",
 ]
 
 _METHOD_BLOCK = {
@@ -86,6 +89,18 @@ _METHOD_BLOCK = {
         "meta (position field) shows 'book odds · EV +X%' with the EV as a positive magnitude."
     ),
 }
+
+
+def _load_validation_table(path: str) -> dict | None:
+    """Load the persisted CLV validation table (fail closed: missing/unreadable => None,
+    which makes every row actionable=false with reason ``no_validation_table``)."""
+    p = Path(path)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def _resolve_quotes(args) -> pd.DataFrame | None:
@@ -157,7 +172,11 @@ def _to_render_json(board_q: pd.DataFrame, date: str, generated: str, summary: d
                         "theoretical_ev_pct": round(ev_pct, 3),
                         "executable_ev_pct": None,
                         "source_type": "MARKET_DISLOCATION",
-                        "actionable": False,
+                        "actionable": bool(r.get("actionable", False)),
+                        "actionable_reason": r.get("actionable_reason"),
+                        "clv_segment": r.get("clv_segment"),
+                        "clv_mean": (None if pd.isna(r.get("clv_mean")) else r.get("clv_mean")),
+                        "clv_ci_low": (None if pd.isna(r.get("clv_ci_low")) else r.get("clv_ci_low")),
                         "fair_p_side": round(fair_side, 4),
                         "consensus_p_over": round(float(r["consensus_p_over"]), 4),
                         "consensus_n_books": int(r["consensus_n_books"]),
@@ -194,6 +213,9 @@ def main() -> None:
     ap.add_argument("--ev-threshold", type=float, default=DEFAULT_EV_THRESHOLD)
     ap.add_argument("--min-consensus-books", type=int, default=DEFAULT_MIN_CONSENSUS_BOOKS)
     ap.add_argument("--artifact-dir", default="artifacts/edge_board")
+    ap.add_argument("--clv-validation-table", default=DEFAULT_CLV_VALIDATION_TABLE,
+                    help="Path to the persisted CLV validation table that drives actionability "
+                         "(fail closed: if missing, every row stays actionable=false).")
     ap.add_argument("--render-dir",
                     default="tools/odds-scanner/predictions/WNBA/Soft-Book-Edge")
     ap.add_argument("--keep-stale", action="store_true",
@@ -239,6 +261,20 @@ def main() -> None:
             drop_stale=not args.keep_stale,
         )
         summary["n_scored_rows"] = len(board)
+
+    # Actionability is driven ONLY by the persisted, backtest-derived CLV validation table
+    # (fail closed). Missing table => every row stays actionable=false.
+    clv_table = _load_validation_table(args.clv_validation_table)
+    summary["clv_validation_table"] = args.clv_validation_table
+    summary["clv_validation_table_loaded"] = clv_table is not None
+    summary["clv_actionable_segments"] = (
+        list(clv_table.get("actionable_segments", [])) if clv_table else []
+    )
+    if len(board):
+        board = apply_validation_table_to_board(board, clv_table)
+    summary["n_actionable"] = (
+        int(board["actionable"].sum()) if len(board) and "actionable" in board else 0
+    )
 
     board_q = board[board["qualified"]].copy() if len(board) else board
     summary["n_qualifying"] = len(board_q)
@@ -299,6 +335,8 @@ def main() -> None:
         "n_books_per_stat": summary["n_books_per_stat"],
         "n_scored_rows": summary["n_scored_rows"],
         "n_qualifying": summary["n_qualifying"],
+        "n_actionable": summary.get("n_actionable", 0),
+        "clv_actionable_segments": summary.get("clv_actionable_segments", []),
         "artifact": str(art_path),
         "render": str(render_dir / "latest.json"),
     }, indent=2))
