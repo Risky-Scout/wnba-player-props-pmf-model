@@ -1,0 +1,152 @@
+{
+  "schema_version": "clv_validation_table_v1",
+  "generated_at": "2026-07-28T21:21:27.126160+00:00",
+  "primary_metric": "price_clv",
+  "min_segment_n": 50,
+  "min_date_clusters": 2,
+  "ci_alpha": 0.05,
+  "bootstrap_iters": 5000,
+  "bootstrap_seed": 20260728,
+  "scan_config": {
+    "ev_threshold": 0.025,
+    "min_consensus_books": 3
+  },
+  "rule": "A board row is actionable iff its market x EV-bucket segment OR its market segment has positive mean price_clv with a date-cluster bootstrap 95% CI that excludes 0 AND N >= min_segment_n. Otherwise actionable=false (fail closed).",
+  "overall": {
+    "key": "ALL",
+    "segment_type": "overall",
+    "n": 13,
+    "n_dates": 9,
+    "mean": 0.037655,
+    "median": 0.03175,
+    "pct_beat_close": 100.0,
+    "ci_low": 0.025688,
+    "ci_high": 0.049395,
+    "significant": true,
+    "qualifies": false
+  },
+  "segments": {
+    "market": {
+      "player_assists": {
+        "key": "player_assists",
+        "segment_type": "market",
+        "n": 0,
+        "n_dates": 0,
+        "mean": null,
+        "median": null,
+        "pct_beat_close": null,
+        "ci_low": null,
+        "ci_high": null,
+        "significant": false,
+        "qualifies": false
+      },
+      "player_points": {
+        "key": "player_points",
+        "segment_type": "market",
+        "n": 7,
+        "n_dates": 6,
+        "mean": 0.03719,
+        "median": 0.043332,
+        "pct_beat_close": 100.0,
+        "ci_low": 0.02244,
+        "ci_high": 0.048495,
+        "significant": true,
+        "qualifies": false
+      },
+      "player_rebounds": {
+        "key": "player_rebounds",
+        "segment_type": "market",
+        "n": 3,
+        "n_dates": 3,
+        "mean": 0.02485,
+        "median": 0.024083,
+        "pct_beat_close": 100.0,
+        "ci_low": 0.018716,
+        "ci_high": 0.03175,
+        "significant": true,
+        "qualifies": false
+      },
+      "player_threes": {
+        "key": "player_threes",
+        "segment_type": "market",
+        "n": 3,
+        "n_dates": 3,
+        "mean": 0.051545,
+        "median": 0.045522,
+        "pct_beat_close": 100.0,
+        "ci_low": 0.018514,
+        "ci_high": 0.0906,
+        "significant": true,
+        "qualifies": false
+      }
+    },
+    "market_ev_bucket": {
+      "player_assists|5-10%": {
+        "key": "player_assists|5-10%",
+        "segment_type": "market_ev_bucket",
+        "n": 0,
+        "n_dates": 0,
+        "mean": null,
+        "median": null,
+        "pct_beat_close": null,
+        "ci_low": null,
+        "ci_high": null,
+        "significant": false,
+        "qualifies": false
+      },
+      "player_points|2.5-5%": {
+        "key": "player_points|2.5-5%",
+        "segment_type": "market_ev_bucket",
+        "n": 7,
+        "n_dates": 6,
+        "mean": 0.03719,
+        "median": 0.043332,
+        "pct_beat_close": 100.0,
+        "ci_low": 0.02244,
+        "ci_high": 0.048495,
+        "significant": true,
+        "qualifies": false
+      },
+      "player_rebounds|2.5-5%": {
+        "key": "player_rebounds|2.5-5%",
+        "segment_type": "market_ev_bucket",
+        "n": 2,
+        "n_dates": 2,
+        "mean": 0.027917,
+        "median": 0.027917,
+        "pct_beat_close": 100.0,
+        "ci_low": 0.024083,
+        "ci_high": 0.03175,
+        "significant": true,
+        "qualifies": false
+      },
+      "player_rebounds|5-10%": {
+        "key": "player_rebounds|5-10%",
+        "segment_type": "market_ev_bucket",
+        "n": 1,
+        "n_dates": 1,
+        "mean": 0.018716,
+        "median": 0.018716,
+        "pct_beat_close": 100.0,
+        "ci_low": null,
+        "ci_high": null,
+        "significant": false,
+        "qualifies": false
+      },
+      "player_threes|2.5-5%": {
+        "key": "player_threes|2.5-5%",
+        "segment_type": "market_ev_bucket",
+        "n": 3,
+        "n_dates": 3,
+        "mean": 0.051545,
+        "median": 0.045522,
+        "pct_beat_close": 100.0,
+        "ci_low": 0.018514,
+        "ci_high": 0.0906,
+        "significant": true,
+        "qualifies": false
+      }
+    }
+  },
+  "actionable_segments": []
+}

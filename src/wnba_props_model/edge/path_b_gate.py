@@ -117,6 +117,24 @@ def _is_missing(value) -> bool:
     return value is None or (isinstance(value, str) and value.strip() == "")
 
 
+def _clv_evidence_qualifies(row: Mapping) -> bool:
+    """Fail-closed check of the backtest-CLV evidence embedded on an ``actionable`` row.
+
+    Requires a positive segment sample, a positive mean CLV, and a bootstrap 95% CI whose
+    lower bound is strictly > 0 (i.e. the CI excludes zero). Any missing/malformed field or a
+    non-positive CI lower bound => not qualified.
+    """
+    n = row.get("clv_segment_n")
+    lo = row.get("clv_ci_low")
+    mean = row.get("clv_mean")
+    if n is None or lo is None or mean is None:
+        return False
+    try:
+        return int(n) > 0 and float(lo) > 0.0 and float(mean) > 0.0
+    except (TypeError, ValueError):
+        return False
+
+
 def _nonzero_number(value) -> bool:
     if value is None:
         return False
@@ -171,19 +189,25 @@ def validate_row(row: Mapping, location: str) -> list[GateViolation]:
             "from its own consensus)",
         ))
 
-    # Requirement 8 / core: actionable must be False unless fully validated.
+    # Requirement 8 / core: actionable must be False unless a backtest-CLV segment validates
+    # it. Fail closed — actionable=True requires the row to carry qualifying CLV evidence
+    # (mean CLV > 0 with a bootstrap 95% CI whose lower bound is strictly > 0), a resolved
+    # identity, forward_clv_validated=True, and a VALIDATED_EXECUTABLE status.
     actionable = row.get("actionable")
     if actionable is True:
         fully_validated = (
             row.get("validation_status") == "VALIDATED_EXECUTABLE"
-            and row.get("executable_ev_pct") is not None
             and bool(row.get("player_id_resolved"))
             and bool(row.get("forward_clv_validated"))
+            and _clv_evidence_qualifies(row)
         )
         if not fully_validated:
             viol.append(GateViolation(
                 "PREMATURE_ACTIONABLE", location,
-                "actionable=True without passing identity+execution+forward-CLV validation",
+                "actionable=True without a qualifying backtest-CLV segment "
+                "(need validation_status=VALIDATED_EXECUTABLE, resolved identity, "
+                "forward_clv_validated=True, and embedded CLV evidence with a 95% CI "
+                "excluding 0)",
             ))
     elif actionable is not False:
         viol.append(GateViolation(

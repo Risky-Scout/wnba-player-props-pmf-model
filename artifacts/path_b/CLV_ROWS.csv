@@ -1,0 +1,18 @@
+game_date,event_id,player_name,market_key,line,side,book,ev_frac,ev_pct,ev_bucket,p_bet,p_close_consensus,price_clv,price_clv_cents,p_close_same_book,same_book_clv,same_book_clv_cents,decision_odds,close_book_odds,beat_close,has_close_consensus,has_same_book_close
+2026-05-10,a94e8910dbab85c40d2a5a1977eb588b,Chelsea Gray,player_assists,4.5,under,betonlineag,0.057343,5.7343,5-10%,0.365079,,,,,,,152.0,,,False,False
+2026-05-10,a94e8910dbab85c40d2a5a1977eb588b,Kelsey Plum,player_rebounds,3.5,over,betonlineag,0.027997,2.7997,2.5-5%,0.383772,0.415522,0.03175,3.175,0.383772,0.0,0.0,140.0,140.0,True,True,True
+2026-05-15,70d7b96f5c888764955d1626f45c3785,Jackie Young,player_rebounds,4.5,over,betonlineag,0.049705,4.9705,2.5-5%,0.475917,0.5,0.024083,2.4083,0.5,0.024083,2.4083,-103.0,-114.0,True,True,True
+2026-05-17,ab43b3c029d14d941319d1802764dcd4,Brittney Sykes,player_threes,1.5,over,betonlineag,0.030371,3.0371,2.5-5%,0.33809,0.356604,0.018514,1.8514,0.33809,0.0,0.0,170.0,170.0,True,True,True
+2026-05-17,ab43b3c029d14d941319d1802764dcd4,Cameron Brink,player_points,7.5,over,betonlineag,0.028388,2.8388,2.5-5%,0.433361,0.480313,0.046951,4.6951,0.480313,0.046951,4.6951,115.0,-105.0,True,True,True
+2026-05-23,ef18dc6d1193688b93c41cd849ee1d74,Bridget Carleton,player_points,15.5,over,betonlineag,0.025113,2.5113,2.5-5%,0.443857,0.467391,0.023535,2.3535,,,,110.0,,True,True,False
+2026-06-19,b63311d5ea69185ca1f90d3f3fcfc801,Sonia Citron,player_points,16.5,over,betonlineag,0.028018,2.8018,2.5-5%,0.467391,0.486888,0.019497,1.9497,0.486888,0.019497,1.9497,100.0,-108.0,True,True,True
+2026-06-30,c72d086a53d7b9b49f1daaf8754bd4e9,Jackie Young,player_rebounds,4.5,under,betonlineag,0.081719,8.1719,5-10%,0.406564,,,,,,,128.0,,,False,False
+2026-07-05,f784500c59f1f83757bec7c0ef787879,Jackie Young,player_rebounds,5.5,over,betonlineag,0.057179,5.7179,5-10%,0.406564,0.42528,0.018716,1.8716,0.433361,0.026797,2.6797,128.0,115.0,True,True,True
+2026-07-05,54f91bf5767bbff2f9bb1f444a6fc510,Isabelle Harrison,player_points,14.5,under,draftkings,0.031443,3.1443,2.5-5%,0.495673,0.54914,0.053467,5.3467,,,,-113.0,,True,True,False
+2026-07-08,82635798d7e0a24dc54a2138a1d94653,Veronica Burton,player_points,10.5,under,betonlineag,0.033747,3.3747,2.5-5%,0.446703,0.459417,0.012714,1.2714,0.446703,0.0,0.0,109.0,109.0,True,True,True
+2026-07-12,a11188d43bce66a788fd84b4a10dc19b,Maria Conde,player_threes,1.5,over,draftkings,0.031678,3.1678,2.5-5%,0.41915,0.50975,0.0906,9.06,0.488258,0.069108,6.9108,119.0,-111.0,True,True,True
+2026-07-13,59e806dd41a1cdd33be91c732ab446be,Allisha Gray,player_points,20.5,over,draftkings,0.029211,2.9211,2.5-5%,0.482669,,,,,,,-107.0,,,False,False
+2026-07-14,c2ecfa7d05172b4ecf75b85d53482efe,Olivia Nelson-Ododa,player_points,10.5,under,fanduel,0.032339,3.2339,2.5-5%,0.467391,,,,,,,100.0,,,False,False
+2026-07-22,56af8faef87ceb6598a173fe8e747a37,Ariel Atkins,player_threes,1.5,under,betonlineag,0.034859,3.4859,2.5-5%,0.566639,0.61216,0.045522,4.5522,0.61349,0.046851,4.6851,-149.0,-182.0,True,True,True
+2026-07-22,f7800d314f5d93772712ba995e0f9c9e,Kayla McBride,player_points,17.5,over,betonlineag,0.034341,3.4341,2.5-5%,0.467391,0.528227,0.060835,6.0835,0.5,0.032609,3.2609,100.0,-114.0,True,True,True
+2026-07-22,346fd6195f8bd0619193c6d3713369b7,Shakira Austin,player_points,14.5,under,betonlineag,0.031622,3.1622,2.5-5%,0.456668,0.5,0.043332,4.3332,,,,105.0,,True,True,False
