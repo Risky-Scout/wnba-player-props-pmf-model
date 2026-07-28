@@ -501,7 +501,12 @@
 // Data CDN: always fetch from GitHub Pages regardless of which server hosts
 // this HTML file. GitHub Pages serves with open CORS headers.
 const _GH_PAGES_BASE = 'https://risky-scout.github.io/wnba-player-props-pmf-model/tools/odds-scanner/';
-const PREGAME_URL = _GH_PAGES_BASE + 'predictions/WNBA/Pre-Game-Edge/latest.json';
+// Optional source override so the same UI can render alternate boards that match the
+// pre-game schema (e.g. the soft-book +EV edge board). Pass ?pregame_src=<url|relpath>.
+// Example (served locally from tools/odds-scanner/):
+//   index.html?pregame_src=predictions/WNBA/Soft-Book-Edge/latest.json
+const _pregameSrcOverride = new URLSearchParams(location.search).get('pregame_src');
+const PREGAME_URL = _pregameSrcOverride || (_GH_PAGES_BASE + 'predictions/WNBA/Pre-Game-Edge/latest.json');
 const INPLAY_BASE = _GH_PAGES_BASE + 'predictions/WNBA/Inplay-Edge/';
 const ACTIVE_GAMES_URL = INPLAY_BASE + 'active_games.json';
 const LIVE_REFRESH_MS = 60_000;
