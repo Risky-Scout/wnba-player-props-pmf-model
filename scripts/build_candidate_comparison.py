@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
-"""P0 vs R1 (OPP_V2_RATE) vs G1 (OPP_V2_TEAM_SHARE) vs market on ONE canonical universe (section D).
+"""P0 vs R1 vs G1 vs G2 vs PTS_DECOMP vs market on ONE identical canonical universe.
 
-Reuses the corrected evaluator's metric + bootstrap functions. For each prop that a candidate
-covers, reports n rows/dates, LL, Brier, AUC, ECE, calibration intercept/slope, CRPS, full-PMF log
-score, worst fold, 95% date-cluster CIs, raw + Holm p_ll/p_brier vs market, and paired deltas
-G1-P0, G1-R1, G1-market. Advancement requires G1 to improve AUC, LL and Brier vs BOTH P0 and R1
-without materially worsening PMF metrics.
+Fail-closed by construction:
+  * NO silent ``drop_duplicates`` anywhere. Duplicate detection RAISES with the offending key(s),
+    the source, the duplicate row count, and the conflicting fields.
+  * Every candidate OOF is joined to the deterministic scored quotes through the canonical evaluator's
+    fail-closed ``EV.build_canonical_scored_rows`` (which itself raises on duplicate OOF predictions,
+    duplicate/cross-line market rows, missing quote_pair_id, ambiguous identities, post-cutoff quotes,
+    and push/void rows) — never through an ad-hoc dedup.
+  * Bootstrap iterations and seed come from the FROZEN promotion contract
+    (config/model/opportunity_v2.yaml: promotion.bootstrap_iters / bootstrap_seed). No hard-coded
+    weaker value.
+
+Reports, per prop, for each present candidate + P0 + market: n, LL, Brier, AUC, ECE, calibration
+intercept/slope, CRPS, full-PMF log score; and paired date-cluster bootstrap deltas (95% CIs, one-sided
+p_ll/p_brier) for each candidate vs market / P0 / R1 / G1, with Holm correction across the
+candidate-vs-market family per prop.
 """
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("opp_eval", REPO / "scripts" / "evaluate_opportunity_oof.py")
@@ -22,35 +34,61 @@ EV = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(EV)
 
 KEY = ["game_id", "player_id", "prop"]
-ITERS = 4000
-SEED = 42
+
+# Candidate OOF sources (label -> parquet). A candidate is included only if its OOF exists.
+CANDIDATE_OOF = {
+    "r1": "data/oof/opportunity_v2/oof_pmfs.parquet",
+    "g1": "data/oof/opportunity_v2_team_share/oof_pmfs.parquet",
+    "g2": "data/oof/opportunity_v2_g2/oof_pmfs.parquet",
+    "pts_decomp": "data/oof/opportunity_v2_pts_decomp/oof_pmfs.parquet",
+}
+QUOTES = "artifacts/market_feature_proof/G0_v2/PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet"
 
 
-def _settle_series(pmf_json_series, line_series):
-    from wnba_props_model.opportunity.pmf_builders import settled_over_probability
-    out = []
-    for js, ln in zip(pmf_json_series, line_series):
-        arr = np.asarray(json.loads(js), float)
-        p, _u, _p = settled_over_probability(arr, float(ln))
-        out.append(p)
-    return np.asarray(out)
+def _load_contract() -> tuple[int, int]:
+    cfg = yaml.safe_load(open(REPO / "config/model/opportunity_v2.yaml")) or {}
+    p = cfg.get("promotion", {})
+    return int(p.get("bootstrap_iters", 10000)), int(p.get("bootstrap_seed", 42))
 
 
-def _load_oof(path):
-    df = pd.read_parquet(path)
-    if "stat" in df.columns and "prop" not in df.columns:
-        df = df.rename(columns={"stat": "prop"})
-    df = df.dropna(subset=["active_pmf_json"]).drop_duplicates(KEY)
+def _assert_unique(df: pd.DataFrame, key: list[str], source: str) -> None:
+    """Fail-closed duplicate check. Raises with key, source, row count, and conflicting fields."""
+    dup = df.duplicated(subset=key, keep=False)
+    if not dup.any():
+        return
+    d = df[dup]
+    conflict_cols: set[str] = set()
+    for _, grp in d.groupby(key):
+        for c in grp.columns:
+            if c in key:
+                continue
+            if grp[c].nunique(dropna=False) > 1:
+                conflict_cols.add(c)
+    ex = [dict(zip(key, k if isinstance(k, tuple) else (k,)))
+          for k in list(d.groupby(key).groups)[:5]]
+    raise ValueError(
+        f"[{source}] duplicate rows on {key}: {int(dup.sum())} rows across "
+        f"{d.groupby(key).ngroups} keys; example_keys={ex}; conflicting_fields={sorted(conflict_cols)}"
+    )
+
+
+def _prep_quotes() -> pd.DataFrame:
+    q = pd.read_parquet(REPO / QUOTES)
+    if "stat" in q.columns and "prop" not in q.columns:
+        q = q.rename(columns={"stat": "prop"})
     for c in ("game_id", "player_id"):
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-    return df
+        q[c] = pd.to_numeric(q[c], errors="coerce")
+    q = q[q["binary_score_eligible"].astype(bool) & q["outcome_over"].isin([0, 1])].copy()
+    _assert_unique(q, KEY, "quotes:PRIMARY_DETERMINISTIC_SCORED_ROWS")  # fail-closed, NO drop
+    q["outcome_over"] = q["outcome_over"].astype(int)
+    return q
 
 
-def _metrics(g, col, pmf_col=None):
+def _metrics(g: pd.DataFrame, col: str, pmf_col: str | None) -> dict:
     y = g["outcome_over"].to_numpy()
     p = g[col].to_numpy()
-    m = {"log_loss": EV.log_loss(y, p), "brier": EV.brier(y, p), "auc": EV.auc(y, p),
-         "ece": EV.expected_calibration_error(y, p)}
+    m = {"n": int(len(g)), "log_loss": EV.log_loss(y, p), "brier": EV.brier(y, p),
+         "auc": EV.auc(y, p), "ece": EV.expected_calibration_error(y, p)}
     ci, sl = EV.calibration_intercept_slope(y, p)
     m["calibration_intercept"], m["calibration_slope"] = ci, sl
     if pmf_col and pmf_col in g.columns and "actual" in g.columns:
@@ -59,99 +97,94 @@ def _metrics(g, col, pmf_col=None):
     return m
 
 
-def _worst_fold(g, model_col, ref_col="market"):
-    if "oof_fold" not in g.columns or g["oof_fold"].isna().all():
-        return None
-    worst = None
-    for fold, gf in g.groupby("oof_fold"):
-        if len(gf) < 10 or gf["outcome_over"].nunique() < 2:
-            continue
-        d = EV.log_loss(gf["outcome_over"], gf[model_col]) - EV.log_loss(gf["outcome_over"], gf[ref_col])
-        if worst is None or d > worst[1]:
-            worst = (str(fold), float(d))
-    return {"fold": worst[0], "delta_log_loss_vs_market": worst[1]} if worst else None
-
-
 def main() -> None:
-    q = pd.read_parquet(REPO / "artifacts/market_feature_proof/G0_v2/PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet")
-    if "stat" in q.columns and "prop" not in q.columns:
-        q = q.rename(columns={"stat": "prop"})
-    for c in ("game_id", "player_id"):
-        q[c] = pd.to_numeric(q[c], errors="coerce")
-    q = q[q["binary_score_eligible"].astype(bool) & q["outcome_over"].isin([0, 1])].copy()
-    q = q.drop_duplicates(KEY)
-    q["outcome_over"] = q["outcome_over"].astype(int)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default="artifacts/opportunity_v2/CANDIDATE_COMPARISON_ALL.json")
+    args = ap.parse_args()
 
-    r1 = _load_oof(REPO / "data/oof/opportunity_v2/oof_pmfs.parquet")
-    g1 = _load_oof(REPO / "data/oof/opportunity_v2_team_share/oof_pmfs.parquet")
+    iters, seed = _load_contract()
+    q = _prep_quotes()
 
     base = q[KEY + ["outcome_over", "game_date", "line", "actual", "oof_fold",
                     "model_prob_over_final", "market_prob_over_no_vig"]].rename(
         columns={"model_prob_over_final": "p0", "market_prob_over_no_vig": "market"})
 
-    # attach R1 and G1 settled probabilities + PMFs
-    r1m = base.merge(r1[KEY + ["active_pmf_json"]].rename(columns={"active_pmf_json": "r1_pmf"}),
-                     on=KEY, how="left")
-    r1m = r1m.merge(g1[KEY + ["active_pmf_json"]].rename(columns={"active_pmf_json": "g1_pmf"}),
-                    on=KEY, how="left")
-    r1m.loc[r1m["r1_pmf"].notna(), "r1"] = _settle_series(
-        r1m.loc[r1m["r1_pmf"].notna(), "r1_pmf"], r1m.loc[r1m["r1_pmf"].notna(), "line"])
-    r1m.loc[r1m["g1_pmf"].notna(), "g1"] = _settle_series(
-        r1m.loc[r1m["g1_pmf"].notna(), "g1_pmf"], r1m.loc[r1m["g1_pmf"].notna(), "line"])
+    present: list[str] = []
+    for label, rel in CANDIDATE_OOF.items():
+        p = REPO / rel
+        if not p.exists():
+            continue
+        oof = pd.read_parquet(p)
+        # Route the join through the fail-closed canonical evaluator (raises on dup/cross-line/etc.).
+        canon = EV.build_canonical_scored_rows(oof, q)
+        sub = canon[KEY + ["p_over_opp_v2", "active_pmf_json"]].rename(
+            columns={"p_over_opp_v2": label, "active_pmf_json": f"{label}_pmf"})
+        _assert_unique(sub, KEY, f"oof:{label}")
+        base = base.merge(sub, on=KEY, how="left")
+        present.append(label)
 
-    results = {}
-    for prop, gall in r1m.groupby("prop"):
+    # candidate -> (prob_col, pmf_col). p0/market have no PMF here.
+    series = {"p0": ("p0", None), "market": ("market", None)}
+    for label in present:
+        series[label] = (label, f"{label}_pmf")
+
+    results: dict = {}
+    for prop, gall in base.groupby("prop"):
         entry = {"n_total": int(len(gall)), "game_dates": int(gall["game_date"].nunique())}
-        # per-candidate metric universe: restrict to rows where that candidate has a prediction
-        cand_cfg = {"p0": ("p0", None), "market": ("market", None),
-                    "r1": ("r1", "r1_pmf"), "g1": ("g1", "g1_pmf")}
-        for name, (col, pmf) in cand_cfg.items():
+        for name, (col, pmf) in series.items():
             if col not in gall.columns:
                 continue
             g = gall.dropna(subset=[col]).copy()
             if len(g) == 0:
                 continue
-            entry[name] = {"n": int(len(g)), **_metrics(g, col, pmf)}
-            entry[name]["worst_fold"] = _worst_fold(g, col) if name in ("r1", "g1") else None
-        # paired comparisons on the intersection where G1 exists (fg3m)
-        if "g1" in gall.columns and gall["g1"].notna().any():
-            gi = gall.dropna(subset=["g1", "r1", "p0", "market"]).reset_index(drop=True)
-            entry["paired_universe_n"] = int(len(gi))
-            for ref in ("p0", "r1", "market"):
-                ci_ll, ci_bs, p_ll, p_brier = EV._paired_bootstrap(gi, "g1", ref, gi["game_date"], ITERS, SEED)
-                entry[f"g1_minus_{ref}"] = {
-                    "delta_log_loss": EV.log_loss(gi["outcome_over"], gi["g1"]) - EV.log_loss(gi["outcome_over"], gi[ref]),
-                    "delta_brier": EV.brier(gi["outcome_over"], gi["g1"]) - EV.brier(gi["outcome_over"], gi[ref]),
-                    "delta_auc": EV.auc(gi["outcome_over"], gi["g1"]) - EV.auc(gi["outcome_over"], gi[ref]),
+            entry[name] = _metrics(g, col, pmf)
+
+        # paired comparisons for each present candidate vs its references
+        refs_for = {"r1": ["p0", "market"], "g1": ["p0", "r1", "market"],
+                    "g2": ["p0", "r1", "g1", "market"], "pts_decomp": ["p0", "r1", "market"]}
+        cand_vs_market_pll, cand_vs_market_pbr = {}, {}
+        for cand in present:
+            if cand not in gall.columns or gall[cand].notna().sum() == 0:
+                continue
+            for ref in refs_for.get(cand, ["market"]):
+                if ref not in gall.columns:
+                    continue
+                gi = gall.dropna(subset=[cand, ref]).reset_index(drop=True)
+                if len(gi) == 0 or gi["outcome_over"].nunique() < 2:
+                    continue
+                ci_ll, ci_bs, p_ll, p_brier = EV._paired_bootstrap(
+                    gi, cand, ref, gi["game_date"], iters, seed)
+                entry[f"{cand}_minus_{ref}"] = {
+                    "n": int(len(gi)),
+                    "delta_log_loss": EV.log_loss(gi["outcome_over"], gi[cand]) - EV.log_loss(gi["outcome_over"], gi[ref]),
+                    "delta_brier": EV.brier(gi["outcome_over"], gi[cand]) - EV.brier(gi["outcome_over"], gi[ref]),
+                    "delta_auc": EV.auc(gi["outcome_over"], gi[cand]) - EV.auc(gi["outcome_over"], gi[ref]),
                     "ci95_delta_log_loss": ci_ll, "ci95_delta_brier": ci_bs,
                     "p_ll": p_ll, "p_brier": p_brier,
                 }
-            # advancement rule
-            adv = (entry["g1_minus_p0"]["delta_auc"] > 0 and entry["g1_minus_r1"]["delta_auc"] > 0 and
-                   entry["g1_minus_p0"]["delta_log_loss"] < 0 and entry["g1_minus_r1"]["delta_log_loss"] < 0 and
-                   entry["g1_minus_p0"]["delta_brier"] < 0 and entry["g1_minus_r1"]["delta_brier"] < 0)
-            entry["g1_advances_vs_p0_and_r1"] = bool(adv)
+                if ref == "market":
+                    cand_vs_market_pll[cand] = p_ll
+                    cand_vs_market_pbr[cand] = p_brier
+        # Holm across the candidate-vs-market family within this prop
+        if cand_vs_market_pll:
+            hll, hbr = EV.holm(cand_vs_market_pll), EV.holm(cand_vs_market_pbr)
+            entry["holm_vs_market_p_ll"] = hll
+            entry["holm_vs_market_p_brier"] = hbr
         results[prop] = entry
 
-    # Holm across props for G1-vs-market p-values (LL and Brier families separately)
-    p_ll = {pr: results[pr]["g1_minus_market"]["p_ll"] for pr in results if "g1_minus_market" in results[pr]}
-    p_br = {pr: results[pr]["g1_minus_market"]["p_brier"] for pr in results if "g1_minus_market" in results[pr]}
-    if p_ll:
-        hll, hbr = EV.holm(p_ll), EV.holm(p_br)
-        for pr in p_ll:
-            results[pr]["g1_vs_market_holm_p_ll"] = hll[pr]
-            results[pr]["g1_vs_market_holm_p_brier"] = hbr[pr]
+    out = REPO / args.out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"iters": iters, "seed": seed, "candidates_present": present, "results": results}
+    json.dump(payload, open(out, "w"), indent=2, default=float)
+    # keep the legacy filename in sync for existing references
+    legacy = REPO / "artifacts/opportunity_v2/CANDIDATE_COMPARISON_P0_R1_G1.json"
+    json.dump(payload, open(legacy, "w"), indent=2, default=float)
 
-    out = REPO / "artifacts/opportunity_v2/CANDIDATE_COMPARISON_P0_R1_G1.json"
-    json.dump({"iters": ITERS, "results": results}, open(out, "w"), indent=2, default=float)
-    # concise stdout
     for pr, e in results.items():
         row = {"prop": pr}
-        for c in ("p0", "r1", "g1", "market"):
+        for c in ["p0", "r1", "g1", "g2", "pts_decomp", "market"]:
             if c in e:
                 row[c] = {"n": e[c]["n"], "auc": round(e[c]["auc"], 4), "ll": round(e[c]["log_loss"], 4)}
-        if "g1_advances_vs_p0_and_r1" in e:
-            row["g1_advances"] = e["g1_advances_vs_p0_and_r1"]
         print(json.dumps(row))
 
 
