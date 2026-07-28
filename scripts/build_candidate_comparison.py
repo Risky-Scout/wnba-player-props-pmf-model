@@ -40,7 +40,9 @@ CANDIDATE_OOF = {
     "r1": "data/oof/opportunity_v2/oof_pmfs.parquet",
     "g1": "data/oof/opportunity_v2_team_share/oof_pmfs.parquet",
     "g2": "data/oof/opportunity_v2_g2/oof_pmfs.parquet",
-    "pts_decomp": "data/oof/opportunity_v2_pts_decomp/oof_pmfs.parquet",
+    # PTS_DECOMP candidate evidence = full-decomposition rows only (proxy rows excluded), matching
+    # the item-8 evidence policy. Falls back to the combined OOF if the full-only file is absent.
+    "pts_decomp": "data/oof/opportunity_v2_pts_decomp/oof_pmfs_full_only.parquet",
 }
 QUOTES = "artifacts/market_feature_proof/G0_v2/PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet"
 
