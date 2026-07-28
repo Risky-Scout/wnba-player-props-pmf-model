@@ -1,5 +1,17 @@
 {
   "created_at_utc": "2026-07-27T18:55:33.051433+00:00",
+  "measurement_update_2026_07_28": {
+    "tracking_asset_now_registered": true,
+    "tracking_classification": "SCHEMA_PRESENT_SIGNAL_EMPTY",
+    "tracking_detail": "wnba_tracking columns exist but every intended Tier-2 signal (rebound chances, touches, passes, secondary assists, speed, distance, contested/uncontested FG made+attempted, defended-at-rim) is 0.0% non-zero. Only fieldGoalPercentage (68.67%, used for PTS FGM reconstruction) and assists (60.64%, == box) are populated. See TRACKING_ASSET_RECONCILIATION.json.",
+    "g2_status": "BLOCKED_EMPTY_TRACKING_SIGNAL — G2 (tracking-derived game-varying share drivers) cannot be built from tracking-data-v1 because the signals are empty (not an identity problem; identity is solved).",
+    "model_status": {
+      "g1_vs_r1": "G1 (OPP_V2_TEAM_SHARE) REGRESSES vs R1 (OPP_V2_RATE) on fg3m (AUC 0.550 vs 0.593).",
+      "pts_decomp_vs_market": "PTS_DECOMP FAILS vs market (dLL +0.101, AUC 0.505 vs 0.518; not selection-eligible).",
+      "market_superiority": "NO candidate (P0/R1/G1/PTS_DECOMP) is market-superior on any prop.",
+      "production": "NO Opportunity V2 candidate is production-enabled. P0 remains the production champion; this PR is additive infrastructure/measurement only."
+    }
+  },
   "headline": "The game-specific opportunity signals that distinguish Opportunity V2 from the existing structural model (point-in-time availability/lineups, roster-at-cutoff, vacated role, and player/team TRACKING opportunity) DO NOT EXIST historically in this repository. Only Tier-0 box-score opportunity + team environment are historically recoverable. Therefore V2 can be built and OOF-measured as a Tier-0 candidate now, but its distinctive value requires (a) forward availability/lineup snapshot collection and (b) a new tracking source before any Tier-2 historical certification is possible.",
   "box_score_coverage": {
     "2025": {
@@ -104,12 +116,12 @@
       "remediation": "Depends on availability (forward) + roster intervals (new source)."
     },
     "player_tracking_opportunity_tier2": {
-      "state": "NO_CONTEXT",
+      "state": "SCHEMA_PRESENT_SIGNAL_EMPTY",
       "data_tier": 2,
-      "evidence": "No player tracking columns present (found tracking cols: []). potential_assists, rebound_chances, touches, catch&shoot/pullup 3PA absent. Shot locations table has 402 rows with 0 valid dates.",
+      "evidence": "CORRECTION (2026-07-28): wnba_tracking IS registered and its schema DOES contain reboundChances*/touches/passes/secondaryAssists/speed/distance/contested+uncontestedFieldGoals*/defendedAtRim* — but every one of those columns is 0.0% non-zero (structurally empty). Only fieldGoalPercentage (68.67%) and assists (60.64%, == box) carry data. See TRACKING_ASSET_RECONCILIATION.json.",
       "buildable_features": [],
       "proof_eligible": false,
-      "remediation": "Requires a tracking data source (WNBA tracking / play-by-play). Until then ast/reb Tier-2 candidates CANNOT be built or certified; only Tier-0 proxies."
+      "remediation": "The registered tracking asset has empty Tier-2 signal, so ast/reb Tier-2 candidates and G2 tracking-derived share drivers CANNOT be built. A tracking source with POPULATED metrics is required; do not fabricate features from the empty columns."
     }
   },
   "prop_certifiability": {

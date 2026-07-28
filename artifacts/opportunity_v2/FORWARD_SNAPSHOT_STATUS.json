@@ -37,5 +37,17 @@
     "root_cause": "workflow_dispatch requires the workflow file to exist on the DEFAULT branch (main). It currently exists ONLY on the PR #89 branch, so GitHub will not register or dispatch it. It CANNOT run (manually or on cron) until PR #89 is merged to main.",
     "resolution": "After merge to main, the 3 crons (14:00/18:00/21:30 UTC) begin and `gh workflow run opportunity_v2_snapshots.yml -f phase=...` becomes dispatchable. Verify with `gh run list --workflow opportunity_v2_snapshots.yml`."
   },
-  "workflow_run_urls": "none — dispatch is a documented hard blocker until PR #89 merges (see manual_dispatch_attempt_2026_07_27)"
+  "workflow_run_urls": "none — dispatch is a documented hard blocker until PR #89 merges (see manual_dispatch_attempt_2026_07_27)",
+  "fail_closed_hardening_2026_07_28": {
+    "workflow": ".github/workflows/opportunity_v2_snapshots.yml",
+    "changes": [
+      "Removed the `|| echo warning` soft-pass on the BDL pull; a failed pull now FAILS the job.",
+      "Collector (build_opportunity_snapshots.py) exits non-zero on: missing injuries response, zero injury rows, zero snapshot rows, missing payload hashes, invalid timestamps (scheduled-games=-1 => STRICT; explicit 0 => ok_no_games).",
+      "Artifact upload set to if-no-files-found: error (no uploaded artifact => job fails).",
+      "Always writes a coverage manifest: phase, game_date, games, players, injury_rows, availability_rows, prediction_cutoff, source_timestamp, payload_hashes, failure_status.",
+      "Added tests/opportunity/test_snapshot_collector_failclosed.py (4 script-level tests)."
+    ],
+    "actionlint": "clean (exit 0)"
+  },
+  "model_status_2026_07_28": "No Opportunity V2 candidate is market-superior or production-enabled. G1 regresses vs R1; PTS_DECOMP fails vs market; G2 is BLOCKED_EMPTY_TRACKING_SIGNAL. P0 remains the production champion. This PR is additive infrastructure/measurement only."
 }
