@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-28T22:57:03.896444+00:00",
+  "generated_at": "2026-07-28T23:59:08.521001+00:00",
   "game_date": "2026-07-28",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-07-28",
-    "generated_utc": "2026-07-28T22:57:03.896444+00:00",
+    "generated_utc": "2026-07-28T23:59:08.521001+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 5,
@@ -33,8 +33,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 2555,
-    "n_scored_rows": 2268,
+    "n_quote_rows": 2346,
+    "n_scored_rows": 2028,
     "n_qualifying": 8,
     "n_books_per_stat": {
       "ast": 10,
@@ -45,99 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "e4dc370d08264200533bf3816f82c622",
-      "odds_api_event_id": "e4dc370d08264200533bf3816f82c622",
-      "commence_time": "2026-07-28T23:30:00Z",
-      "home_team": {
-        "name": "Washington Mystics",
-        "abbreviation": "Washington Mystics"
-      },
-      "away_team": {
-        "name": "Connecticut Sun",
-        "abbreviation": "Connecticut Sun"
-      },
-      "players": [
-        {
-          "player_id": "e4dc370d08264200533bf3816f82c622:Shakira Austin:ast:2.5:under:draftkings",
-          "player_name": "Shakira Austin",
-          "team_name": "",
-          "position": "draftkings -104 \u00b7 EV +8.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4454,
-                "edge_vs_market": -0.087828,
-                "kelly_fraction": 0.0228
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": -104,
-                "ev_pct": 8.783,
-                "fair_p_side": 0.5546,
-                "consensus_p_over": 0.4454,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4567,
-                "best_book": "draftkings",
-                "best_odds": -104
-              }
-            }
-          }
-        },
-        {
-          "player_id": "e4dc370d08264200533bf3816f82c622:Olivia Nelson-Ododa:pts:10.5:under:draftkings",
-          "player_name": "Olivia Nelson-Ododa",
-          "team_name": "",
-          "position": "draftkings -101 \u00b7 EV +4.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 10.5,
-              "median": 10.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 10.5,
-                "p_over": 0.4738,
-                "edge_vs_market": -0.047208,
-                "kelly_fraction": 0.0119
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": -101,
-                "ev_pct": 4.721,
-                "fair_p_side": 0.5262,
-                "consensus_p_over": 0.4738,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": -101
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "606c87e74c7cc6048113e44a4f33506f",
       "odds_api_event_id": "606c87e74c7cc6048113e44a4f33506f",
@@ -152,181 +59,10 @@
       },
       "players": [
         {
-          "player_id": "606c87e74c7cc6048113e44a4f33506f:Bridget Carleton:fg3m:2.5:over:betparx",
+          "player_id": "606c87e74c7cc6048113e44a4f33506f:Bridget Carleton:pts:12.5:under:betparx",
           "player_name": "Bridget Carleton",
           "team_name": "",
-          "position": "betparx +135 \u00b7 EV +4.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4441,
-                "edge_vs_market": 0.043588,
-                "kelly_fraction": 0.0081
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 135,
-                "ev_pct": 4.359,
-                "fair_p_side": 0.4441,
-                "consensus_p_over": 0.4441,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4567,
-                "best_book": "betparx",
-                "best_odds": 135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "606c87e74c7cc6048113e44a4f33506f:Bridget Carleton:fg3m:2.5:over:hardrockbet",
-          "player_name": "Bridget Carleton",
-          "team_name": "",
-          "position": "hardrockbet +135 \u00b7 EV +4.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4441,
-                "edge_vs_market": 0.043588,
-                "kelly_fraction": 0.0081
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 135,
-                "ev_pct": 4.359,
-                "fair_p_side": 0.4441,
-                "consensus_p_over": 0.4441,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4567,
-                "best_book": "betparx",
-                "best_odds": 135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "606c87e74c7cc6048113e44a4f33506f:Carla Leite:reb:2.5:over:betparx",
-          "player_name": "Carla Leite",
-          "team_name": "",
-          "position": "betparx +106 \u00b7 EV +3.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5022,
-                "edge_vs_market": 0.034457,
-                "kelly_fraction": 0.0081
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 106,
-                "ev_pct": 3.446,
-                "fair_p_side": 0.5022,
-                "consensus_p_over": 0.5022,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5033,
-                "best_book": "betparx",
-                "best_odds": 106
-              }
-            }
-          }
-        },
-        {
-          "player_id": "606c87e74c7cc6048113e44a4f33506f:Carla Leite:reb:2.5:over:hardrockbet",
-          "player_name": "Carla Leite",
-          "team_name": "",
-          "position": "hardrockbet +105 \u00b7 EV +2.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5022,
-                "edge_vs_market": 0.029435,
-                "kelly_fraction": 0.007
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 105,
-                "ev_pct": 2.943,
-                "fair_p_side": 0.5022,
-                "consensus_p_over": 0.5022,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5033,
-                "best_book": "betparx",
-                "best_odds": 106
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "c2e520af9bd7e828a76959862d941068",
-      "odds_api_event_id": "c2e520af9bd7e828a76959862d941068",
-      "commence_time": "2026-07-29T01:30:00Z",
-      "home_team": {
-        "name": "Seattle Storm",
-        "abbreviation": "Seattle Storm"
-      },
-      "away_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
-      },
-      "players": [
-        {
-          "player_id": "c2e520af9bd7e828a76959862d941068:Kelsey Mitchell:pts:22.5:under:betparx",
-          "player_name": "Kelsey Mitchell",
-          "team_name": "",
-          "position": "betparx +102 \u00b7 EV +3.2%",
+          "position": "betparx +118 \u00b7 EV +8.5%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -335,28 +71,199 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 22.5,
-              "median": 22.5,
+              "mean": 12.5,
+              "median": 12.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 22.5,
-                "p_over": 0.4892,
-                "edge_vs_market": -0.031861,
-                "kelly_fraction": 0.0078
+                "market_line": 12.5,
+                "p_over": 0.5022,
+                "edge_vs_market": -0.08524,
+                "kelly_fraction": 0.0181
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": 102,
-                "ev_pct": 3.186,
-                "fair_p_side": 0.5108,
-                "consensus_p_over": 0.4892,
+                "offered_odds": 118,
+                "ev_pct": 8.524,
+                "fair_p_side": 0.4978,
+                "consensus_p_over": 0.5022,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4803,
+                "sharp_consensus_p_over": 0.4913,
                 "best_book": "betparx",
-                "best_odds": 102
+                "best_odds": 118
+              }
+            }
+          }
+        },
+        {
+          "player_id": "606c87e74c7cc6048113e44a4f33506f:Bridget Carleton:reb:3.5:under:hardrockbet",
+          "player_name": "Bridget Carleton",
+          "team_name": "",
+          "position": "hardrockbet +110 \u00b7 EV +4.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.5043,
+                "edge_vs_market": -0.040911,
+                "kelly_fraction": 0.0093
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 110,
+                "ev_pct": 4.091,
+                "fair_p_side": 0.4957,
+                "consensus_p_over": 0.5043,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5087,
+                "best_book": "hardrockbet",
+                "best_odds": 110
+              }
+            }
+          }
+        },
+        {
+          "player_id": "606c87e74c7cc6048113e44a4f33506f:Emily Engstler:pts:9.5:over:hardrockbet",
+          "player_name": "Emily Engstler",
+          "team_name": "",
+          "position": "hardrockbet +115 \u00b7 EV +3.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 9.5,
+              "median": 9.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 9.5,
+                "p_over": 0.4825,
+                "edge_vs_market": 0.03739,
+                "kelly_fraction": 0.0081
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 115,
+                "ev_pct": 3.739,
+                "fair_p_side": 0.4825,
+                "consensus_p_over": 0.4825,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4825,
+                "best_book": "hardrockbet",
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
+          "player_id": "606c87e74c7cc6048113e44a4f33506f:Bridget Carleton:reb:3.5:under:betparx",
+          "player_name": "Bridget Carleton",
+          "team_name": "",
+          "position": "betparx +108 \u00b7 EV +3.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.5043,
+                "edge_vs_market": -0.030997,
+                "kelly_fraction": 0.0072
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 108,
+                "ev_pct": 3.1,
+                "fair_p_side": 0.4957,
+                "consensus_p_over": 0.5043,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5087,
+                "best_book": "hardrockbet",
+                "best_odds": 110
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "786c1161bd8d7bbab01efa2e850df8bb",
+      "odds_api_event_id": "786c1161bd8d7bbab01efa2e850df8bb",
+      "commence_time": "2026-07-29T00:05:00Z",
+      "home_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "away_team": {
+        "name": "Toronto Tempo",
+        "abbreviation": "Toronto Tempo"
+      },
+      "players": [
+        {
+          "player_id": "786c1161bd8d7bbab01efa2e850df8bb:Napheesa Collier:pts:19.5:under:betparx",
+          "player_name": "Napheesa Collier",
+          "team_name": "",
+          "position": "betparx +100 \u00b7 EV +5.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 19.5,
+              "median": 19.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 19.5,
+                "p_over": 0.4708,
+                "edge_vs_market": -0.05836,
+                "kelly_fraction": 0.0146
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 100,
+                "ev_pct": 5.836,
+                "fair_p_side": 0.5292,
+                "consensus_p_over": 0.4708,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": 100
               }
             }
           }
@@ -380,7 +287,7 @@
           "player_id": "fa632e2d144f67960024500509077a4a:Rae Burrell:ast:2.5:under:betparx",
           "player_name": "Rae Burrell",
           "team_name": "",
-          "position": "betparx +123 \u00b7 EV +2.8%",
+          "position": "betparx +123 \u00b7 EV +3.1%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -395,22 +302,115 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5391,
-                "edge_vs_market": -0.027802,
-                "kelly_fraction": 0.0057
+                "p_over": 0.5376,
+                "edge_vs_market": -0.031222,
+                "kelly_fraction": 0.0063
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": 123,
-                "ev_pct": 2.78,
-                "fair_p_side": 0.4609,
-                "consensus_p_over": 0.5391,
+                "ev_pct": 3.122,
+                "fair_p_side": 0.4624,
+                "consensus_p_over": 0.5376,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5391,
                 "best_book": "betparx",
                 "best_odds": 123
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "c2e520af9bd7e828a76959862d941068",
+      "odds_api_event_id": "c2e520af9bd7e828a76959862d941068",
+      "commence_time": "2026-07-29T01:30:00Z",
+      "home_team": {
+        "name": "Seattle Storm",
+        "abbreviation": "Seattle Storm"
+      },
+      "away_team": {
+        "name": "Indiana Fever",
+        "abbreviation": "Indiana Fever"
+      },
+      "players": [
+        {
+          "player_id": "c2e520af9bd7e828a76959862d941068:Kelsey Mitchell:pts:22.5:under:betparx",
+          "player_name": "Kelsey Mitchell",
+          "team_name": "",
+          "position": "betparx +102 \u00b7 EV +2.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 22.5,
+              "median": 22.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 22.5,
+                "p_over": 0.4914,
+                "edge_vs_market": -0.027324,
+                "kelly_fraction": 0.0067
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 102,
+                "ev_pct": 2.732,
+                "fair_p_side": 0.5086,
+                "consensus_p_over": 0.4914,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4945,
+                "best_book": "betparx",
+                "best_odds": 102
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c2e520af9bd7e828a76959862d941068:Awa Fam:pts:12.5:over:hardrockbet",
+          "player_name": "Awa Fam",
+          "team_name": "",
+          "position": "hardrockbet +110 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 12.5,
+              "median": 12.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 12.5,
+                "p_over": 0.4883,
+                "edge_vs_market": 0.02538,
+                "kelly_fraction": 0.0058
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 110,
+                "ev_pct": 2.538,
+                "fair_p_side": 0.4883,
+                "consensus_p_over": 0.4883,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "hardrockbet",
+                "best_odds": 110
               }
             }
           }
