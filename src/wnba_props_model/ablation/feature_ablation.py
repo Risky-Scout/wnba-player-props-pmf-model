@@ -151,6 +151,11 @@ class AblationConfig:
     pbp_feats_path: str = "data/processed/wnba_pbp_opportunity_features.parquet"
     box_path: str = "data/processed/wnba_player_game_stats.parquet"
     stlblktov_path: str = "data/processed/wnba_stlblktov_labels.parquet"
+    # provenance of the wide/box-form feature source, recorded verbatim in every
+    # per-prop artifact so the study is honest about whether the license-restricted
+    # ``player_box_form`` group was available on the machine that ran it.
+    player_box_form_status: str = (
+        "INCLUDED_recovered_v2_license_restricted_wide_features")
 
 
 def _numeric_feature_columns(df: pd.DataFrame) -> list[str]:
@@ -737,6 +742,7 @@ def run_prop(prop: str, cfg: AblationConfig, inputs: dict) -> dict:
         "prop": prop, "kind": kind, "n_rows": n_rows, "n_dates": n_dates,
         "sufficient_data": bool(sufficient),
         "min_data_note": None if sufficient else f"only {n_rows} rows / {n_dates} dates (<300/30)",
+        "player_box_form_group": cfg.player_box_form_status,
         "feature_groups": {g: cols for g, cols in groups.items()},
         "group_sizes": {g: len(cols) for g, cols in groups.items()},
         "pbp_feature_names": meta["pbp_feature_names"],

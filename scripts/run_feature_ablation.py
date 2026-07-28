@@ -173,6 +173,12 @@ def main():
     ap.add_argument("--summarize", action="store_true",
                     help="build summary + Holm from existing per-prop artifacts")
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--wide-path", default=None,
+                    help="override the wide/box-form feature parquet path "
+                         "(e.g. a BDL-regenerated standard-pipeline build)")
+    ap.add_argument("--player-box-form-status", default=None,
+                    help="verbatim provenance label for the player_box_form group, "
+                         "recorded in every artifact")
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -196,6 +202,10 @@ def main():
     cfg = AblationConfig()
     if args.seed is not None:
         cfg.seed = args.seed
+    if args.wide_path is not None:
+        cfg.wide_path = args.wide_path
+    if args.player_box_form_status is not None:
+        cfg.player_box_form_status = args.player_box_form_status
     run(props, out_dir, args.force, cfg)
 
 
