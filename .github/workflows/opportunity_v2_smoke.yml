@@ -1,0 +1,51 @@
+name: Opportunity V2 — Preflight Smoke
+
+# Fail-closed preflight for the Opportunity V2 candidate. Runs the deterministic production-shape
+# smoke (synthetic slate, no private data or API keys) plus the Opportunity V2 unit suite, and
+# enforces temporal-purity + PMF + settlement invariants BEFORE any full OOF is attempted.
+
+on:
+  push:
+    branches: [main, "cursor/game-specific-opportunity-v2"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  opportunity-v2-smoke:
+    name: Opportunity V2 smoke + unit invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Opportunity V2 unit suite
+        run: python -m pytest tests/opportunity/ -q --tb=short
+
+      - name: Deterministic production-shape smoke (fail-closed)
+        run: python scripts/run_opportunity_smoke.py
+
+      - name: Upload smoke + audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opportunity-v2-smoke-results
+          path: |
+            artifacts/opportunity_v2/DATA_AVAILABILITY_AUDIT.json
+            artifacts/opportunity_v2/FEATURE_POINT_IN_TIME_AUDIT.json
+            artifacts/opportunity_v2/OPP_V2_EXACT_QUOTE_METRICS.json
+            artifacts/opportunity_v2/OPP_V2_ABLATION_REPORT.json
+          if-no-files-found: ignore

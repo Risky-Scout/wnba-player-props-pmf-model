@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "row_count": 12066,
+  "violation_count": 0,
+  "violations_by_column": {},
+  "max_future_seconds_by_column": {},
+  "sampled_violations": [],
+  "forbidden_market_columns": [],
+  "feature_manifest": {
+    "schema_version": "opportunity_v2_features_v1",
+    "rows": 12066,
+    "proof_eligible_row_count": 0,
+    "cutoff_policy_counts": {
+      "scheduled_tip_minus_90m": 12066
+    },
+    "model_feature_columns": [
+      "player_minutes_ewma",
+      "player_minutes_std_l10",
+      "player_active_rate_ewma",
+      "player_start_rate_ewma",
+      "player_dnp_streak_prior",
+      "player_games_played_prior",
+      "player_days_since_last_game",
+      "player_fga_per_min_ewma",
+      "player_fg3a_per_min_ewma",
+      "player_fta_per_min_ewma",
+      "player_oreb_chances_per_min_ewma",
+      "player_dreb_chances_per_min_ewma",
+      "player_pts_per_min_ewma",
+      "player_reb_per_min_ewma",
+      "player_ast_per_min_ewma",
+      "player_fg3m_per_min_ewma",
+      "player_turnover_per_min_ewma",
+      "player_stl_per_min_ewma",
+      "player_blk_per_min_ewma",
+      "player_3p_pct_ewma",
+      "team_possessions_ewma",
+      "team_fga_ewma",
+      "team_fg3a_ewma",
+      "team_fta_ewma"
+    ],
+    "source_timestamp_columns": [
+      "last_game_date_utc"
+    ],
+    "forbidden_market_columns_found": [],
+    "availability_snapshots_joined": false,
+    "lineup_snapshots_joined": false,
+    "roster_intervals_available": false,
+    "player_tracking_available": false,
+    "team_tracking_available": false
+  }
+}

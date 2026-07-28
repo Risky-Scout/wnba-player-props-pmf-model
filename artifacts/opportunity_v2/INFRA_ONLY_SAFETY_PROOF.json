@@ -1,0 +1,77 @@
+{
+  "audit_utc": "2026-07-28T04:42:25.432229+00:00",
+  "branch": "cursor/game-specific-opportunity-v2",
+  "head": "7fbce6e57d77a180d46750a86baa74d56b7f1cbf",
+  "base_origin_main": "10aeadea74f0983c14f0c8abae806d3c08a66277",
+  "assertion": "PR #89 is ADDITIVE infrastructure/measurement only; no production-path config changed.",
+  "critical_files": {
+    "p0_champion_manifest": {
+      "path": "config/champion_manifest.json",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "5c66b1b3196326e9e299094cb513d15be9945281176a387c4c0a247020bb28da"
+    },
+    "selected_production_package": {
+      "path": "config/selected_production_package.json",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "3333a00d5ade7700f3a68d848e64f19cbefbf57c11b3c85067544ee31bf3511b"
+    },
+    "stat_registry": {
+      "path": "config/stat_registry.json",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "d17fde5bdc84e173b0e1b960a2d11084f8fd37bf0e06dd59925592db23fd462a"
+    },
+    "certified_forecast_calibration": {
+      "path": "config/certified_forecast_calibration.json",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "93e330da59dfb8e9884f79e1afe7add3634e8442e0c6bff38c6692a7b22fb64f"
+    },
+    "stage6_calibration_policy": {
+      "path": "config/model/stage6_calibration.yaml",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "f3516c16a4874a42d83b0a53bd1f0a33ca91cf65b7b11fc723b24f7f5caa5eef"
+    },
+    "wnba_model_config": {
+      "path": "config/wnba_model.yaml",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "ae75773b811b4eea17155053718505e524db08f7a209098602fc408d1429055c"
+    },
+    "recommendation_policy_delivery_edgeboard": {
+      "path": "config/recommendation_policy.yaml",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "add5d716b8cf3bfd3f77139d2778b7901bbea9c8215204874d24b3bfda1f6fa3"
+    },
+    "delivery_path_module": {
+      "path": "src/wnba_props_model/pipeline/deliver.py",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "f1b93f352adc1348c21567b122c67a59ba96ed820d6079518086d7c5821ee703"
+    },
+    "foundation_lock": {
+      "path": "config/foundation_lock_v1.json",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "baa462109fcd2ef9788a0d8c9156ff45d58756444f5711c972914917386b68da"
+    },
+    "book_quote_priority": {
+      "path": "config/book_quote_priority_v1.json",
+      "changed_vs_origin_main": false,
+      "diff_bytes": 0,
+      "current_sha256": "962db96af3cceb31eb0e2efc08ca5f069e517e131e10d1a76619de4f8a20c780"
+    }
+  },
+  "all_critical_files_unchanged": true,
+  "p0_remains_champion": true,
+  "no_calibration_policy_activation": true,
+  "no_delivery_path_activation": true,
+  "no_stat_registry_permission_change": true,
+  "no_edge_board_candidate_rows": "CONFIRMED \u2014 no Opportunity V2 candidate is registered in champion_manifest/selected_production_package and recommendation_policy is unchanged; no delivery/Edge Board code path emits OPP_V2 rows.",
+  "no_market_comparison_permission_enabled": "CONFIRMED \u2014 evaluate/build scripts are permitted_pmf_diagnostic only; no production market-comparison permission toggled (recommendation_policy unchanged).",
+  "verdict": "INFRA_ONLY_SAFE"
+}

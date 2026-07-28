@@ -1,0 +1,50 @@
+{
+  "purpose": "Objective clean-clone reproducibility proof, splitting CODE reproducibility from REAL-DATA reproducibility honestly (owner decision item 5).",
+  "generated_utc": "2026-07-28",
+  "verification_head": "5ff39ecfaf936e5ea050baa286e386d30b1a2307",
+  "verification_head_note": "Clean clone taken at remote head 5ff39ecf, which contains all substantive Opportunity V2 code plus this OWNER DECISION hardening (SCHEMA_PRESENT_SIGNAL_EMPTY audit, fail-closed snapshot workflow + collector + tests, infra-only safety proof). Commits after this head are artifacts/docs/audit-registration only and do not change the tested code paths.",
+  "code_clean_clone_pass": true,
+  "real_data_clean_fetch_pass": false,
+  "clean_clone": {
+    "method": "git clone --branch cursor/game-specific-opportunity-v2 --single-branch <remote>; python -m venv .venv; pip install -e '.[dev]'",
+    "local_head": "5ff39ecfaf936e5ea050baa286e386d30b1a2307",
+    "remote_head": "5ff39ecfaf936e5ea050baa286e386d30b1a2307",
+    "heads_equal": true,
+    "git_status_short": "(empty — clean tree)",
+    "editable_install_exit_code": 0
+  },
+  "pytest_tests_opportunity": {
+    "command": "python -m pytest tests/opportunity/ -q",
+    "result": "146 passed, 2 skipped in 71.17s",
+    "skips_reason": "2 PTS-label tests skipif data/processed/pts_conversion_labels.parquet absent (a DERIVED artifact; data/ is gitignored) — expected in a code-only clean clone."
+  },
+  "real_data_clean_fetch": {
+    "attempted": true,
+    "command": "python scripts/fetch_data.py wnba_tracking wnba_player_game_stats",
+    "wnba_tracking": {
+      "result": "FETCHED + hash-verified",
+      "registry_path": "data/processed/wnba_tracking_2021_2026.parquet",
+      "release_tag": "tracking-data-v1",
+      "asset": "wnba_tracking_2021_2026.parquet",
+      "sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a"
+    },
+    "wnba_player_game_stats": {
+      "result": "NOT FETCHABLE (status=LOCAL_ONLY_UNPUBLISHED)",
+      "registry_path": "data/processed/wnba_player_game_stats.parquet",
+      "release_tag": "processed-data-v1",
+      "asset": "wnba_player_game_stats.parquet",
+      "sha256": "ebc4eacc4c0559a0e270e145036a1b7a8da6bc700146ae5ef949aa80b0e158f8",
+      "blocker": "This box asset is not durably published to a release, so it cannot be downloaded in a clean clone. It exists only locally in the maintainer environment."
+    },
+    "pts_conversion_labels_dependency_chain": "The two skipped tests need data/processed/pts_conversion_labels.parquet, a DERIVED artifact produced by scripts/validate_pts_labels.py, which requires: wnba_tracking (fetchable) + wnba_player_game_stats (NOT fetchable) + the derived data/processed/tracking_game_crosswalk.parquet (produced by scripts/build_tracking_crosswalk.py, itself requiring box). Regeneration failed at tracking_game_crosswalk.parquet (FileNotFoundError) because box is unavailable.",
+    "conclusion": "real_data_clean_fetch_pass=false: the box asset (processed-data-v1) is not durably published, so the derived PTS labels cannot be regenerated in a clean clone and the two label tests correctly remain skipped there. Their PRODUCT artifacts (PTS_LABEL_VALIDATION.json) ARE committed."
+  },
+  "full_pts_test": {
+    "command": "python -m pytest tests/opportunity/test_pts_decomposition.py -q",
+    "result": "7 passed, 2 skipped in 7.35s (2 skips = data-dependent label tests, see above)"
+  },
+  "reproducibility_caveats": {
+    "oof_and_derived_data_gitignored": true,
+    "detail": "Full OOF builds, PTS label validation, and the unified comparison require local data/ (box, derived crosswalk, OOF parquets) which is gitignored and — for the box — not durably published, so they are NOT reproducible from a clean clone. Their PRODUCTS are committed as artifacts (OPP_V2_PTS_DECOMP_EXACT_QUOTE_METRICS.json, PTS_DECOMP_OOF_SUMMARY.json, CANDIDATE_COMPARISON_ALL.json, PTS_LABEL_VALIDATION.json, G2_TRACKING_FEASIBILITY.json). All code + unit tests are fully executable from the clean clone (code_clean_clone_pass=true)."
+  }
+}

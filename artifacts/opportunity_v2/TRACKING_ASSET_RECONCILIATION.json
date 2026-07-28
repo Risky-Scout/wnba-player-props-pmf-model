@@ -1,0 +1,213 @@
+{
+  "audit_utc": "2026-07-28T04:36:47.348251+00:00",
+  "supersedes": "prior PARTIALLY_USABLE classification (which conflated identity coverage with signal presence)",
+  "asset": "wnba_tracking (tracking-data-v1)",
+  "asset_sha256": "9f25c85fb7604d22056aa6147673c33e86e89d7169fcc4644fb71ceac5481b8a",
+  "rows": 33259,
+  "tier2_signal_population": {
+    "rebound_chances_offensive": {
+      "source_column": "reboundChancesOffensive",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "rebound_chances_defensive": {
+      "source_column": "reboundChancesDefensive",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "rebound_chances_total": {
+      "source_column": "reboundChancesTotal",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "touches": {
+      "source_column": "touches",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "passes": {
+      "source_column": "passes",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "secondary_assists": {
+      "source_column": "secondaryAssists",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "free_throw_assists": {
+      "source_column": "freeThrowAssists",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "speed": {
+      "source_column": "speed",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "distance": {
+      "source_column": "distance",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "contested_field_goals_made": {
+      "source_column": "contestedFieldGoalsMade",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "contested_field_goals_attempted": {
+      "source_column": "contestedFieldGoalsAttempted",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "uncontested_field_goals_made": {
+      "source_column": "uncontestedFieldGoalsMade",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "uncontested_field_goals_attempted": {
+      "source_column": "uncontestedFieldGoalsAttempted",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "defended_at_rim_field_goals_made": {
+      "source_column": "defendedAtRimFieldGoalsMade",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    },
+    "defended_at_rim_field_goals_attempted": {
+      "source_column": "defendedAtRimFieldGoalsAttempted",
+      "non_null_count": 33259,
+      "nonzero_count": 0,
+      "nonzero_pct": 0.0,
+      "season_coverage_nonzero": {
+        "2025": 0,
+        "2026": 0
+      },
+      "usable_for_modeling": false
+    }
+  },
+  "populated_fields": {
+    "fieldGoalPercentage": {
+      "source_column": "fieldGoalPercentage",
+      "non_null_count": 33259,
+      "nonzero_count": 22840,
+      "nonzero_pct": 68.6731,
+      "season_coverage_nonzero": {
+        "2025": 4804,
+        "2026": 3170
+      },
+      "usable_for_modeling": true
+    },
+    "assists": {
+      "source_column": "assists",
+      "non_null_count": 33259,
+      "nonzero_count": 20167,
+      "nonzero_pct": 60.6362,
+      "season_coverage_nonzero": {
+        "2025": 4246,
+        "2026": 2761
+      },
+      "usable_for_modeling": true
+    },
+    "_note": "fieldGoalPercentage is the ONLY tracking field used by Opportunity V2 (PTS FGM reconstruction). assists duplicates box assists and adds no game-varying signal."
+  },
+  "usable_tier2_signals": [],
+  "asset_classification": "SCHEMA_PRESENT_SIGNAL_EMPTY",
+  "classification_reason": "All intended Tier-2 tracking signals (rebound chances, touches, passes, secondary assists, speed, distance, contested/uncontested FG made+attempted, defended-at-rim made/attempted) have 0.0% non-zero rows. The schema columns exist but carry no modeling signal.",
+  "g2_status": "BLOCKED_EMPTY_TRACKING_SIGNAL",
+  "identity_reconciliation": {
+    "note": "Identity mapping is SOLVED (see tracking_identity_report.json): 262 one-to-one players, 0 conflicts, 100% canonical 2025-2026 game coverage. G2 is blocked by EMPTY SIGNAL, NOT by identity."
+  },
+  "hustle_asset": {
+    "asset_sha256": "a1e75c65cc23a5b57c145895bb59183b576f7c070fa2768d665a236350eb96e4",
+    "rows": 171,
+    "verdict": "SCHEMA_PRESENT_SIGNAL_EMPTY (all hustle metrics 0.0% non-zero; 171 rows)"
+  },
+  "verdict": "SCHEMA_PRESENT_SIGNAL_EMPTY. 0 of 15 intended Tier-2 signals are modeling-usable. G2 (tracking-derived game-varying share drivers) is BLOCKED_EMPTY_TRACKING_SIGNAL and cannot be built from tracking-data-v1.",
+  "any_tier2_signal_usable": false
+}

@@ -1,0 +1,83 @@
+{
+  "candidate": "OPP_V2_RAW",
+  "results": {
+    "fg3m": {
+      "n": 498,
+      "game_dates": 55,
+      "opp_v2": {
+        "log_loss": 0.6758318168612988,
+        "brier": 0.2408437905503677,
+        "auc": 0.5929492973950201
+      },
+      "market": {
+        "log_loss": 0.665415958840183,
+        "brier": 0.2365686184571821,
+        "auc": 0.6183088174870572
+      },
+      "p0_baseline": {
+        "log_loss": 0.7680905111072364,
+        "brier": 0.26365773694300404,
+        "auc": 0.5636946339058263
+      },
+      "delta_vs_market": {
+        "log_loss": 0.010415858021115776,
+        "brier": 0.004275172093185592,
+        "ci95_delta_log_loss": [
+          -0.013910086461469264,
+          0.035627535349768015
+        ],
+        "ci95_delta_brier": [
+          -0.007055741091216173,
+          0.015729815412929667
+        ]
+      },
+      "delta_vs_p0": {
+        "log_loss": -0.09225869424593758,
+        "brier": -0.02281394639263634
+      },
+      "beats_market": false,
+      "beats_p0": true,
+      "holm_adjusted_p_vs_market": 1.0,
+      "market_superiority_pass": false
+    },
+    "pts": {
+      "n": 845,
+      "game_dates": 55,
+      "opp_v2": {
+        "log_loss": 0.7816778205585134,
+        "brier": 0.2836021767119712,
+        "auc": 0.5034162431422705
+      },
+      "market": {
+        "log_loss": 0.6928973716597088,
+        "brier": 0.24987196915219223,
+        "auc": 0.5179619220715111
+      },
+      "p0_baseline": {
+        "log_loss": 0.8044558395494881,
+        "brier": 0.285353872351656,
+        "auc": 0.48051787777815175
+      },
+      "delta_vs_market": {
+        "log_loss": 0.08878044889880465,
+        "brier": 0.03373020755977896,
+        "ci95_delta_log_loss": [
+          0.05697530771772624,
+          0.12350937829014409
+        ],
+        "ci95_delta_brier": [
+          0.02108184013722222,
+          0.0474445424552136
+        ]
+      },
+      "delta_vs_p0": {
+        "log_loss": -0.022778018990974647,
+        "brier": -0.0017516956396848027
+      },
+      "beats_market": false,
+      "beats_p0": true,
+      "holm_adjusted_p_vs_market": 1.0,
+      "market_superiority_pass": false
+    }
+  }
+}

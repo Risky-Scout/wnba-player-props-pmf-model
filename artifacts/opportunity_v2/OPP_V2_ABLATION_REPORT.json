@@ -1,0 +1,59 @@
+{
+  "candidates_computable": [
+    "A0=P0",
+    "A7=OPP_V2_RAW"
+  ],
+  "candidates_declared_not_runnable_historically": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "note": "A1-A6 require forward availability/lineup snapshots and a tracking source (see DATA_AVAILABILITY_AUDIT.json). They are defined but not historically runnable.",
+  "rows": [
+    {
+      "prop": "fg3m",
+      "n": 498,
+      "dates": 55,
+      "A0_P0_log_loss": 0.76809,
+      "A7_OPP_V2_log_loss": 0.67583,
+      "market_log_loss": 0.66542,
+      "delta_LL_vs_P0": -0.09226,
+      "delta_LL_vs_market": 0.01042,
+      "delta_Brier_vs_market": 0.00428,
+      "A7_AUC": 0.5929,
+      "market_AUC": 0.6183,
+      "P0_AUC": 0.5637,
+      "ci95_dLL_vs_market": [
+        -0.013910086461469264,
+        0.035627535349768015
+      ],
+      "holm_p_vs_market": 1.0,
+      "beats_P0": true,
+      "market_superiority_pass": false
+    },
+    {
+      "prop": "pts",
+      "n": 845,
+      "dates": 55,
+      "A0_P0_log_loss": 0.80446,
+      "A7_OPP_V2_log_loss": 0.78168,
+      "market_log_loss": 0.6929,
+      "delta_LL_vs_P0": -0.02278,
+      "delta_LL_vs_market": 0.08878,
+      "delta_Brier_vs_market": 0.03373,
+      "A7_AUC": 0.5034,
+      "market_AUC": 0.518,
+      "P0_AUC": 0.4805,
+      "ci95_dLL_vs_market": [
+        0.05697530771772624,
+        0.12350937829014409
+      ],
+      "holm_p_vs_market": 1.0,
+      "beats_P0": true,
+      "market_superiority_pass": false
+    }
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "assets_examined": {
+    "tracking": {
+      "rows": 33259,
+      "cols": 36
+    },
+    "hustle": {
+      "rows": 171,
+      "cols": 25
+    }
+  },
+  "requested_drivers": {
+    "rebound_chances": {
+      "candidate_columns": {
+        "reboundChancesTotal": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "reboundChancesOffensive": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "reboundChancesDefensive": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    },
+    "touches": {
+      "candidate_columns": {
+        "touches": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    },
+    "passes": {
+      "candidate_columns": {
+        "passes": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "secondaryAssists": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "freeThrowAssists": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    },
+    "speed_distance": {
+      "candidate_columns": {
+        "speed": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "distance": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    },
+    "shot_contest_context": {
+      "candidate_columns": {
+        "contestedFieldGoalsAttempted": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "uncontestedFieldGoalsAttempted": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "CONTESTED_SHOTS": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "CONTESTED_SHOTS_2PT": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "CONTESTED_SHOTS_3PT": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    },
+    "defended_at_rim_context": {
+      "candidate_columns": {
+        "defendedAtRimFieldGoalsAttempted": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "defendedAtRimFieldGoalsMade": {
+          "source_asset": "tracking",
+          "present": true,
+          "non_null": 33259,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    },
+    "boxouts_screens_hustle": {
+      "candidate_columns": {
+        "OFF_BOXOUTS": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "DEF_BOXOUTS": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "SCREEN_ASSISTS": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        },
+        "DEFLECTIONS": {
+          "source_asset": "hustle",
+          "present": true,
+          "non_null": 171,
+          "non_zero": 0,
+          "populated": false,
+          "mean": 0.0
+        }
+      },
+      "any_populated": false
+    }
+  },
+  "populated_drivers": [],
+  "only_nonzero_tracking_fields": {
+    "fieldGoalPercentage": {
+      "source_asset": "tracking",
+      "present": true,
+      "non_null": 33259,
+      "non_zero": 22840,
+      "populated": true,
+      "mean": 0.3299877326437956
+    },
+    "assists": {
+      "source_asset": "tracking",
+      "present": true,
+      "non_null": 33259,
+      "non_zero": 20167,
+      "populated": true,
+      "mean": 1.779668661114285
+    }
+  },
+  "g2_feasible": false,
+  "verdict": "HARD BLOCKER: tracking-data-v1 and wnba_hustle_2021_2026 contain NO populated values for any requested G2 share driver (rebound chances, touches, passes, speed/distance, shot-contest, defended-at-rim, hustle) \u2014 every such column is structurally all-zero. The only non-zero tracking fields are fieldGoalPercentage (already used for PTS FGM recovery) and assists (identical to box assists). Genuine tracking-derived game-varying share drivers cannot be built and MUST NOT be fabricated; G2 cannot be constructed until a tracking source with populated hustle/tracking metrics is ingested.",
+  "leakage_note": "Even if populated, only strictly-prior (lagged) tracking would be used, joined via tracking_game_crosswalk / tracking_player_crosswalk; target-game tracking is never used."
+}

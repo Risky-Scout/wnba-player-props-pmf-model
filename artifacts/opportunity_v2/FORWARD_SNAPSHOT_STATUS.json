@@ -1,0 +1,53 @@
+{
+  "audit_utc": "2026-07-27",
+  "question": "Is Opportunity V2 forward pregame snapshot collection actually running on schedule?",
+  "answer_before_this_change": "NO.",
+  "evidence": {
+    "opportunity_snapshot_scripts_exist": ["scripts/build_opportunity_snapshots.py", "scripts/pull_pregame_context.py"],
+    "scheduled_workflow_invoking_them_before": "NONE",
+    "opportunity_v2_smoke.yml": "CI-only (push/pull_request); no cron -> not a forward collector",
+    "pregame_workflows": {
+      "pregame_initial.yml": "scheduled (P0 pipeline) — does NOT call opportunity snapshot scripts",
+      "pregame_injury_update.yml": "scheduled (P0 pipeline) — does NOT call opportunity snapshot scripts",
+      "pregame_final.yml": "scheduled (P0 pipeline) — does NOT call opportunity snapshot scripts"
+    },
+    "existing_snapshot_data": {
+      "path": "data/snapshots/availability/snapshot_date_utc=2026-07-25/source=bdl/snapshots.parquet",
+      "rows": 42,
+      "note": "single one-off latest-state pull (matches owner finding #7); NOT a scheduled multi-snapshot archive"
+    },
+    "historical_lineup_archive": "none",
+    "roster_interval_history": "none",
+    "vacated_opportunity_history": "none"
+  },
+  "change_made": {
+    "added_workflow": ".github/workflows/opportunity_v2_snapshots.yml",
+    "schedule": ["14:00 UTC initial", "18:00 UTC injury_update", "21:30 UTC final"],
+    "actions": "pull current-season BDL -> append append-only availability snapshot -> upload durable artifact",
+    "actionlint": "clean (exit 0)"
+  },
+  "honest_status_after_change": "Scheduled collector is now DEFINED and actionlint-clean, but has ZERO historical scheduled runs yet. A real multi-snapshot-per-slate archive will accrue only from its first scheduled execution onward. Lineup/roster-interval collection remains a no-op until a projected/confirmed-lineup source exists (not faked from postgame).",
+  "manual_dispatch_attempt_2026_07_27": {
+    "command": "gh workflow run opportunity_v2_snapshots.yml -f phase=<initial|injury_update|final> --ref cursor/game-specific-opportunity-v2",
+    "phases_attempted": ["initial", "injury_update", "final"],
+    "result": "HARD BLOCKER — all three returned HTTP 404",
+    "exact_error": "HTTP 404: workflow opportunity_v2_snapshots.yml not found on the default branch (https://api.github.com/repos/Risky-Scout/wnba-player-props-pmf-model/actions/workflows/opportunity_v2_snapshots.yml)",
+    "default_branch": "main",
+    "workflow_present_on_default_branch": false,
+    "root_cause": "workflow_dispatch requires the workflow file to exist on the DEFAULT branch (main). It currently exists ONLY on the PR #89 branch, so GitHub will not register or dispatch it. It CANNOT run (manually or on cron) until PR #89 is merged to main.",
+    "resolution": "After merge to main, the 3 crons (14:00/18:00/21:30 UTC) begin and `gh workflow run opportunity_v2_snapshots.yml -f phase=...` becomes dispatchable. Verify with `gh run list --workflow opportunity_v2_snapshots.yml`."
+  },
+  "workflow_run_urls": "none — dispatch is a documented hard blocker until PR #89 merges (see manual_dispatch_attempt_2026_07_27)",
+  "fail_closed_hardening_2026_07_28": {
+    "workflow": ".github/workflows/opportunity_v2_snapshots.yml",
+    "changes": [
+      "Removed the `|| echo warning` soft-pass on the BDL pull; a failed pull now FAILS the job.",
+      "Collector (build_opportunity_snapshots.py) exits non-zero on: missing injuries response, zero injury rows, zero snapshot rows, missing payload hashes, invalid timestamps (scheduled-games=-1 => STRICT; explicit 0 => ok_no_games).",
+      "Artifact upload set to if-no-files-found: error (no uploaded artifact => job fails).",
+      "Always writes a coverage manifest: phase, game_date, games, players, injury_rows, availability_rows, prediction_cutoff, source_timestamp, payload_hashes, failure_status.",
+      "Added tests/opportunity/test_snapshot_collector_failclosed.py (4 script-level tests)."
+    ],
+    "actionlint": "clean (exit 0)"
+  },
+  "model_status_2026_07_28": "No Opportunity V2 candidate is market-superior or production-enabled. G1 regresses vs R1; PTS_DECOMP fails vs market; G2 is BLOCKED_EMPTY_TRACKING_SIGNAL. P0 remains the production champion. This PR is additive infrastructure/measurement only."
+}

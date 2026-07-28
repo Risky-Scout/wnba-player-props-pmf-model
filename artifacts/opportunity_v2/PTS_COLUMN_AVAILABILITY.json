@@ -1,0 +1,32 @@
+{
+  "audit_utc": "2026-07-27T21:58:58.650900+00:00",
+  "canonical_wnba_player_game_stats": {
+    "fgm": false,
+    "fga": true,
+    "fg3m": true,
+    "fg3a": true,
+    "ftm": false,
+    "fta": true
+  },
+  "raw_bdl_wnba_player_game_stats": {
+    "fgm": false,
+    "fga": true,
+    "fg3m": true,
+    "fg3a": true,
+    "ftm": false,
+    "fta": true
+  },
+  "tracking_makes": {
+    "contestedFieldGoalsMade": true,
+    "uncontestedFieldGoalsMade": true,
+    "total_FGM_reconstructable": true,
+    "note": "Make-COUNT columns are unpopulated, BUT fieldGoalPercentage is fully populated: FGM = round(fieldGoalPercentage * box FGA), integer-consistent 99.98%. See PTS_RECONSTRUCTION_REPORT.json"
+  },
+  "conclusions": {
+    "FGM_available": "RECOVERABLE via fieldGoalPercentage*FGA on tracking-covered games (2025-2026)",
+    "FTM_available": "RECOVERABLE via points identity on tracking-covered games; absent elsewhere",
+    "FGA_FG3A_FG3M_FTA_available": "YES (box + raw)",
+    "full_pts_decomposition_feasible": "YES on tracking-covered games (98/99 market games); proxy elsewhere",
+    "verdict": "Full 2PA/2P% + 3PA/3P% + FTA/FT% decomposition IS feasible on tracking-covered games. Implement decomposition there; retain proxy for pre-2025 and the 1 tracking-absent game."
+  }
+}

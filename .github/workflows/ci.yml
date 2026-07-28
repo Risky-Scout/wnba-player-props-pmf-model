@@ -79,9 +79,12 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
+      # CERTIFIED mode (push to main, or repo var CERTIFIED_CI=true) MUST fail closed on any
+      # missing required artifact. In non-certified dev (PR/branch) the download may be absent and
+      # the gate is skipped with an explicit NON-CERTIFIED label (never a silent pass).
       - name: Download latest model artifacts (for manifest + features)
         uses: actions/download-artifact@v4
-        continue-on-error: true
+        continue-on-error: ${{ github.ref != 'refs/heads/main' && vars.CERTIFIED_CI != 'true' }}
         with:
           name: model-stage4-latest
           path: artifacts/models/stage4_baseline
@@ -89,18 +92,23 @@ jobs:
 
       - name: Download processed features
         uses: actions/download-artifact@v4
-        continue-on-error: true
+        continue-on-error: ${{ github.ref != 'refs/heads/main' && vars.CERTIFIED_CI != 'true' }}
         with:
           name: processed-features-latest
           path: data/processed
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Feature variance gate
+        env:
+          CERTIFIED: ${{ github.ref == 'refs/heads/main' || vars.CERTIFIED_CI == 'true' }}
         run: |
           if [ ! -f "data/processed/feature_schema_manifest.json" ] || \
              [ ! -f "data/processed/wnba_player_game_features_wide.parquet" ]; then
-            echo "Feature artifacts not available — skipping variance gate"
-            echo "(Run daily_pipeline.yml to generate them)"
+            if [ "$CERTIFIED" = "true" ]; then
+              echo "::error::CERTIFIED MODE: required feature artifacts (processed-features-latest / model-stage4-latest) are absent — failing closed"
+              exit 1
+            fi
+            echo "::warning::NON-CERTIFIED dev path: feature artifacts not available — skipping variance gate (this is NOT a certified pass)"
             exit 0
           fi
           python -m wnba_props_model.features.feature_contract audit-variance \

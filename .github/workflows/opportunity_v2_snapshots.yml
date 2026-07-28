@@ -1,0 +1,92 @@
+# Opportunity V2 — Forward Pregame Snapshot Collection (owner directive section 9)
+#
+# Runs MULTIPLE times per slate to build an append-only pregame availability archive
+# (initial / injury-update / final decision snapshots), each with pulled/available
+# timestamps + a deterministic payload hash. This is REAL forward collection: it records
+# availability AS PULLED NOW and never reconstructs pregame status from postgame results.
+#
+# NOTE: This workflow is NEWLY ADDED. It has no historical scheduled runs yet; a multi-snapshot
+# archive accrues only from its first scheduled execution onward. Snapshots are uploaded as durable
+# workflow artifacts (data/ is gitignored) so per-slate coverage can be audited over time.
+name: Opportunity V2 — Forward Snapshots
+
+on:
+  schedule:
+    - cron: '0 14 * * *'    # ~10:00 ET  initial snapshot (after books post lines)
+    - cron: '0 18 * * *'    # ~14:00 ET  injury-update snapshot
+    - cron: '30 21 * * *'   # ~17:30 ET  final decision snapshot (pre first tip)
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Snapshot phase label (initial|injury_update|final)'
+        required: false
+        default: 'manual'
+
+concurrency:
+  group: opp-v2-snapshots
+  cancel-in-progress: false
+
+jobs:
+  collect_snapshots:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Resolve phase + season
+        run: |
+          PHASE="${{ github.event.inputs.phase }}"
+          if [ -z "$PHASE" ] || [ "$PHASE" = "manual" ]; then
+            HOUR=$(date -u +%H)
+            if [ "$HOUR" -lt 16 ]; then PHASE="initial";
+            elif [ "$HOUR" -lt 20 ]; then PHASE="injury_update";
+            else PHASE="final"; fi
+          fi
+          {
+            echo "PHASE=$PHASE"
+            echo "SEASON=$(date -u +%Y)"
+            echo "SNAP_DATE=$(date -u +%Y-%m-%d)"
+          } >> "$GITHUB_ENV"
+          echo "Resolved phase=$PHASE season=$(date -u +%Y)"
+
+      # FAIL CLOSED: a failed BDL pull fails the job (no soft `|| echo warning`).
+      - name: Pull current-season BDL (injuries endpoint is current-state)
+        run: |
+          python scripts/pull_bdl_history.py \
+            --start-season "$SEASON" --end-season "$SEASON" \
+            --out-dir data/raw/bdl
+
+      # FAIL CLOSED: missing injuries / zero rows / missing hashes / invalid timestamps all exit non-zero
+      # (scheduled-games=-1 => unknown => treated STRICT). Always writes a coverage manifest.
+      - name: Append forward availability snapshot (fail-closed)
+        run: |
+          python scripts/build_opportunity_snapshots.py \
+            --injuries data/raw/bdl/wnba_injuries.parquet \
+            --availability-root data/snapshots/availability \
+            --coverage-manifest "data/snapshots/availability/coverage_manifest_${SNAP_DATE}_${PHASE}.json" \
+            --phase "$PHASE" \
+            --game-date "$SNAP_DATE" \
+            --scheduled-games -1
+
+      # FAIL CLOSED: a missing artifact is an error, not a warning.
+      - name: Upload snapshot archive (durable)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opp-v2-availability-${{ env.SNAP_DATE }}-${{ env.PHASE }}
+          path: data/snapshots/availability/**
+          if-no-files-found: error
+          retention-days: 90
