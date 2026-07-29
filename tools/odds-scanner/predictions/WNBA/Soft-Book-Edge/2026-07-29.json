@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-29T20:54:40.342075+00:00",
+  "generated_at": "2026-07-29T22:00:07.066459+00:00",
   "game_date": "2026-07-29",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-07-29",
-    "generated_utc": "2026-07-29T20:54:40.342075+00:00",
+    "generated_utc": "2026-07-29T22:00:07.066459+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -35,7 +35,7 @@
     ],
     "n_quote_rows": 1181,
     "n_scored_rows": 1054,
-    "n_qualifying": 2,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,10 +59,10 @@
       },
       "players": [
         {
-          "player_id": "c01616be622aa0fcab0ac0351d05e264:Brionna Jones:reb:4.5:under:fanduel",
-          "player_name": "Brionna Jones",
+          "player_id": "c01616be622aa0fcab0ac0351d05e264:Naz Hillmon:reb:4.5:over:espnbet",
+          "player_name": "Naz Hillmon",
           "team_name": "",
-          "position": "fanduel +116 \u00b7 EV +4.3%",
+          "position": "espnbet +130 \u00b7 EV +5.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,22 +77,100 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.517,
-                "edge_vs_market": -0.043254,
-                "kelly_fraction": 0.0093
+                "p_over": 0.4575,
+                "edge_vs_market": 0.052178,
+                "kelly_fraction": 0.01
+              },
+              "soft_book": {
+                "book": "espnbet",
+                "side": "over",
+                "offered_odds": 130,
+                "ev_pct": 5.218,
+                "fair_p_side": 0.4575,
+                "consensus_p_over": 0.4575,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "espnbet",
+                "best_odds": 130
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c01616be622aa0fcab0ac0351d05e264:Jordin Canada:fg3m:1.5:over:fanduel",
+          "player_name": "Jordin Canada",
+          "team_name": "",
+          "position": "fanduel +194 \u00b7 EV +4.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.3563,
+                "edge_vs_market": 0.047375,
+                "kelly_fraction": 0.0061
               },
               "soft_book": {
                 "book": "fanduel",
-                "side": "under",
-                "offered_odds": 116,
-                "ev_pct": 4.325,
-                "fair_p_side": 0.483,
-                "consensus_p_over": 0.517,
-                "consensus_n_books": 5,
+                "side": "over",
+                "offered_odds": 194,
+                "ev_pct": 4.737,
+                "fair_p_side": 0.3563,
+                "consensus_p_over": 0.3563,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
+                "sharp_consensus_p_over": null,
                 "best_book": "fanduel",
-                "best_odds": 116
+                "best_odds": 194
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c01616be622aa0fcab0ac0351d05e264:Azzi Fudd:pts:13.5:over:betparx",
+          "player_name": "Azzi Fudd",
+          "team_name": "",
+          "position": "betparx +108 \u00b7 EV +3.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 13.5,
+              "median": 13.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 13.5,
+                "p_over": 0.4978,
+                "edge_vs_market": 0.035458,
+                "kelly_fraction": 0.0082
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 108,
+                "ev_pct": 3.546,
+                "fair_p_side": 0.4978,
+                "consensus_p_over": 0.4978,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": 108
               }
             }
           }
@@ -116,7 +194,7 @@
           "player_id": "44c05d0bdf345dc1b2a2eef1bff78ce3:Veronica Burton:pts:12.5:over:hardrockbet",
           "player_name": "Veronica Burton",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +2.6%",
+          "position": "hardrockbet +110 \u00b7 EV +2.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -131,20 +209,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 12.5,
-                "p_over": 0.4883,
-                "edge_vs_market": 0.025508,
-                "kelly_fraction": 0.0058
+                "p_over": 0.4894,
+                "edge_vs_market": 0.027784,
+                "kelly_fraction": 0.0063
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
                 "offered_odds": 110,
-                "ev_pct": 2.551,
-                "fair_p_side": 0.4883,
-                "consensus_p_over": 0.4883,
+                "ev_pct": 2.778,
+                "fair_p_side": 0.4894,
+                "consensus_p_over": 0.4894,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4869,
+                "sharp_consensus_p_over": 0.4891,
                 "best_book": "hardrockbet",
                 "best_odds": 110
               }
