@@ -8,6 +8,8 @@ data/raw/
 data/cache/
 data/processed/
 data/recovery/
+data/recovered_v2/
+data/atomic_quotes/
 deliveries/
 
 artifacts/runs/

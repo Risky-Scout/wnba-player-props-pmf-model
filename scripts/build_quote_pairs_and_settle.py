@@ -154,7 +154,7 @@ def _readiness(atomic: pd.DataFrame, pairs: pd.DataFrame, settled: pd.DataFrame)
 @app.command()
 def main(
     store: str = typer.Option("data/atomic_quotes/atomic_quotes.parquet", "--store"),
-    box: str = typer.Option("data/processed/wnba_player_game_stats.parquet", "--box"),
+    box: str = typer.Option("data/recovered_v2/wnba_player_game_stats.parquet", "--box"),
     evmap: str = typer.Option("artifacts/audits/EVENT_ID_MAPPING_AUDIT.csv", "--evmap"),
 ) -> None:
     AUD.mkdir(parents=True, exist_ok=True)

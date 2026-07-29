@@ -27,7 +27,7 @@ HISTORICAL_MARKET_MULTIPLIER = 10   # historical event-odds cost = 10 x markets 
 
 @app.command()
 def main(
-    games: str = typer.Option("data/processed/wnba_games.parquet", "--games"),
+    games: str = typer.Option("data/recovered_v2/wnba_games.parquet", "--games"),
     start_date: str = typer.Option("2023-05-03", "--start-date"),
     coverage_start: str = typer.Option(
         "2023-05-23", "--coverage-start",

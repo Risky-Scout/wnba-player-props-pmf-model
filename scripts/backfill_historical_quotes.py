@@ -138,8 +138,8 @@ def _parse_event_odds(odds: dict, *, requested_snap: str, role: str, decision_cu
 
 @app.command()
 def main(
-    games: str = typer.Option("data/processed/wnba_games.parquet", "--games"),
-    roster: str = typer.Option("data/processed/wnba_player_game_stats.parquet", "--roster"),
+    games: str = typer.Option("data/recovered_v2/wnba_games.parquet", "--games"),
+    roster: str = typer.Option("data/recovered_v2/wnba_player_game_stats.parquet", "--roster"),
     start_date: str = typer.Option("2023-05-03", "--start-date"),
     end_date: str = typer.Option("2026-12-31", "--end-date"),
     store: str = typer.Option("data/atomic_quotes/atomic_quotes.parquet", "--store"),
