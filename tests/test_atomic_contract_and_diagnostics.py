@@ -17,12 +17,16 @@ from wnba_props_model.data.atomic_quotes import (
     counterpart_rejection_audit,
     to_raw_side_snapshots,
 )
+from wnba_props_model.data import atomic_backfill as ab
 from wnba_props_model.data.quote_pairs import EXACT_PAIR, build_quote_pairs
+from datetime import datetime, timezone
 
-_SPEC = importlib.util.spec_from_file_location(
-    "backfill_hist", Path(__file__).resolve().parent.parent / "scripts" / "backfill_historical_quotes.py")
-backfill = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(backfill)
+
+def _parse(payload, *, gid, roster, role="decision", requested="2024-08-20T11:00:00Z",
+           tip="2024-08-20T23:00:00Z"):
+    return ab.parse_event_odds(payload, role=role, tip=ab.parse_tip(tip), event_id="e1", gid=gid,
+                               roster_df=roster, collection_ts="2024-08-20T12:00:00Z",
+                               requested_snapshot_utc=requested)
 
 
 def _odds_payload(mkt_last="2024-08-20T10:55:00Z"):
@@ -43,11 +47,7 @@ def _odds_payload(mkt_last="2024-08-20T10:55:00Z"):
 
 def test_collector_row_enters_pair_builder_without_manual_renaming():
     roster = pd.DataFrame([{"game_id": "g1", "player_id": 1, "player_name": "A Player"}])
-    rows = backfill._parse_event_odds(
-        _odds_payload(), requested_snap="2024-08-20T11:00:00Z", role="decision",
-        decision_cut="2024-08-20T11:00:00Z", closing_cut="2024-08-20T22:55:00Z",
-        tip_iso="2024-08-20T23:00:00Z", event_id="e1", gid="g1", roster_df=roster,
-        collection_ts="2024-08-20T12:00:00Z")
+    rows = _parse(_odds_payload(), gid="g1", roster=roster)
     atomic = pd.DataFrame(rows)
     # both sides inherit the SAME market object's market_last_update
     assert set(atomic["market_last_update_utc"]) == {"2024-08-20T10:55:00Z"}
@@ -60,15 +60,12 @@ def test_collector_row_enters_pair_builder_without_manual_renaming():
 
 def test_missing_market_timestamp_is_blocked_not_fabricated():
     roster = pd.DataFrame([{"game_id": "g1", "player_id": 1, "player_name": "A Player"}])
-    rows = backfill._parse_event_odds(
-        _odds_payload(mkt_last=None), requested_snap="2024-08-20T11:00:00Z", role="decision",
-        decision_cut="2024-08-20T11:00:00Z", closing_cut="2024-08-20T22:55:00Z",
-        tip_iso="2024-08-20T23:00:00Z", event_id="e1", gid="g1", roster_df=roster,
-        collection_ts="2024-08-20T12:00:00Z")
+    rows = _parse(_odds_payload(mkt_last=None), gid="g1", roster=roster)
     atomic = pd.DataFrame(rows)
-    assert (atomic["quote_timestamp_source"] == "BLOCKED_NO_MARKET_TIMESTAMP").all()
+    assert (atomic["quote_timestamp_source"] == "BLOCKED_MISSING_MARKET_TIMESTAMP").all()
     assert atomic["quote_timestamp_utc"].isna().all()
-    assert (atomic["exact_quote_status"] == "BLOCKED_EXACT_QUOTES").all()
+    assert (atomic["eligibility_status"] == "BLOCKED").all()
+    assert (atomic["blocking_reason"] == "MISSING_MARKET_TIMESTAMP").all()
     # blocked rows never reach pairing
     assert len(to_raw_side_snapshots(atomic)) == 0
 

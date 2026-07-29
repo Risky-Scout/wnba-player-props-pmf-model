@@ -224,3 +224,143 @@ def save_state(path: Path, state: dict) -> None:
 
 def state_key(event_id: str, role: str) -> str:
     return f"{event_id}::{role}"
+
+
+# ---- durable per-event/snapshot processing (testable) -----------------------------
+def raw_odds_path(raw_dir: Path, event_id: str, role: str) -> Path:
+    return Path(raw_dir) / f"{event_id}_{role}.json"
+
+
+def sha256_file(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for c in iter(lambda: f.read(1 << 20), b""):
+            h.update(c)
+    return h.hexdigest()
+
+
+def save_json_atomic(obj, path: Path) -> str:
+    """Write JSON via temp file + fsync + atomic rename; return the file's sha256."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp.json")
+    with os.fdopen(fd, "w") as fh:
+        json.dump(obj, fh)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+    return sha256_file(path)
+
+
+def process_snapshot(
+    client,
+    *,
+    event_id: str,
+    role: str,
+    tip: datetime,
+    gid,
+    season,
+    game_date: str,
+    roster_df: pd.DataFrame,
+    raw_dir: Path,
+    part_dir: Path,
+    state: dict,
+    state_path: Path,
+    collection_ts: str,
+    fault_after: str | None = None,
+) -> dict:
+    """Durably process one event/snapshot with the mandated ordering (raw->close/fsync->
+    normalize->partition->validate->checkpoint). Idempotent + resumable: COMPLETE/NO_DATA/
+    HTTP_404 are skipped with no API call; a valid RAW_SAVED cache is reused (no API call).
+
+    ``fault_after`` (tests only) raises RuntimeError immediately after the named step
+    ('raw_save' | 'normalize') to simulate interruption.
+    Returns a result dict {status, from_cache, n_rows, api_call, raw_sha, error}.
+    """
+    key = state_key(event_id, role)
+    cur = state.get(key)
+    res = {"event_id": event_id, "role": role, "status": cur or NOT_STARTED,
+           "from_cache": False, "n_rows": 0, "api_call": False, "raw_sha": None, "error": None}
+    if cur in (COMPLETE, NO_DATA, HTTP_404):
+        res["status"] = cur
+        res["skipped"] = True
+        return res
+
+    raw_path = raw_odds_path(raw_dir, event_id, role)
+    requested_snap = cutoffs_for(tip)[1] if role == "closing" else cutoffs_for(tip)[0]
+    payload = None
+
+    # Reuse a valid cached raw response (no API spend).
+    if raw_path.exists() and cur in (RAW_SAVED, NORMALIZED, VALIDATED):
+        try:
+            payload = json.loads(raw_path.read_text())
+            res["from_cache"] = True
+            res["raw_sha"] = sha256_file(raw_path)
+        except Exception:  # noqa: BLE001
+            payload = None
+    if payload is None and raw_path.exists():
+        try:
+            payload = json.loads(raw_path.read_text())
+            res["from_cache"] = True
+            res["raw_sha"] = sha256_file(raw_path)
+        except Exception:  # noqa: BLE001
+            payload = None
+
+    if payload is None:
+        # Fetch (may raise OddsAPIError: budget -> propagate; 404 -> tombstone).
+        from wnba_props_model.constants import MODEL_PROP_MARKET_KEYS
+        try:
+            payload = client.get_historical_event_odds(event_id, requested_snap,
+                                                       markets=list(MODEL_PROP_MARKET_KEYS))
+            res["api_call"] = True
+        except Exception as exc:  # noqa: BLE001
+            msg = str(exc)
+            if "budget reached" in msg:
+                raise
+            if "404" in msg:
+                state[key] = HTTP_404
+                save_state(state_path, state)
+                res["status"] = HTTP_404
+                res["error"] = msg[:200]
+                return res
+            res["error"] = f"{type(exc).__name__}: {msg}"[:200]
+            return res
+        res["raw_sha"] = save_json_atomic(payload, raw_path)   # 1-2. raw save + fsync + rename
+        state[key] = RAW_SAVED
+        save_state(state_path, state)                          # durable checkpoint
+        if fault_after == "raw_save":
+            raise RuntimeError("fault_after=raw_save")
+
+    # 3. normalize
+    rows = parse_event_odds(payload, role=role, tip=tip, event_id=event_id, gid=gid,
+                            roster_df=roster_df, collection_ts=collection_ts,
+                            requested_snapshot_utc=requested_snap)
+    res["n_rows"] = len(rows)
+    if not rows:
+        state[key] = NO_DATA
+        save_state(state_path, state)
+        res["status"] = NO_DATA
+        return res
+    if fault_after == "normalize":
+        raise RuntimeError("fault_after=normalize")
+
+    # 4. write partition (temp + atomic rename)
+    path = side_partition_path(part_dir, season, game_date, event_id, role)
+    write_rows_atomic(rows, path)
+    state[key] = NORMALIZED
+    save_state(state_path, state)
+
+    # 5. validate timing on eligible rows
+    timing = validate_timing(pd.DataFrame(rows))
+    if not timing["ok"]:
+        state[key] = BLOCKED
+        save_state(state_path, state)
+        res["status"] = BLOCKED
+        res["error"] = f"timing_invariant_failed: {timing}"
+        return res
+
+    # 6. checkpoint COMPLETE
+    state[key] = COMPLETE
+    save_state(state_path, state)
+    res["status"] = COMPLETE
+    return res

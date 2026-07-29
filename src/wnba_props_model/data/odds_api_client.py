@@ -212,6 +212,10 @@ class OddsAPIClient:
 
                 if resp.status_code == 401:
                     raise OddsAPIError(f"ODDS_API_KEY invalid or expired (HTTP 401): {path}")
+                if resp.status_code == 404:
+                    # Deterministic historical 404 (snapshot at/after tip, or no data). Do NOT
+                    # retry — surface immediately so the caller writes a durable tombstone.
+                    raise OddsAPIError(f"HTTP 404 (deterministic, no retry): {path}")
                 if resp.status_code == 422:
                     raise OddsAPIError(f"Bad request params (HTTP 422): {path} — {resp.text[:200]}")
                 if resp.status_code == 429:
