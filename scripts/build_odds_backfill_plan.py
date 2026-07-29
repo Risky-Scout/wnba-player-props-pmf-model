@@ -29,14 +29,24 @@ HISTORICAL_MARKET_MULTIPLIER = 10   # historical event-odds cost = 10 x markets 
 def main(
     games: str = typer.Option("data/processed/wnba_games.parquet", "--games"),
     start_date: str = typer.Option("2023-05-03", "--start-date"),
+    coverage_start: str = typer.Option(
+        "2023-05-23", "--coverage-start",
+        help="first date with historical player-prop coverage; earlier games are excluded"),
     regions: str = typer.Option("us", "--regions"),
     snapshots_per_event: int = typer.Option(2, "--snapshots", help="decision + closing"),
+    no_quota_probe: bool = typer.Option(False, "--no-quota-probe",
+                                        help="do NOT call the API; read last quota from the request audit"),
 ) -> None:
     AUD.mkdir(parents=True, exist_ok=True)
     g = pd.read_parquet(games)
     g["game_date"] = pd.to_datetime(g["game_date"])
     start = pd.Timestamp(start_date, tz=g["game_date"].dt.tz) if g["game_date"].dt.tz else pd.Timestamp(start_date)
-    final = g[(g.get("status_normalized") == "final") & (g["game_date"] >= start)].copy()
+    cov = pd.Timestamp(coverage_start, tz=g["game_date"].dt.tz) if g["game_date"].dt.tz else pd.Timestamp(coverage_start)
+    all_final = g[(g.get("status_normalized") == "final") & (g["game_date"] >= start)].copy()
+    n_games_all = int(len(all_final))
+    n_excluded_pre_coverage = int((all_final["game_date"] < cov).sum())
+    # eligible = completed games ON/AFTER player-prop coverage begins
+    final = all_final[all_final["game_date"] >= cov].copy()
     n_games = int(len(final))
     unique_dates = int(final["game_date"].dt.date.nunique())
 
@@ -54,25 +64,49 @@ def main(
     expected_event_odds_credits = int(n_games * expected_per_event * 0.85)  # 0.85 = props-coverage factor
     discovery_requests = unique_dates   # one historical-events snapshot per game date
 
-    # live quota probe (one cheap historical-events call)
-    quota = {"x_requests_remaining": None, "x_requests_used": None, "x_requests_last": None, "probe_ok": False}
-    try:
-        c = OddsAPIClient(region=region_list[0])
-        c.list_historical_events(f"{start_date}T12:00:00Z",
-                                 commence_time_from=f"{start_date}T00:00:00Z",
-                                 commence_time_to=f"{start_date}T23:59:59Z")
-        quota = {"x_requests_remaining": c.quota_remaining, "x_requests_used": c.quota_used,
-                 "x_requests_last": c.quota_last, "probe_ok": True}
-    except Exception as exc:  # noqa: BLE001
-        quota["error"] = str(exc)[:200]
+    # quota: either the last observed value from the request audit (no API call) or a live probe.
+    quota = {"x_requests_remaining": None, "x_requests_used": None, "x_requests_last": None,
+             "source": None}
+    audit_path = AUD / "ODDS_API_REQUEST_AUDIT.jsonl"
+    if no_quota_probe:
+        if audit_path.exists():
+            lines = [json.loads(x) for x in audit_path.read_text().splitlines() if x.strip()]
+            if lines:
+                last = lines[-1]
+                quota = {"x_requests_remaining": last.get("x_requests_remaining"),
+                         "x_requests_used": last.get("x_requests_used"),
+                         "x_requests_last": last.get("x_requests_last"),
+                         "source": "request_audit_last_line (no API call)"}
+    else:
+        try:
+            c = OddsAPIClient(region=region_list[0])
+            c.list_historical_events(f"{start_date}T12:00:00Z",
+                                     commence_time_from=f"{start_date}T00:00:00Z",
+                                     commence_time_to=f"{start_date}T23:59:59Z")
+            quota = {"x_requests_remaining": c.quota_remaining, "x_requests_used": c.quota_used,
+                     "x_requests_last": c.quota_last, "source": "live_probe"}
+        except Exception as exc:  # noqa: BLE001
+            quota["error"] = str(exc)[:200]
 
     import os
-    budget = os.environ.get("ODDS_API_MAX_CREDITS")
-    budget = int(budget) if budget else None
+    env_budget = os.environ.get("ODDS_API_MAX_CREDITS")
+    # Hard budget: env override, else the backfill's fail-closed default (300k > 251,760 UB).
+    budget = int(env_budget) if env_budget else 300000
+    budget_source = "ODDS_API_MAX_CREDITS env" if env_budget else "default (backfill --max-credits)"
 
     plan = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "game_date_range": {"start": start_date, "end": str(final["game_date"].max().date()) if n_games else None},
+        "AUTHORIZATION": "NOT_APPROVED — awaiting user 'APPROVE BACKFILL'",
+        "requested_start_date": start_date,
+        "player_prop_coverage_start": coverage_start,
+        "player_prop_coverage_note": (
+            "Empirically, decision-snapshot (tip-12h) player-prop coverage begins ~2023-05-23; "
+            f"{n_excluded_pre_coverage} completed games between {start_date} and {coverage_start} "
+            "are EXCLUDED (no historical player-prop coverage)."),
+        "game_date_range": {"first": coverage_start,
+                            "last": str(final["game_date"].max().date()) if n_games else None},
+        "n_completed_games_from_requested_start": n_games_all,
+        "n_excluded_pre_coverage": n_excluded_pre_coverage,
         "n_bdl_games_final": n_games,
         "n_unique_game_dates": unique_dates,
         "expected_matched_odds_events": n_games,  # 1 Odds event per BDL game (upper bound; unmatched blocked)
@@ -90,10 +124,12 @@ def main(
         "note_empty_markets": "Empty market responses consume no event-odds market credits; "
                               "stl/blk/tov have no US book coverage so contribute ~0.",
         "configured_max_credit_budget": budget,
-        "live_quota": quota,
-        "budget_ok": (budget is None or upper_bound_event_odds_credits <= budget),
-        "quota_ok": (quota.get("x_requests_remaining") is None
-                     or upper_bound_event_odds_credits <= quota["x_requests_remaining"]),
+        "configured_max_credit_budget_source": budget_source,
+        "available_credits_before_execution": quota.get("x_requests_remaining"),
+        "quota": quota,
+        "budget_covers_upper_bound": (budget is None or upper_bound_event_odds_credits <= budget),
+        "quota_covers_upper_bound": (quota.get("x_requests_remaining") is None
+                                     or upper_bound_event_odds_credits <= quota["x_requests_remaining"]),
         "resume_cache_policy": {
             "raw_response_cache": "data/atomic_quotes/raw_odds/<event_id>_<snapshot>.json",
             "idempotent_store": "append-only by quote_id (data/atomic_quotes/atomic_quotes.parquet)",
@@ -103,15 +139,17 @@ def main(
     }
     (AUD / "ODDS_API_BACKFILL_PLAN.json").write_text(json.dumps(plan, indent=2, default=str))
 
-    typer.echo("================ ODDS API BACKFILL PLAN ================")
-    typer.echo(f"  games (final, >= {start_date}) : {n_games}  over {unique_dates} dates")
+    typer.echo("================ ODDS API BACKFILL PLAN (NOT APPROVED) ================")
+    typer.echo(f"  completed games >= {start_date} : {n_games_all}  (excluded pre-coverage: {n_excluded_pre_coverage})")
+    typer.echo(f"  ELIGIBLE games (>= {coverage_start}) : {n_games}  over {unique_dates} dates")
     typer.echo(f"  markets                        : {n_markets}  regions: {n_regions}  snapshots/event: {snapshots_per_event}")
     typer.echo(f"  discovery requests             : {discovery_requests}")
     typer.echo(f"  UPPER-BOUND event-odds credits : {upper_bound_event_odds_credits:,}")
     typer.echo(f"  EXPECTED event-odds credits    : {expected_event_odds_credits:,}")
-    typer.echo(f"  configured budget              : {budget}")
-    typer.echo(f"  live quota remaining           : {quota.get('x_requests_remaining')}")
-    typer.echo(f"  budget_ok={plan['budget_ok']}  quota_ok={plan['quota_ok']}")
+    typer.echo(f"  configured HARD budget         : {budget:,}  ({budget_source})")
+    typer.echo(f"  available credits (before exec): {quota.get('x_requests_remaining')}  [{quota.get('source')}]")
+    typer.echo(f"  budget_covers_UB={plan['budget_covers_upper_bound']}  quota_covers_UB={plan['quota_covers_upper_bound']}")
+    typer.echo("  AUTHORIZATION: NOT APPROVED — awaiting user 'APPROVE BACKFILL'")
     typer.echo(f"  wrote {AUD}/ODDS_API_BACKFILL_PLAN.json")
 
 
