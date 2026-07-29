@@ -24,7 +24,12 @@ import pandas as pd
 import typer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from wnba_props_model.constants import ODDS_API_MODEL_MARKET_KEYS, ODDS_API_MODEL_MARKETS  # noqa: E402
+from wnba_props_model.constants import (  # noqa: E402
+    MODEL_PROP_MARKET_KEYS as ODDS_API_MODEL_MARKET_KEYS,
+)
+from wnba_props_model.constants import (  # noqa: E402
+    MODEL_PROP_MARKETS as ODDS_API_MODEL_MARKETS,
+)
 from wnba_props_model.data.atomic_quotes import (  # noqa: E402
     ATOMIC_QUOTE_COLUMNS,
     BLOCKED_EXACT_QUOTES,
@@ -146,7 +151,8 @@ def main(
 ) -> None:
     AUD.mkdir(parents=True, exist_ok=True)
     request_audit = str(AUD / "ODDS_API_REQUEST_AUDIT.jsonl")
-    client = OddsAPIClient(region="us", max_credits=max_credits, request_audit_path=request_audit)
+    client = OddsAPIClient(region="us", max_credits=max_credits, request_audit_path=request_audit,
+                           enforce_model_markets=True)
 
     g = pd.read_parquet(games)
     g["game_date"] = pd.to_datetime(g["game_date"])

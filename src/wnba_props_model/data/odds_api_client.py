@@ -110,6 +110,28 @@ class OddsAPIError(RuntimeError):
     pass
 
 
+def assert_model_market_request(sport_key, region, odds_format, date_format, markets) -> None:
+    """Fail-closed runtime guard executed immediately before every model event-odds request.
+    Enforces the frozen scope: basketball_wnba / us / american / iso / EXACTLY the 12
+    MODEL_PROP_MARKETS (see constants). Never rely on the 20-market CORE_PROP_MARKETS default.
+    """
+    from wnba_props_model.constants import MODEL_PROP_MARKET_KEYS
+    reqs = tuple(markets)
+    if sport_key != "basketball_wnba":
+        raise OddsAPIError(f"sport key must be basketball_wnba, got {sport_key!r}")
+    if region != "us":
+        raise OddsAPIError(f"regions must be 'us', got {region!r}")
+    if odds_format != "american":
+        raise OddsAPIError(f"oddsFormat must be 'american', got {odds_format!r}")
+    if date_format != "iso":
+        raise OddsAPIError(f"dateFormat must be 'iso', got {date_format!r}")
+    if len(MODEL_PROP_MARKET_KEYS) != 12:
+        raise OddsAPIError("MODEL_PROP_MARKETS must contain exactly 12 keys")
+    if tuple(reqs) != tuple(MODEL_PROP_MARKET_KEYS):
+        raise OddsAPIError(
+            f"requested market set must be EXACTLY the 12 MODEL_PROP_MARKETS; got {list(reqs)}")
+
+
 class OddsAPIClient:
     """The Odds API v4 client with quota tracking and deep link support.
 
@@ -134,6 +156,7 @@ class OddsAPIClient:
         timeout: int = 30,
         max_credits: int | None = None,
         request_audit_path: str | None = None,
+        enforce_model_markets: bool = False,
     ) -> None:
         self.api_key = api_key or os.environ.get("ODDS_API_KEY", "")
         if not self.api_key:
@@ -154,6 +177,9 @@ class OddsAPIClient:
         )
         self._credits_spent_session = 0
         self._request_audit_path = request_audit_path
+        # When True, every historical event-odds request is guarded by
+        # assert_model_market_request (exact 12-market scope). The backfill sets this.
+        self.enforce_model_markets = enforce_model_markets
         self._session = requests.Session()
 
     # -----------------------------------------------------------------------
@@ -439,6 +465,8 @@ class OddsAPIClient:
             "oddsFormat": self.odds_format,
             "dateFormat": "iso",
         }
+        if self.enforce_model_markets:
+            assert_model_market_request(SPORT_KEY, self.region, self.odds_format, "iso", mkts)
         return self._get(
             f"/v4/historical/sports/{SPORT_KEY}/events/{event_id}/odds",
             params,

@@ -33,7 +33,7 @@ def test_sport_key_is_basketball_wnba():
 def test_exact_official_market_keys():
     assert ODDS_API_MODEL_MARKET_KEYS == (
         "player_points", "player_rebounds", "player_assists", "player_threes",
-        "player_blocks", "player_steals", "player_turnovers", "player_blocks_steals",
+        "player_steals", "player_blocks", "player_turnovers", "player_blocks_steals",
         "player_points_assists", "player_points_rebounds", "player_rebounds_assists",
         "player_points_rebounds_assists",
     )
@@ -52,6 +52,40 @@ def test_markets_sent_comma_separated_in_one_request(monkeypatch):
     assert "," in captured["params"]["markets"]           # single comma-separated request
     assert "basketball_wnba" in captured["path"]
     assert "basketball_nba" not in captured["path"]
+
+
+def test_model_prop_markets_is_frozen_scope_of_12():
+    from wnba_props_model.constants import MODEL_PROP_MARKETS, MODEL_PROP_MARKET_KEYS
+    assert len(MODEL_PROP_MARKETS) == 12
+    assert MODEL_PROP_MARKET_KEYS == ODDS_API_MODEL_MARKET_KEYS
+    forbidden = {"player_field_goals", "player_frees_made", "player_frees_attempts",
+                 "player_points_q1", "player_double_double", "player_triple_double",
+                 "player_fantasy_points", "player_points_alternate"}
+    assert forbidden.isdisjoint(set(MODEL_PROP_MARKETS))
+
+
+def test_runtime_assertion_rejects_wrong_scope():
+    from wnba_props_model.data.odds_api_client import assert_model_market_request
+    from wnba_props_model.constants import MODEL_PROP_MARKET_KEYS
+    assert_model_market_request("basketball_wnba", "us", "american", "iso", list(MODEL_PROP_MARKET_KEYS))
+    for bad in [
+        ("basketball_nba", "us", "american", "iso", list(MODEL_PROP_MARKET_KEYS)),
+        ("basketball_wnba", "us2", "american", "iso", list(MODEL_PROP_MARKET_KEYS)),
+        ("basketball_wnba", "us", "decimal", "iso", list(MODEL_PROP_MARKET_KEYS)),
+        ("basketball_wnba", "us", "american", "iso", ["player_points"]),
+        ("basketball_wnba", "us", "american", "iso", list(MODEL_PROP_MARKET_KEYS) + ["player_field_goals"]),
+    ]:
+        with pytest.raises(OddsAPIError):
+            assert_model_market_request(*bad)
+
+
+def test_enforce_flag_blocks_non_model_markets(monkeypatch):
+    c = OddsAPIClient(api_key="x", enforce_model_markets=True)
+    monkeypatch.setattr(c, "_get", lambda path, params=None: {})
+    with pytest.raises(OddsAPIError):
+        c.get_historical_event_odds("e1", "2024-08-20T22:00:00Z", markets=["player_field_goals"])
+    # exact 12 passes the guard
+    c.get_historical_event_odds("e1", "2024-08-20T22:00:00Z", markets=list(ODDS_API_MODEL_MARKET_KEYS))
 
 
 def test_region_is_us_by_default(monkeypatch):

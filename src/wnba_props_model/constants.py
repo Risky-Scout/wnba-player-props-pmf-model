@@ -67,13 +67,17 @@ BDL_PROP_TO_STAT = PROP_STAT_NAME_MAP
 # double, method-of-first-basket, fantasy, alternate lines, field goals, free throws) are
 # DELIBERATELY excluded: a valid API key is not a valid model target until the repo has a
 # corresponding target/PMF/settlement/OOF/publishing contract.
-ODDS_API_MODEL_MARKETS: dict[str, str] = {
+# MODEL_PROP_MARKETS is THE canonical Odds API market->stat scope (exactly 12 full-game
+# targets the model predicts). Every consumer (backfill, live collector, atomic normalizer,
+# settlement, readiness) MUST import this one constant. Do not add a market here without a
+# corresponding target + PMF + settlement + OOF + publishing contract.
+MODEL_PROP_MARKETS: dict[str, str] = {
     "player_points": "pts",
     "player_rebounds": "reb",
     "player_assists": "ast",
     "player_threes": "fg3m",
-    "player_blocks": "blk",
     "player_steals": "stl",
+    "player_blocks": "blk",
     "player_turnovers": "turnover",
     "player_blocks_steals": "stocks",
     "player_points_assists": "pts_ast",
@@ -81,9 +85,14 @@ ODDS_API_MODEL_MARKETS: dict[str, str] = {
     "player_rebounds_assists": "reb_ast",
     "player_points_rebounds_assists": "pts_reb_ast",
 }
+assert len(MODEL_PROP_MARKETS) == 12, "MODEL_PROP_MARKETS must contain exactly 12 keys"
 
 # Ordered list of the exact market keys to send in one comma-separated request per event.
-ODDS_API_MODEL_MARKET_KEYS: tuple[str, ...] = tuple(ODDS_API_MODEL_MARKETS.keys())
+MODEL_PROP_MARKET_KEYS: tuple[str, ...] = tuple(MODEL_PROP_MARKETS.keys())
+
+# Backwards-compatible aliases (older code referenced these names).
+ODDS_API_MODEL_MARKETS = MODEL_PROP_MARKETS
+ODDS_API_MODEL_MARKET_KEYS = MODEL_PROP_MARKET_KEYS
 
 # BDL raw column name → internal stat key (used in flatten_player_stat_row)
 STAT_TO_BDL_COL = {
