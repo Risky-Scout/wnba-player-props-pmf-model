@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import numpy as np
 import typer
 
 from wnba_props_model.models import prop_feature_policies_v1 as pol

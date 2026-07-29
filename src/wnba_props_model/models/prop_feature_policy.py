@@ -30,8 +30,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Literal
 
 FeatureMode = Literal[
     "explicit",
@@ -83,7 +84,7 @@ class PropFeaturePolicy:
     @staticmethod
     def _assert_no_market(columns: Sequence[str]) -> None:
         # Local import to avoid a hard dependency cycle at module import time.
-        from wnba_props_model.features.feature_provenance import classify, Provenance
+        from wnba_props_model.features.feature_provenance import Provenance, classify
         bad = sorted(
             c for c in columns
             if classify(c) in (
@@ -147,7 +148,7 @@ class PropFeaturePolicy:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "PropFeaturePolicy":
+    def from_dict(cls, d: dict) -> PropFeaturePolicy:
         return cls(
             stat=d["stat"],
             mode=d["mode"],
@@ -179,7 +180,7 @@ class FittedFeatureSpec:
         ordered_feature_names: Sequence[str],
         training_cutoff: str | None = None,
         training_row_hash: str | None = None,
-    ) -> "FittedFeatureSpec":
+    ) -> FittedFeatureSpec:
         cols = tuple(ordered_feature_names)
         return cls(
             feature_set_id=policy.feature_set_id,
@@ -215,7 +216,7 @@ class FittedFeatureSpec:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "FittedFeatureSpec":
+    def from_dict(cls, d: dict) -> FittedFeatureSpec:
         return cls(
             feature_set_id=d["feature_set_id"],
             ordered_feature_names=tuple(d["ordered_feature_names"]),
