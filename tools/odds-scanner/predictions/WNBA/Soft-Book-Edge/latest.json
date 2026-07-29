@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-29T03:16:35.322955+00:00",
+  "generated_at": "2026-07-29T19:13:13.371805+00:00",
   "game_date": "2026-07-29",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-07-29",
-    "generated_utc": "2026-07-29T03:16:35.322955+00:00",
+    "generated_utc": "2026-07-29T19:13:13.371805+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1163,
-    "n_scored_rows": 1032,
-    "n_qualifying": 1,
+    "n_quote_rows": 1185,
+    "n_scored_rows": 1056,
+    "n_qualifying": 3,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,10 +59,10 @@
       },
       "players": [
         {
-          "player_id": "44c05d0bdf345dc1b2a2eef1bff78ce3:Gabby Williams:pts:14.5:over:betparx",
-          "player_name": "Gabby Williams",
+          "player_id": "44c05d0bdf345dc1b2a2eef1bff78ce3:Kahleah Copper:ast:2.5:over:fliff",
+          "player_name": "Kahleah Copper",
           "team_name": "",
-          "position": "betparx +107 \u00b7 EV +3.5%",
+          "position": "fliff +130 \u00b7 EV +3.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -70,29 +70,107 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "points": {
-              "mean": 14.5,
-              "median": 14.5,
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 14.5,
-                "p_over": 0.5,
-                "edge_vs_market": 0.035,
-                "kelly_fraction": 0.0082
+                "market_line": 2.5,
+                "p_over": 0.448,
+                "edge_vs_market": 0.030363,
+                "kelly_fraction": 0.0058
               },
               "soft_book": {
-                "book": "betparx",
+                "book": "fliff",
                 "side": "over",
-                "offered_odds": 107,
-                "ev_pct": 3.5,
-                "fair_p_side": 0.5,
-                "consensus_p_over": 0.5,
-                "consensus_n_books": 7,
+                "offered_odds": 130,
+                "ev_pct": 3.036,
+                "fair_p_side": 0.448,
+                "consensus_p_over": 0.448,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5033,
-                "best_book": "betparx",
-                "best_odds": 107
+                "sharp_consensus_p_over": null,
+                "best_book": "fliff",
+                "best_odds": 130
+              }
+            }
+          }
+        },
+        {
+          "player_id": "44c05d0bdf345dc1b2a2eef1bff78ce3:Monique Akoa Makani:ast:2.5:under:hardrockbet",
+          "player_name": "Monique Akoa Makani",
+          "team_name": "",
+          "position": "hardrockbet +100 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.487,
+                "edge_vs_market": -0.02598,
+                "kelly_fraction": 0.0065
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 100,
+                "ev_pct": 2.598,
+                "fair_p_side": 0.513,
+                "consensus_p_over": 0.487,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4869,
+                "best_book": "hardrockbet",
+                "best_odds": 100
+              }
+            }
+          }
+        },
+        {
+          "player_id": "44c05d0bdf345dc1b2a2eef1bff78ce3:Kahleah Copper:ast:2.5:over:draftkings",
+          "player_name": "Kahleah Copper",
+          "team_name": "",
+          "position": "draftkings +129 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.448,
+                "edge_vs_market": 0.025884,
+                "kelly_fraction": 0.005
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "over",
+                "offered_odds": 129,
+                "ev_pct": 2.588,
+                "fair_p_side": 0.448,
+                "consensus_p_over": 0.448,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "fliff",
+                "best_odds": 130
               }
             }
           }
