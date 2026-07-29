@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from wnba_props_model.features.feature_provenance import Provenance, classify
 from wnba_props_model.opportunity.pmf_builders import (
     poisson_or_nbinom_pmf,
     settled_over_probability,
@@ -91,10 +92,44 @@ _FORWARD_ONLY_PATTERNS = [
     r"player_injured_l1",
 ]
 # Market-derived: excluded so the study isolates NON-market signal.
+#
+# NOTE (contract fix): this regex historically FAILED to catch the current-game Vegas
+# columns ``game_total``, ``game_spread_home`` and ``implied_team_total`` (as well as
+# ``blowout_risk`` / ``predicted_spread_abs`` / ``close_game_indicator``), so those market
+# features leaked into the study that was reported as *pure / market-excluded*. Market and
+# internal-game-context exclusion is now driven by the explicit, enumerated provenance
+# labels in ``feature_provenance`` (see ``_provenance_excluded``); this regex is kept only
+# as a coarse belt-and-suspenders backstop.
 _MARKET_PATTERNS = [
     r"player_market_.*", r"player_line_movement_prev", r"pregame_win_probability",
     r"blowout_probability", r"close_game_probability",
+    r"^game_total$", r"^game_spread_home$", r"^implied_team_total$",
+    r"^blowout_risk$", r"^predicted_spread_abs$", r"^close_game_indicator$",
 ]
+
+# Which provenance labels are EXCLUDED under each study contract. A PURE_COMPACT study
+# admits only strictly-lagged non-market signal + fixed identity/pregame facts; the
+# GAME_CONTEXT_STACKED study additionally admits internal-game-model context and the
+# current-game Vegas total/spread (and is NEVER described as pure).
+_CONTRACT_EXCLUDED_PROVENANCE = {
+    "pure_compact": frozenset({
+        Provenance.EXTERNAL_MARKET_CURRENT_GAME, Provenance.EXTERNAL_MARKET_LAGGED,
+        Provenance.INTERNAL_GAME_MODEL, Provenance.FORWARD_PREGAME_CONTEXT,
+        Provenance.TARGET_GAME_OUTCOME,
+    }),
+    "game_context_stacked": frozenset({
+        Provenance.EXTERNAL_MARKET_LAGGED, Provenance.FORWARD_PREGAME_CONTEXT,
+        Provenance.TARGET_GAME_OUTCOME,
+    }),
+    "market_anchored": frozenset({
+        Provenance.FORWARD_PREGAME_CONTEXT, Provenance.TARGET_GAME_OUTCOME,
+    }),
+}
+
+
+def _provenance_excluded(name: str, contract: str) -> bool:
+    return classify(name) in _CONTRACT_EXCLUDED_PROVENANCE.get(
+        contract, _CONTRACT_EXCLUDED_PROVENANCE["pure_compact"])
 
 # Ordered (regex -> group); first match wins.  Applied to WIDE numeric feature cols.
 _GROUP_RULES = [
@@ -145,6 +180,11 @@ class AblationConfig:
     hgb_max_leaf_nodes: int = 15
     hgb_min_samples_leaf: int = 20
     consensus_frac: float = 0.5
+    # Information contract for candidate-column admission. "pure_compact" (default) excludes
+    # ALL market-derived + internal-game-model + forward context; "game_context_stacked" also
+    # admits the current-game Vegas total/spread and internal game context (never "pure");
+    # "market_anchored" admits everything except forward context and same-game outcomes.
+    study_contract: str = "pure_compact"
     # data paths
     quotes_path: str = "artifacts/market_feature_proof/G0_v2/PRIMARY_DETERMINISTIC_SCORED_ROWS.parquet"
     wide_path: str = "data/processed/wnba_player_game_features_wide.recovered_v2_20260725.parquet"
@@ -158,13 +198,24 @@ class AblationConfig:
         "INCLUDED_recovered_v2_license_restricted_wide_features")
 
 
-def _numeric_feature_columns(df: pd.DataFrame) -> list[str]:
+def _numeric_feature_columns(df: pd.DataFrame, contract: str = "pure_compact") -> list[str]:
+    """Numeric candidate columns for the study, with the ``contract``'s excluded provenance
+    labels removed. Under ``pure_compact`` (the default) this now correctly drops the
+    current-game Vegas columns (game_total / game_spread_home / implied_team_total ...)
+    that the legacy regex missed."""
     num = df.select_dtypes(include=[np.number]).columns.tolist()
     out = []
     for c in num:
         if c in _DROP_EXACT:
             continue
-        if _matches_any(c, _FORWARD_ONLY_PATTERNS) or _matches_any(c, _MARKET_PATTERNS):
+        # Forward context + same-game outcomes are excluded under every contract.
+        if _matches_any(c, _FORWARD_ONLY_PATTERNS):
+            continue
+        # The market regex is only a backstop for the PURE study; other contracts
+        # intentionally admit (some) market/game context, governed by provenance below.
+        if contract == "pure_compact" and _matches_any(c, _MARKET_PATTERNS):
+            continue
+        if _provenance_excluded(c, contract):
             continue
         out.append(c)
     return out
@@ -190,7 +241,27 @@ def assign_groups(columns: list[str], pbp_cols: list[str]) -> dict[str, list[str
 def audit_forward_only_and_market(wide_cols: list[str]) -> dict:
     fwd = sorted([c for c in wide_cols if _matches_any(c, _FORWARD_ONLY_PATTERNS)])
     mkt = sorted([c for c in wide_cols if _matches_any(c, _MARKET_PATTERNS)])
-    return {"forward_only_excluded": fwd, "market_derived_excluded": mkt}
+    # Explicit provenance breakdown (source of truth for the pure-vs-market contract).
+    current_game_market = sorted(
+        [c for c in wide_cols if classify(c) is Provenance.EXTERNAL_MARKET_CURRENT_GAME])
+    lagged_market = sorted(
+        [c for c in wide_cols if classify(c) is Provenance.EXTERNAL_MARKET_LAGGED])
+    internal_game_model = sorted(
+        [c for c in wide_cols if classify(c) is Provenance.INTERNAL_GAME_MODEL])
+    return {
+        "forward_only_excluded": fwd,
+        "market_derived_excluded": mkt,
+        "current_game_market_provenance": current_game_market,
+        "lagged_market_provenance": lagged_market,
+        "internal_game_model_provenance": internal_game_model,
+        # Columns the LEGACY regex would have admitted into a "pure" study but which are
+        # in fact current-game market features (the contract-contradiction being fixed).
+        "leaked_into_pure_by_legacy_regex": sorted(
+            [c for c in current_game_market if not _matches_any(c, [
+                r"player_market_.*", r"player_line_movement_prev",
+                r"pregame_win_probability", r"blowout_probability", r"close_game_probability",
+            ])]),
+    }
 
 
 def assemble_frame(prop: str, cfg: AblationConfig, *,
@@ -216,8 +287,8 @@ def assemble_frame(prop: str, cfg: AblationConfig, *,
     pbp_small = pbp_small.rename(columns=ren)
     pbp_feat_names = list(ren.values())
 
-    # wide numeric features
-    wide_feat_cols = _numeric_feature_columns(wide)
+    # wide numeric features (admission governed by the study's information contract)
+    wide_feat_cols = _numeric_feature_columns(wide, contract=cfg.study_contract)
     wide_small = wide[["game_id", "player_id"] + wide_feat_cols].drop_duplicates(["game_id", "player_id"])
 
     # target rows
@@ -270,7 +341,12 @@ def assemble_frame(prop: str, cfg: AblationConfig, *,
             "pbp_feature_names": pbp_feat_names,
             "oppdef_feature_names": sorted([c for c in oppdef_cols if c in all_feat]),
             "degenerate_dropped": sorted(degenerate),
-            "n_candidate_features": len(all_feat)}
+            "n_candidate_features": len(all_feat),
+            "study_contract": cfg.study_contract,
+            "provenance_audit": audit_forward_only_and_market(list(wide.columns)),
+            "candidate_provenance_counts": {
+                p.value: sum(1 for c in all_feat if classify(c) is p) for p in Provenance},
+            }
     return frame, groups, kind, meta
 
 
@@ -740,6 +816,10 @@ def run_prop(prop: str, cfg: AblationConfig, inputs: dict) -> dict:
     # ---- final metrics on common evaluation mask ----
     result = {
         "prop": prop, "kind": kind, "n_rows": n_rows, "n_dates": n_dates,
+        "study_contract": cfg.study_contract,
+        "is_pure_study": cfg.study_contract == "pure_compact",
+        "provenance_audit": meta.get("provenance_audit"),
+        "candidate_provenance_counts": meta.get("candidate_provenance_counts"),
         "sufficient_data": bool(sufficient),
         "min_data_note": None if sufficient else f"only {n_rows} rows / {n_dates} dates (<300/30)",
         "player_box_form_group": cfg.player_box_form_status,
