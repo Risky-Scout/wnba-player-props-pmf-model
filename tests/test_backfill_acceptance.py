@@ -78,22 +78,64 @@ def test_bdl_plays_is_non_paginated_no_undocumented_params():
     assert WNBA_ENDPOINTS["plays"].paginated is False
 
 
-# --- 7-8: timestamp provenance -----------------------------------------------------
-def test_adapter_uses_actual_quote_timestamp_not_requested():
-    atomic = pd.DataFrame([{
+# --- 7-8: timestamp provenance (canonical schema) ----------------------------------
+def _atomic_row(**kw):
+    base = {
         "source": "odds_api_v4_historical", "sportsbook": "draftkings", "event_id": "e1",
         "player_id": "p1", "prop": "pts", "line": 15.5, "side": "over", "american_odds": -110,
-        "requested_snapshot_time": "2024-08-20T11:00:00Z",       # what we requested
-        "provider_snapshot_time": "2024-08-20T10:57:00Z",        # snapshot the API returned
-        "market_last_update": "2024-08-20T10:55:12Z",            # the TRUE quote time
-        "snapshot_time": "2024-08-20T10:57:00Z",
-        "decision_cutoff_utc": "2024-08-20T11:00:00Z",
+        "snapshot_role": "decision",
+        "requested_snapshot_utc": "2024-08-20T11:00:00Z",     # what we requested
+        "provider_snapshot_utc": "2024-08-20T10:57:00Z",      # snapshot the API returned
+        "market_last_update_utc": "2024-08-20T10:55:12Z",     # the TRUE quote time
+        "quote_timestamp_utc": "2024-08-20T10:55:12Z",
+        "quote_timestamp_source": "market_last_update",
         "scheduled_tip_utc": "2024-08-20T23:00:00Z",
-    }])
-    raw = to_raw_side_snapshots(atomic)
-    assert raw.iloc[0]["snapshot_timestamp"] == "2024-08-20T10:55:12Z"   # market_last_update wins
+        "decision_cutoff_utc": "2024-08-20T11:00:00Z",
+        "closing_cutoff_utc": "2024-08-20T22:55:00Z",
+        "role_cutoff_utc": "2024-08-20T11:00:00Z",
+    }
+    base.update(kw)
+    return base
+
+
+def test_adapter_uses_actual_quote_timestamp_not_requested():
+    raw = to_raw_side_snapshots(pd.DataFrame([_atomic_row()]))
+    assert raw.iloc[0]["snapshot_timestamp"] == "2024-08-20T10:55:12Z"   # quote_timestamp_utc
     assert raw.iloc[0]["provider"] == "odds_api"
-    assert raw.iloc[0]["decision_timestamp_utc"] == "2024-08-20T11:00:00Z"
+    assert raw.iloc[0]["decision_timestamp_utc"] == "2024-08-20T11:00:00Z"   # decision role cutoff
+
+
+def test_adapter_closing_row_carries_closing_cutoff_not_decision_not_null():
+    row = _atomic_row(snapshot_role="closing", role_cutoff_utc="2024-08-20T22:55:00Z",
+                      market_last_update_utc="2024-08-20T22:54:30Z",
+                      quote_timestamp_utc="2024-08-20T22:54:30Z")
+    raw = to_raw_side_snapshots(pd.DataFrame([row]))
+    cut = raw.iloc[0]["decision_timestamp_utc"]
+    assert cut == "2024-08-20T22:55:00Z"          # closing cutoff (tip-5m), NOT decision, NOT null
+    assert cut is not None
+
+
+def test_adapter_blocks_row_with_no_market_timestamp():
+    row = _atomic_row(market_last_update_utc=None, quote_timestamp_utc=None,
+                      quote_timestamp_source="BLOCKED_NO_MARKET_TIMESTAMP")
+    raw = to_raw_side_snapshots(pd.DataFrame([row]))
+    assert len(raw) == 0          # dropped, never fabricated from the requested date
+
+
+def test_closing_quote_after_decision_cutoff_still_pairs_as_closing():
+    """A closing quote at tip-5m is AFTER the decision cutoff but must pair under the CLOSING
+    role cutoff without any timestamp mutation."""
+    tip = "2024-08-20T23:00:00Z"
+    rows = []
+    for side in ("over", "under"):
+        rows.append(_atomic_row(side=side, snapshot_role="closing",
+                                 role_cutoff_utc="2024-08-20T22:55:00Z",
+                                 market_last_update_utc="2024-08-20T22:54:00Z",
+                                 quote_timestamp_utc="2024-08-20T22:54:00Z",
+                                 scheduled_tip_utc=tip))
+    raw = to_raw_side_snapshots(pd.DataFrame(rows))
+    pairs = build_quote_pairs(raw, snapshot_label="closing")
+    assert (pairs["quote_pair_status"] == EXACT_PAIR).all()
 
 
 # --- 9-11: pairing -----------------------------------------------------------------

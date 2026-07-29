@@ -81,6 +81,8 @@ CLASSIFICATION: dict[str, str] = {
     "scripts/fit_binary_prob_calibrators.py": "permitted_pmf_diagnostic",
     "src/wnba_props_model/models/binary_calibrators.py": "permitted_pmf_diagnostic",
     "scripts/collect_atomic_quotes.py": "permitted_pmf_diagnostic",
+    "scripts/synthesize_historical_quotes.py": "permitted_pmf_diagnostic",
+    "scripts/backfill_historical_quotes.py": "permitted_pmf_diagnostic",
     "src/wnba_props_model/data/atomic_quotes.py": "permitted_pmf_diagnostic",
     "scripts/predict_today.py": "permitted_pmf_diagnostic",
     "scripts/export_html_report.py": "permitted_pmf_diagnostic",

@@ -72,42 +72,56 @@ def _cached_or_fetch(client: OddsAPIClient, event_id: str, snap: str, label: str
     return odds
 
 
-def _parse_event_odds(odds: dict, *, requested_snap: str, label: str, decision_iso: str,
-                      tip_iso: str, event_id: str, gid, roster_df: pd.DataFrame,
+def _parse_event_odds(odds: dict, *, requested_snap: str, role: str, decision_cut: str,
+                      closing_cut: str, tip_iso: str, event_id: str, gid, roster_df: pd.DataFrame,
                       collection_ts: str) -> list[dict]:
     wrapper_ts = (odds or {}).get("timestamp")
     prev_ts = (odds or {}).get("previous_timestamp")
     next_ts = (odds or {}).get("next_timestamp")
+    role_cut = closing_cut if role == "closing" else decision_cut
     rows: list[dict] = []
     for book in (odds or {}).get("data", {}).get("bookmakers", []):
         bkey = book.get("key", "")
+        book_last = book.get("last_update")
         for m in book.get("markets", []):
             stat = ODDS_API_MODEL_MARKETS.get(m.get("key", ""))
             if not stat:
                 continue
             mkt_last = m.get("last_update")
-            # the ACTUAL quote timestamp used for quote_id + pairing
-            quote_ts = mkt_last or wrapper_ts or requested_snap
+            # ACTUAL quote timestamp is strictly market_last_update. If absent, BLOCK exact
+            # timing rather than fabricating it from the requested snapshot date.
+            if mkt_last:
+                quote_ts, quote_ts_src = mkt_last, "market_last_update"
+            else:
+                quote_ts, quote_ts_src = None, "BLOCKED_NO_MARKET_TIMESTAMP"
+            id_ts = mkt_last or f"BLOCKED::{requested_snap}"
             for oc in m.get("outcomes", []):
                 name = oc.get("description", "")
                 pid, _method = (hm.resolve_player_id(name, gid, roster_df)
                                 if (gid is not None and not roster_df.empty) else (None, "unmatched"))
                 side = str(oc.get("name", "")).lower()
                 line = oc.get("point")
-                status = EXACT if (gid is not None and pid is not None) else BLOCKED_EXACT_QUOTES
+                exact_ok = gid is not None and pid is not None and mkt_last is not None
+                status = EXACT if exact_ok else BLOCKED_EXACT_QUOTES
+                # BOTH sides of the same market object inherit that object's market_last_update.
                 rows.append({
-                    "quote_id": atomic_quote_id(bkey, event_id, pid or name, stat, line, side, quote_ts),
+                    "quote_id": atomic_quote_id(bkey, event_id, pid or name, stat, line, side, id_ts),
                     "sportsbook": bkey, "event_id": event_id, "game_id": gid, "player_id": pid,
                     "player_name": name, "prop": stat, "line": line, "side": side,
-                    "american_odds": oc.get("price"), "snapshot_label": label,
-                    "snapshot_time": quote_ts,
-                    "decision_timestamp": decision_iso,
-                    "scheduled_tip_utc": tip_iso,
-                    "requested_snapshot_time": requested_snap,
-                    "provider_snapshot_time": wrapper_ts,
+                    "american_odds": oc.get("price"),
+                    # canonical immutable timestamp provenance
+                    "snapshot_role": role, "snapshot_label": role,
+                    "requested_snapshot_utc": requested_snap, "provider_snapshot_utc": wrapper_ts,
                     "previous_timestamp": prev_ts, "next_timestamp": next_ts,
+                    "bookmaker_last_update_utc": book_last, "market_last_update_utc": mkt_last,
+                    "quote_timestamp_utc": quote_ts, "quote_timestamp_source": quote_ts_src,
+                    "scheduled_tip_utc": tip_iso, "decision_cutoff_utc": decision_cut,
+                    "closing_cutoff_utc": closing_cut, "role_cutoff_utc": role_cut,
+                    "collection_timestamp_utc": collection_ts,
+                    # legacy mirrors (not used for pairing)
+                    "snapshot_time": quote_ts, "decision_timestamp": decision_cut,
+                    "requested_snapshot_time": requested_snap, "provider_snapshot_time": wrapper_ts,
                     "market_last_update": mkt_last, "collection_timestamp": collection_ts,
-                    "decision_cutoff_utc": decision_iso,
                     "prediction_timestamp": None, "model_prob_over_final": None,
                     "probability_lineage_version": None, "model_hash": None,
                     "calibrator_hash": None, "feature_schema_hash": None, "quote_policy_hash": None,
@@ -183,7 +197,8 @@ def main(
             if not matched:
                 continue
             decision_iso = _iso(tip - timedelta(hours=DECISION_LEAD_HOURS))
-            snaps = {"decision": decision_iso, "closing": _iso(tip - timedelta(minutes=CLOSING_MINUTES))}
+            closing_iso = _iso(tip - timedelta(minutes=CLOSING_MINUTES))
+            snaps = {"decision": decision_iso, "closing": closing_iso}
             for label in labels:
                 snap = snaps[label]
                 try:
@@ -195,9 +210,9 @@ def main(
                         break
                     continue
                 all_rows.extend(_parse_event_odds(
-                    odds, requested_snap=snap, label=label, decision_iso=decision_iso,
-                    tip_iso=_iso(tip), event_id=eid, gid=gid, roster_df=roster_df,
-                    collection_ts=collection_ts))
+                    odds, requested_snap=snap, role=label, decision_cut=decision_iso,
+                    closing_cut=closing_iso, tip_iso=_iso(tip), event_id=eid, gid=gid,
+                    roster_df=roster_df, collection_ts=collection_ts))
                 if sleep_s:
                     time.sleep(sleep_s)
             n_events_done += 1
