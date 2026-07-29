@@ -177,3 +177,22 @@ PRODUCTION ACTIVATION NOT AUTHORIZED
 * The component-PMF builders (S10–S16) are specified and partially available in
   `opportunity/pmf_builders.py`; wiring each stat's certified candidate to those builders and
   proving it against the market is the next data-present step.
+
+### Historical quote synthesis (Odds API) — empirical coverage finding
+`scripts/synthesize_historical_quotes.py` backfills the atomic quote store from The Odds API
+**historical** endpoints (player props back to May 2023, 5-minute snapshots) using the exact
+`atomic_quotes.ATOMIC_QUOTE_COLUMNS` schema, then optionally builds validated pairs and
+regenerates `EXACT_QUOTE_READINESS.json`. Verified live against the Enterprise key
+(2024–2025, `us` + `us2`, tip−1h snapshots):
+
+| Market | Odds API key | Historical book coverage |
+|--------|--------------|--------------------------|
+| pts / reb / ast / fg3m | player_points/rebounds/assists/threes | **YES** — 7 US books (DraftKings, FanDuel, William Hill, BetRivers, Bovada, BetOnline, BetMGM) |
+| stl / blk / tov | player_steals/blocks/turnovers | **NONE** — 0 books post these WNBA props |
+
+Consequence: STL/BLK/TOV **cannot** be synthesized from historical market data (the market
+does not exist), confirming they stay outcome-only. pts/reb/ast/fg3m **can** be synthesized;
+that is the path that unblocks the market-superiority proof. Turning synthesized single-side
+rows into EXACT_PAIR + settled outcomes still requires the BDL canonical tables
+(`build_canonical_tables.py`) for player/game-id resolution and actual outcomes; without them
+pairs resolve to AMBIGUOUS_PLAYER (fail-closed), as demonstrated in the smoke run.
