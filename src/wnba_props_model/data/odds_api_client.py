@@ -132,6 +132,8 @@ class OddsAPIClient:
         region: str = "us",
         odds_format: str = "american",
         timeout: int = 30,
+        max_credits: int | None = None,
+        request_audit_path: str | None = None,
     ) -> None:
         self.api_key = api_key or os.environ.get("ODDS_API_KEY", "")
         if not self.api_key:
@@ -143,6 +145,15 @@ class OddsAPIClient:
         self.timeout = timeout
         self._requests_remaining: int | None = None
         self._requests_used: int | None = None
+        self._requests_last: int | None = None   # x-requests-last: cost of the LAST call
+        # Fail-closed credit budget (Section G). Falls back to ODDS_API_MAX_CREDITS env.
+        env_budget = os.environ.get("ODDS_API_MAX_CREDITS")
+        self.max_credits: int | None = (
+            int(max_credits) if max_credits is not None
+            else (int(env_budget) if env_budget else None)
+        )
+        self._credits_spent_session = 0
+        self._request_audit_path = request_audit_path
         self._session = requests.Session()
 
     # -----------------------------------------------------------------------
@@ -153,14 +164,25 @@ class OddsAPIClient:
         """Execute a GET request and log quota headers."""
         url = f"{BASE_URL}{path}"
         p: dict[str, Any] = {"apiKey": self.api_key, **(params or {})}
+        # Fail-closed budget check BEFORE spending (Section G). We cannot know the exact
+        # cost until the response, so we guard on the last observed cost as a conservative
+        # lower bound and refuse once the session spend has reached the cap.
+        if self.max_credits is not None and self._credits_spent_session >= self.max_credits:
+            raise OddsAPIError(
+                f"ODDS_API_MAX_CREDITS budget reached: spent {self._credits_spent_session} "
+                f">= max {self.max_credits}. Refusing further paid requests (fail-closed).")
         for attempt in range(3):
             try:
                 resp = self._session.get(url, params=p, timeout=self.timeout)
-                # Parse quota headers
+                # Parse quota headers (used / remaining / last-call cost)
                 if "X-Requests-Remaining" in resp.headers:
                     self._requests_remaining = int(resp.headers["X-Requests-Remaining"])
                 if "X-Requests-Used" in resp.headers:
                     self._requests_used = int(resp.headers["X-Requests-Used"])
+                if "X-Requests-Last" in resp.headers:
+                    self._requests_last = int(resp.headers["X-Requests-Last"])
+                    self._credits_spent_session += self._requests_last
+                self._audit_request(path, params, resp.status_code)
 
                 if resp.status_code == 401:
                     raise OddsAPIError(f"ODDS_API_KEY invalid or expired (HTTP 401): {path}")
@@ -193,6 +215,36 @@ class OddsAPIClient:
     @property
     def quota_used(self) -> int | None:
         return self._requests_used
+
+    @property
+    def quota_last(self) -> int | None:
+        """x-requests-last: credit cost of the most recent request."""
+        return self._requests_last
+
+    @property
+    def credits_spent_session(self) -> int:
+        return self._credits_spent_session
+
+    def _audit_request(self, path: str, params: dict | None, status: int) -> None:
+        """Append a per-request quota audit line (never logs the api key)."""
+        if not self._request_audit_path:
+            return
+        import json as _json
+        from datetime import datetime, timezone
+        safe = {k: v for k, v in (params or {}).items() if k != "apiKey"}
+        rec = {
+            "ts_utc": datetime.now(timezone.utc).isoformat(),
+            "path": path, "params": safe, "http_status": status,
+            "x_requests_last": self._requests_last,
+            "x_requests_used": self._requests_used,
+            "x_requests_remaining": self._requests_remaining,
+            "credits_spent_session": self._credits_spent_session,
+        }
+        try:
+            with open(self._request_audit_path, "a") as fh:
+                fh.write(_json.dumps(rec) + "\n")
+        except OSError:
+            pass
 
     # -----------------------------------------------------------------------
     # Sports discovery

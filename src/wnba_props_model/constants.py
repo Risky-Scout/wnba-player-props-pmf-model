@@ -57,6 +57,34 @@ PROP_STAT_NAME_MAP: dict[str, str] = {
 # Alias used in pipeline/deliver.py
 BDL_PROP_TO_STAT = PROP_STAT_NAME_MAP
 
+# ---------------------------------------------------------------------------
+# Odds API market keys -> model stat (SINGLE SOURCE OF TRUTH)
+# ---------------------------------------------------------------------------
+# The exact official Odds API market keys the current model actually predicts (has a
+# target + PMF + settlement + evaluation). The live collector, historical backfill,
+# settlement, and evaluation MUST all derive their market list from this one constant so
+# they cannot drift. Markets the Odds API also supports (Q1, first-basket, double/triple
+# double, method-of-first-basket, fantasy, alternate lines, field goals, free throws) are
+# DELIBERATELY excluded: a valid API key is not a valid model target until the repo has a
+# corresponding target/PMF/settlement/OOF/publishing contract.
+ODDS_API_MODEL_MARKETS: dict[str, str] = {
+    "player_points": "pts",
+    "player_rebounds": "reb",
+    "player_assists": "ast",
+    "player_threes": "fg3m",
+    "player_blocks": "blk",
+    "player_steals": "stl",
+    "player_turnovers": "turnover",
+    "player_blocks_steals": "stocks",
+    "player_points_assists": "pts_ast",
+    "player_points_rebounds": "pts_reb",
+    "player_rebounds_assists": "reb_ast",
+    "player_points_rebounds_assists": "pts_reb_ast",
+}
+
+# Ordered list of the exact market keys to send in one comma-separated request per event.
+ODDS_API_MODEL_MARKET_KEYS: tuple[str, ...] = tuple(ODDS_API_MODEL_MARKETS.keys())
+
 # BDL raw column name → internal stat key (used in flatten_player_stat_row)
 STAT_TO_BDL_COL = {
     "pts": "pts",

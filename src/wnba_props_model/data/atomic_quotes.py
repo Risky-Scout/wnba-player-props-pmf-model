@@ -26,9 +26,17 @@ ATOMIC_QUOTE_COLUMNS = [
     "side",                     # 'over' | 'under'
     "american_odds",            # exact price
     "snapshot_label",           # 'decision' | 'closing'
-    "snapshot_time",            # ISO UTC of the quote snapshot
-    "decision_timestamp",       # ISO UTC decision cutoff (tip - lead)
+    "snapshot_time",            # ISO UTC of the ACTUAL quote (provider/market) timestamp
+    "decision_timestamp",       # ISO UTC decision cutoff (tip - lead)  [legacy name]
     "scheduled_tip_utc",        # ISO UTC scheduled tip
+    # --- timestamp provenance (H): never mislabel the requested date as the quote time ---
+    "requested_snapshot_time",  # the historical snapshot time WE requested
+    "provider_snapshot_time",   # response wrapper 'timestamp' (the snapshot the API returned)
+    "previous_timestamp",       # response wrapper 'previous_timestamp'
+    "next_timestamp",           # response wrapper 'next_timestamp'
+    "market_last_update",       # per-market 'last_update' (the true quote provenance time)
+    "collection_timestamp",     # when WE collected the row
+    "decision_cutoff_utc",      # ISO UTC decision cutoff (tip - lead)  [canonical name]
     "prediction_timestamp",     # ISO UTC when the model prediction was made
     "model_prob_over_final",    # delivered probability (lineage output)
     "probability_lineage_version",
@@ -64,6 +72,60 @@ def assert_no_book_averaging(df: pd.DataFrame) -> None:
         raise ValueError(
             f"{int(bad.sum() + banned.sum())} atomic-quote row(s) are missing a book or are "
             "aggregates; atomic quotes must be single-book (never averaged).")
+
+
+# Columns the pairing builder (quote_pairs.build_quote_pairs) requires.
+_RAW_SIDE_COLUMNS = [
+    "provider", "sportsbook", "event_id", "player_id", "prop", "line", "side",
+    "snapshot_timestamp", "american_odds", "scheduled_tip_utc", "decision_timestamp_utc",
+]
+
+
+def to_raw_side_snapshots(atomic: pd.DataFrame, *, provider_default: str = "odds_api") -> pd.DataFrame:
+    """Explicit, validated adapter: map atomic-store rows to the raw-side schema that
+    ``quote_pairs.build_quote_pairs`` consumes, resolving the historical naming drift
+    (source->provider, snapshot_time->snapshot_timestamp, decision_timestamp->decision_timestamp_utc)
+    WITHOUT silent renaming elsewhere.
+
+    The pairing/quote timestamp is the ACTUAL quote time — market_last_update if present,
+    else provider_snapshot_time, else snapshot_time — never the requested snapshot date.
+    """
+    if atomic is None or atomic.empty:
+        return pd.DataFrame(columns=_RAW_SIDE_COLUMNS)
+    df = atomic.copy()
+
+    def _first_present(cols: list[str]) -> pd.Series:
+        out = pd.Series([None] * len(df), index=df.index, dtype=object)
+        for c in cols:
+            if c in df.columns:
+                out = out.where(out.notna(), df[c])
+        return out
+
+    provider = df["provider"] if "provider" in df.columns else pd.Series([None] * len(df), index=df.index)
+    if "source" in df.columns:
+        provider = provider.where(provider.notna(), df["source"].apply(
+            lambda s: "odds_api" if isinstance(s, str) and s.startswith("odds_api") else s))
+    provider = provider.where(provider.notna(), provider_default)
+
+    quote_ts = _first_present(["market_last_update", "provider_snapshot_time", "snapshot_time"])
+    decision = _first_present(["decision_cutoff_utc", "decision_timestamp"])
+
+    raw = pd.DataFrame({
+        "provider": provider,
+        "sportsbook": df.get("sportsbook"),
+        "event_id": df.get("event_id"),
+        "player_id": df.get("player_id"),
+        "prop": df.get("prop"),
+        "line": df.get("line"),
+        "side": df.get("side"),
+        "snapshot_timestamp": quote_ts,
+        "american_odds": df.get("american_odds"),
+        "scheduled_tip_utc": df.get("scheduled_tip_utc"),
+        "decision_timestamp_utc": decision,
+    })
+    if "snapshot_label" in df.columns:
+        raw["snapshot_label"] = df["snapshot_label"]
+    return raw
 
 
 def append_atomic_quotes(store_path, new_rows: pd.DataFrame) -> dict:
