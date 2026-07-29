@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-29T22:00:07.066459+00:00",
+  "generated_at": "2026-07-29T23:06:18.252388+00:00",
   "game_date": "2026-07-29",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-07-29",
-    "generated_utc": "2026-07-29T22:00:07.066459+00:00",
+    "generated_utc": "2026-07-29T23:06:18.252388+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,8 +33,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1181,
-    "n_scored_rows": 1054,
+    "n_quote_rows": 1191,
+    "n_scored_rows": 1074,
     "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
@@ -59,49 +59,10 @@
       },
       "players": [
         {
-          "player_id": "c01616be622aa0fcab0ac0351d05e264:Naz Hillmon:reb:4.5:over:espnbet",
-          "player_name": "Naz Hillmon",
-          "team_name": "",
-          "position": "espnbet +130 \u00b7 EV +5.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.4575,
-                "edge_vs_market": 0.052178,
-                "kelly_fraction": 0.01
-              },
-              "soft_book": {
-                "book": "espnbet",
-                "side": "over",
-                "offered_odds": 130,
-                "ev_pct": 5.218,
-                "fair_p_side": 0.4575,
-                "consensus_p_over": 0.4575,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "espnbet",
-                "best_odds": 130
-              }
-            }
-          }
-        },
-        {
           "player_id": "c01616be622aa0fcab0ac0351d05e264:Jordin Canada:fg3m:1.5:over:fanduel",
           "player_name": "Jordin Canada",
           "team_name": "",
-          "position": "fanduel +194 \u00b7 EV +4.7%",
+          "position": "fanduel +194 \u00b7 EV +6.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,17 +77,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3563,
-                "edge_vs_market": 0.047375,
-                "kelly_fraction": 0.0061
+                "p_over": 0.3628,
+                "edge_vs_market": 0.066667,
+                "kelly_fraction": 0.0086
               },
               "soft_book": {
                 "book": "fanduel",
                 "side": "over",
                 "offered_odds": 194,
-                "ev_pct": 4.737,
-                "fair_p_side": 0.3563,
-                "consensus_p_over": 0.3563,
+                "ev_pct": 6.667,
+                "fair_p_side": 0.3628,
+                "consensus_p_over": 0.3628,
                 "consensus_n_books": 3,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": null,
@@ -137,10 +98,49 @@
           }
         },
         {
-          "player_id": "c01616be622aa0fcab0ac0351d05e264:Azzi Fudd:pts:13.5:over:betparx",
+          "player_id": "c01616be622aa0fcab0ac0351d05e264:Naz Hillmon:reb:4.5:over:espnbet",
+          "player_name": "Naz Hillmon",
+          "team_name": "",
+          "position": "espnbet +130 \u00b7 EV +5.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.4583,
+                "edge_vs_market": 0.054167,
+                "kelly_fraction": 0.0104
+              },
+              "soft_book": {
+                "book": "espnbet",
+                "side": "over",
+                "offered_odds": 130,
+                "ev_pct": 5.417,
+                "fair_p_side": 0.4583,
+                "consensus_p_over": 0.4583,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "espnbet",
+                "best_odds": 130
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c01616be622aa0fcab0ac0351d05e264:Azzi Fudd:pts:13.5:over:hardrockbet",
           "player_name": "Azzi Fudd",
           "team_name": "",
-          "position": "betparx +108 \u00b7 EV +3.5%",
+          "position": "hardrockbet +110 \u00b7 EV +4.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -155,46 +155,31 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 13.5,
-                "p_over": 0.4978,
-                "edge_vs_market": 0.035458,
-                "kelly_fraction": 0.0082
+                "p_over": 0.4973,
+                "edge_vs_market": 0.044347,
+                "kelly_fraction": 0.0101
               },
               "soft_book": {
-                "book": "betparx",
+                "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": 108,
-                "ev_pct": 3.546,
-                "fair_p_side": 0.4978,
-                "consensus_p_over": 0.4978,
-                "consensus_n_books": 7,
+                "offered_odds": 110,
+                "ev_pct": 4.435,
+                "fair_p_side": 0.4973,
+                "consensus_p_over": 0.4973,
+                "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4674,
-                "best_book": "betparx",
-                "best_odds": 108
+                "best_book": "hardrockbet",
+                "best_odds": 110
               }
             }
           }
-        }
-      ]
-    },
-    {
-      "game_id": "44c05d0bdf345dc1b2a2eef1bff78ce3",
-      "odds_api_event_id": "44c05d0bdf345dc1b2a2eef1bff78ce3",
-      "commence_time": "2026-07-30T02:00:00Z",
-      "home_team": {
-        "name": "Phoenix Mercury",
-        "abbreviation": "Phoenix Mercury"
-      },
-      "away_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "players": [
+        },
         {
-          "player_id": "44c05d0bdf345dc1b2a2eef1bff78ce3:Veronica Burton:pts:12.5:over:hardrockbet",
-          "player_name": "Veronica Burton",
+          "player_id": "c01616be622aa0fcab0ac0351d05e264:Azzi Fudd:pts:13.5:over:betparx",
+          "player_name": "Azzi Fudd",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +2.8%",
+          "position": "betparx +108 \u00b7 EV +3.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -203,26 +188,26 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 12.5,
-              "median": 12.5,
+              "mean": 13.5,
+              "median": 13.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 12.5,
-                "p_over": 0.4894,
-                "edge_vs_market": 0.027784,
-                "kelly_fraction": 0.0063
+                "market_line": 13.5,
+                "p_over": 0.4973,
+                "edge_vs_market": 0.034401,
+                "kelly_fraction": 0.008
               },
               "soft_book": {
-                "book": "hardrockbet",
+                "book": "betparx",
                 "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 2.778,
-                "fair_p_side": 0.4894,
-                "consensus_p_over": 0.4894,
+                "offered_odds": 108,
+                "ev_pct": 3.44,
+                "fair_p_side": 0.4973,
+                "consensus_p_over": 0.4973,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4891,
+                "sharp_consensus_p_over": 0.4674,
                 "best_book": "hardrockbet",
                 "best_odds": 110
               }
