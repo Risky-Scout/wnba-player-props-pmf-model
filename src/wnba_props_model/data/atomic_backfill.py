@@ -268,6 +268,7 @@ def process_snapshot(
     state_path: Path,
     collection_ts: str,
     fault_after: str | None = None,
+    no_fetch: bool = False,
 ) -> dict:
     """Durably process one event/snapshot with the mandated ordering (raw->close/fsync->
     normalize->partition->validate->checkpoint). Idempotent + resumable: COMPLETE/NO_DATA/
@@ -305,6 +306,12 @@ def process_snapshot(
             res["raw_sha"] = sha256_file(raw_path)
         except Exception:  # noqa: BLE001
             payload = None
+
+    if payload is None and no_fetch:
+        # cache-only warm-up: don't spend a request; leave for a later fetch pass.
+        res["status"] = "NEEDS_FETCH"
+        res["needs_fetch"] = True
+        return res
 
     if payload is None:
         # Fetch (may raise OddsAPIError: budget -> propagate; 404 -> tombstone).

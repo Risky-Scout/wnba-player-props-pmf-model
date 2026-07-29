@@ -79,6 +79,7 @@ def main(
     only_decision: bool = typer.Option(False, "--only-decision"),
     heartbeat: int = typer.Option(25, "--heartbeat"),
     consolidate: bool = typer.Option(True, "--consolidate/--no-consolidate"),
+    no_fetch: bool = typer.Option(False, "--no-fetch", help="cache-only warm-up: never spend a request"),
 ) -> None:
     AUD.mkdir(parents=True, exist_ok=True)
     request_audit = str(AUD / "ODDS_API_REQUEST_AUDIT.jsonl")
@@ -143,7 +144,8 @@ def main(
                         r = ab.process_snapshot(
                             client, event_id=eid, role=role, tip=tip, gid=gid, season=season,
                             game_date=gd, roster_df=roster_df, raw_dir=RAW, part_dir=PART,
-                            state=state, state_path=STATE, collection_ts=collection_ts)
+                            state=state, state_path=STATE, collection_ts=collection_ts,
+                            no_fetch=no_fetch)
                     except OddsAPIError as exc:
                         if "budget reached" in str(exc):
                             stopped = "budget"
