@@ -1,0 +1,100 @@
+{
+  "artifact": "PRE_REBUILD_BASELINE",
+  "note": "Frozen pre-rebuild baseline. DO NOT overwrite.",
+  "current_main_sha": "bb30326874254ada27c4964906da22987f00e72a",
+  "feature_manifest": {
+    "model_features_count": 128,
+    "model_features_schema_hash": "af86c870b1786013",
+    "forbidden_features_count": 114,
+    "pure_forecast_features_count": 119,
+    "champion_feature_hash": "9a21a1d622fbb055",
+    "champion_feature_schema": "schema_v2"
+  },
+  "stage5_config": {
+    "path": "config/model/stage5_oof.yaml",
+    "file_hash": "24f66d2eb90d5734",
+    "prop_feature_map_configured": false
+  },
+  "exact_quote_artifact": {
+    "path": "artifacts/market_feature_proof/EXACT_QUOTE_READINESS.json",
+    "file_hash": "095640584f3ae2a0"
+  },
+  "p0_models": {
+    "champion_model_hash": "schema_v2_structural",
+    "champion_calibration_hash": "c9438bc6271fb208",
+    "champion_status": "LIVE_VALIDATED_FORECAST_ONLY",
+    "model_artifact_hashes": {
+      "artifacts/models/calibration/artifact_manifest_calibrator.json": "6f1eb427af12acbe",
+      "artifacts/models/calibration/bias_corrections.json": "694c059f577586e7",
+      "artifacts/models/calibration/bias_corrections_by_role.json": "82653cb1eaf5b2bb",
+      "artifacts/models/calibration/calibration_metadata.json": "f0ba431241e18ea6",
+      "artifacts/models/calibration/player_form_corrections_2026.json": "45e25b362a0775a3",
+      "artifacts/models/calibration/player_variance_compress.json": "c663c660dac5ce8f",
+      "artifacts/models/calibration/variance_compress.json": "020fb64912c143e3",
+      "artifacts/models/league_priors.json": "d902c3fd8fb6342a"
+    }
+  },
+  "p0_oof_row_universe_hash": "NOT_AVAILABLE_IN_ENV: OOF parquet not present (license-restricted)",
+  "market_metrics_by_prop": {
+    "ast": {
+      "source": "artifacts/market_feature_proof/G0_v2_proof_pooled_ast/market_superiority_proof.json",
+      "candidate": "C4_blend",
+      "n_settled": 914,
+      "n_clusters": 30,
+      "market_logloss": 0.6812532236557479,
+      "model_logloss": 0.6758392755387035,
+      "logloss_delta": -0.0054139481170444315,
+      "market_brier": 0.2441279108185514,
+      "model_brier": 0.24150082386973318,
+      "brier_delta": -0.002627086948818219,
+      "market_auc": 0.5766074902723736,
+      "model_auc": 0.5686916342412451,
+      "market_superiority_gate": "FAIL"
+    },
+    "fg3m": {
+      "source": "artifacts/market_feature_proof/G0_v2_proof_pooled_fg3m/market_superiority_proof.json",
+      "candidate": "C2_beta",
+      "n_settled": 1029,
+      "n_clusters": 30,
+      "market_logloss": 0.6529262197301597,
+      "model_logloss": 0.6892880292890763,
+      "logloss_delta": 0.03636180955891655,
+      "market_brier": 0.23037378431532077,
+      "model_brier": 0.24719645050275543,
+      "brier_delta": 0.016822666187434665,
+      "market_auc": 0.6506579201981502,
+      "model_auc": 0.5520917992182359,
+      "market_superiority_gate": "FAIL"
+    },
+    "pts": {
+      "source": "artifacts/market_feature_proof/G0_v2_proof_pooled_pts/market_superiority_proof.json",
+      "candidate": "C1_platt",
+      "n_settled": 1796,
+      "n_clusters": 30,
+      "market_logloss": 0.6958515567274439,
+      "model_logloss": 0.6994262428215147,
+      "logloss_delta": 0.0035746860940707448,
+      "market_brier": 0.2513513029175198,
+      "model_brier": 0.25311097368216084,
+      "brier_delta": 0.0017596707646410636,
+      "market_auc": 0.47485868556483585,
+      "model_auc": 0.49952233487675,
+      "market_superiority_gate": "FAIL"
+    },
+    "reb": {
+      "source": "artifacts/market_feature_proof/G0_v2_proof_pooled_reb/market_superiority_proof.json",
+      "candidate": "C4_blend",
+      "n_settled": 1487,
+      "n_clusters": 30,
+      "market_logloss": 0.6791019635131708,
+      "model_logloss": 0.6767489181348414,
+      "logloss_delta": -0.002353045378329366,
+      "market_brier": 0.24303439654720246,
+      "model_brier": 0.24194608455452368,
+      "brier_delta": -0.001088311992678781,
+      "market_auc": 0.5981739615785903,
+      "model_auc": 0.5949700493947861,
+      "market_superiority_gate": "FAIL"
+    }
+  }
+}
