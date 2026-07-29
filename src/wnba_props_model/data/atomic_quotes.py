@@ -50,7 +50,16 @@ ATOMIC_QUOTE_COLUMNS = [
     "model_hash", "calibrator_hash", "feature_schema_hash", "quote_policy_hash",
     "settlement_status",        # 'settled' | 'push' | 'void' | 'pending'
     "actual_outcome",           # realized stat value (when settled)
-    "exact_quote_status",       # 'EXACT' | 'BLOCKED_EXACT_QUOTES'
+    "exact_quote_status",       # 'EXACT' | 'BLOCKED_EXACT_QUOTES' (mirrors eligibility_status)
+    "exact_block_reason",       # alias of blocking_reason (back-compat)
+    # --- explicit eligibility (blocked rows are RETAINED, never dropped) --------------
+    "timing_status",            # ELIGIBLE | AT_OR_AFTER_TIP | AFTER_ROLE_CUTOFF |
+                                # MISSING_MARKET_TIMESTAMP | INVALID_SCHEDULED_TIP | INVALID_ROLE_CUTOFF
+    "eligibility_status",       # ELIGIBLE | BLOCKED
+    "blocking_reason",          # first failing reason by precedence (None when ELIGIBLE)
+    "usable_for_pairing",       # bool: eligible identity + eligible timing
+    "usable_for_decision_analysis",  # bool: usable_for_pairing and role == decision
+    "usable_for_closing_analysis",   # bool: usable_for_pairing and role == closing
     "source",                   # provenance
 ]
 
@@ -149,8 +158,13 @@ def to_raw_side_snapshots(atomic: pd.DataFrame, *, provider_default: str = "odds
         "decision_timestamp_utc": effective_cut,     # ROLE cutoff (build_quote_pairs enforces)
         "snapshot_label": role,
     })
-    # Block rows with no actual market quote timestamp (never fabricate).
-    raw = raw[raw["snapshot_timestamp"].notna()].reset_index(drop=True)
+    # Only ELIGIBLE rows reach exact-pair construction (blocked timing/identity rows are
+    # retained in the store but never paired). Fall back to the quote-timestamp presence
+    # check for legacy rows without the eligibility column.
+    if "eligibility_status" in df.columns:
+        raw = raw[df["eligibility_status"].to_numpy() == "ELIGIBLE"].reset_index(drop=True)
+    else:
+        raw = raw[raw["snapshot_timestamp"].notna()].reset_index(drop=True)
     return raw
 
 
