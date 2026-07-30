@@ -1,0 +1,42 @@
+{
+  "artifact": "PRIVATE_INPUT_MANIFEST",
+  "generated_at_utc": "2026-07-30T22:50:04.832393+00:00",
+  "note": "private gitignored licensed inputs; training/inference fail closed on hash drift",
+  "inputs": {
+    "pregame_features_t12": {
+      "status": "PRESENT",
+      "rows": 23931,
+      "cols": 336,
+      "sha256": "70afb7e05af7f826f65050fb52c6add54c0a5bfdef7bb88316c322165dc222c0",
+      "license": "PRIVATE_LICENSED_DO_NOT_PUBLISH"
+    },
+    "player_targets": {
+      "status": "PRESENT",
+      "rows": 23931,
+      "cols": 16,
+      "sha256": "0ecb09878770a073535afd578877aaf7c52710a4eae5ae1c020fa2ac145727e6",
+      "license": "PRIVATE_LICENSED_DO_NOT_PUBLISH"
+    },
+    "atomic_quotes": {
+      "status": "PRESENT",
+      "rows": 256160,
+      "cols": 50,
+      "sha256": "25b402375ebcb775635e4698e1b9a4a850e6f83f02a173f0ccf630e1311f440f",
+      "license": "PRIVATE_LICENSED_DO_NOT_PUBLISH"
+    },
+    "settled_quote_pairs": {
+      "status": "PRESENT",
+      "rows": 50753,
+      "cols": 26,
+      "sha256": "66d7bf76a19557a33a586311f8aa7cd8035ae7dcf056ffaf7e8582bac86bb254",
+      "license": "PRIVATE_LICENSED_DO_NOT_PUBLISH"
+    },
+    "bdl_player_game_stats": {
+      "status": "PRESENT",
+      "rows": 23931,
+      "cols": 44,
+      "sha256": "332f922f7e9bb735b80c9d1b8033b386a4186df70f9dd1d50feb996c0e66fa93",
+      "license": "PRIVATE_LICENSED_DO_NOT_PUBLISH"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "artifact": "V5_FREEZE_MANIFEST",
+  "frozen_at_utc": "2026-07-30T22:50:04.832393+00:00",
+  "file_hashes": {
+    "config/modeling_design_v5.yaml": "943ed0e0d04cf1aacb995562e215a152810a88b5ae6aa0d9bd46fe356ccfe1d7",
+    "config/chronological_oof_v5.yaml": "91f181797d2e8d4c19fea47a33f02ab9347a9eed7ea8be1a76808284e2f58194",
+    "config/pmf_support_v5.yaml": "b0e9d213e80e21469b9c78e3306bc90ffdddf67f7f1dc9e1334c27b47b5f7165",
+    "config/model_selection_gates_v5.yaml": "5eee71211e3e9528a25564ffa1f0eac1640ec29a81b4dc9a663d9f123d4c1558",
+    "docs/MODELING_DESIGN_V5.md": "a2b85e3c0df9872268a4b268eb030e15cbb62cc13a91e09e82833bf502720769",
+    "artifacts/sharp_v5/FEATURE_CONTRACTS.json": "0ecaf1684d79dccf27c197eb65dc9dcfb7d2dc8c19efb8979dd9860d3ca2c61d"
+  },
+  "component_contract_hashes": {
+    "participation": "eef2d3449d135223",
+    "minutes": "adce920e467a64e5",
+    "pts": "afb4dd07c1d94070",
+    "reb": "666ac1e7d92fc87d",
+    "ast": "73ad4f27f820207a",
+    "fg3m": "47512bb66b58c50f",
+    "stl": "920c6f532e283133",
+    "blk": "a80a23b12e0b5463",
+    "turnover": "0eb3b6b9a687b3ed",
+    "fg2a": "91320efec5ea130e",
+    "fg3a": "d6e6dd2c92ac5958",
+    "fta": "9efa3a8a80b1e7f4",
+    "oreb": "666ac1e7d92fc87d",
+    "dreb": "666ac1e7d92fc87d"
+  },
+  "code_sha": "d587389581a8e691add2cf118e685d9c9179e98f",
+  "selection_data": "2023-2025 folds only",
+  "prospective_evaluation_start": "2026-07-30T22:50:04.832393+00:00",
+  "modeling_design_v5_sha256": "d50ea499a20de14f22329aa4862ddd7777aa3e8e9ca747b0286bc58f482f15f4",
+  "rule": "No V5 outer-fold prediction before this manifest; no semantic change after first V5 OOF."
+}
