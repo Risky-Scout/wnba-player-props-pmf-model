@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-30T05:48:22.045000+00:00",
+  "generated_at": "2026-07-30T19:23:33.048369+00:00",
   "game_date": "2026-07-30",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,11 +16,11 @@
   },
   "summary": {
     "date": "2026-07-30",
-    "generated_utc": "2026-07-30T05:48:22.045000+00:00",
+    "generated_utc": "2026-07-30T19:23:33.048369+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
-    "n_books_seen": 9,
+    "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
       "betparx",
@@ -29,19 +29,222 @@
       "espnbet",
       "fanduel",
       "fliff",
+      "hardrockbet",
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1219,
-    "n_scored_rows": 1112,
-    "n_qualifying": 0,
+    "n_quote_rows": 1569,
+    "n_scored_rows": 1378,
+    "n_qualifying": 4,
     "n_books_per_stat": {
-      "ast": 9,
-      "fg3m": 9,
-      "pts": 9,
-      "reb": 9
+      "ast": 10,
+      "fg3m": 10,
+      "pts": 10,
+      "reb": 10
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "86a42225bc8fb8c6d5c57f0732338c65",
+      "odds_api_event_id": "86a42225bc8fb8c6d5c57f0732338c65",
+      "commence_time": "2026-07-31T02:10:00Z",
+      "home_team": {
+        "name": "Las Vegas Aces",
+        "abbreviation": "Las Vegas Aces"
+      },
+      "away_team": {
+        "name": "New York Liberty",
+        "abbreviation": "New York Liberty"
+      },
+      "players": [
+        {
+          "player_id": "86a42225bc8fb8c6d5c57f0732338c65:Jackie Young:ast:6.5:under:betparx",
+          "player_name": "Jackie Young",
+          "team_name": "",
+          "position": "betparx +120 \u00b7 EV +5.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 6.5,
+              "median": 6.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 6.5,
+                "p_over": 0.5207,
+                "edge_vs_market": -0.054451,
+                "kelly_fraction": 0.0113
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 120,
+                "ev_pct": 5.445,
+                "fair_p_side": 0.4793,
+                "consensus_p_over": 0.5207,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5033,
+                "best_book": "betparx",
+                "best_odds": 120
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "c1d42f6695414bf61ecb07b706cce413",
+      "odds_api_event_id": "c1d42f6695414bf61ecb07b706cce413",
+      "commence_time": "2026-07-31T00:10:00Z",
+      "home_team": {
+        "name": "Chicago Sky",
+        "abbreviation": "Chicago Sky"
+      },
+      "away_team": {
+        "name": "Connecticut Sun",
+        "abbreviation": "Connecticut Sun"
+      },
+      "players": [
+        {
+          "player_id": "c1d42f6695414bf61ecb07b706cce413:Charlisse Leger-Walker:pts:6.5:over:betparx",
+          "player_name": "Charlisse Leger-Walker",
+          "team_name": "",
+          "position": "betparx +102 \u00b7 EV +4.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 6.5,
+              "median": 6.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 6.5,
+                "p_over": 0.5183,
+                "edge_vs_market": 0.04703,
+                "kelly_fraction": 0.0115
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 102,
+                "ev_pct": 4.703,
+                "fair_p_side": 0.5183,
+                "consensus_p_over": 0.5183,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5197,
+                "best_book": "betparx",
+                "best_odds": 102
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "ba08696dc9c287df669bc353e504f1be",
+      "odds_api_event_id": "ba08696dc9c287df669bc353e504f1be",
+      "commence_time": "2026-07-31T00:10:00Z",
+      "home_team": {
+        "name": "Toronto Tempo",
+        "abbreviation": "Toronto Tempo"
+      },
+      "away_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "players": [
+        {
+          "player_id": "ba08696dc9c287df669bc353e504f1be:Napheesa Collier:ast:2.5:over:betonlineag",
+          "player_name": "Napheesa Collier",
+          "team_name": "",
+          "position": "betonlineag +126 \u00b7 EV +4.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4628,
+                "edge_vs_market": 0.045922,
+                "kelly_fraction": 0.0091
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 126,
+                "ev_pct": 4.592,
+                "fair_p_side": 0.4628,
+                "consensus_p_over": 0.4628,
+                "consensus_n_books": 4,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4106,
+                "best_book": "betonlineag",
+                "best_odds": 126
+              }
+            }
+          }
+        },
+        {
+          "player_id": "ba08696dc9c287df669bc353e504f1be:Olivia Miles:ast:7.5:over:betonlineag",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "betonlineag +124 \u00b7 EV +4.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 7.5,
+              "median": 7.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 7.5,
+                "p_over": 0.4644,
+                "edge_vs_market": 0.040325,
+                "kelly_fraction": 0.0081
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 124,
+                "ev_pct": 4.032,
+                "fair_p_side": 0.4644,
+                "consensus_p_over": 0.4644,
+                "consensus_n_books": 7,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4148,
+                "best_book": "betonlineag",
+                "best_odds": 124
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
