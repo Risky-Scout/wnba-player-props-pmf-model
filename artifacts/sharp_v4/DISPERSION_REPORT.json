@@ -1,0 +1,15 @@
+{
+  "artifact": "DISPERSION_REPORT",
+  "generated_at_utc": "2026-07-30T19:56:24.653456+00:00",
+  "method": "hierarchical partial-pool player-role dispersion in phi (role band from lagged season minutes)",
+  "by_stat_family": {
+    "ast": "direct_nb2_exacttail",
+    "blk": "direct_nb2_exacttail",
+    "fg3m": "direct_nb2_exacttail",
+    "pts": "direct_nb2_exacttail",
+    "reb": "direct_nb2_exacttail",
+    "stl": "direct_nb2_exacttail",
+    "turnover": "direct_nb2_exacttail"
+  },
+  "note": "one global scalar replaced by per-role shrunk NB2 dispersion; hurdle challenger for rare stats."
+}

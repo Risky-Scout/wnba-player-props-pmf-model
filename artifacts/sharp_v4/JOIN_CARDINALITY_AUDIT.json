@@ -1,0 +1,12 @@
+{
+  "artifact": "JOIN_CARDINALITY_AUDIT",
+  "generated_at_utc": "2026-07-30T19:56:24.653456+00:00",
+  "features_targets_rows": 23931,
+  "after_component_join": 23931,
+  "keys": [
+    "game_id",
+    "player_id"
+  ],
+  "validate": "one_to_one",
+  "duplicates": 0
+}

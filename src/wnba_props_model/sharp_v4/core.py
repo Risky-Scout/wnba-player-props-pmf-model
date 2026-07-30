@@ -18,6 +18,9 @@ from wnba_props_model.sharp_v3.core import (ID_COLS, LABEL_COLS, TIER_A, america
 
 SEED = 20260730
 TAIL_TOL = 1e-6
+# Emergency computational caps (match frozen config/pmf_support_v4.yaml). They bound only the
+# STORED atom array length; NLL/CRPS/pricing use exact analytic tails (CountPMF.logpmf/cdf) that
+# are independent of the cap, so the cap never clips an outcome.
 EMERGENCY_CAP = {"pts": 80, "reb": 40, "ast": 30, "fg3m": 18, "stl": 15, "blk": 15,
                  "turnover": 18, "fgm": 35, "ftm": 35, "fta": 40, "oreb": 25, "dreb": 30,
                  "fg2a": 40, "fg3a": 25, "fg2m": 30, "minutes": 48}
@@ -142,7 +145,7 @@ def build_count_pmf(mu: float, r: float | None, stat: str) -> CountPMF:
     cap = EMERGENCY_CAP.get(stat, 60)
     method = "poisson_sf" if r is None else "nbinom_sf"
     K = max(int(mu + 6 * np.sqrt(mu)), 5)
-    for _ in range(8):
+    for _ in range(24):
         if r is None:
             sf = float(poisson.sf(K, mu)); atoms = poisson.pmf(np.arange(K + 1), mu)
         else:
