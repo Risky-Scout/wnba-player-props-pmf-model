@@ -1,0 +1,18 @@
+{
+  "artifact": "IDENTITY_RESOLUTION_AUDIT",
+  "generated_at_utc": "2026-07-30T00:43:02.955251+00:00",
+  "total_rows": 256160,
+  "identity_method_counts": {
+    "exact_roster_name": 248057,
+    "unmatched": 8103
+  },
+  "resolved_before_repair_exact": 248057,
+  "resolved_through_normalization_relaxed": 0,
+  "resolved_through_approved_aliases": 0,
+  "unresolved_unmatched": 8103,
+  "collisions": 0,
+  "provider_name_mapping_to_multiple_bdl_ids": 0,
+  "bdl_id_receiving_multiple_provider_names": 7,
+  "n_alias_entries": 0,
+  "note": "Collisions are REFUSED (never forced). Multiple BDL ids for one normalized provider name across DIFFERENT games are legitimately different players; within a single game roster a collision blocks resolution."
+}

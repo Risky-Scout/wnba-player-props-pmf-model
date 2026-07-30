@@ -46,6 +46,40 @@ def _roster_maps(roster_sub: pd.DataFrame) -> tuple[dict, dict]:
     return strict, relaxed
 
 
+def build_game_index(roster: pd.DataFrame, game_id) -> tuple[dict, dict] | None:
+    """Precompute (strict, relaxed) roster maps for one game once (perf: avoids rebuilding
+    per outcome row). Returns None when the game has no roster."""
+    if roster is None or roster.empty or game_id is None:
+        return None
+    sub = roster[roster["game_id"].astype(str) == str(game_id)]
+    if sub.empty:
+        return None
+    return _roster_maps(sub)
+
+
+def resolve_with_index(name: str, index: tuple[dict, dict] | None,
+                       aliases: dict | None = None) -> tuple[str | None, str]:
+    """Resolve using a prebuilt (strict, relaxed) index (see build_game_index)."""
+    if index is None:
+        return None, "unmatched"
+    strict, relaxed = index
+    key = normalize_strict(name)
+    if key in strict and len(strict[key]) == 1:
+        return next(iter(strict[key])), "exact_roster_name"
+    if aliases:
+        alias_target = aliases.get(str(name)) or aliases.get(key)
+        if alias_target:
+            akey = normalize_strict(alias_target)
+            if akey in strict and len(strict[akey]) == 1:
+                return next(iter(strict[akey])), "approved_alias"
+    rkey = normalize_relaxed(name)
+    if rkey in relaxed:
+        if len(relaxed[rkey]) == 1:
+            return next(iter(relaxed[rkey])), "normalized_relaxed"
+        return None, "collision"
+    return None, "unmatched"
+
+
 def resolve_player(name: str, game_id, roster: pd.DataFrame,
                    aliases: dict | None = None) -> tuple[str | None, str]:
     """Return (player_id, method). method in

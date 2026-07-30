@@ -70,6 +70,9 @@ def parse_event_odds(odds: dict, *, role: str, tip: datetime, event_id: str, gid
     decision_cut, closing_cut = cutoffs_for(tip)
     role_cut = closing_cut if role == "closing" else decision_cut
     tip_iso = iso(tip)
+    # Build this game's roster index ONCE (perf: avoids rebuilding maps per outcome row).
+    game_index = (identity_resolution.build_game_index(roster_df, gid)
+                  if (gid is not None and roster_df is not None and not roster_df.empty) else None)
     rows: list[dict] = []
     for book in (odds or {}).get("data", {}).get("bookmakers", []):
         bkey = book.get("key", "")
@@ -107,8 +110,7 @@ def parse_event_odds(odds: dict, *, role: str, tip: datetime, event_id: str, gid
                     timing_status = "ELIGIBLE"
             for oc in m.get("outcomes", []):
                 name = oc.get("description", "")
-                pid, identity_method = (identity_resolution.resolve_player(name, gid, roster_df, aliases)
-                                        if (gid is not None and not roster_df.empty) else (None, "unmatched"))
+                pid, identity_method = identity_resolution.resolve_with_index(name, game_index, aliases)
                 side = str(oc.get("name", "")).lower()
                 line = oc.get("point")
                 # eligibility requires BOTH valid timing AND resolved identity.
