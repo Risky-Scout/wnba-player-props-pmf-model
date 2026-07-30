@@ -25,6 +25,14 @@ artifacts/quarantine/
 !artifacts/audits/SETTLEMENT_LINEAGE_AUDIT.json
 !artifacts/audits/FEATURE_REGISTRY.json
 !artifacts/audits/LEAKAGE_AUDIT.json
+!artifacts/audits/STAGE9_STRENGTHENED_READINESS.json
+!artifacts/audits/FEATURE_SCHEMA.json
+!artifacts/audits/FEATURE_TARGET_SEPARATION_AUDIT.json
+!artifacts/audits/POINT_IN_TIME_AUDIT.json
+!artifacts/audits/SAME_DAY_LEAKAGE_AUDIT.json
+!artifacts/audits/ESTIMATOR_INPUT_GUARD_AUDIT.json
+!artifacts/audits/FEATURE_JOIN_COVERAGE.json
+!artifacts/audits/FEATURE_MISSINGNESS_COVERAGE.csv
 artifacts/models/
 !artifacts/.gitkeep
 
