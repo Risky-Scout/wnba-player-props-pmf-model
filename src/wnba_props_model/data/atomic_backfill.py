@@ -24,7 +24,8 @@ from wnba_props_model.data.atomic_quotes import (
     EXACT,
     atomic_quote_id,
 )
-from wnba_props_model.evaluation import historical_market as hm
+from wnba_props_model.data import identity_resolution
+from wnba_props_model.evaluation import historical_market as hm  # noqa: F401 (kept for API compat)
 
 DECISION_LEAD_HOURS = 12
 CLOSING_MINUTES = 5
@@ -58,7 +59,7 @@ def cutoffs_for(tip: datetime) -> tuple[str, str]:
 
 def parse_event_odds(odds: dict, *, role: str, tip: datetime, event_id: str, gid,
                      roster_df: pd.DataFrame, collection_ts: str,
-                     requested_snapshot_utc: str) -> list[dict]:
+                     requested_snapshot_utc: str, aliases: dict | None = None) -> list[dict]:
     """Canonical parser: response -> atomic side rows with immutable timestamps + role cutoff.
     quote_timestamp_utc == market_last_update_utc; if absent, the row is BLOCKED (never
     fabricated). Both Over and Under of one market object inherit that object's last_update.
@@ -106,8 +107,8 @@ def parse_event_odds(odds: dict, *, role: str, tip: datetime, event_id: str, gid
                     timing_status = "ELIGIBLE"
             for oc in m.get("outcomes", []):
                 name = oc.get("description", "")
-                pid, _method = (hm.resolve_player_id(name, gid, roster_df)
-                                if (gid is not None and not roster_df.empty) else (None, "unmatched"))
+                pid, identity_method = (identity_resolution.resolve_player(name, gid, roster_df, aliases)
+                                        if (gid is not None and not roster_df.empty) else (None, "unmatched"))
                 side = str(oc.get("name", "")).lower()
                 line = oc.get("point")
                 # eligibility requires BOTH valid timing AND resolved identity.
@@ -153,6 +154,7 @@ def parse_event_odds(odds: dict, *, role: str, tip: datetime, event_id: str, gid
                     "usable_for_pairing": bool(usable_for_pairing),
                     "usable_for_decision_analysis": bool(usable_for_pairing and role == "decision"),
                     "usable_for_closing_analysis": bool(usable_for_pairing and role == "closing"),
+                    "identity_method": identity_method,
                     "source": "odds_api_v4_historical",
                 })
     return rows

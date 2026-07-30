@@ -60,6 +60,7 @@ ATOMIC_QUOTE_COLUMNS = [
     "usable_for_pairing",       # bool: eligible identity + eligible timing
     "usable_for_decision_analysis",  # bool: usable_for_pairing and role == decision
     "usable_for_closing_analysis",   # bool: usable_for_pairing and role == closing
+    "identity_method",          # exact_roster_name | approved_alias | normalized_relaxed | unmatched | collision
     "source",                   # provenance
 ]
 
