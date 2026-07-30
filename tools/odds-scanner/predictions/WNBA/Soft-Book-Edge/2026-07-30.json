@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-30T02:49:19.423779+00:00",
+  "generated_at": "2026-07-30T05:48:22.045000+00:00",
   "game_date": "2026-07-30",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-07-30",
-    "generated_utc": "2026-07-30T02:49:19.423779+00:00",
+    "generated_utc": "2026-07-30T05:48:22.045000+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,8 +32,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1079,
-    "n_scored_rows": 986,
+    "n_quote_rows": 1219,
+    "n_scored_rows": 1112,
     "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 9,
