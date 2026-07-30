@@ -6,7 +6,7 @@ the exact same-time no-vig market and to the V3 baseline.
 from __future__ import annotations
 
 import json
-import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,10 +19,9 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, log_loss
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from wnba_props_model.sharp_v4 import core as C  # noqa: E402
-from wnba_props_model.sharp_v4 import models as M  # noqa: E402
+from wnba_props_model.sharp_v4 import core as C
+from wnba_props_model.sharp_v4 import models as M
 
 app = typer.Typer(add_completion=False)
 OUT = C.load_verified.__globals__["REPO"] / "artifacts" / "sharp_v4"
@@ -130,7 +129,7 @@ def main() -> None:
     typer.echo(agg.to_string(index=False))
     if market_rows:
         m = pd.DataFrame(market_rows)
-        typer.echo("---- market (dev) beaten any: %s ----" % bool(m["market_beaten"].any()))
+        typer.echo(f"---- market (dev) beaten any: {bool(m['market_beaten'].any())} ----")
 
 
 def _mean(p):
@@ -220,7 +219,7 @@ def _market(ev, pmfs, settled, stat):
         mask = np.concatenate([np.where(gd == g)[0] for g in s])
         dd = d.iloc[mask]
         boots.append(log_loss(dd["o"], dd["mp"], labels=[0, 1]) - log_loss(dd["o"], dd["kp"], labels=[0, 1]))
-    return {"stat": stat, "rows": len(d), "game_dates": int(len(uniq)), "logloss_model": llm,
+    return {"stat": stat, "rows": len(d), "game_dates": len(uniq), "logloss_model": llm,
             "logloss_market": llk, "delta_logloss": llm - llk, "delta_ci95_upper": float(np.quantile(boots, 0.95)),
             "market_beaten": bool((llm - llk) < 0 and np.quantile(boots, 0.95) < 0)}
 

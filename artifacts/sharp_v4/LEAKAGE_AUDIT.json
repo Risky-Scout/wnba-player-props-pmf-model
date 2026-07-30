@@ -1,0 +1,9 @@
+{
+  "artifact": "LEAKAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "feature_contracts": "anchored-regex -> exact ordered lists; labels+ids+market excluded",
+  "join_cardinality": "one_to_one enforced (JOIN_CARDINALITY_AUDIT.json)",
+  "outcome_in_estimator": "blocked by prep() label guard",
+  "market_in_pure": "none (PURE track)",
+  "clean": true
+}

@@ -1,0 +1,20 @@
+{
+  "artifact": "RARE_EVENT_MODEL_REPORT",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "stats": {
+    "stl": {
+      "selected_family": "direct_nb2_exacttail"
+    },
+    "blk": {
+      "selected_family": "direct_nb2_exacttail"
+    },
+    "turnover": {
+      "selected_family": "direct_nb2_exacttail"
+    }
+  },
+  "candidates": [
+    "direct_nb2_exacttail",
+    "hurdle_nb2"
+  ],
+  "note": "hurdle challenger compared to direct by OOF NLL; simplest adequate family selected."
+}

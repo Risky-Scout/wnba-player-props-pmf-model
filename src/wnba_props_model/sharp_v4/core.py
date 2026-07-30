@@ -7,14 +7,21 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from scipy.stats import nbinom, poisson
 
-from wnba_props_model.sharp_v3.core import (ID_COLS, LABEL_COLS, TIER_A, american_to_prob,  # noqa: F401
-                                            ece, load_verified, no_vig_over)
+from wnba_props_model.sharp_v3.core import (  # noqa: F401
+    ID_COLS,
+    LABEL_COLS,
+    TIER_A,
+    american_to_prob,
+    ece,
+    load_verified,
+    no_vig_over,
+)
 
 SEED = 20260730
 TAIL_TOL = 1e-6
@@ -91,7 +98,6 @@ def assert_unique_keys(df: pd.DataFrame, keys: list[str], name: str = "frame") -
 
 def safe_merge(left: pd.DataFrame, right: pd.DataFrame, keys: list[str], how: str = "inner") -> pd.DataFrame:
     assert_unique_keys(left, keys, "left"); assert_unique_keys(right, keys, "right")
-    before = (len(left), len(right))
     out = left.merge(right, on=keys, how=how, validate="one_to_one")
     return out
 
@@ -185,6 +191,26 @@ def hierarchical_dispersion(y: np.ndarray, mu: np.ndarray, group: np.ndarray,
 
 
 # ---- exact-tail metrics (shared support semantics) ----
+def market_consistent_atoms(atoms: np.ndarray, line: float, target_over: float) -> np.ndarray:
+    """Minimum-KL projection of a pure PMF onto the constraint P(Y>line)=target_over via a single
+    exponential tilt on the over-region indicator (closed form). Preserves shape within each region,
+    nonnegativity, and unit mass. This is the market-consistent atom distribution for one line."""
+    a = np.clip(np.asarray(atoms, float), 0.0, None)
+    a = a / a.sum()
+    k = np.arange(a.size)
+    over = k > line
+    S = float(a[over].sum())
+    q = float(min(max(target_over, 1e-6), 1 - 1e-6))
+    if S <= 1e-9 or S >= 1 - 1e-9:
+        return a
+    # e^theta = q(1-S) / ((1-q)S)
+    w = (q * (1 - S)) / ((1 - q) * S)
+    tilted = a.copy()
+    tilted[over] = a[over] * w
+    tilted = tilted / tilted.sum()
+    return tilted
+
+
 def nll_exact(pmfs: list[CountPMF], y: np.ndarray) -> float:
     return float(-np.mean([p.logpmf(int(yi)) for p, yi in zip(pmfs, y)]))
 

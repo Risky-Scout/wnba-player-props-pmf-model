@@ -1,0 +1,10 @@
+{
+  "artifact": "ORIGIN_MAIN_VERIFICATION",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "branch": "cursor/wnba-sharp-pmf-v3",
+  "branch_head": "f193767ceefcb0995f1ab828ce7aeba9e456344a",
+  "origin_main": "3f7721314d10db0e5b68cba139c3f77a4bdb8cb1",
+  "merged_to_main": false,
+  "on_main": false,
+  "merge_blocker": "This agent's GitHub CLI is READ-ONLY and no merge tool is available; the PR cannot be merged programmatically. PR #99 is pushed and ready for a maintainer to run `gh pr merge 99 --squash` (or click Merge). On-main verification will pass only after that."
+}

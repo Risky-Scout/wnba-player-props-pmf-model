@@ -1,0 +1,6 @@
+{
+  "artifact": "GAME_ENVIRONMENT_REPORT",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "status": "DESIGNED_NOT_FITTED",
+  "note": "shared game-latent (possessions/pace/overtime/script) + team-opportunity allocation is specified in design v4; not fitted this run. Players not yet drawn from one shared game state."
+}

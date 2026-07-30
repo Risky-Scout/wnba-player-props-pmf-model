@@ -1,0 +1,21 @@
+{
+  "artifact": "DRIFT_MONITOR_STATUS",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "monitored": [
+    "feature_drift",
+    "role_drift",
+    "minutes_pit",
+    "stat_pit",
+    "nll",
+    "crps",
+    "mean_bias",
+    "tail_exceedance",
+    "calibration_slope",
+    "market_logloss_delta",
+    "coverage",
+    "abstention_rate"
+  ],
+  "baseline_captured": true,
+  "automation": "weekly schedule with min sample/date guards; rollback via champion/challenger",
+  "status": "BASELINE_ESTABLISHED"
+}

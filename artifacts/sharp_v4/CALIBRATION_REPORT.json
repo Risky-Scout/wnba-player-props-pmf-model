@@ -1,0 +1,16 @@
+{
+  "artifact": "CALIBRATION_REPORT",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "method": "randomized-PIT KS on active OOF rows; cross-fitted distributional recalibration design",
+  "pit_ks_by_stat": {
+    "ast": 0.0206,
+    "blk": 0.028,
+    "fg3m": 0.0341,
+    "pts": 0.0832,
+    "reb": 0.03,
+    "stl": 0.0211,
+    "turnover": 0.0249
+  },
+  "participation_calibrator": "selected among {isotonic, platt} on earlier OOF (see PARTICIPATION_REPORT)",
+  "insufficient_data_behavior": "PURE_UNCALIBRATED/ABSTAIN or MARKET_FALLBACK_NOT_CERTIFIED"
+}
