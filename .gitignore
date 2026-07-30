@@ -72,3 +72,6 @@ data/snapshots/
 data/recovered_v2/
 data/atomic_quotes/
 deliveries/sharp_v3/
+
+data/recovered_v2/wnba_player_shooting_labels.parquet
+deliveries/sharp_v6/

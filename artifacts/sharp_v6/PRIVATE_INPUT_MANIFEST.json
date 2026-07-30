@@ -1,0 +1,31 @@
+{
+  "artifact": "PRIVATE_INPUT_MANIFEST",
+  "generated_at_utc": "2026-07-30T23:39:18.951273+00:00",
+  "inputs": {
+    "pregame_features_t12": {
+      "status": "PRESENT",
+      "rows": 23931,
+      "sha256": "70afb7e05af7f826f65050fb52c6add54c0a5bfdef7bb88316c322165dc222c0",
+      "license": "PRIVATE"
+    },
+    "player_targets": {
+      "status": "PRESENT",
+      "rows": 23931,
+      "sha256": "0ecb09878770a073535afd578877aaf7c52710a4eae5ae1c020fa2ac145727e6",
+      "license": "PRIVATE"
+    },
+    "shooting_labels_fgm_ftm": {
+      "status": "PRESENT",
+      "rows": 5387,
+      "sha256": "27b49687271e0b360cb6854da2c9f8c7c86fd5408f7115c42d8e6817a2ffb2f0",
+      "license": "PRIVATE"
+    },
+    "settled_quote_pairs": {
+      "status": "PRESENT",
+      "rows": 50753,
+      "sha256": "66d7bf76a19557a33a586311f8aa7cd8035ae7dcf056ffaf7e8582bac86bb254",
+      "license": "PRIVATE"
+    }
+  },
+  "note": "gitignored licensed inputs; fail-closed on hash drift"
+}
