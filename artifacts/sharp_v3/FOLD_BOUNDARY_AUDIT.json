@@ -1,0 +1,42 @@
+{
+  "artifact": "FOLD_BOUNDARY_AUDIT",
+  "frozen_from": "dates+coverage only",
+  "dev_folds": [
+    {
+      "name": "dev_2024_h1",
+      "train_end": "2024-05-01",
+      "eval_start": "2024-05-01",
+      "eval_end": "2024-06-30",
+      "is_holdout": false
+    },
+    {
+      "name": "dev_2024_h2",
+      "train_end": "2024-07-01",
+      "eval_start": "2024-07-01",
+      "eval_end": "2024-09-30",
+      "is_holdout": false
+    },
+    {
+      "name": "dev_2025_h1",
+      "train_end": "2025-05-01",
+      "eval_start": "2025-05-01",
+      "eval_end": "2025-06-30",
+      "is_holdout": false
+    },
+    {
+      "name": "dev_2025_h2",
+      "train_end": "2025-07-01",
+      "eval_start": "2025-07-01",
+      "eval_end": "2025-10-31",
+      "is_holdout": false
+    }
+  ],
+  "holdout": {
+    "name": "holdout_2026",
+    "train_end": "2026-01-01",
+    "eval_start": "2026-01-01",
+    "eval_end": "2026-12-31",
+    "is_holdout": true
+  },
+  "holdout_opened": true
+}

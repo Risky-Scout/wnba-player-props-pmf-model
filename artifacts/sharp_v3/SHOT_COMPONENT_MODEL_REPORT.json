@@ -1,0 +1,15 @@
+{
+  "artifact": "SHOT_COMPONENT_MODEL_REPORT",
+  "generated_at_utc": "2026-07-30T19:04:16.194683+00:00",
+  "fitted": {
+    "pts": "conditional NB2 (residual-dispersion)",
+    "reb": "conditional NB2 (residual-dispersion)",
+    "ast": "conditional NB2 (residual-dispersion)",
+    "fg3m": "conditional NB2 (residual-dispersion)",
+    "stl": "conditional NB2 (residual-dispersion)",
+    "blk": "conditional NB2 (residual-dispersion)",
+    "turnover": "conditional NB2 (residual-dispersion)"
+  },
+  "structural_2pa_3pa_fta_decomposition": "DESIGNED_NOT_FITTED",
+  "note": "Tier A stats fitted as active-conditional NB2 count PMFs. Full structural shot-component (2PA/3PA/FTA x conversion) decomposition is specified in design v3 and scaffolded in pricing/joint_generator.py; not fitted/certified this run."
+}

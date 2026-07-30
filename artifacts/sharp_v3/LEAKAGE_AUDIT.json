@@ -1,0 +1,30 @@
+{
+  "artifact": "LEAKAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T18:58:16.227972+00:00",
+  "detected_and_fixed": {
+    "issue": "same-game target leakage: bare label columns (pts,reb,...) matched the stat-name feature contract after features+targets merge.",
+    "symptom": "impossible OOF mean_mae ~0.01-0.03 and model logloss ~0.20 vs market ~0.69.",
+    "fix": "core.LABEL_COLS excluded from every contract + fail-closed guard in _prep()."
+  },
+  "post_fix_mean_mae": {
+    "pts": 4.1055973407,
+    "reb": 1.7703052735,
+    "ast": 1.2148276571,
+    "fg3m": 0.7467314822,
+    "stl": 0.7238061002,
+    "blk": 0.4891135009,
+    "turnover": 0.9285899932
+  },
+  "post_fix_mae_realistic": {
+    "pts": true,
+    "reb": true,
+    "ast": true,
+    "fg3m": true,
+    "stl": true,
+    "blk": true,
+    "turnover": true
+  },
+  "all_mae_realistic": true,
+  "feature_equals_label_violations": [],
+  "clean": true
+}

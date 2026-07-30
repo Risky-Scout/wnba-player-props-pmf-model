@@ -57,7 +57,7 @@ def main() -> None:
             df = pd.read_parquet(p)
             nrows, ncols = int(df.shape[0]), int(df.shape[1])
             d0, d1 = _date_span(df)
-        except Exception as e:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             nrows = ncols = None; d0 = d1 = None
             df = None
         records[name] = {

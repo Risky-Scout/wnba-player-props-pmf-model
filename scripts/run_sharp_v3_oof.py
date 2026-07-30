@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,16 +19,15 @@ from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostin
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss, log_loss
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from wnba_props_model.sharp_v3 import core as C  # noqa: E402
+from wnba_props_model.sharp_v3 import core as C
 
 app = typer.Typer(add_completion=False)
 OUT = C.REPO / "artifacts" / "sharp_v3"
 MODELS = C.REPO / "artifacts" / "sharp_v3" / "fitted"
 SEED = 20260730
-_HGB = dict(max_depth=3, max_iter=200, learning_rate=0.06, min_samples_leaf=40,
-            l2_regularization=1.0, random_state=SEED)
+_HGB = {"max_depth": 3, "max_iter": 200, "learning_rate": 0.06, "min_samples_leaf": 40,
+        "l2_regularization": 1.0, "random_state": SEED}
 
 
 def _num(df: pd.DataFrame, cols: list[str]) -> np.ndarray:
@@ -64,7 +64,7 @@ def _git_sha() -> str:
 
 
 def _fit_participation(train, eval_, feat):
-    Xtr, Xev, used = _prep(train, eval_, feat)
+    Xtr, Xev, _used = _prep(train, eval_, feat)
     ytr = train["participation"].to_numpy(int)
     # chronological inner split for cross-fit calibration (earlier fit -> later calib)
     order = train["game_date"].rank(method="first").to_numpy()
@@ -167,7 +167,7 @@ def _market_compare(eval_, pmfs_by_stat, settled, stat, min_val_col="actual_outc
         boots.append(float(log_loss(dd["outcome"], dd["mp"], labels=[0, 1]) -
                            log_loss(dd["outcome"], dd["kp"], labels=[0, 1])))
     ci_hi = float(np.quantile(boots, 0.95))    # one-sided 95% upper bound
-    return {"stat": stat, "rows": int(len(d)), "game_dates": int(len(uniq)),
+    return {"stat": stat, "rows": len(d), "game_dates": len(uniq),
             "logloss_model": ll_model, "logloss_market": ll_market, "delta_logloss": delta,
             "delta_ci95_upper": ci_hi, "brier_model": float(brier_score_loss(d["outcome"], d["mp"])),
             "brier_market": float(brier_score_loss(d["outcome"], d["kp"])),
@@ -198,7 +198,7 @@ def main(open_holdout: bool = typer.Option(False, "--open-holdout")) -> None:
         # participation
         p_active, _, _ = _fit_participation(train, eval_, part_feat)
         ya = eval_["participation"].to_numpy(int)
-        part_rows.append({"fold": fold.name, "rows": int(len(eval_)),
+        part_rows.append({"fold": fold.name, "rows": len(eval_),
                           "log_loss": float(log_loss(ya, np.clip(p_active, 1e-6, 1 - 1e-6), labels=[0, 1])),
                           "brier": float(brier_score_loss(ya, p_active)),
                           "ece": C.ece(p_active, ya), "base_rate": float(ya.mean()),
@@ -208,7 +208,7 @@ def main(open_holdout: bool = typer.Option(False, "--open-holdout")) -> None:
         mu_min, sd_min, _ = _fit_minutes(train, act_ev) if len(act_ev) else (np.array([]), 0, None)
         if len(act_ev):
             ym = act_ev["actual_minutes"].to_numpy(float)
-            min_rows.append({"fold": fold.name, "rows": int(len(act_ev)), "mae": float(np.mean(np.abs(mu_min - ym))),
+            min_rows.append({"fold": fold.name, "rows": len(act_ev), "mae": float(np.mean(np.abs(mu_min - ym))),
                              "rmse": float(np.sqrt(np.mean((mu_min - ym) ** 2))), "resid_sd": sd_min,
                              "is_holdout": fold.is_holdout})
         # Tier A stat PMFs on active eval rows
@@ -218,7 +218,7 @@ def main(open_holdout: bool = typer.Option(False, "--open-holdout")) -> None:
             pmfs, mu_ev, r, _, fh, nfeat = _stat_pmfs(train, eval_act, stat)
             y = np.clip(eval_act[stat].to_numpy(float), 0, None)
             m = _pure_metrics(pmfs, y, mu_ev, rng)
-            m.update({"fold": fold.name, "stat": stat, "rows": int(len(y)), "dispersion_r": r,
+            m.update({"fold": fold.name, "stat": stat, "rows": len(y), "dispersion_r": r,
                       "n_features": nfeat, "feature_hash": fh, "is_holdout": fold.is_holdout})
             stat_rows.append(m)
             mc = _market_compare(eval_act, pmfs, settled, stat)

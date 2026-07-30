@@ -1,0 +1,15 @@
+{
+  "artifact": "CALIBRATION_REPORT",
+  "generated_at_utc": "2026-07-30T18:58:16.227972+00:00",
+  "method": "randomized-PIT KS uniformity (pre-recalibration) on active OOF rows",
+  "pit_ks_by_stat": {
+    "pts": 0.12174909445,
+    "reb": 0.049395863224999996,
+    "ast": 0.033261061125000005,
+    "fg3m": 0.042418543925,
+    "stl": 0.02827421695,
+    "blk": 0.02838510265,
+    "turnover": 0.029059245325
+  },
+  "note": "distributional (monotone-CDF) recalibration hook in pricing/calibration.py; PURE track abstains where calibrator data insufficient, MARKET track uses market-consistent PMF."
+}

@@ -1,0 +1,67 @@
+{
+  "artifact": "ACTIVATION_REGISTRY",
+  "generated_at_utc": "2026-07-30T18:58:25.395055+00:00",
+  "tier_A": {
+    "pts": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "exact_market_fallback"
+    },
+    "reb": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "exact_market_fallback"
+    },
+    "ast": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "exact_market_fallback"
+    },
+    "fg3m": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "exact_market_fallback"
+    },
+    "stl": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "PURE_UNCERTIFIED",
+      "production_behavior": "pure_uncertified_or_abstain"
+    },
+    "blk": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "PURE_UNCERTIFIED",
+      "production_behavior": "pure_uncertified_or_abstain"
+    },
+    "turnover": {
+      "pure_track": "TRAINED_AND_EVALUATED",
+      "market_track": "PURE_UNCERTIFIED",
+      "production_behavior": "pure_uncertified_or_abstain"
+    },
+    "stocks": {
+      "pure_track": "TRAINED_NOT_CERTIFIED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "derived_from_joint_or_market_fallback"
+    },
+    "pts_ast": {
+      "pure_track": "TRAINED_NOT_CERTIFIED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "derived_from_joint_or_market_fallback"
+    },
+    "pts_reb": {
+      "pure_track": "TRAINED_NOT_CERTIFIED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "derived_from_joint_or_market_fallback"
+    },
+    "reb_ast": {
+      "pure_track": "TRAINED_NOT_CERTIFIED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "derived_from_joint_or_market_fallback"
+    },
+    "pts_reb_ast": {
+      "pure_track": "TRAINED_NOT_CERTIFIED",
+      "market_track": "MARKET_FALLBACK",
+      "production_behavior": "derived_from_joint_or_market_fallback"
+    }
+  },
+  "note": "Certification requires delta_logloss<0 AND clustered 95% upper bound<0 on dev."
+}
