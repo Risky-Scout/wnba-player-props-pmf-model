@@ -1,0 +1,8 @@
+{
+  "artifact": "MARKET_PROJECTION_AUDIT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "settlement": "push-aware A/(A+B)",
+  "multi_line": "one PMF per player-stat-timestamp (min-KL mean/disp/zero tilt)",
+  "fail_closed": "MARKET_PROJECTION_INFEASIBLE on contradictory/noisy constraints",
+  "live_slate": "see deliveries/sharp_v5/.../pricing_manifest.json (feasible vs infeasible counts)"
+}

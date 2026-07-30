@@ -5,6 +5,7 @@ compares V5 to the V4 baseline.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,12 +14,10 @@ import numpy as np
 import pandas as pd
 import typer
 from scipy.stats import nbinom, poisson
-from sklearn.metrics import log_loss
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from wnba_props_model.sharp_v4 import core as V4C  # noqa: E402
-from wnba_props_model.sharp_v5 import models as M5  # noqa: E402
+from wnba_props_model.sharp_v4 import core as V4C
+from wnba_props_model.sharp_v5 import models as M5
 
 app = typer.Typer(add_completion=False)
 REPO = V4C.load_verified.__globals__["REPO"]
@@ -66,7 +65,7 @@ def _metrics(atoms_list, y):
         # exact-tail: if y beyond stored support, use survival tail mass (aggregate) — not clipped to atom
         p = a[yi] if yi < a.size else max(1e-12, 1 - a.sum())
         nll.append(-np.log(max(p, 1e-12)))
-        kmax = max(a.size, yi + 1)
+
         cdf = np.cumsum(np.concatenate([a, [max(0.0, 1 - a.sum())]]))
         cdf = np.clip(cdf, 0, 1)
         ks = np.arange(cdf.size)
@@ -123,7 +122,7 @@ def _market(ev, atoms_list, settled, stat):
         pick = rng.integers(0, len(uniq), len(uniq))
         idx = np.concatenate([by_date[j] for j in pick])
         boots[b] = _ll(o[idx], mp[idx]) - _ll(o[idx], kp[idx])
-    return {"stat": stat, "rows": len(d), "game_dates": int(len(uniq)), "logloss_model": llm,
+    return {"stat": stat, "rows": len(d), "game_dates": len(uniq), "logloss_model": llm,
             "logloss_market": llk, "delta_logloss": llm - llk, "delta_ci95_upper": float(np.quantile(boots, 0.95)),
             "market_beaten": bool((llm - llk) < 0 and np.quantile(boots, 0.95) < 0)}
 
@@ -155,7 +154,7 @@ def main() -> None:
         eva = ev[ev["actual_minutes"] > 0]
         matoms, _, _ = M5.minutes_pmf_rows(train, eva, minutes_contract)
         for stat in V4C.TIER_A:
-            lam, r_rows, fh, nfeat, r_by = M5.stat_mixture_rows(train, eva, stat, matoms)
+            lam, r_rows, fh, nfeat, _r_by = M5.stat_mixture_rows(train, eva, stat, matoms)
             y = np.clip(eva[stat].to_numpy(float), 0, None)
             cap = V4C.EMERGENCY_CAP[stat]
             atoms_list = []
@@ -166,7 +165,7 @@ def main() -> None:
                 atoms_list.append(a)
                 mean_pred[i] = float(np.dot(np.arange(a.size), a))
             nll, crps, pit = _metrics(atoms_list, y)
-            rows.append({"fold": f.name, "stat": stat, "family": "minutes_mixture_nb2", "rows": int(len(y)),
+            rows.append({"fold": f.name, "stat": stat, "family": "minutes_mixture_nb2", "rows": len(y),
                          "nll": nll, "crps": crps, "mean_mae": float(np.mean(np.abs(mean_pred - y))),
                          "pit_ks": pit, "n_features": nfeat, "feature_hash": fh})
             mc = _market(eva, atoms_list, settled, stat)

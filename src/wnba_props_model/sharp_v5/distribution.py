@@ -10,7 +10,7 @@ Fixes the V4 defects:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.stats import nbinom, poisson

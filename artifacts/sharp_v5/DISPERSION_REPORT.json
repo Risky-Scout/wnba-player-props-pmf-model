@@ -1,0 +1,10 @@
+{
+  "artifact": "DISPERSION_REPORT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "method": "hierarchical per-role NB2 dispersion (phi partial pool)",
+  "families_available": [
+    "nb2",
+    "hurdle",
+    "zinb"
+  ]
+}

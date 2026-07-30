@@ -6,7 +6,7 @@ zero-mass) is fit to all line constraints jointly. Fails closed as MARKET_PROJEC
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.optimize import least_squares

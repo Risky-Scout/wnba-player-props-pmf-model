@@ -1,0 +1,16 @@
+{
+  "artifact": "BDL_SHOOTING_LABEL_AUDIT",
+  "generated_at_utc": "2026-07-30T22:51:17.492700+00:00",
+  "endpoint_probe": {
+    "/wnba/v1/games": 200,
+    "/wnba/v1/teams": 200,
+    "/wnba/v1/players": 200,
+    "/wnba/v1/stats": 404,
+    "/wnba/v1/box_scores": 404,
+    "/wnba/v1/season_stats": 404
+  },
+  "finding": "Per-game box-score stat endpoints (/wnba/v1/stats, /box_scores, /season_stats) return 404 with the current API key/tier; only /games, /teams, /players are accessible. FGM and FTM are therefore NOT recoverable in this environment.",
+  "consequence": "A fully-fitted STRUCTURAL POINTS decomposition (needs 2PM/FTM labels) remains blocked. Points uses the V5 minutes-mixture NB2 direct model (improved over V4), NOT labelled structural.",
+  "status": "BLOCKED_API_TIER",
+  "remedy": "a BDL plan/tier exposing per-game box scores (or an alternate licensed box-score feed) is required; recovered_v2 stats (fga/fg3a/fta/fg3m/oreb/dreb) came from a source that included those splits but not fgm/ftm."
+}

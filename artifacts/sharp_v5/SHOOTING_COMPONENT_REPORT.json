@@ -1,0 +1,12 @@
+{
+  "artifact": "SHOOTING_COMPONENT_REPORT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "structural_points": "BLOCKED \u2014 FGM/FTM unavailable (BDL box-score endpoints 404, see BDL_SHOOTING_LABEL_AUDIT)",
+  "points_model": "V5 minutes-mixture NB2 direct (improved over V4); NOT labelled structural",
+  "available": [
+    "2PA=fga-fg3a",
+    "3PA=fg3a",
+    "FTA=fta",
+    "3PM/3PA conversion"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "artifact": "CALIBRATION_REPORT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "pit_ks_by_stat": {
+    "ast": 0.0214,
+    "blk": 0.0261,
+    "fg3m": 0.023,
+    "pts": 0.072,
+    "reb": 0.0306,
+    "stl": 0.0217,
+    "turnover": 0.0371
+  },
+  "cross_fit_design": "block t calibrator uses only earlier OOF",
+  "status": "PIT_DIAGNOSTICS_PLUS_DESIGN (full persisted cross-fit calibrator layer deferred)"
+}

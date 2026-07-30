@@ -1,0 +1,7 @@
+{
+  "artifact": "MINUTES_MIXTURE_REPORT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "support": "regulation 0..40 + separate overtime mixture (0..48)",
+  "observed_minutes_clipping": "PROHIBITED",
+  "selected": "truncated-normal per role-band + empirical overtime probability (hierarchical EB / role-mixture candidates)"
+}

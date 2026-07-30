@@ -1,0 +1,8 @@
+{
+  "artifact": "LEAKAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "feature_contracts": "frozen exact ordered lists; labels/ids/market excluded",
+  "market_in_pure": "none",
+  "outcome_in_estimator": "blocked by prep() guard",
+  "clean": true
+}
