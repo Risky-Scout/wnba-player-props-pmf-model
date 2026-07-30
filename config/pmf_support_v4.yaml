@@ -1,0 +1,7 @@
+version: v4
+tail_tolerance: 1.0e-6
+no_outcome_clipping: true   # observations above nominal support scored on exact tail, never clipped
+overflow_atom: {preserve: true, include_in_over_settlement: true, on_exceed: TAIL_TOLERANCE_NOT_MET}
+store_per_pmf: [support_min, support_max, overflow_probability, tail_upper_bound, tail_method, normalization_error]
+emergency_caps: {pts: 80, reb: 40, ast: 30, fg3m: 18, stl: 15, blk: 15, turnover: 18, fgm: 35, ftm: 35, fta: 40}
+numerical: {published_prob_abs_error: 5.0e-4, joint_tv_error: 1.0e-3}

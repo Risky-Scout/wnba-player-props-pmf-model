@@ -1,0 +1,33 @@
+{
+  "artifact": "V4_FREEZE_MANIFEST",
+  "frozen_at_utc": "2026-07-30T19:50:34.713897+00:00",
+  "file_hashes": {
+    "config/modeling_design_v4.yaml": "d8d9b2ab50a88fe571b652ff55578af908e35b44d67529f829ee88a2dd8d0a60",
+    "config/chronological_oof_v4.yaml": "a5181fee4d29104f36f267f03cb4f1510bd538071824afbbf63d8f655f88d173",
+    "config/pmf_support_v4.yaml": "dd9c84b40089e652f906c9086e9474b2a3ad9590bd1d0ffad46dcac84ff924f9",
+    "config/model_selection_gates_v4.yaml": "c13a75336f0ba48aadd580c387c5107a5329e8d70b5687db032614f48d5adce5",
+    "docs/MODELING_DESIGN_V4.md": "5bf72aa614393001a2cdc808459429becbb0ab0e7d2cc883f2143025dcd31088",
+    "artifacts/sharp_v4/FEATURE_CONTRACTS.json": "d621b82d9440608d3523da879aed7539a0dbfad2538d2e7a064deef8bef1e245"
+  },
+  "component_schema_hashes": {
+    "participation": "eef2d3449d135223",
+    "minutes": "adce920e467a64e5",
+    "pts": "afb4dd07c1d94070",
+    "reb": "666ac1e7d92fc87d",
+    "ast": "73ad4f27f820207a",
+    "fg3m": "47512bb66b58c50f",
+    "stl": "920c6f532e283133",
+    "blk": "a80a23b12e0b5463",
+    "turnover": "0eb3b6b9a687b3ed",
+    "fg2a": "91320efec5ea130e",
+    "fg3a": "d6e6dd2c92ac5958",
+    "fta": "9efa3a8a80b1e7f4",
+    "oreb": "666ac1e7d92fc87d",
+    "dreb": "666ac1e7d92fc87d"
+  },
+  "code_sha": "67aea86795e6bf84edc0212cfc0c11a6a59274d8",
+  "selection_data": "2023-2025 folds only (2026 V3 holdout CONSUMED)",
+  "prospective_evaluation_start": "first forecast after this freeze (append-only, prequential)",
+  "modeling_design_v4_sha256": "8eda1df9f631a1411e7087c289b323fa6173a775b4be2e5b3211a4aecbe7773e",
+  "rule": "No semantic field may change after the first V4 OOF prediction; a change requires quarantining affected predictions, incrementing version, and refitting affected folds."
+}

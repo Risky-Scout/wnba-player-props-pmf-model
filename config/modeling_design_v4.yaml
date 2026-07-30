@@ -1,0 +1,60 @@
+# Modeling Design V4 — WNBA Sharp PMF (atom-reliable). Frozen before any V4 OOF prediction.
+# V2 and V3 are preserved unmodified (config/design_registry, config/*_v3.yaml). V3 is a BASELINE.
+version: v4
+release: wnba-sharp-pmf-v4
+baseline: wnba-sharp-pmf-v3
+
+selection_data: "2023-2025 chronological folds ONLY"
+consumed_holdout: "2026 V3 holdout is CONSUMED (artifacts/sharp_v4/HOLDOUT_LINEAGE_AUDIT.json); never used for V4 selection"
+prospective_holdout: "append-only; begins with first forecast AFTER this freeze; prequential; never regenerated"
+
+core_defect_repairs:   # Section 4 — required before fitting
+  A_explicit_feature_contracts: "exact ordered per-component contracts (registry-based), NOT `if stat in column`"
+  B_join_cardinality: "assert 1:1 on (game_id, canonical_player_id[, prediction_as_of]); fail on dup/many-to-many"
+  C_no_outcome_clipping: "never y=min(y,cap); exact analytic tail mass or explicit overflow atom; shared support semantics"
+  D_adaptive_support_overflow: "expand until survival<1e-6; store support_min/max, overflow, tail_upper_bound, tail_method, norm_error"
+  E_hierarchical_dispersion: "partial-pool dispersion player->role->stat->league; per-fold; NB2/Poisson-lognormal/hurdle-NB2/ZINB"
+
+participation:
+  candidates: [logistic_l2_partial_pool, hgb_shallow]
+  calibration_candidates: [platt, beta, isotonic]   # select on strictly-earlier OOF; isotonic not auto-preferred
+  forbid: [class_weight_balanced_prob, fillna_0_5]
+
+minutes:
+  representation: distribution   # P(regulation_minutes=m|active,X), m in 0..40; overtime separate
+  candidates: [hierarchical_empirical_bayes, role_state_mixture, quantile_boost_pmf]
+  primary_metrics: [nll, crps]
+  integrate_over_full_minutes_pmf: true
+
+structural_shooting:
+  model: [twoPA, threePA, FTA, twoP_conv, threeP_conv, FT_conv]
+  identities: {fgm: "2pm+3pm", pts: "2*2pm+3*3pm+ftm"}
+  constraints: {makes_le_attempts: true}
+  conversion: hierarchical_beta_binomial   # player->role->league shrink; percentage NOT known-without-uncertainty
+  control_candidate: v3_direct_nb2_points
+
+other_stats:
+  rebounds: {model: [oreb, dreb], identity: "reb=oreb+dreb", family: hierarchical_nb2}
+  assists: {family_candidates: [nb2, hurdle_nb2, poisson_lognormal]}
+  steals_blocks: {family_candidates: [hurdle_nb2, zinb, poisson_lognormal]}   # zero-heavy; not points family
+  turnovers: {family_candidates: [nb2, hurdle_nb2, poisson_lognormal]}
+
+joint_dependence:
+  candidates: [shared_latent, shared_latent_plus_gaussian_copula, student_t_copula_if_coverage]
+  precision: {published_prob_abs_error: 5.0e-4, joint_tv_error: 1.0e-3, sampler: scrambled_sobol}
+
+calibration:
+  candidates: [randomized_pit_monotone, monotone_cdf_spline, min_kl_atom, role_pooled]
+  cross_fit: "block t uses only OOF predictions BEFORE t"
+  insufficient: {pure: PURE_UNCALIBRATED_or_ABSTAIN, market: MARKET_FALLBACK_NOT_CERTIFIED}
+
+market_anchored:
+  input: exact_same_time_no_vig_only
+  projection: min_kl_or_exp_tilt_to_no_vig
+  residual: {start: hierarchical_linear, params: [delta_mean, delta_dispersion, delta_zero], shrink_to_zero: true}
+  activation_gate: config/model_selection_gates_v4.yaml
+
+seed: 20260730
+selection_gates_ref: config/model_selection_gates_v4.yaml
+oof_protocol_ref: config/chronological_oof_v4.yaml
+support_ref: config/pmf_support_v4.yaml
