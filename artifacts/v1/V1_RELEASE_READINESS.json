@@ -1,0 +1,353 @@
+{
+  "artifact": "V1_RELEASE_READINESS",
+  "release_version": "wnba-pricing-pmf-v1.0.0-rc1",
+  "generated_at_utc": "2026-07-30T06:05:57.696715+00:00",
+  "per_market": {
+    "player_points": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_rebounds": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_assists": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_threes": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_blocks": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_steals": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_turnovers": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_field_goals": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_frees_made": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_frees_attempts": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_q1": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_rebounds_q1": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_assists_q1": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_blocks_steals": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_rebounds": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_assists": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_rebounds_assists": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_rebounds_assists": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_double_double": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_triple_double": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_first_basket": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": false,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "NO_DATA"
+    },
+    "player_first_team_basket": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": false,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "NO_DATA"
+    },
+    "player_method_of_first_basket": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": false,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "NO_DATA"
+    },
+    "player_points_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_rebounds_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_assists_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_threes_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_blocks_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_steals_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_rebounds_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_assists_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_rebounds_assists_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_points_rebounds_assists_alternate": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": true,
+      "release_status": "IMPLEMENTED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "FIXTURE"
+    },
+    "player_fantasy_points": {
+      "implemented": true,
+      "tested": true,
+      "priced_today_fixture": false,
+      "release_status": "CONFIG_REQUIRED",
+      "pure_certified": false,
+      "market_anchored": false,
+      "certification": "NOT_CERTIFIED",
+      "data_state": "CONFIG_REQUIRED"
+    }
+  },
+  "summary": {
+    "implemented": 34,
+    "priced_today_fixture": 30,
+    "market_superiority_certified": 0
+  },
+  "note": "IMPLEMENTED+TESTED via engine/generator; PRICED on a deterministic FIXTURE slate. NO market is PURE_CERTIFIED or MARKET_ANCHORED \u2014 those require the Phase-1 recovered data + untouched chronological market comparison (out of scope for this build)."
+}

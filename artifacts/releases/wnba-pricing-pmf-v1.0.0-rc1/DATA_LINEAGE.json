@@ -1,0 +1,7 @@
+{
+  "artifact": "DATA_LINEAGE",
+  "generated_at_utc": "2026-07-30T06:05:57.696715+00:00",
+  "pricing_run_source": "FIXTURE (deterministic)",
+  "phase1_data_dependency": "recovered_v2 feature slate + atomic quotes (not on this branch)",
+  "note": "Fair prices in this RC are from feature-shaped fixture params, not a live slate."
+}
