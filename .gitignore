@@ -14,8 +14,12 @@ deliveries/
 
 artifacts/runs/
 artifacts/audits/*
+# Quarantined premature/aborted work (never merged into active history):
+artifacts/quarantine/
+
 # Tracked audit artifacts (reproducibility metadata; large data stays gitignored):
 !artifacts/audits/RECOVERED_V2_BUILD_MANIFEST.json
+!artifacts/audits/PREMATURE_MODELING_ABORT_REPORT.md
 !artifacts/audits/IDENTITY_RESOLUTION_AUDIT.json
 !artifacts/audits/EXACT_QUOTE_READINESS.json
 !artifacts/audits/SETTLEMENT_LINEAGE_AUDIT.json
