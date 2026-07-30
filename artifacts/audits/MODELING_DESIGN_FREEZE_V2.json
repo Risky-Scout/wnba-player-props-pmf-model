@@ -1,0 +1,28 @@
+{
+  "artifact": "MODELING_DESIGN_FREEZE_V2",
+  "design_id": "modeling_design_v2",
+  "version": 2,
+  "frozen_at_utc": "2026-07-30T05:29:30.863059+00:00",
+  "git_commit": "c2c18fa185ff9001f604192fef9fc9038d5c5eb8",
+  "modeling_design_sha256": "928c4a67962432d2f76075da9cee39d7a39d54eaa690a0bfa6aa813beb78eb76",
+  "design_file_sha256": {
+    "config/modeling_design_v2.yaml": "e6b85660e2ae3acbfeb15dcc94b16912fec633ad6eae1e1bf2be7fa53477939c",
+    "config/chronological_oof_v2.yaml": "2526cb8e9e088b83493e26c27fffe8301b31e0a561a988390df25ae1dc9bafab",
+    "config/pmf_support_v2.yaml": "906c71eee5db71760224f78f1c0c60f54ef28f2f19c9060cce39bc3a36b6894c",
+    "config/model_selection_gates_v2.yaml": "cc3140be72d4576810310b6c64da7c3cb25e77a3bfaddac73dc2cf482d9e4a29",
+    "docs/MODELING_DESIGN_V2.md": "6fb9be5918ca3dbe3c460c428b4de5b2c7ef1697e60b0fdf06fd9bc5fa276cf9"
+  },
+  "feature_schema_hash": "112e332e30b1f0e3",
+  "candidate_registry_hash": "a19c78866136d8940db72ca17e3acd302c2a611933e826519d53b20406e32cfb",
+  "metric_config_hash": "05320d857bb82c66bf2abdc996ef4d1ba698999fb4426d49b1422b3b68735446",
+  "selection_gate_hash": "337858a7729891f2346f6b924a3e9eb1a21bcda3009a0904de2b3e0d25f34d53",
+  "seed_registry": {
+    "master_seed": 20260730,
+    "fold_seed_rule": "master_seed + outer_fold_id",
+    "inner_seed_rule": "master_seed + 100 + inner_fold_id",
+    "bootstrap_seed_rule": "master_seed + 10000 + bootstrap_index"
+  },
+  "market_data_used_anywhere": false,
+  "supersedes": "no Modeling Design V1 ever existed (absent) \u2014 see DESIGN_EXECUTION_VERIFICATION",
+  "note": "Frozen before any outer-fold prediction. Closing occurs on first outer prediction."
+}

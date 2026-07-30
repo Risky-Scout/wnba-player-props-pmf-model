@@ -1,0 +1,165 @@
+# ======================================================================
+# MODELING DESIGN V2 (FROZEN) — feature-only WNBA player-prop PMF model
+# ======================================================================
+# Sportsbook data is NEVER an input to fitting, selection, calibration, support,
+# uncertainty, or tie-breaking. This file is frozen before any outer-fold prediction;
+# any design-semantic change requires a new freeze (V3) and a full OOF restart.
+design_id: modeling_design_v2
+version: 2
+frozen: true
+market_data_used_anywhere: false
+
+inputs:
+  feature_artifact: data/recovered_v2/modeling/wnba_pregame_features_t12.parquet
+  target_artifact:  data/recovered_v2/modeling/wnba_player_targets.parquet
+  feature_schema_hash: 112e332e30b1f0e3     # 325 approved estimator features (order-sensitive)
+  estimator_guard: wnba_props_model.features.estimator_guard.guard_estimator_frame
+  join_keys: [game_id, player_id]
+
+cutoff_classes:
+  EXACT_T12:            "scheduled tip known; cutoff = tip - 12h"
+  CONSERVATIVE_PRETIP:  "tip unknown; cutoff = game_date 00:00 UTC (documented conservative)"
+  PIT_INELIGIBLE:       "no defensible pregame cutoff (2nd+ same-day game)"
+  rules:
+    outer_validation_metrics: [EXACT_T12]
+    market_comparison_later:  [EXACT_T12]
+    training_allowed:         [EXACT_T12, CONSERVATIVE_PRETIP]
+    excluded:                 [PIT_INELIGIBLE]
+    never_infer_tip_to_increase_coverage: true
+
+seeds:
+  master_seed: 20260730
+  fold_seed_rule: "master_seed + outer_fold_id"
+  inner_seed_rule: "master_seed + 100 + inner_fold_id"
+  bootstrap_seed_rule: "master_seed + 10000 + bootstrap_index"
+
+preprocessing:
+  fit_scope: inner_training_fold_only        # never global; never uses targets/future
+  all_nan_fold_behavior: "drop columns all-NaN OR single-valued within the TRAINING slice; apply same mask to predict"
+  imputation: "none in Stage 9; HGB handles native NaN; per-fold only"
+  scaling: "none (tree models)"
+  encoders: "none learned from outcome-bearing data"
+  infinite_values: "already sanitized to NaN in the feature artifact"
+
+components:
+  participation:
+    target: did_play
+    conditional_on: []
+    candidates:
+      - id: part_hierarchical_baseline
+        family: hierarchical_rate
+        definition: "shrunk player did_play rate -> role -> league prior (feature-free baseline)"
+      - id: part_hgb
+        family: hgb_classifier
+        hgb_grid:
+          max_leaf_nodes: [15, 31]
+          min_samples_leaf: [40, 80]
+          learning_rate: [0.05]
+          l2_regularization: [1.0]
+          max_iter: [200]
+    primary_metric: log_loss
+    secondary_metrics: [brier, calibration_intercept, calibration_slope, roc_auc]
+
+  minutes:
+    target: actual_minutes
+    fit_rows: participating_only
+    output: full_normalized_distribution_on_grid
+    quantile_grid: [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
+    minutes_grid: {min: 0, max: 50, step: 1}     # includes overtime beyond 40; hard cap 50
+    distribution_construction: "monotone inverse-CDF from quantiles; equal-probability nodes; min-adjustment monotone projection (never row-sort)"
+    candidates:
+      - id: min_hierarchical_baseline
+        family: hierarchical_empirical
+        definition: "player minutes empirical distribution shrunk to role bucket"
+      - id: min_hgb_quantile
+        family: hgb_quantile_grid
+        hgb_grid:
+          max_leaf_nodes: [15, 31]
+          min_samples_leaf: [60, 120]
+          learning_rate: [0.05]
+          max_iter: [150]
+    primary_metric: crps
+    secondary_metrics: [pinball_loss, mae, rmse, coverage_50_80_95, interval_width]
+
+  direct_stats:
+    targets: [pts, reb, ast, fg3m, stl, blk, turnover]
+    integration: "P(S=k|X) = sum_m P(S=k|M=m,X) * P(M=m|X)   using OOF-predicted minutes PMF (never actual minutes)"
+    dispersion:
+      method: conditional_residual_moment      # r = E[mu^2] / E[(y-mu)^2 - mu]
+      bounds: [0.5, 500.0]
+      fit_scope: training_fold_only
+      change_after_outer_metrics: forbidden
+    candidates:
+      count_families:
+        - id: stat_hierarchical_baseline
+          family: hierarchical_rate
+          definition: "shrunk lagged per-minute rate * expected minutes -> NB2"
+        - id: stat_poisson_hgb
+          family: poisson_rate_hgb
+          applies_to: [pts, reb, ast, fg3m, turnover]
+        - id: stat_nb2_hgb
+          family: nb2_rate_hgb
+          applies_to: [pts, reb, ast, fg3m, turnover]
+        - id: stat_minutes_mixture_nb2
+          family: minutes_mixture_nb2
+          applies_to: [pts, reb, ast, fg3m, stl, blk, turnover]
+        - id: stat_hurdle_nb2
+          family: hurdle_nb2
+          applies_to: [stl, blk, turnover]        # rare/zero-heavy: NOT forced into pts family
+      hgb_grid:
+        max_leaf_nodes: [15, 31]
+        min_samples_leaf: [40, 80]
+        learning_rate: [0.05]
+        l2_regularization: [1.0]
+        max_iter: [200]
+    primary_metric: nll
+    secondary_metrics: [rps, crps, pit_ks, calibration_intercept, calibration_slope, coverage_80, mean_mae, mean_rmse]
+
+  combinations:
+    targets:
+      stocks:      [stl, blk]
+      pts_ast:     [pts, ast]
+      pts_reb:     [pts, reb]
+      reb_ast:     [reb, ast]
+      pts_reb_ast: [pts, reb, ast]
+    candidates:
+      - id: combo_independent_convolution
+        family: exact_convolution
+        definition: "convolve selected component PMFs assuming conditional independence"
+      - id: combo_gaussian_copula
+        family: gaussian_copula_training_residual_ranks
+        definition: "copula fit on TRAINING-fold PIT-rank residuals of components; simulate; PSD-correct correlation; MC nodes"
+        monte_carlo:
+          n_sim: 20000
+          mc_error_tolerance: 0.01
+          psd_correction: recorded
+    primary_metric: nll
+    secondary_metrics: [crps, marginal_preservation_error]
+    selection_signal: combination_target_proper_scores_only   # never market
+
+calibration:
+  method: distributional_pit_recalibration      # monotone-CDF preserving; never per-line
+  train_scope: prior_oof_blocks_only            # fold being calibrated does not train its own
+  fallback: none                                # when insufficient prior OOF data
+  revalidate_pmf_gates_after: true
+
+uncertainty:
+  method: chronological_block_bootstrap_ensemble
+  n_bootstrap: 20
+  seeds: deterministic_recorded
+  outputs: [central_pmf, ensemble_pmfs, threshold_prob_intervals, mean_interval, variance_interval, tail_uncertainty, uncertainty_width]
+  threshold_source: never_betting_roi
+  abstention_rules:
+    - insufficient_history
+    - unstable_participation
+    - unstable_minutes
+    - missing_critical_feature
+    - feature_schema_mismatch
+    - out_of_population_row
+    - excessive_epistemic_width
+
+release_state_rules:
+  research: "feature-driven PMF + historical OOF exist and frozen gates pass"
+  shadow_candidate_pending_freeze: "frozen model generates predictions; not prospectively validated"
+  validated: "NOT ATTAINABLE in this execution (no prospective evidence)"
+  withheld: "no feature candidate passes the frozen gates"

@@ -33,6 +33,9 @@ artifacts/quarantine/
 !artifacts/audits/ESTIMATOR_INPUT_GUARD_AUDIT.json
 !artifacts/audits/FEATURE_JOIN_COVERAGE.json
 !artifacts/audits/FEATURE_MISSINGNESS_COVERAGE.csv
+!artifacts/audits/MODELING_DESIGN_FREEZE_V2.json
+!artifacts/audits/DESIGN_EXECUTION_VERIFICATION.json
+!artifacts/audits/FULL_TEST_SUITE_RESULT.json
 artifacts/models/
 !artifacts/.gitkeep
 
