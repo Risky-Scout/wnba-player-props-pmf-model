@@ -1,0 +1,17 @@
+{
+  "artifact": "LEAKAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T01:02:31.472512+00:00",
+  "model_feature_count": 52,
+  "forbidden_features_present": [],
+  "market_or_outcome_in_model_features": [
+    "implied_team_total",
+    "game_total",
+    "game_spread_home",
+    "blowout_risk",
+    "predicted_spread_abs",
+    "close_game_indicator"
+  ],
+  "leakage_guard": "PASS",
+  "build_features_leakage_guard": "PASS (see artifacts/audits/feature_audit.json from build_features.py)",
+  "note": "Sportsbook odds/lines/prices are NOT in the model feature set. Rolling features are shifted before the target game (enforced by build_features.py leakage guard, and re-asserted here via feature_contract.assert_no_forbidden_features)."
+}

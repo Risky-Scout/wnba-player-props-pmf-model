@@ -19,6 +19,8 @@ artifacts/audits/*
 !artifacts/audits/IDENTITY_RESOLUTION_AUDIT.json
 !artifacts/audits/EXACT_QUOTE_READINESS.json
 !artifacts/audits/SETTLEMENT_LINEAGE_AUDIT.json
+!artifacts/audits/FEATURE_REGISTRY.json
+!artifacts/audits/LEAKAGE_AUDIT.json
 artifacts/models/
 !artifacts/.gitkeep
 
