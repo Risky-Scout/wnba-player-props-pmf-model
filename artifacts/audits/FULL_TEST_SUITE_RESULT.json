@@ -1,0 +1,64 @@
+{
+  "artifact": "FULL_TEST_SUITE_RESULT",
+  "generated_at_utc": "2026-07-30T05:29:30.893082+00:00",
+  "command": "python3 -m pytest tests/ -q  (NO --ignore; complete suite)",
+  "passed": 2220,
+  "skipped": 13,
+  "failed": 0,
+  "elite_projection_gate": "SKIPPED (data artifacts absent) \u2014 did NOT fail",
+  "skips": [
+    {
+      "loc": "tests/opportunity/test_pts_decomposition.py:76",
+      "reason": "pts_conversion_labels.parquet not present"
+    },
+    {
+      "loc": "tests/opportunity/test_pts_decomposition.py:86",
+      "reason": "pts_conversion_labels.parquet not present"
+    },
+    {
+      "loc": "tests/test_challenger_train_workflow.py:304",
+      "reason": "branch isolation check only applies to runner branch"
+    },
+    {
+      "loc": "tests/test_challenger_train_workflow.py:333",
+      "reason": "actionlint binary not found at /tmp/actionlint"
+    },
+    {
+      "loc": "tests/test_elite_projection_gate.py:53",
+      "reason": "PMF output not found: data/model_outputs/stage4_baseline/player_stat_pmfs.parquet"
+    },
+    {
+      "loc": "tests/test_elite_projection_gate.py:93",
+      "reason": "Manifest not found: data/processed/feature_schema_manifest.json (moved to recovered_v2)"
+    },
+    {
+      "loc": "tests/test_elite_projection_gate.py:108",
+      "reason": "Manifest not found: data/processed/feature_schema_manifest.json (moved to recovered_v2)"
+    },
+    {
+      "loc": "tests/test_enhancements_e11_e22.py:37",
+      "reason": "torch optional (pip install .[neural])"
+    },
+    {
+      "loc": "tests/test_enhancements_e11_e22.py:44",
+      "reason": "torch optional (pip install .[neural])"
+    },
+    {
+      "loc": "tests/test_enhancements_e11_e22.py:55",
+      "reason": "torch optional (pip install .[neural])"
+    },
+    {
+      "loc": "tests/test_mean_dependent_dispersion.py:75",
+      "reason": "slope effectively zero \u2014 cannot test variation"
+    },
+    {
+      "loc": "tests/test_p1_atomic_migration.py:48",
+      "reason": "migrated atomic pairs not present (data not fetched)"
+    },
+    {
+      "loc": "tests/test_tracking_capability_and_crosswalk.py:32",
+      "reason": "tracking asset not fetched in this checkout"
+    }
+  ],
+  "gate": "zero failed tests \u2014 PASS"
+}

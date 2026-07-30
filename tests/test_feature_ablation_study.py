@@ -177,3 +177,35 @@ def test_group_assignment_excludes_forward_only_and_market():
     assert "player_rest_days" in groups["schedule"]
     assert "player_pts_std_l10" in groups["dispersion"]
     assert "starter_rate_l5" in groups["role"]
+
+
+def test_game_total_excluded_from_pure_study():
+    """Contract fix: the current-game Vegas columns the legacy regex missed
+    (game_total / game_spread_home / implied_team_total) must NOT enter a pure study."""
+    cols = {
+        "player_pts_mean_l5": 1.0, "opp_reb_allowed_mean_l5": 1.0,
+        "game_total": 210.0, "game_spread_home": -3.5, "implied_team_total": 84.0,
+        "blowout_risk": 0.0, "predicted_spread_abs": 3.5, "close_game_indicator": 1.0,
+    }
+    df = pd.DataFrame({k: [v, v + 1] for k, v in cols.items()})
+    pure = _numeric_feature_columns(df, contract="pure_compact")
+    for leaked in ("game_total", "game_spread_home", "implied_team_total",
+                   "blowout_risk", "predicted_spread_abs", "close_game_indicator"):
+        assert leaked not in pure, f"{leaked} leaked into pure study"
+    assert "player_pts_mean_l5" in pure
+
+
+def test_game_total_admitted_only_in_game_context_stacked():
+    df = pd.DataFrame({"player_pts_mean_l5": [1.0, 2.0], "game_total": [210.0, 205.0]})
+    stacked = _numeric_feature_columns(df, contract="game_context_stacked")
+    assert "game_total" in stacked
+    assert "player_pts_mean_l5" in stacked
+
+
+def test_provenance_audit_flags_legacy_regex_leak():
+    from wnba_props_model.ablation.feature_ablation import audit_forward_only_and_market
+    audit = audit_forward_only_and_market(
+        ["player_pts_mean_l5", "game_total", "game_spread_home", "implied_team_total"])
+    # these three are exactly what the legacy market regex failed to catch
+    assert set(audit["leaked_into_pure_by_legacy_regex"]) == {
+        "game_total", "game_spread_home", "implied_team_total"}

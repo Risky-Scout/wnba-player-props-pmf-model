@@ -1,0 +1,22 @@
+# PMF support + tail policy (FROZEN, V2). Support may depend only on predicted distribution
+# parameters + this tail policy — NEVER on the observed held-out outcome.
+pmf_support_id: pmf_support_v2
+version: 2
+tail_tolerance: 1.0e-4         # omitted upper-tail mass must be below this before hard cap
+support_start: 0
+hard_caps:                     # generous physical caps (include overtime headroom)
+  pts: 80
+  reb: 40
+  ast: 25
+  fg3m: 15
+  stl: 12
+  blk: 12
+  turnover: 15
+combination_caps:
+  stocks: 22
+  pts_ast: 95
+  pts_reb: 100
+  reb_ast: 55
+  pts_reb_ast: 120
+grow_rule: "expand support until omitted tail < tail_tolerance OR hard cap reached; record overflow mass"
+cap_after_seeing_outcome: forbidden

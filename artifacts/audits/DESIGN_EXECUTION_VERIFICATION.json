@@ -1,0 +1,24 @@
+{
+  "artifact": "DESIGN_EXECUTION_VERIFICATION",
+  "generated_at_utc": "2026-07-30T05:29:30.863059+00:00",
+  "git_commit": "c2c18fa185ff9001f604192fef9fc9038d5c5eb8",
+  "modeling_design_v1_present": false,
+  "modeling_design_v1_files_checked": [
+    "config/modeling_design_v1.yaml",
+    "config/chronological_oof_v1.yaml",
+    "config/pmf_support_v1.yaml",
+    "config/model_selection_gates_v1.yaml",
+    "docs/MODELING_DESIGN_V1.md",
+    "artifacts/audits/MODELING_DESIGN_FREEZE_V1.json"
+  ],
+  "modeling_design_v1_all_absent": true,
+  "action": "MODELING DESIGN NOT EXECUTABLE \u2014 NEW FREEZE REQUIRED",
+  "modeling_design_v2_created_and_frozen": true,
+  "modeling_design_sha256": "928c4a67962432d2f76075da9cee39d7a39d54eaa690a0bfa6aa813beb78eb76",
+  "stash_13c7195_untouched": true,
+  "quarantined_modeling_invalid_for_model_selection": true,
+  "no_model_fitted_in_this_execution": true,
+  "market_data_accessed": false,
+  "sportsbook_data_accessed": false,
+  "quarantined_metrics_reused": false
+}

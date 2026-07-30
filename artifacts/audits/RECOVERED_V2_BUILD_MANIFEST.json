@@ -1,0 +1,139 @@
+{
+  "artifact": "RECOVERED_V2_BUILD_MANIFEST",
+  "generated_at_utc": "2026-07-29T23:03:56.607706+00:00",
+  "recovered_v2_is_not_frozen_v1": true,
+  "statement": "data/recovered_v2 is an ISOLATED recovery namespace rebuilt from fresh BDL data. It is NOT the frozen v1 canonical artifact and must never be relabeled as such. The frozen v1 path may be restored only if a file matching the expected frozen SHA-256 is found.",
+  "foundation_lock_status": "DEFERRED_MISSING_FROZEN_ARTIFACT",
+  "code_test_status": "PASS",
+  "recovered_v2_isolated": true,
+  "source": "BALLDONTLIE WNBA API (GOAT tier)",
+  "source_game_date_range": [
+    "2023-05-19",
+    "2026-09-25"
+  ],
+  "bdl_endpoints_used": [
+    "/wnba/v1/teams",
+    "/wnba/v1/players",
+    "/wnba/v1/games",
+    "/wnba/v1/player_stats",
+    "/wnba/v1/player_game_advanced_stats",
+    "/wnba/v1/team_game_advanced_stats",
+    "/wnba/v1/player_season_advanced_stats",
+    "/wnba/v1/player_shot_locations",
+    "/wnba/v1/team_shot_locations",
+    "/wnba/v1/odds",
+    "/wnba/v1/standings",
+    "/wnba/v1/player_injuries"
+  ],
+  "generation_commands": [
+    "python3 scripts/pull_bdl_history.py --start-season 2023 --end-season 2026 --out-dir data/raw/bdl",
+    "python3 scripts/build_canonical_tables.py --raw-dir data/raw/bdl --out-dir data/processed",
+    "python3 scripts/build_features.py --data-dir data/processed",
+    "move data/processed/* -> data/recovered_v2/* (frozen v1 path preserved)"
+  ],
+  "final_games_by_season": {
+    "2023": 263,
+    "2024": 264,
+    "2025": 312,
+    "2026": 210
+  },
+  "artifact_paths": [
+    "data/recovered_v2/wnba_games.parquet",
+    "data/recovered_v2/wnba_injuries.parquet",
+    "data/recovered_v2/wnba_odds.parquet",
+    "data/recovered_v2/wnba_player_advanced_stats.parquet",
+    "data/recovered_v2/wnba_player_game_features_long.parquet",
+    "data/recovered_v2/wnba_player_game_features_wide.parquet",
+    "data/recovered_v2/wnba_player_game_stats.parquet",
+    "data/recovered_v2/wnba_player_props.parquet",
+    "data/recovered_v2/wnba_player_season_advanced.parquet",
+    "data/recovered_v2/wnba_player_shot_locations.parquet",
+    "data/recovered_v2/wnba_players.parquet",
+    "data/recovered_v2/wnba_standings.parquet",
+    "data/recovered_v2/wnba_team_game_advanced.parquet",
+    "data/recovered_v2/wnba_team_shot_locations.parquet",
+    "data/recovered_v2/wnba_teams.parquet"
+  ],
+  "schema_hashes": {
+    "wnba_player_game_stats.parquet": "0a0d6244fd4f3771",
+    "wnba_player_game_features_wide.parquet": "240fa1bb84b92db5",
+    "wnba_games.parquet": "8d3f0a0585d70dd7"
+  },
+  "files": {
+    "wnba_games.parquet": {
+      "sha256": "b311c4b065ec023aa6e53aa17ed85d38ec3e1aaeb0a3fcb0f3dc759fd8db236f",
+      "rows": 1172,
+      "bytes": 33969
+    },
+    "wnba_injuries.parquet": {
+      "sha256": "e37790385b011ca29ee04e51095a9246c45156cf533874bc55f381b2e05e230a",
+      "rows": 35,
+      "bytes": 8232
+    },
+    "wnba_odds.parquet": {
+      "sha256": "aebb1d444750664537b383de6f9ef9043fd51d7f5e911f787ff6a075901e3706",
+      "rows": 1284,
+      "bytes": 49176
+    },
+    "wnba_player_advanced_stats.parquet": {
+      "sha256": "fb815990a103c55af7aa3f3c5452c7775f182d14c8849e4035f0b7a8f19a4b7c",
+      "rows": 23520,
+      "bytes": 95691
+    },
+    "wnba_player_game_features_long.parquet": {
+      "sha256": "031507b3f39e286abd20e25ea5a98c367c004a1b093151ac7c4996155b199e4e",
+      "rows": 167517,
+      "bytes": 58987376
+    },
+    "wnba_player_game_features_wide.parquet": {
+      "sha256": "28a45be90b4048418dd1a749f4188b03b621897b2f34b64442eadf622d29a926",
+      "rows": 23931,
+      "bytes": 29755425
+    },
+    "wnba_player_game_stats.parquet": {
+      "sha256": "332f922f7e9bb735b80c9d1b8033b386a4186df70f9dd1d50feb996c0e66fa93",
+      "rows": 23931,
+      "bytes": 424671
+    },
+    "wnba_player_props.parquet": {
+      "sha256": "fff50a881d14be5b5e448a3342665c9a99a69e052f2b77b3b917dc85a8d956de",
+      "rows": 676,
+      "bytes": 18798
+    },
+    "wnba_player_season_advanced.parquet": {
+      "sha256": "1db3f17b650d9adda129513909328d9207c0a9578b1bbf25bf21feba3ee6674f",
+      "rows": 715,
+      "bytes": 413831
+    },
+    "wnba_player_shot_locations.parquet": {
+      "sha256": "cdad42146dedeecbb4c797624d566fcc057d53fa69d60ea3da645c4b214691cc",
+      "rows": 714,
+      "bytes": 9986
+    },
+    "wnba_players.parquet": {
+      "sha256": "80ea47d9e98b65ef18c1d3494f382bec4938e23576732ab96cc1c7d02161bb40",
+      "rows": 207,
+      "bytes": 19812
+    },
+    "wnba_standings.parquet": {
+      "sha256": "a5ddce95daf628ccb9d04ea904b8bac2e8c852b3e8c32144b5c5885e334887dc",
+      "rows": 52,
+      "bytes": 9385
+    },
+    "wnba_team_game_advanced.parquet": {
+      "sha256": "d2b2d29d640883c3a65a3d5d05e0ec78959a07cf0d7863cb507820876e8076bb",
+      "rows": 2074,
+      "bytes": 24156
+    },
+    "wnba_team_shot_locations.parquet": {
+      "sha256": "f9d495e3927f0c75bce9252713dd73d4b04b172c61ecce4016e7285f22882972",
+      "rows": 52,
+      "bytes": 7195
+    },
+    "wnba_teams.parquet": {
+      "sha256": "bb57dbae3492995171d4c0af3d458e803e0f0bd11bf1892ed6161be63c50ba0c",
+      "rows": 35,
+      "bytes": 7261
+    }
+  }
+}

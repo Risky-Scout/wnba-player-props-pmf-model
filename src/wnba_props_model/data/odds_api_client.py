@@ -110,6 +110,28 @@ class OddsAPIError(RuntimeError):
     pass
 
 
+def assert_model_market_request(sport_key, region, odds_format, date_format, markets) -> None:
+    """Fail-closed runtime guard executed immediately before every model event-odds request.
+    Enforces the frozen scope: basketball_wnba / us / american / iso / EXACTLY the 12
+    MODEL_PROP_MARKETS (see constants). Never rely on the 20-market CORE_PROP_MARKETS default.
+    """
+    from wnba_props_model.constants import MODEL_PROP_MARKET_KEYS
+    reqs = tuple(markets)
+    if sport_key != "basketball_wnba":
+        raise OddsAPIError(f"sport key must be basketball_wnba, got {sport_key!r}")
+    if region != "us":
+        raise OddsAPIError(f"regions must be 'us', got {region!r}")
+    if odds_format != "american":
+        raise OddsAPIError(f"oddsFormat must be 'american', got {odds_format!r}")
+    if date_format != "iso":
+        raise OddsAPIError(f"dateFormat must be 'iso', got {date_format!r}")
+    if len(MODEL_PROP_MARKET_KEYS) != 12:
+        raise OddsAPIError("MODEL_PROP_MARKETS must contain exactly 12 keys")
+    if tuple(reqs) != tuple(MODEL_PROP_MARKET_KEYS):
+        raise OddsAPIError(
+            f"requested market set must be EXACTLY the 12 MODEL_PROP_MARKETS; got {list(reqs)}")
+
+
 class OddsAPIClient:
     """The Odds API v4 client with quota tracking and deep link support.
 
@@ -132,6 +154,9 @@ class OddsAPIClient:
         region: str = "us",
         odds_format: str = "american",
         timeout: int = 30,
+        max_credits: int | None = None,
+        request_audit_path: str | None = None,
+        enforce_model_markets: bool = False,
     ) -> None:
         self.api_key = api_key or os.environ.get("ODDS_API_KEY", "")
         if not self.api_key:
@@ -143,6 +168,18 @@ class OddsAPIClient:
         self.timeout = timeout
         self._requests_remaining: int | None = None
         self._requests_used: int | None = None
+        self._requests_last: int | None = None   # x-requests-last: cost of the LAST call
+        # Fail-closed credit budget (Section G). Falls back to ODDS_API_MAX_CREDITS env.
+        env_budget = os.environ.get("ODDS_API_MAX_CREDITS")
+        self.max_credits: int | None = (
+            int(max_credits) if max_credits is not None
+            else (int(env_budget) if env_budget else None)
+        )
+        self._credits_spent_session = 0
+        self._request_audit_path = request_audit_path
+        # When True, every historical event-odds request is guarded by
+        # assert_model_market_request (exact 12-market scope). The backfill sets this.
+        self.enforce_model_markets = enforce_model_markets
         self._session = requests.Session()
 
     # -----------------------------------------------------------------------
@@ -153,17 +190,32 @@ class OddsAPIClient:
         """Execute a GET request and log quota headers."""
         url = f"{BASE_URL}{path}"
         p: dict[str, Any] = {"apiKey": self.api_key, **(params or {})}
+        # Fail-closed budget check BEFORE spending (Section G). We cannot know the exact
+        # cost until the response, so we guard on the last observed cost as a conservative
+        # lower bound and refuse once the session spend has reached the cap.
+        if self.max_credits is not None and self._credits_spent_session >= self.max_credits:
+            raise OddsAPIError(
+                f"ODDS_API_MAX_CREDITS budget reached: spent {self._credits_spent_session} "
+                f">= max {self.max_credits}. Refusing further paid requests (fail-closed).")
         for attempt in range(3):
             try:
                 resp = self._session.get(url, params=p, timeout=self.timeout)
-                # Parse quota headers
+                # Parse quota headers (used / remaining / last-call cost)
                 if "X-Requests-Remaining" in resp.headers:
                     self._requests_remaining = int(resp.headers["X-Requests-Remaining"])
                 if "X-Requests-Used" in resp.headers:
                     self._requests_used = int(resp.headers["X-Requests-Used"])
+                if "X-Requests-Last" in resp.headers:
+                    self._requests_last = int(resp.headers["X-Requests-Last"])
+                    self._credits_spent_session += self._requests_last
+                self._audit_request(path, params, resp.status_code)
 
                 if resp.status_code == 401:
                     raise OddsAPIError(f"ODDS_API_KEY invalid or expired (HTTP 401): {path}")
+                if resp.status_code == 404:
+                    # Deterministic historical 404 (snapshot at/after tip, or no data). Do NOT
+                    # retry — surface immediately so the caller writes a durable tombstone.
+                    raise OddsAPIError(f"HTTP 404 (deterministic, no retry): {path}")
                 if resp.status_code == 422:
                     raise OddsAPIError(f"Bad request params (HTTP 422): {path} — {resp.text[:200]}")
                 if resp.status_code == 429:
@@ -193,6 +245,36 @@ class OddsAPIClient:
     @property
     def quota_used(self) -> int | None:
         return self._requests_used
+
+    @property
+    def quota_last(self) -> int | None:
+        """x-requests-last: credit cost of the most recent request."""
+        return self._requests_last
+
+    @property
+    def credits_spent_session(self) -> int:
+        return self._credits_spent_session
+
+    def _audit_request(self, path: str, params: dict | None, status: int) -> None:
+        """Append a per-request quota audit line (never logs the api key)."""
+        if not self._request_audit_path:
+            return
+        import json as _json
+        from datetime import datetime, timezone
+        safe = {k: v for k, v in (params or {}).items() if k != "apiKey"}
+        rec = {
+            "ts_utc": datetime.now(timezone.utc).isoformat(),
+            "path": path, "params": safe, "http_status": status,
+            "x_requests_last": self._requests_last,
+            "x_requests_used": self._requests_used,
+            "x_requests_remaining": self._requests_remaining,
+            "credits_spent_session": self._credits_spent_session,
+        }
+        try:
+            with open(self._request_audit_path, "a") as fh:
+                fh.write(_json.dumps(rec) + "\n")
+        except OSError:
+            pass
 
     # -----------------------------------------------------------------------
     # Sports discovery
@@ -387,6 +469,8 @@ class OddsAPIClient:
             "oddsFormat": self.odds_format,
             "dateFormat": "iso",
         }
+        if self.enforce_model_markets:
+            assert_model_market_request(SPORT_KEY, self.region, self.odds_format, "iso", mkts)
         return self._get(
             f"/v4/historical/sports/{SPORT_KEY}/events/{event_id}/odds",
             params,

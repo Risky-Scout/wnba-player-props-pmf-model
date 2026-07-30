@@ -106,9 +106,9 @@ WNBA_ENDPOINTS: dict[str, Endpoint] = {
         "wnba", "/wnba/v1/odds/player_props", paginated=False, requires_goat=True,
         notes="Must always be called with game_id. Live only; BDL does not store historical props.",
     ),
-    # plays: the official WNBA OpenAPI documents ONLY game_id (no cursor/per_page/meta).
-    # Configure NON-paginated; never send undocumented pagination params until a real response
-    # proves support (probe /wnba/v1/plays first).
+    # plays: the official WNBA OpenAPI documents ONLY game_id — no cursor/per_page/meta.
+    # Configure NON-paginated and never send undocumented pagination params until a real
+    # response proves otherwise (see scripts/probe_bdl_endpoints.py -> BDL_PBP_PROBE.json).
     "plays": Endpoint("wnba", "/wnba/v1/plays", paginated=False),
 }
 
@@ -291,7 +291,54 @@ class BDLClient:
         if player_id is not None:
             params["player_id"] = player_id
         if prop_type is not None:
-            # The official BDL WNBA player-props endpoint documents the filter as `prop_type`
-            # (NOT `type`); the prior `type` key was silently ignored.
+            # The official BDL WNBA player-props endpoint documents the filter as
+            # `prop_type` (NOT `type`); the prior `type` key was silently ignored.
             params["prop_type"] = prop_type
         return list(self.iter_endpoint("player_props", params))
+
+    # ------------------------------------------------------------------
+    # Capability probe (records real status without raising)
+    # ------------------------------------------------------------------
+
+    def probe(
+        self,
+        endpoint_name: str,
+        params: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """One-request capability probe of an endpoint. Never raises; records the REAL
+        outcome (200 populated / 200 empty / 400 / 401-403 / 404 / 429) plus response
+        shape so entitlement and pagination are proven, not assumed from local flags.
+
+        Returns a dict with: endpoint, path, http_status, ok, n_rows, data_is_dict,
+        has_meta, has_next_cursor, response_keys, error_excerpt.
+        """
+        ep = WNBA_ENDPOINTS[endpoint_name]
+        url = f"{self.base_url}{ep.path}"
+        query = _array_params(dict(params or {}))
+        rec: dict[str, Any] = {
+            "endpoint": endpoint_name, "path": ep.path, "requires_goat": ep.requires_goat,
+            "paginated_config": ep.paginated, "http_status": None, "ok": False,
+            "n_rows": 0, "data_is_dict": False, "has_meta": False, "has_next_cursor": False,
+            "response_keys": [], "error_excerpt": None,
+        }
+        try:
+            resp = self.session.get(url, params=query, timeout=self.timeout)
+            rec["http_status"] = resp.status_code
+            if resp.status_code >= 400:
+                rec["error_excerpt"] = resp.text[:300]
+                return rec
+            payload = resp.json()
+            rec["ok"] = True
+            rec["response_keys"] = sorted(payload.keys()) if isinstance(payload, dict) else []
+            data = payload.get("data", []) if isinstance(payload, dict) else payload
+            if isinstance(data, dict):
+                rec["data_is_dict"] = True
+                rec["n_rows"] = 1
+            else:
+                rec["n_rows"] = len(data or [])
+            meta = (payload.get("meta") or {}) if isinstance(payload, dict) else {}
+            rec["has_meta"] = bool(meta)
+            rec["has_next_cursor"] = meta.get("next_cursor") is not None
+        except (requests.RequestException, ValueError) as exc:
+            rec["error_excerpt"] = f"{type(exc).__name__}: {exc}"[:300]
+        return rec

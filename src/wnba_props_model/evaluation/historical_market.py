@@ -43,13 +43,9 @@ WNBA_NICKNAME_ABBR: dict[str, str] = {
 }
 
 # Odds API market key -> model stat (direct + combo).
-MARKET_TO_STAT: dict[str, str] = {
-    "player_points": "pts", "player_rebounds": "reb", "player_assists": "ast",
-    "player_threes": "fg3m", "player_blocks": "blk", "player_steals": "stl",
-    "player_turnovers": "turnover", "player_blocks_steals": "stocks",
-    "player_points_assists": "pts_ast", "player_points_rebounds": "pts_reb",
-    "player_rebounds_assists": "reb_ast", "player_points_rebounds_assists": "pts_reb_ast",
-}
+# SINGLE SOURCE OF TRUTH: re-exported from constants.ODDS_API_MODEL_MARKETS so the live
+# collector, historical backfill, settlement, and evaluation cannot drift apart.
+from wnba_props_model.constants import ODDS_API_MODEL_MARKETS as MARKET_TO_STAT  # noqa: E402
 
 
 def norm_name(s: object) -> str:

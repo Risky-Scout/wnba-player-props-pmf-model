@@ -8,10 +8,34 @@ data/raw/
 data/cache/
 data/processed/
 data/recovery/
+data/recovered_v2/
+data/atomic_quotes/
 deliveries/
 
 artifacts/runs/
-artifacts/audits/
+artifacts/audits/*
+# Quarantined premature/aborted work (never merged into active history):
+artifacts/quarantine/
+
+# Tracked audit artifacts (reproducibility metadata; large data stays gitignored):
+!artifacts/audits/RECOVERED_V2_BUILD_MANIFEST.json
+!artifacts/audits/PREMATURE_MODELING_ABORT_REPORT.md
+!artifacts/audits/IDENTITY_RESOLUTION_AUDIT.json
+!artifacts/audits/EXACT_QUOTE_READINESS.json
+!artifacts/audits/SETTLEMENT_LINEAGE_AUDIT.json
+!artifacts/audits/FEATURE_REGISTRY.json
+!artifacts/audits/LEAKAGE_AUDIT.json
+!artifacts/audits/STAGE9_STRENGTHENED_READINESS.json
+!artifacts/audits/FEATURE_SCHEMA.json
+!artifacts/audits/FEATURE_TARGET_SEPARATION_AUDIT.json
+!artifacts/audits/POINT_IN_TIME_AUDIT.json
+!artifacts/audits/SAME_DAY_LEAKAGE_AUDIT.json
+!artifacts/audits/ESTIMATOR_INPUT_GUARD_AUDIT.json
+!artifacts/audits/FEATURE_JOIN_COVERAGE.json
+!artifacts/audits/FEATURE_MISSINGNESS_COVERAGE.csv
+!artifacts/audits/MODELING_DESIGN_FREEZE_V2.json
+!artifacts/audits/DESIGN_EXECUTION_VERIFICATION.json
+!artifacts/audits/FULL_TEST_SUITE_RESULT.json
 artifacts/models/
 !artifacts/.gitkeep
 
