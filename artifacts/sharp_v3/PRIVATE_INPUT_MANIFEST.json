@@ -1,0 +1,116 @@
+{
+  "artifact": "PRIVATE_INPUT_MANIFEST",
+  "release": "wnba-sharp-pmf-v3",
+  "generated_at_utc": "2026-07-30T18:44:38.498540+00:00",
+  "note": "Private, gitignored, licensed inputs. Training fails closed if hashes drift.",
+  "inputs": {
+    "pregame_features_t12": {
+      "status": "PRESENT",
+      "physical_location": "data/recovered_v2/modeling/wnba_pregame_features_t12.parquet",
+      "rows": 23931,
+      "cols": 336,
+      "first_date": "2023-05-19",
+      "last_date": "2026-07-29",
+      "sha256": "70afb7e05af7f826f65050fb52c6add54c0a5bfdef7bb88316c322165dc222c0",
+      "size_bytes": 21643493,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/recovered_v2/modeling/wnba_pregame_features_t12.parquet')  # from private volume / PR#97 workspace"
+    },
+    "player_targets": {
+      "status": "PRESENT",
+      "physical_location": "data/recovered_v2/modeling/wnba_player_targets.parquet",
+      "rows": 23931,
+      "cols": 16,
+      "first_date": null,
+      "last_date": null,
+      "sha256": "0ecb09878770a073535afd578877aaf7c52710a4eae5ae1c020fa2ac145727e6",
+      "size_bytes": 229665,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/recovered_v2/modeling/wnba_player_targets.parquet')  # from private volume / PR#97 workspace"
+    },
+    "atomic_quotes": {
+      "status": "PRESENT",
+      "physical_location": "data/atomic_quotes/atomic_quotes.parquet",
+      "rows": 256160,
+      "cols": 50,
+      "first_date": "2023-05-20",
+      "last_date": "2026-07-28",
+      "sha256": "25b402375ebcb775635e4698e1b9a4a850e6f83f02a173f0ccf630e1311f440f",
+      "size_bytes": 7669419,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/atomic_quotes/atomic_quotes.parquet')  # from private volume / PR#97 workspace"
+    },
+    "decision_pairs": {
+      "status": "PRESENT",
+      "physical_location": "data/atomic_quotes/decision_pairs.parquet",
+      "rows": 50753,
+      "cols": 18,
+      "first_date": "2023-05-23",
+      "last_date": "2026-07-28",
+      "sha256": "c350d3c493bcb167e87d349f187fbc1993fcd88176b83061e9ef1c3715d5ccdf",
+      "size_bytes": 1682339,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/atomic_quotes/decision_pairs.parquet')  # from private volume / PR#97 workspace"
+    },
+    "closing_pairs": {
+      "status": "PRESENT",
+      "physical_location": "data/atomic_quotes/closing_pairs.parquet",
+      "rows": 67635,
+      "cols": 18,
+      "first_date": "2023-05-20",
+      "last_date": "2026-07-28",
+      "sha256": "737b3bd9f5e7f1c1d46d21cb005af70322408f13ebbb980e736201a0690720a0",
+      "size_bytes": 2209828,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/atomic_quotes/closing_pairs.parquet')  # from private volume / PR#97 workspace"
+    },
+    "settled_quote_pairs": {
+      "status": "PRESENT",
+      "physical_location": "data/atomic_quotes/settled_quote_pairs.parquet",
+      "rows": 50753,
+      "cols": 26,
+      "first_date": "2023-05-23",
+      "last_date": "2026-07-28",
+      "sha256": "66d7bf76a19557a33a586311f8aa7cd8035ae7dcf056ffaf7e8582bac86bb254",
+      "size_bytes": 2019881,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/atomic_quotes/settled_quote_pairs.parquet')  # from private volume / PR#97 workspace"
+    },
+    "bdl_player_game_stats": {
+      "status": "PRESENT",
+      "physical_location": "data/recovered_v2/wnba_player_game_stats.parquet",
+      "rows": 23931,
+      "cols": 44,
+      "first_date": "2023-05-19",
+      "last_date": "2026-07-29",
+      "sha256": "332f922f7e9bb735b80c9d1b8033b386a4186df70f9dd1d50feb996c0e66fa93",
+      "size_bytes": 424671,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/recovered_v2/wnba_player_game_stats.parquet')  # from private volume / PR#97 workspace"
+    },
+    "bdl_games": {
+      "status": "PRESENT",
+      "physical_location": "data/recovered_v2/wnba_games.parquet",
+      "rows": 1172,
+      "cols": 20,
+      "first_date": "2023-05-19",
+      "last_date": "2026-09-25",
+      "sha256": "b311c4b065ec023aa6e53aa17ed85d38ec3e1aaeb0a3fcb0f3dc759fd8db236f",
+      "size_bytes": 33969,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/recovered_v2/wnba_games.parquet')  # from private volume / PR#97 workspace"
+    },
+    "bdl_players": {
+      "status": "PRESENT",
+      "physical_location": "data/recovered_v2/wnba_players.parquet",
+      "rows": 207,
+      "cols": 18,
+      "first_date": null,
+      "last_date": null,
+      "sha256": "80ea47d9e98b65ef18c1d3494f382bec4938e23576732ab96cc1c7d02161bb40",
+      "size_bytes": 19812,
+      "license_status": "PRIVATE_LICENSED_DO_NOT_PUBLISH",
+      "retrieval_command": "read_parquet('data/recovered_v2/wnba_players.parquet')  # from private volume / PR#97 workspace"
+    }
+  }
+}

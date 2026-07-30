@@ -1,0 +1,20 @@
+# Chronological OOF protocol V3 — expanding-window, season-aware, nested. Frozen before prediction.
+version: v3
+scheme: expanding_window_nested
+grouping: {unit: game_date, rule: "all players of a game-date stay in one fold; no random splits"}
+warmup_prior_data: {seasons: [2023], use: [initial_training, priors]}   # priors only, not scored as OOF
+development_outer_folds:
+  - {name: dev_2024_h1, train_end: 2024-06-30, eval: [2024-05-01, 2024-06-30]}
+  - {name: dev_2024_h2, train_end: 2024-08-31, eval: [2024-07-01, 2024-09-30]}
+  - {name: dev_2025_h1, train_end: 2025-06-30, eval: [2025-05-01, 2025-06-30]}
+  - {name: dev_2025_h2, train_end: 2025-08-31, eval: [2025-07-01, 2025-10-31]}
+final_holdout: {name: holdout_2026, eval_start: 2026-01-01, eval_end: latest_completed_game, single_use: true}
+inner_folds: {k: 3, by: game_date, purpose: [candidate_selection, feature_stability]}
+leakage_controls:
+  - preprocessing_fit_in_train_only
+  - feature_selection_fit_in_train_only
+  - calibration_uses_earlier_oof_only
+  - no_same_date_leakage
+  - no_future_season_priors
+  - no_actual_same_game_minutes_starters_status_box_pbp
+holdout_rule: "do not inspect 2026 holdout until one final candidate per target is locked; evaluate once."

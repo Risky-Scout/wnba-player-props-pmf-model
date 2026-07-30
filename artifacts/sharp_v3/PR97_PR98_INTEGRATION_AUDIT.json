@@ -1,0 +1,24 @@
+{
+  "artifact": "PR97_PR98_INTEGRATION_AUDIT",
+  "generated_at_utc": "2026-07-30T18:45:02.848530+00:00",
+  "base_main_sha": "1db7be397b409189a9221358f42e796b9c8eb46c",
+  "integration_branch": "cursor/wnba-sharp-pmf-v3",
+  "method": "branch merge of origin/cursor/wnba-pricing-pmf-v1 (#98) then origin/cursor/per-stat-compact-pmf-v1 (#97); one conflict resolved.",
+  "classifications": {
+    "pr98_pricing_engine_registry_generator_firstbasket_calibration": "INTEGRATED",
+    "pr98_pricing_tests": "INTEGRATED",
+    "pr98_release_bundle_and_fixture_run": "FIXTURE_ONLY_NOT_PRODUCTION",
+    "pr97_recovered_v2_bdl_tables": "GENERATED_PRIVATE_DATA",
+    "pr97_atomic_quotes_and_pairs": "GENERATED_PRIVATE_DATA",
+    "pr97_pregame_feature_target_separation": "INTEGRATED",
+    "pr97_estimator_guard_and_leakage_audits": "INTEGRATED",
+    "pr97_feature_policy_infrastructure": "INTEGRATED",
+    "pr97_modeling_design_v2": "INTEGRATED",
+    "bdl_client_prop_type_and_plays_fix": "CONFLICT_RESOLVED"
+  },
+  "conflict_resolution": {
+    "file": "src/wnba_props_model/data/bdl_client.py",
+    "resolution": "took origin/cursor/per-stat-compact-pmf-v1 (identical code paginated=False + prop_type; comment references BDL_PBP_PROBE artifact)"
+  },
+  "notes": "Private licensed data is NOT committed (gitignored). It is preserved via PRIVATE_INPUT_MANIFEST.json hashes."
+}
