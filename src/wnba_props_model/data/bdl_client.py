@@ -106,9 +106,10 @@ WNBA_ENDPOINTS: dict[str, Endpoint] = {
         "wnba", "/wnba/v1/odds/player_props", paginated=False, requires_goat=True,
         notes="Must always be called with game_id. Live only; BDL does not store historical props.",
     ),
-    # plays: paginated=True so long games (200+ events) are fully retrieved.
-    # BDL returns up to 100 plays per page; without pagination, games >100 plays truncate.
-    "plays": Endpoint("wnba", "/wnba/v1/plays", paginated=True),
+    # plays: the official WNBA OpenAPI documents ONLY game_id (no cursor/per_page/meta).
+    # Configure NON-paginated; never send undocumented pagination params until a real response
+    # proves support (probe /wnba/v1/plays first).
+    "plays": Endpoint("wnba", "/wnba/v1/plays", paginated=False),
 }
 
 NBA_PARITY_ENDPOINTS: dict[str, Endpoint] = {
@@ -290,5 +291,7 @@ class BDLClient:
         if player_id is not None:
             params["player_id"] = player_id
         if prop_type is not None:
-            params["type"] = prop_type
+            # The official BDL WNBA player-props endpoint documents the filter as `prop_type`
+            # (NOT `type`); the prior `type` key was silently ignored.
+            params["prop_type"] = prop_type
         return list(self.iter_endpoint("player_props", params))

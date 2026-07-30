@@ -1,0 +1,6 @@
+{
+  "artifact": "MONOTONICITY_AUDIT",
+  "generated_at_utc": "2026-07-30T06:05:47.082164+00:00",
+  "all_alternate_ladders_monotone": true,
+  "n_ladders_checked": 224
+}
