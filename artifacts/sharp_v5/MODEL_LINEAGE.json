@@ -1,8 +1,9 @@
 {
   "artifact": "MODEL_LINEAGE",
-  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
-  "code_sha": "25bbe709dd945e2fd184d6f3e52310719ed8b2e2",
+  "generated_at_utc": "2026-07-30T22:57:27.958700+00:00",
+  "code_sha": "034f6974422bd2396db7609eafe9cdb60e0b6c58",
   "design_hash": "d50ea499a20de14f22329aa4862ddd7777aa3e8e9ca747b0286bc58f482f15f4",
   "selection_data": "2023-2025",
-  "seed": 20260730
+  "seed": 20260730,
+  "note": "references the final implementation commit that generated the fitted artifacts"
 }
