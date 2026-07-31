@@ -1,0 +1,43 @@
+{
+  "artifact": "ACTIVATION_REGISTRY",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "tier_A": {
+    "pts": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "reb": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "ast": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "fg3m": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "stl": {
+      "status": "TRAINED_PURE_UNCERTIFIED"
+    },
+    "blk": {
+      "status": "TRAINED_PURE_UNCERTIFIED"
+    },
+    "turnover": {
+      "status": "TRAINED_PURE_UNCERTIFIED"
+    },
+    "stocks": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "pts_ast": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "pts_reb": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "reb_ast": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    },
+    "pts_reb_ast": {
+      "status": "MARKET_CONSISTENT_ZERO_RESIDUAL"
+    }
+  },
+  "certified_residual": []
+}

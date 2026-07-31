@@ -1,0 +1,14 @@
+{
+  "artifact": "DISTRIBUTIONAL_CALIBRATION_REPORT",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "status": "PIT_DIAGNOSTICS_PLUS_DESIGN (persisted cross-fit calibrator layer deferred)",
+  "pit_ks_by_stat": {
+    "ast": 0.0214,
+    "blk": 0.0261,
+    "fg3m": 0.023,
+    "pts": 0.072,
+    "reb": 0.0306,
+    "stl": 0.0217,
+    "turnover": 0.0371
+  }
+}

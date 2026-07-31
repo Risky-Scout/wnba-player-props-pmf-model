@@ -12,12 +12,29 @@ summable. Stored atoms + overflow = 1 exactly; mean/variance include the tail.
 from __future__ import annotations
 
 import numpy as np
+from scipy.stats import nbinom, poisson
 
-from wnba_props_model.sharp_v5.distribution import (CountDistribution, DiscreteDistribution,  # noqa: F401
-                                                    HurdleDistribution, Materialized, TAIL_TOL,
-                                                    ZeroInflatedDistribution)
+from wnba_props_model.sharp_v5.distribution import (  # noqa: F401
+    TAIL_TOL,
+    CountDistribution,
+    DiscreteDistribution,
+    HurdleDistribution,
+    Materialized,
+    ZeroInflatedDistribution,
+)
 
 NORM_TOL = 1e-10
+
+
+def _base_atoms(base, K: int) -> np.ndarray:
+    """Vectorized base atom probabilities over 0..K (fast path for CountDistribution)."""
+    k = np.arange(K + 1)
+    if isinstance(base, CountDistribution):
+        if base.r is None:
+            return poisson.pmf(k, base.mu)
+        p = base.r / (base.r + base.mu)
+        return nbinom.pmf(k, base.r, p)
+    return np.array([base.probability(int(i)) for i in k])
 
 
 def _bounded_mean_basis(y: np.ndarray, scale: float) -> np.ndarray:
@@ -47,55 +64,60 @@ class TiltedDistribution(DiscreteDistribution):
                 + self.theta_disp * disp + self.theta_zero * (yv == 0))
 
     def _normalizer(self):
-        """Z = sum_y base(y) exp(f(y)) with a certified remainder bound. The bounded mean basis is
-        <= |theta_mean|*basis_scale, so the tail of the tilted series is bounded by
-        exp(|theta_mean|*basis_scale) * base.survival(K)."""
+        """Cache the vectorized tilted atom array (normalized) out to where base survival < tol.
+        Z includes a certified tail remainder bound so the transform covers the complete base."""
         K = max(int(self.base.mean() + 8 * np.sqrt(self.base.variance() + 1)), 10)
         bound_factor = float(np.exp(abs(self.theta_mean) * self.basis_scale + abs(self.theta_disp) + abs(self.theta_zero)))
         for _ in range(60):
             k = np.arange(K + 1)
-            base_p = np.array([self.base.probability(int(i)) for i in k])
+            base_p = _base_atoms(self.base, K)
             terms = base_p * np.exp(self._f(k))
-            remainder = bound_factor * self.base.survival(K)
+            remainder = bound_factor * float(self.base.survival(K))
             if remainder < self._tol:
                 break
             K += max(4, int(K * 0.5))
-        Z = float(terms.sum() + remainder)      # include a conservative tail bound in Z
+        Z = float(terms.sum() + remainder)
+        self._tilted = terms / Z                      # normalized tilted atoms 0..K
+        self._overflow = float(remainder / Z)
         return Z, int(K), float(remainder)
 
     def probability(self, y):
         y = int(y)
         if y < 0:
             return 0.0
-        return float(self.base.probability(y) * np.exp(self._f(y)) / self._Z)
+        if y <= self._Zmax:
+            return float(self._tilted[y])
+        return float(self.base.probability(y) * np.exp(self._f(np.array([y]))[0]) / self._Z)
 
     def cdf(self, y):
         y = int(np.floor(y))
         if y < 0:
             return 0.0
-        return float(min(1.0, sum(self.probability(k) for k in range(y + 1))))
+        if y <= self._Zmax:
+            return float(self._tilted[:y + 1].sum())
+        return float(min(1.0, self._tilted.sum() + sum(self.probability(k) for k in range(self._Zmax + 1, y + 1))))
 
     def survival(self, y):
         return float(max(0.0, 1.0 - self.cdf(y)))
 
     def mean(self):
-        m = self.materialize()      # overflow < tail tolerance, so materialized mass captures the mean
-        k = np.arange(m.atoms.size)
-        return float(np.dot(k, m.atoms))
+        # overflow < tail tolerance (1e-6); the tilted atom array captures the mean within tolerance
+        k = np.arange(self._tilted.size)
+        return float(np.dot(k, self._tilted))
 
     def variance(self):
-        mat = self.materialize()
-        k = np.arange(mat.atoms.size)
-        m = float(np.dot(k, mat.atoms))
-        ex2 = float(np.dot(k ** 2, mat.atoms))
+        k = np.arange(self._tilted.size)
+        m = float(np.dot(k, self._tilted))
+        ex2 = float(np.dot(k ** 2, self._tilted))
         return float(max(0.0, ex2 - m ** 2))
 
     def materialize(self, tail_tolerance: float = TAIL_TOL, required_max: int | None = None) -> Materialized:
-        K = required_max if required_max is not None else self._Zmax
-        while self.survival(K) >= tail_tolerance and K < 2000:
-            K += max(4, int(K * 0.5))
-        atoms = np.array([self.probability(k) for k in range(K + 1)])
-        overflow = float(self.survival(K))
+        atoms = self._tilted.copy()
+        K = self._Zmax
+        if required_max is not None and required_max > K:
+            extra = np.array([self.probability(k) for k in range(K + 1, required_max + 1)])
+            atoms = np.concatenate([atoms, extra]); K = required_max
+        overflow = float(max(0.0, 1.0 - atoms.sum()))
         stored = float(atoms.sum())
         return Materialized(atoms=atoms, support_min=0, support_max=int(K), stored_mass=stored,
                             overflow_probability=overflow, tail_upper_bound=overflow,
@@ -122,7 +144,6 @@ def analytic_hurdle_variance(h: HurdleDistribution) -> float:
     mb, vb = base.mean(), base.variance()
     ex_base = mb                          # E_base[Y]
     ex2_base = vb + mb ** 2               # E_base[Y^2]
-    p0 = base.probability(0)
     ex_cond = ex_base / pos               # E[Y | Y>=1] (base 0-atom contributes 0 to numerator)
     ex2_cond = ex2_base / pos
     m = h.p_pos * ex_cond

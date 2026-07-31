@@ -1,0 +1,9 @@
+{
+  "artifact": "ORIGIN_MAIN_VERIFICATION",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "branch_head": "b18e66fa39de78c114fd9b860cd6033df9285049",
+  "origin_main": "5d496072dcd0c101d0e5b7a538ad3dff961e190e",
+  "merged_to_main": false,
+  "on_main": false,
+  "merge_blocker": "agent gh is read-only, no merge/ready tool; maintainer runs `gh pr ready 99 && gh pr merge 99 --squash`"
+}

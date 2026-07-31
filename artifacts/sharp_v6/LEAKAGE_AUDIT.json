@@ -1,0 +1,7 @@
+{
+  "artifact": "LEAKAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "clean": true,
+  "contracts": "frozen exact",
+  "market_in_pure": "none"
+}

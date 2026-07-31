@@ -1,0 +1,7 @@
+{
+  "artifact": "MINUTES_AND_OT_REPORT",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "representation": "regulation 0..40 + separate overtime mixture",
+  "observed_minutes_clipping": "PROHIBITED",
+  "team_constrained_allocation": "NOT_FITTED (player-level minutes distribution used; joint 200-min allocation deferred)"
+}
