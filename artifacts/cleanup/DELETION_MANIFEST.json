@@ -1,0 +1,481 @@
+{
+  "generated": "2026-07-28",
+  "branch": "cursor/clv-backtest-actionability",
+  "base": "main",
+  "method": "ripgrep reference map (filename + module-stem, word-boundary) across .github/workflows, tests, src, scripts, tools, config, docs, README.md, Makefile, pyproject.toml; artifact dirs cross-checked for live consumers (workflows/tests/src/config).",
+  "pytest_baseline": "2129 passed, 2 skipped (python -m pytest tests/ -q --ignore=tests/test_elite_projection_gate.py)",
+  "pytest_after": "2129 passed, 2 skipped (identical to baseline, zero regressions)",
+  "ruff_note": "python -m ruff check src scripts reports 411 pre-existing findings (CI does not gate on ruff); none introduced by deletions.",
+  "workflow_safety": "Every deleted script filename grepped across .github/workflows returned zero matches.",
+  "totals": {
+    "files_deleted": 70,
+    "bytes_reclaimed": 431841,
+    "by_category": {
+      "dead_script": {
+        "files": 37,
+        "bytes": 264473
+      },
+      "dead_src_module": {
+        "files": 1,
+        "bytes": 5256
+      },
+      "stale_artifact": {
+        "files": 32,
+        "dirs": 7,
+        "bytes": 162112
+      },
+      "defunct_workflow": {
+        "files": 0,
+        "bytes": 0
+      },
+      "junk": {
+        "files": 0,
+        "bytes": 0
+      }
+    }
+  },
+  "deleted": [
+    {
+      "path": "scripts/ast_first_edge_sprint.py",
+      "category": "dead_script",
+      "size_bytes": 9614,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_g2_tracking_feasibility.py",
+      "category": "dead_script",
+      "size_bytes": 4843,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_ingestion.py",
+      "category": "dead_script",
+      "size_bytes": 6449,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_opportunity_data_availability.py",
+      "category": "dead_script",
+      "size_bytes": 11407,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_opportunity_temporal_purity.py",
+      "category": "dead_script",
+      "size_bytes": 1897,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_pts_reconstruction.py",
+      "category": "dead_script",
+      "size_bytes": 5009,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_run_30236023013.py",
+      "category": "dead_script",
+      "size_bytes": 13265,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/audit_tracking_asset_reconciliation.py",
+      "category": "dead_script",
+      "size_bytes": 6443,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/backfill_opportunity_tracking.py",
+      "category": "dead_script",
+      "size_bytes": 3282,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/bootstrap_baseline_data.py",
+      "category": "dead_script",
+      "size_bytes": 7419,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_opportunity_ablation_report.py",
+      "category": "dead_script",
+      "size_bytes": 2582,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_opportunity_features.py",
+      "category": "dead_script",
+      "size_bytes": 3543,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_pbp_completion_report.py",
+      "category": "dead_script",
+      "size_bytes": 5487,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_pbp_opportunity_oof.py",
+      "category": "dead_script",
+      "size_bytes": 6744,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_pbp_parsed.py",
+      "category": "dead_script",
+      "size_bytes": 3451,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_publish_ready_inventory.py",
+      "category": "dead_script",
+      "size_bytes": 5493,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_recovery_bundle.py",
+      "category": "dead_script",
+      "size_bytes": 4840,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_stlblktov_labels.py",
+      "category": "dead_script",
+      "size_bytes": 1899,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/build_tracking_crosswalk.py",
+      "category": "dead_script",
+      "size_bytes": 11103,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/debug_bdl_odds.py",
+      "category": "dead_script",
+      "size_bytes": 5125,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/emit_pure_forecast_provenance.py",
+      "category": "dead_script",
+      "size_bytes": 5600,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/evaluate_pmf_calibration.py",
+      "category": "dead_script",
+      "size_bytes": 22561,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/freeze_recovered_data.py",
+      "category": "dead_script",
+      "size_bytes": 12475,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p2_forecasting_diagnostics.py",
+      "category": "dead_script",
+      "size_bytes": 5491,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p3_add_combos.py",
+      "category": "dead_script",
+      "size_bytes": 4480,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p3_build_champion_package.py",
+      "category": "dead_script",
+      "size_bytes": 5501,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p3_build_multistat_package.py",
+      "category": "dead_script",
+      "size_bytes": 6326,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p3_full_recovery_gate.py",
+      "category": "dead_script",
+      "size_bytes": 13360,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p3_prequential_gate.py",
+      "category": "dead_script",
+      "size_bytes": 6712,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/p3_run_forecast_gate.py",
+      "category": "dead_script",
+      "size_bytes": 7239,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/phase3_discrimination_repair.py",
+      "category": "dead_script",
+      "size_bytes": 4104,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/recover_oof_from_checkpoints.py",
+      "category": "dead_script",
+      "size_bytes": 3895,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/scratch_simulation.py",
+      "category": "dead_script",
+      "size_bytes": 10454,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/screen_reb_box_proxy.py",
+      "category": "dead_script",
+      "size_bytes": 6680,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/sprint_pmf_shape.py",
+      "category": "dead_script",
+      "size_bytes": 14958,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/validate_pts_labels.py",
+      "category": "dead_script",
+      "size_bytes": 8495,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "scripts/verify_clean_fetch.py",
+      "category": "dead_script",
+      "size_bytes": 6247,
+      "evidence": "Zero references to filename or module-stem via ripgrep across .github/workflows/*.yml, tests/, src/, scripts/ (other), tools/, config/, docs/, README.md, Makefile, pyproject.toml. Not a pyproject console-script. One-off directive/phase/audit script."
+    },
+    {
+      "path": "src/wnba_props_model/evaluation/pmf_calibration.py",
+      "category": "dead_src_module",
+      "size_bytes": 5256,
+      "evidence": "Zero \\bpmf_calibration\\b references in src (evaluation/__init__.py empty), tests, scripts, .github/workflows, docs, config. Not re-exported."
+    },
+    {
+      "path": "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE.json",
+      "category": "stale_artifact",
+      "size_bytes": 2232,
+      "evidence": "Parent dir artifacts/candidate_freeze referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE_INVALIDATION.json",
+      "category": "stale_artifact",
+      "size_bytes": 2325,
+      "evidence": "Parent dir artifacts/candidate_freeze referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/candidate_freeze/AST_FIRST_EDGE_FREEZE_V2.json",
+      "category": "stale_artifact",
+      "size_bytes": 2269,
+      "evidence": "Parent dir artifacts/candidate_freeze referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/candidate_freeze/REB_FIRST_EDGE_FREEZE_V2.json",
+      "category": "stale_artifact",
+      "size_bytes": 2238,
+      "evidence": "Parent dir artifacts/candidate_freeze referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/README.md",
+      "category": "stale_artifact",
+      "size_bytes": 2210,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/bias_corrections.json",
+      "category": "stale_artifact",
+      "size_bytes": 301,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/bias_corrections_by_role.json",
+      "category": "stale_artifact",
+      "size_bytes": 1484,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/calibration_metadata.json",
+      "category": "stale_artifact",
+      "size_bytes": 186,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/player_form_corrections_2026.json",
+      "category": "stale_artifact",
+      "size_bytes": 2969,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/player_variance_compress.json",
+      "category": "stale_artifact",
+      "size_bytes": 2193,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/hotfix_baseline_734e6d79/variance_compress.json",
+      "category": "stale_artifact",
+      "size_bytes": 318,
+      "evidence": "Parent dir artifacts/hotfix_baseline_734e6d79 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/mission_state/MISSION_STATE_V1.json",
+      "category": "stale_artifact",
+      "size_bytes": 8803,
+      "evidence": "Parent dir artifacts/mission_state referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/p2/p2_forecasting_diagnostics.json",
+      "category": "stale_artifact",
+      "size_bytes": 30674,
+      "evidence": "Parent dir artifacts/p2 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/p2/p2_forecasting_report.md",
+      "category": "stale_artifact",
+      "size_bytes": 3733,
+      "evidence": "Parent dir artifacts/p2 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/p2/p2_split_boundaries.json",
+      "category": "stale_artifact",
+      "size_bytes": 244,
+      "evidence": "Parent dir artifacts/p2 referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/publish_ready/PUBLICATION_STATUS.json",
+      "category": "stale_artifact",
+      "size_bytes": 1084,
+      "evidence": "Parent dir artifacts/publish_ready referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/publish_ready/checksums.sha256",
+      "category": "stale_artifact",
+      "size_bytes": 705,
+      "evidence": "Parent dir artifacts/publish_ready referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/publish_ready/fetch_commands.sh",
+      "category": "stale_artifact",
+      "size_bytes": 319,
+      "evidence": "Parent dir artifacts/publish_ready referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/publish_ready/manifest.json",
+      "category": "stale_artifact",
+      "size_bytes": 2289,
+      "evidence": "Parent dir artifacts/publish_ready referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/publish_ready/publish_commands.sh",
+      "category": "stale_artifact",
+      "size_bytes": 471,
+      "evidence": "Parent dir artifacts/publish_ready referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/CERTIFIED_DELIVERY_SAFETY_AUDIT.json",
+      "category": "stale_artifact",
+      "size_bytes": 5847,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/COMPLETION_STATUS_V1.json",
+      "category": "stale_artifact",
+      "size_bytes": 9861,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/EXECUTABLE_WORK_MATRIX.json",
+      "category": "stale_artifact",
+      "size_bytes": 10222,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/HISTORICAL_QUOTE_MIGRATION_FEASIBILITY.json",
+      "category": "stale_artifact",
+      "size_bytes": 2750,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/REB_BOX_PROXY_SCREEN.json",
+      "category": "stale_artifact",
+      "size_bytes": 590,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/SPRINT_AST_PMF_SHAPE.json",
+      "category": "stale_artifact",
+      "size_bytes": 3216,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/pure_model_completion/SPRINT_FG3M_PMF_SHAPE.json",
+      "category": "stale_artifact",
+      "size_bytes": 3210,
+      "evidence": "Parent dir artifacts/pure_model_completion referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/tracking/CAPABILITY_MATRIX.md",
+      "category": "stale_artifact",
+      "size_bytes": 1436,
+      "evidence": "Parent dir artifacts/tracking referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/tracking/TRACKING_IDENTITY_REPORT.json",
+      "category": "stale_artifact",
+      "size_bytes": 896,
+      "evidence": "Parent dir artifacts/tracking referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/tracking/capability_matrix.json",
+      "category": "stale_artifact",
+      "size_bytes": 4798,
+      "evidence": "Parent dir artifacts/tracking referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/tracking/tracking_game_crosswalk.parquet",
+      "category": "stale_artifact",
+      "size_bytes": 10856,
+      "evidence": "Parent dir artifacts/tracking referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    },
+    {
+      "path": "artifacts/tracking/unmatched_games.csv",
+      "category": "stale_artifact",
+      "size_bytes": 41383,
+      "evidence": "Parent dir artifacts/tracking referenced by no .github/workflows, tests, src, or config path (config substring matches confirmed false positives). Past one-off investigation report set; not a Path A/B deliverable."
+    }
+  ],
+  "kept_uncertain": [
+    {
+      "path": "scripts/path_b_live_scan.py",
+      "reason": "Zero refs in workflows/tests/other-scripts, BUT documented as a current Path B deliverable in artifacts/PATH_A_B_IMPLEMENTATION_REPORT.md and added in the same recent commit series as the Path B acceptance gate. KEPT."
+    },
+    {
+      "path": ".github/workflows/challenger_train.yml",
+      "reason": "References scripts/compare_champion_challenger.py which does NOT exist (pre-existing broken step, not deleted by this cleanup). Workflow also drives many live scripts (build_features, build_oof_pmfs, predict_today, train_baseline_pmfs, etc.), so it is a live cron with one dangling reference, not a wholly-defunct workflow. KEPT; flagged as a risk to fix separately."
+    },
+    {
+      "path": "artifacts/hotfix_diagnostics/",
+      "reason": "Suspected stale, but src/wnba_props_model/pipeline/predict.py references artifacts/hotfix_diagnostics. KEPT (read/written by production code path)."
+    },
+    {
+      "path": "artifacts/calibration_monitor/",
+      "reason": "Only referenced by scripts/run_daily_pipeline.py (not by any workflow/test), but run_daily_pipeline is an orchestrator and the dir name overlaps live calibration-monitor modules. KEPT out of caution (bias to correctness)."
+    },
+    {
+      "path": "scripts/ (numerous other one-off scripts still referenced)",
+      "reason": "Scripts such as build_critical_path_status.py, build_historical_review.py, run_daily_pipeline.py are not in any workflow/test but ARE referenced by docs or other scripts, so they did not meet the zero-reference bar. KEPT."
+    }
+  ]
+}
