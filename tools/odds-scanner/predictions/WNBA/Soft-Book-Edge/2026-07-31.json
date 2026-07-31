@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-07-31T21:03:08.250985+00:00",
+  "generated_at": "2026-07-31T22:59:00.446438+00:00",
   "game_date": "2026-07-31",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-07-31",
-    "generated_utc": "2026-07-31T21:03:08.250985+00:00",
+    "generated_utc": "2026-07-31T22:59:00.446438+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1753,
-    "n_scored_rows": 1552,
-    "n_qualifying": 8,
+    "n_quote_rows": 1777,
+    "n_scored_rows": 1568,
+    "n_qualifying": 6,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -62,7 +62,7 @@
           "player_id": "19a1dc62b2c56fbc46c270d09d0e0221:Jordin Canada:fg3m:0.5:under:betparx",
           "player_name": "Jordin Canada",
           "team_name": "",
-          "position": "betparx +165 \u00b7 EV +13.1%",
+          "position": "betparx +165 \u00b7 EV +14.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,17 +77,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 0.5,
-                "p_over": 0.5732,
-                "edge_vs_market": -0.130952,
-                "kelly_fraction": 0.0198
+                "p_over": 0.5684,
+                "edge_vs_market": -0.143719,
+                "kelly_fraction": 0.0218
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": 165,
-                "ev_pct": 13.095,
-                "fair_p_side": 0.4268,
-                "consensus_p_over": 0.5732,
+                "ev_pct": 14.372,
+                "fair_p_side": 0.4316,
+                "consensus_p_over": 0.5684,
                 "consensus_n_books": 5,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5701,
@@ -96,105 +96,12 @@
               }
             }
           }
-        }
-      ]
-    },
-    {
-      "game_id": "602eaac6e4e24cebabf1cd350f82f07c",
-      "odds_api_event_id": "602eaac6e4e24cebabf1cd350f82f07c",
-      "commence_time": "2026-07-31T23:30:00Z",
-      "home_team": {
-        "name": "Washington Mystics",
-        "abbreviation": "Washington Mystics"
-      },
-      "away_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "players": [
-        {
-          "player_id": "602eaac6e4e24cebabf1cd350f82f07c:Awak Kuier:reb:2.5:under:espnbet",
-          "player_name": "Awak Kuier",
-          "team_name": "",
-          "position": "espnbet +130 \u00b7 EV +7.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5329,
-                "edge_vs_market": -0.074256,
-                "kelly_fraction": 0.0143
-              },
-              "soft_book": {
-                "book": "espnbet",
-                "side": "under",
-                "offered_odds": 130,
-                "ev_pct": 7.426,
-                "fair_p_side": 0.4671,
-                "consensus_p_over": 0.5329,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "espnbet",
-                "best_odds": 130
-              }
-            }
-          }
         },
         {
-          "player_id": "602eaac6e4e24cebabf1cd350f82f07c:Awak Kuier:reb:2.5:under:draftkings",
-          "player_name": "Awak Kuier",
+          "player_id": "19a1dc62b2c56fbc46c270d09d0e0221:Allisha Gray:pts:19.5:over:hardrockbet",
+          "player_name": "Allisha Gray",
           "team_name": "",
-          "position": "draftkings +125 \u00b7 EV +5.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5329,
-                "edge_vs_market": -0.050903,
-                "kelly_fraction": 0.0102
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 125,
-                "ev_pct": 5.09,
-                "fair_p_side": 0.4671,
-                "consensus_p_over": 0.5329,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "espnbet",
-                "best_odds": 130
-              }
-            }
-          }
-        },
-        {
-          "player_id": "602eaac6e4e24cebabf1cd350f82f07c:Azzi Fudd:pts:13.5:over:betparx",
-          "player_name": "Azzi Fudd",
-          "team_name": "",
-          "position": "betparx +102 \u00b7 EV +4.1%",
+          "position": "hardrockbet +100 \u00b7 EV +3.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -203,76 +110,37 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 13.5,
-              "median": 13.5,
+              "mean": 19.5,
+              "median": 19.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 13.5,
-                "p_over": 0.5152,
-                "edge_vs_market": 0.040622,
-                "kelly_fraction": 0.01
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 102,
-                "ev_pct": 4.062,
-                "fair_p_side": 0.5152,
-                "consensus_p_over": 0.5152,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5197,
-                "best_book": "betparx",
-                "best_odds": 102
-              }
-            }
-          }
-        },
-        {
-          "player_id": "602eaac6e4e24cebabf1cd350f82f07c:Awak Kuier:reb:2.5:over:hardrockbet",
-          "player_name": "Awak Kuier",
-          "team_name": "",
-          "position": "hardrockbet -135 \u00b7 EV +3.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5933,
-                "edge_vs_market": 0.03274,
-                "kelly_fraction": 0.011
+                "market_line": 19.5,
+                "p_over": 0.5162,
+                "edge_vs_market": 0.032339,
+                "kelly_fraction": 0.0081
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": -135,
-                "ev_pct": 3.274,
-                "fair_p_side": 0.5933,
-                "consensus_p_over": 0.5933,
-                "consensus_n_books": 3,
+                "offered_odds": 100,
+                "ev_pct": 3.234,
+                "fair_p_side": 0.5162,
+                "consensus_p_over": 0.5162,
+                "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
+                "sharp_consensus_p_over": 0.5175,
                 "best_book": "hardrockbet",
-                "best_odds": -135
+                "best_odds": 100
               }
             }
           }
         },
         {
-          "player_id": "602eaac6e4e24cebabf1cd350f82f07c:Awak Kuier:reb:2.5:over:betparx",
-          "player_name": "Awak Kuier",
+          "player_id": "19a1dc62b2c56fbc46c270d09d0e0221:Angel Reese:ast:2.5:under:betparx",
+          "player_name": "Angel Reese",
           "team_name": "",
-          "position": "betparx -137 \u00b7 EV +2.6%",
+          "position": "betparx -113 \u00b7 EV +2.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -280,29 +148,29 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "rebounds": {
+            "assists": {
               "mean": 2.5,
               "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5933,
-                "edge_vs_market": 0.026324,
-                "kelly_fraction": 0.009
+                "p_over": 0.4555,
+                "edge_vs_market": -0.026392,
+                "kelly_fraction": 0.0075
               },
               "soft_book": {
                 "book": "betparx",
-                "side": "over",
-                "offered_odds": -137,
-                "ev_pct": 2.632,
-                "fair_p_side": 0.5933,
-                "consensus_p_over": 0.5933,
-                "consensus_n_books": 3,
+                "side": "under",
+                "offered_odds": -113,
+                "ev_pct": 2.639,
+                "fair_p_side": 0.5445,
+                "consensus_p_over": 0.4555,
+                "consensus_n_books": 6,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "hardrockbet",
-                "best_odds": -135
+                "sharp_consensus_p_over": 0.4537,
+                "best_book": "betparx",
+                "best_odds": -113
               }
             }
           }
@@ -323,10 +191,10 @@
       },
       "players": [
         {
-          "player_id": "79a00262dc799b713bbcb4473a7be183:Bridget Carleton:ast:2.5:over:betonlineag",
+          "player_id": "79a00262dc799b713bbcb4473a7be183:Bridget Carleton:ast:2.5:under:hardrockbet",
           "player_name": "Bridget Carleton",
           "team_name": "",
-          "position": "betonlineag +125 \u00b7 EV +3.9%",
+          "position": "hardrockbet -125 \u00b7 EV +4.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -341,22 +209,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.4619,
-                "edge_vs_market": 0.039195,
-                "kelly_fraction": 0.0078
+                "p_over": 0.4178,
+                "edge_vs_market": -0.047933,
+                "kelly_fraction": 0.015
               },
               "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 125,
-                "ev_pct": 3.92,
-                "fair_p_side": 0.4619,
-                "consensus_p_over": 0.4619,
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": -125,
+                "ev_pct": 4.793,
+                "fair_p_side": 0.5822,
+                "consensus_p_over": 0.4178,
                 "consensus_n_books": 5,
-                "is_sharp_book": true,
+                "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4116,
-                "best_book": "betonlineag",
-                "best_odds": 125
+                "best_book": "hardrockbet",
+                "best_odds": -125
               }
             }
           }
@@ -365,7 +233,7 @@
           "player_id": "79a00262dc799b713bbcb4473a7be183:Megan DiLeo:pts:14.5:over:betparx",
           "player_name": "Megan DiLeo",
           "team_name": "",
-          "position": "betparx +100 \u00b7 EV +2.6%",
+          "position": "betparx +100 \u00b7 EV +4.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -380,22 +248,61 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 14.5,
-                "p_over": 0.5131,
-                "edge_vs_market": 0.026224,
-                "kelly_fraction": 0.0066
+                "p_over": 0.5238,
+                "edge_vs_market": 0.047627,
+                "kelly_fraction": 0.0119
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "over",
                 "offered_odds": 100,
-                "ev_pct": 2.622,
-                "fair_p_side": 0.5131,
-                "consensus_p_over": 0.5131,
-                "consensus_n_books": 3,
+                "ev_pct": 4.763,
+                "fair_p_side": 0.5238,
+                "consensus_p_over": 0.5238,
+                "consensus_n_books": 4,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": null,
                 "best_book": "betparx",
                 "best_odds": 100
+              }
+            }
+          }
+        },
+        {
+          "player_id": "79a00262dc799b713bbcb4473a7be183:Bridget Carleton:ast:2.5:under:betparx",
+          "player_name": "Bridget Carleton",
+          "team_name": "",
+          "position": "betparx -127 \u00b7 EV +4.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4178,
+                "edge_vs_market": -0.040598,
+                "kelly_fraction": 0.0129
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -127,
+                "ev_pct": 4.06,
+                "fair_p_side": 0.5822,
+                "consensus_p_over": 0.4178,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4116,
+                "best_book": "hardrockbet",
+                "best_odds": -125
               }
             }
           }
