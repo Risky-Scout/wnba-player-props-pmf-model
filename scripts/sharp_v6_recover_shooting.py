@@ -70,14 +70,14 @@ def main() -> None:
     ok.to_parquet(PRIV, index=False)
     (OUT / "BDL_PLAYER_STATS_ENDPOINT_AUDIT.json").write_text(json.dumps({
         "artifact": "BDL_PLAYER_STATS_ENDPOINT_AUDIT", "generated_at_utc": ts,
-        "correct_endpoint": "/wnba/v1/player_stats", "status": 200, "rows_pulled": int(len(df)),
+        "correct_endpoint": "/wnba/v1/player_stats", "status": 200, "rows_pulled": len(df),
         "seasons": [2023, 2024, 2025, 2026], "credit_calls": len(credit),
         "correction": "V5 probed /wnba/v1/stats,/box_scores,/season_stats (all 404, undocumented). The "
                       "documented /wnba/v1/player_stats returns FGM/FTM. V5 'tier-blocked' was WRONG.",
         "fgm_ftm_present": True}, indent=2, default=str))
     (OUT / "SHOOTING_LABEL_RECONCILIATION.json").write_text(json.dumps({
         "artifact": "SHOOTING_LABEL_RECONCILIATION", "generated_at_utc": ts,
-        "rows_total": int(len(df)), "rows_valid": int(len(ok)),
+        "rows_total": len(df), "rows_valid": len(ok),
         "identity_violations": viol, "valid_rate": float(len(ok) / max(len(df), 1)),
         "private_table": str(PRIV.relative_to(REPO)) + " (gitignored)",
         "derivations": ["fg2a=fga-fg3a", "fg2m=fgm-fg3m"],
