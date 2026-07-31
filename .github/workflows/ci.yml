@@ -53,6 +53,54 @@ jobs:
         run: python -m pytest tests/ -q --tb=short --ignore=tests/test_elite_projection_gate.py
 
   # ---------------------------------------------------------------------------
+  # Path B/A MANDATORY pre-merge acceptance gate (MARKET_DISLOCATION).
+  # Runs the deterministic OFFLINE fixture scan (no live odds) to produce a real
+  # LIVE_SCAN_AUDIT.json exercising every rejection path, then fails the build
+  # (exit non-zero) unless the audit satisfies all 10 acceptance requirements.
+  # ---------------------------------------------------------------------------
+  path_b_acceptance_gate:
+    name: Path B/A acceptance gate (MARKET_DISLOCATION)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Run offline fixture scan (deterministic, no live odds)
+        run: |
+          PYTHONPATH=$(pwd)/src python -m pytest tests/test_path_b_gate_and_scan.py \
+            tests/test_path_a_availability_audit.py -q
+          PYTHONPATH=$(pwd)/src python scripts/path_b_fixture_scan.py \
+            --out-dir artifacts/path_b_fixture
+
+      - name: MANDATORY acceptance gate (fail closed)
+        run: |
+          PYTHONPATH=$(pwd)/src python scripts/path_b_acceptance_gate.py \
+            artifacts/path_b_fixture/LIVE_SCAN_AUDIT.json \
+            --report-out artifacts/path_b_fixture/GATE_REPORT.json
+
+      - name: Upload Path B fixture audit + gate report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: path-b-gate-${{ github.run_id }}
+          path: artifacts/path_b_fixture/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
   # R5.2 — Feature variance gate (Blueprint R5)
   # Fails CI if any model feature has cross-player std < 0.05.
   # Requires wide features + manifest from a previous pipeline run.

@@ -1,0 +1,35 @@
+{
+  "schema_version": "path_b_dislocation_audit_v1",
+  "game_date": "2026-07-28",
+  "source_type": "MARKET_DISLOCATION",
+  "generated_at": "2026-07-28T20:16:48.394259+00:00",
+  "consensus": {
+    "n_rows": 2158,
+    "n_rows_with_sharp_reference": 1632,
+    "reference_books": [
+      "betonlineag",
+      "lowvig",
+      "pinnacle"
+    ],
+    "median_consensus_n_books": 7,
+    "median_dispersion_stdev": 0.010252,
+    "self_exclusion_enforced": true
+  },
+  "method": {
+    "leave_one_book_out": true,
+    "self_excluded_from_own_consensus": true,
+    "consensus_statistic": "median of per-book Shin no-vig P(over), self-excluded",
+    "reference_books": [
+      "betonlineag",
+      "lowvig",
+      "pinnacle"
+    ],
+    "atomic_key": [
+      "event_id",
+      "player_name",
+      "market_key",
+      "line"
+    ],
+    "alternate_markets_segregated": true
+  }
+}
