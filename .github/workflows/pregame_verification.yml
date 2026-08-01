@@ -422,6 +422,26 @@ jobs:
           print(json.dumps(meta, indent=2))
           PYEOF
 
+      # Prior failed run context (preserve for lineage):
+      #   run=30687952825 stage=20260801T063429Z
+      #   artifacts: stage=8814652246 audits=8814652423 smoke-pages=8814652790
+      #   failure: null line-display probs on NO_MARKET rows rejected by validator
+      - name: Format pregame JSON output (nonpublishing staging aid)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python scripts/format_pregame_output.py \
+            --game-date "$GAME_DATE" \
+            --pipeline-run pregame_initial \
+            --pmfs "${STAGE_DIR}/full_pmfs_wide.parquet" \
+            --out-dir tools/odds-scanner/predictions/WNBA/Pre-Game-Edge \
+            --market-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --injuries "data/injuries/${GAME_DATE}.json" \
+            --games data/processed/wnba_games.parquet
+          mkdir -p "${STAGE_DIR}/pregame_edge_json"
+          cp -R tools/odds-scanner/predictions/WNBA/Pre-Game-Edge/. \
+            "${STAGE_DIR}/pregame_edge_json/" 2>/dev/null || true
+
       - name: Post-forecast smoke validation (dry_run, no publish)
         id: smoke
         run: |
@@ -463,8 +483,13 @@ jobs:
             --game-date "$GAME_DATE" \
             --base-dir tools/odds-scanner/predictions/WNBA \
             --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT"
-          python scripts/validate_forecast_pages.py \
-            --pre-game-dir "$PRE_GAME_DIR" --require-forecast-rows
+          if ! python scripts/validate_forecast_pages.py \
+            --pre-game-dir "$PRE_GAME_DIR" --require-forecast-rows; then
+            echo "smoke_status=FAIL" >> "$GITHUB_OUTPUT"
+            mkdir -p "${STAGE_DIR}/forecast_pages"
+            cp -R "${PRE_GAME_DIR}/." "${STAGE_DIR}/forecast_pages/" || true
+            exit 1
+          fi
           # Copy smoke pages into staging (not published)
           mkdir -p "${STAGE_DIR}/forecast_pages"
           cp -R "${PRE_GAME_DIR}/." "${STAGE_DIR}/forecast_pages/" || true
@@ -472,15 +497,49 @@ jobs:
           echo "smoke_status=PASS" >> "$GITHUB_OUTPUT"
 
       - name: Generate pregame verification audit package
+        if: always()
         run: |
           set -euo pipefail
+          if [ -z "${STAGE_DIR:-}" ] || [ ! -d "${STAGE_DIR}" ]; then
+            echo "::error::STAGE_DIR missing — cannot build audit package"
+            exit 1
+          fi
+          SMOKE_STATUS="${{ steps.smoke.outputs.smoke_status }}"
+          if [ -z "$SMOKE_STATUS" ]; then
+            SMOKE_STATUS="FAIL"
+          fi
+          # Preserve prior failed-run lineage in the audit package
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import os
+          audit = Path(os.environ["AUDIT_DIR"])
+          audit.mkdir(parents=True, exist_ok=True)
+          prior = {
+              "prior_failed_run_id": "30687952825",
+              "prior_stage_timestamp": "20260801T063429Z",
+              "prior_artifact_ids": {
+                  "stage": 8814652246,
+                  "audits": 8814652423,
+                  "smoke_pages": 8814652790,
+              },
+              "prior_inputs": {
+                  "game_date": "2026-08-01",
+                  "dry_run": True,
+                  "publish": False,
+              },
+              "prior_failure": "validate_forecast_pages rejected null probs on NO_MARKET rows",
+          }
+          (audit / "PRIOR_FAILED_RUN.json").write_text(json.dumps(prior, indent=2))
+          print(json.dumps(prior, indent=2))
+          PY
           python3 scripts/run_pregame_verification_package.py \
             --game-date "$GAME_DATE" \
             --stage-dir "$STAGE_DIR" \
             --audit-dir "$AUDIT_DIR" \
             --code-sha "$GITHUB_SHA" \
             --run-id "$GITHUB_RUN_ID" \
-            --smoke-status "${{ steps.smoke.outputs.smoke_status }}"
+            --smoke-status "$SMOKE_STATUS"
 
       - name: Upload staging forecast artifact
         if: always()
@@ -507,10 +566,14 @@ jobs:
           retention-days: 14
 
       - name: Final verdict gate
+        if: always()
         run: |
           set -euo pipefail
           SUMMARY="${AUDIT_DIR}/PREGAME_VERIFICATION_SUMMARY.json"
-          test -f "$SUMMARY"
+          if [ ! -f "$SUMMARY" ]; then
+            echo "::error::Missing PREGAME_VERIFICATION_SUMMARY.json — audit package did not complete"
+            exit 1
+          fi
           VERDICT=$(python3 -c "import json; print(json.load(open('${SUMMARY}'))['verdict'])")
           echo "VERDICT=${VERDICT}"
           echo "### Pregame Verification" >> "$GITHUB_STEP_SUMMARY"
@@ -518,6 +581,7 @@ jobs:
           echo "- prediction_timestamp: \`${PRED_TS}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- stage: \`${STAGE_DIR}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- smoke: \`${{ steps.smoke.outputs.smoke_status }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- prior_failed_run: \`30687952825\` / stage \`20260801T063429Z\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- verdict: **${VERDICT}**" >> "$GITHUB_STEP_SUMMARY"
           echo "- publish: false (enforced)" >> "$GITHUB_STEP_SUMMARY"
           if [ "$VERDICT" = "FAIL_DO_NOT_PUBLISH" ]; then

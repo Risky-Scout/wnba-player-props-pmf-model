@@ -518,6 +518,8 @@ def _build_pmf_json(
         _cal_mean = r.get("pmf_mean") or r.get("pmf_mean_proj")
         _display_mean = round(float(_cal_mean), 2) if _cal_mean is not None and float(_cal_mean) > 0 else round(mu, 2)
         market_line = round(float(r.get("line", 0) or 0), 1)
+        has_market_line = market_line > 0
+        row_status = "PRICED" if has_market_line else "NO_MARKET_AVAILABLE"
 
         # B1 PROBABILITY CONTRACT: the bettor-facing selected-line probability is the single
         # decision-grade source model_prob_over_final (push-safe + binary-calibrated). It is
@@ -532,7 +534,7 @@ def _build_pmf_json(
         pmf_p_over_unconditional = None
         pmf_p_under_unconditional = None
         pmf_p_push = None
-        if _pmf_arr_raw and market_line > 0:
+        if _pmf_arr_raw and has_market_line:
             _k = np.array([int(kk) for kk in _pmf_arr_raw.keys()], dtype=float)
             _p = np.array(list(_pmf_arr_raw.values()), dtype=float)
             _tot = _p.sum()
@@ -545,7 +547,7 @@ def _build_pmf_json(
         # Bettor-facing settled probabilities come from the lineage's final value only.
         # 2.5: with NO exact selected market line, line-display probabilities are null (never 0
         # or 0.5). The PMF distribution is still shown via the *unconditional* fields above.
-        if market_line and market_line > 0 and (r.get("model_prob_over_final") is not None):
+        if has_market_line and (r.get("model_prob_over_final") is not None):
             model_prob_over_final = float(r.get("model_prob_over_final", 0) or 0)
             model_p_over = round(model_prob_over_final, 6)
             model_p_push = round(float(r.get("model_prob_push", 0) or 0), 6)
@@ -556,9 +558,15 @@ def _build_pmf_json(
             model_p_under = None
             model_p_push = None
 
-        market_p_over = round(float(r.get("market_prob_over_no_vig", 0) or 0), 4)
-        no_vig_over = round(float(r.get("no_vig_over_prob", market_p_over) or market_p_over), 4)
-        no_vig_under = round(float(r.get("no_vig_under_prob", 1.0 - market_p_over) or (1.0 - market_p_over)), 4)
+        market_p_over = round(float(r.get("market_prob_over_no_vig", 0) or 0), 4) if has_market_line else None
+        no_vig_over = (
+            round(float(r.get("no_vig_over_prob", market_p_over) or market_p_over), 4)
+            if has_market_line and market_p_over is not None else None
+        )
+        no_vig_under = (
+            round(float(r.get("no_vig_under_prob", 1.0 - market_p_over) or (1.0 - market_p_over)), 4)
+            if has_market_line and market_p_over is not None else None
+        )
         _pid = r.get("player_id")
         _stat_raw = str(r.get("stat", ""))
         last_5_avg = _last5_lookup.get((_pid, _stat_raw)) if _pid is not None else None
@@ -576,10 +584,13 @@ def _build_pmf_json(
             "stat": str(r["stat"]).upper(),
             "stat_raw": _stat_raw,
             "line": market_line,
+            "has_market_line": has_market_line,
+            "row_status": row_status,
+            "pricing_status": row_status,
             "mean": _display_mean,
             "median": round(median_k, 1),
             "mode": mode_k,
-            "median_vs_line": round(median_k - market_line, 2) if market_line > 0 else None,
+            "median_vs_line": round(median_k - market_line, 2) if has_market_line else None,
             "variance": round(var, 3),
             "std_dev": round(std, 3),
             "skewness": round(skew, 3),
@@ -600,8 +611,8 @@ def _build_pmf_json(
             "market_p_over": market_p_over,
             "no_vig_over_prob": no_vig_over,
             "no_vig_under_prob": no_vig_under,
-            "edge": round(edge, 4),
-            "kelly_pct": round(float(r.get("kelly_fraction", 0) or 0) * 100, 2),
+            "edge": round(edge, 4) if has_market_line else None,
+            "kelly_pct": round(float(r.get("kelly_fraction", 0) or 0) * 100, 2) if has_market_line else 0.0,
             "last_5_avg": last_5_avg,
             # pmf_full: complete mass used for all probability calculations (sums to 1)
             "pmf_full": _pairs_full,
@@ -611,7 +622,7 @@ def _build_pmf_json(
             # Legacy alias (also full, not filtered)
             "pmf": _pairs_full,
         })
-    props.sort(key=lambda x: -abs(x["edge"]))
+    props.sort(key=lambda x: -abs(x["edge"] or 0))
     result = {
         "schema_version": "2.1",
         "generated_at": datetime.now(timezone.utc).isoformat(),

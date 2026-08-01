@@ -83,6 +83,34 @@ def test_invalid_probability_and_pmf_sum_fail(tmp_path):
     assert any("PMF mass" in e for e in errs)
 
 
+def test_no_market_null_probs_are_allowed(tmp_path):
+    """Null line-display probs are honest for NO_MARKET rows (run 30687952825 contract)."""
+    m = _mod()
+    no_mkt = {
+        "release_id": "r1", "game_date": "2026-08-01", "git_commit": "abc",
+        "props": [{
+            "player": "DeWanna Bonner", "stat": "PTS", "stat_raw": "pts",
+            "line": 0.0, "has_market_line": False,
+            "row_status": "NO_MARKET_AVAILABLE", "pricing_status": "NO_MARKET_AVAILABLE",
+            "model_p_over": None, "model_p_under": None, "model_prob_over_final": None,
+            "pmf_full": [[0, 0.2], [1, 0.3], [2, 0.5]],
+        }],
+    }
+    _write(tmp_path, _good_edge(), no_mkt, no_mkt)
+    assert m.validate(tmp_path) == []
+
+
+def test_priced_null_probs_still_fail(tmp_path):
+    m = _mod()
+    priced_null = _good_forecast()
+    priced_null["props"][0]["model_p_over"] = None
+    priced_null["props"][0]["has_market_line"] = True
+    priced_null["props"][0]["row_status"] = "PRICED"
+    _write(tmp_path, _good_edge(), priced_null, _good_forecast())
+    errs = m.validate(tmp_path)
+    assert any("invalid probability" in e for e in errs)
+
+
 def test_smoke_workflow_is_dry_run_first():
     wf = (LANE / ".github" / "workflows" / "forecast_pages_smoke.yml").read_text()
     assert "workflow_dispatch" in wf and "dry_run" in wf and "validate_forecast_pages.py" in wf

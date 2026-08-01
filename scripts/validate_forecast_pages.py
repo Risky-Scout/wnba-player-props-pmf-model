@@ -7,7 +7,11 @@ abstaining Edge Board:
   * Edge Board is in explicit abstention (zero recommendations, publication_mode=forecast_only,
     abstain=true) and exposes NO Kelly, NO actionable edge rows, NO "positive edges" counts.
   * Public forecast rows include ONLY forecast_allowed stats (fg3m/blk suppressed).
-  * No invalid/NaN probabilities; PMF masses sum to ~1; no duplicate player/stat/line keys.
+  * Row-contract classification:
+      - PRICED rows (real market line): finite O/U probabilities required.
+      - NO_MARKET_AVAILABLE rows (no selected line): null line-display probabilities
+        are allowed (never silently coerced to 0/0.5); PMF mass still validated.
+  * No invalid/NaN probabilities on PRICED rows; PMF masses sum to ~1; no duplicate keys.
 
 Exit code is nonzero on any failure. Use --require-forecast-rows when games are scheduled.
 """
@@ -21,6 +25,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 _CORE_PROVENANCE = ["release_id", "game_date", "git_commit"]
+_NO_MARKET_STATUSES = {
+    "NO_MARKET_AVAILABLE",
+    "NO_MARKET",
+    "LIVE_MARKETS_NOT_YET_AVAILABLE",
+}
 
 
 def _load(p: Path):
@@ -41,6 +50,27 @@ def _finite01(x) -> bool:
         return math.isfinite(v) and -1e-9 <= v <= 1.0 + 1e-9
     except (TypeError, ValueError):
         return False
+
+
+def _has_market_line(pr: dict) -> bool:
+    """True when the row has a real selected sportsbook line to price against."""
+    if pr.get("has_market_line") is True:
+        return True
+    status = str(pr.get("row_status") or pr.get("pricing_status") or "").upper()
+    if status in _NO_MARKET_STATUSES:
+        return False
+    raw = pr.get("line", pr.get("market_line"))
+    try:
+        return raw is not None and float(raw) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _row_status(pr: dict) -> str:
+    explicit = str(pr.get("row_status") or pr.get("pricing_status") or "").upper()
+    if explicit:
+        return explicit
+    return "PRICED" if _has_market_line(pr) else "NO_MARKET_AVAILABLE"
 
 
 def validate(pre_game_dir: Path, *, require_forecast_rows: bool = False) -> list[str]:
@@ -100,17 +130,31 @@ def validate(pre_game_dir: Path, *, require_forecast_rows: bool = False) -> list
             if key in seen:
                 errs.append(f"{name}: duplicate player/stat/line key {key}")
             seen.add(key)
-            # No Kelly / actionable edge exposed on the pure-forecast Distributions page.
+            status = _row_status(pr)
+            priced = _has_market_line(pr)
+            # Row-contract: null line-display probs are honest for NO_MARKET rows.
+            # PRICED rows must expose finite settled probabilities.
             for prob_field in ("model_p_over", "model_p_under", "model_prob_over_final"):
-                if prob_field in pr and not _finite01(pr[prob_field]):
-                    errs.append(f"{name}: invalid probability {prob_field}={pr.get(prob_field)!r} for {key}")
-            # PMF mass must sum to ~1 when present.
+                if prob_field not in pr:
+                    continue
+                val = pr[prob_field]
+                if not priced:
+                    if val is not None and not _finite01(val):
+                        errs.append(
+                            f"{name}: invalid probability {prob_field}={val!r} for "
+                            f"NO_MARKET row {key} status={status}"
+                        )
+                    continue
+                if not _finite01(val):
+                    errs.append(f"{name}: invalid probability {prob_field}={val!r} for {key}")
+            # PMF mass must sum to ~1 when present (distribution integrity, priced or not).
             pmf_pairs = pr.get("pmf_full") or pr.get("pmf") or []
             if pmf_pairs:
                 s = sum(float(v) for _, v in pmf_pairs)
                 if not (0.98 <= s <= 1.02):
                     errs.append(f"{name}: PMF mass for {key} sums to {s:.4f} (outside tolerance)")
     return errs
+
 
 
 def main() -> int:
