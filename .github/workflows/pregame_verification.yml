@@ -101,10 +101,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/models/calibration
-          python3 scripts/resolve_calibrator_artifact.py \
+          # Prefer the production artifact-level resolver. If the newest-N probe
+          # window misses the still-valid calibrators used by the prior successful
+          # verification forecast (run 30687952825 → artifact 8468612576 /
+          # source_run 29741061620), fall back to that exact artifact.
+          if ! python3 scripts/resolve_calibrator_artifact.py \
             --repo "${{ github.repository }}" \
             --cal-dir artifacts/models/calibration \
-            --github-env "$GITHUB_ENV"
+            --github-env "$GITHUB_ENV"; then
+            echo "[WARN] Resolver found no compatible calibrators in newest probe window."
+            echo "[WARN] Falling back to prior successful verification calibrators:"
+            echo "       artifact_id=8468612576 source_run=29741061620 (from run 30687952825)"
+            FALLBACK_AID=8468612576
+            FALLBACK_RUN=29741061620
+            gh api "repos/${{ github.repository }}/actions/artifacts/${FALLBACK_AID}/zip" \
+              > /tmp/calibrators_fallback.zip
+            unzip -o /tmp/calibrators_fallback.zip -d artifacts/models/calibration
+            echo "SOURCE_CALIBRATORS_RUN_ID=${FALLBACK_RUN}" >> "$GITHUB_ENV"
+            echo "CALIBRATOR_RESOLVE_MODE=fallback_prior_verification_artifact" >> "$GITHUB_ENV"
+          fi
           test -f artifacts/models/calibration/artifact_manifest_calibrator.json
 
       - name: Download stage4 model (latest successful daily_pipeline on main)
