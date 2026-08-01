@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-01T19:06:06.723773+00:00",
+  "generated_at": "2026-08-01T20:50:17.413993+00:00",
   "game_date": "2026-08-01",
   "method": {
     "definition": "Definition B: soft book vs sharp consensus. Find individual books whose posted price is better for the bettor than the no-vig consensus of the wider book set. No model and no information edge is used \u2014 pure market-vs-market line shopping.",
@@ -13,31 +13,23 @@
   },
   "summary": {
     "date": "2026-08-01",
-    "generated_utc": "2026-08-01T19:06:06.723773+00:00",
+    "generated_utc": "2026-08-01T20:50:17.413993+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
-    "n_events": 2,
-    "n_books_seen": 10,
+    "n_events": 1,
+    "n_books_seen": 2,
     "books_seen": [
-      "betonlineag",
-      "betparx",
-      "betrivers",
       "draftkings",
-      "espnbet",
-      "fanduel",
-      "fliff",
-      "hardrockbet",
-      "rebet",
-      "williamhill_us"
+      "fanduel"
     ],
-    "n_quote_rows": 633,
+    "n_quote_rows": 56,
     "n_scored_rows": 0,
     "n_qualifying": 0,
     "n_books_per_stat": {
-      "ast": 10,
-      "fg3m": 10,
-      "pts": 10,
-      "reb": 10
+      "ast": 2,
+      "fg3m": 2,
+      "pts": 2,
+      "reb": 2
     },
     "status": "ok"
   },
