@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WNBA Live In-Play Edges — WizardOfOdds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0A0E1A;--surface:#0F1529;--surface2:#141B30;--border:#1E2640;--border2:#2A3350;
+  --gold:#D4AF37;--text:#E8EAF2;--text2:#9BA3BC;--text3:#5A6380;
+  --green:#2ECC71;--red:#E74C3C;--blue:#3B82F6;--amber:#F59E0B;
+  --bet-bg:#16341A;--bet-border:#2ECC71;
+  --small-bg:#2D2610;--small-border:#F59E0B;
+  --lean-bg:#0F1E38;--lean-border:#3B82F6;
+}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+/* Header */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:11px 22px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100}
+.brand{font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--text)}
+.brand .acc{color:var(--gold)}
+.nav-sep{width:1px;height:16px;background:var(--border2)}
+.nav-links{display:flex;gap:4px}
+.nav-link{font-size:.7rem;color:var(--text3);padding:3px 10px;border-radius:4px;text-decoration:none;transition:color .15s}
+.nav-link:hover,.nav-link.active{color:var(--gold)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:.7rem;color:var(--text3)}
+.live-badge{display:flex;align-items:center;gap:5px;color:var(--green);font-weight:700;font-size:.78rem}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.stale-banner{background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.35);color:#f08080;font-size:.75rem;padding:6px 16px;display:flex;align-items:center;gap:8px;border-radius:6px;margin-bottom:14px}
+/* Main layout */
+main{max-width:1400px;margin:18px auto;padding:0 18px}
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 16px}
+.kpi .val{font-family:'Fraunces',serif;font-size:1.55rem;font-weight:700;line-height:1.1}
+.kpi .lbl{font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
+.kpi.green .val{color:var(--green)}
+.kpi.red .val{color:var(--red)}
+.kpi.gold .val{color:var(--gold)}
+.kpi.amber .val{color:var(--amber)}
+/* Filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.pill{background:var(--surface2);border:1px solid var(--border2);color:var(--text3);border-radius:20px;padding:3px 12px;font-size:.7rem;cursor:pointer;transition:all .15s;font-family:inherit}
+.pill:hover{border-color:var(--gold);color:var(--text)}
+.pill.active{background:rgba(212,175,55,.15);border-color:var(--gold);color:var(--gold)}
+.search-box{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:4px 11px;font-size:.76rem;font-family:inherit;outline:none;width:190px}
+.search-box:focus{border-color:var(--gold)}
+.flt-spacer{flex:1}
+.count-label{font-size:.7rem;color:var(--text3)}
+/* Per-game panels */
+.game-panel{border:1px solid var(--border);border-radius:10px;margin-bottom:18px;overflow:hidden}
+.game-panel-hdr{background:var(--surface);padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.game-matchup{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:600;color:var(--text)}
+.game-score{font-size:1.1rem;font-weight:700;color:var(--gold);padding:2px 10px;background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.25);border-radius:6px}
+.game-clock{font-size:.75rem;color:var(--text3);background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:2px 8px}
+.game-status{font-size:.7rem;color:var(--green);font-weight:600;margin-left:auto}
+/* Table inside panel */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+thead{position:sticky;top:46px;z-index:5}
+th{background:var(--surface);color:var(--text3);padding:8px 12px;text-align:left;font-weight:600;font-size:.63rem;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--text)}
+th.sorted-desc::after{content:' ↓';color:var(--gold)}
+th.sorted-asc::after{content:' ↑';color:var(--gold)}
+td{padding:7px 12px;border-bottom:1px solid rgba(30,38,64,.6);white-space:nowrap;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(212,175,55,.02)}
+/* Row color by action */
+tr.row-bet td{background:rgba(46,204,113,.04)}
+tr.row-bet:hover td{background:rgba(46,204,113,.07)}
+tr.row-small td{background:rgba(245,158,11,.03)}
+.player-name{font-weight:600;color:var(--text)}
+.oncourt-yes{color:var(--green);font-size:.8rem}
+.oncourt-no{color:var(--text3);font-size:.8rem}
+.stat-chip{background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:1px 7px;font-size:.68rem;font-weight:600;color:var(--text3)}
+.prog-wrap{display:flex;align-items:center;gap:6px;min-width:110px}
+.prog-bar{flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;background:var(--gold);transition:width .3s}
+.prog-fill.over-line{background:var(--green)}
+.prog-text{font-size:.7rem;color:var(--text3);white-space:nowrap}
+.dir-over{color:var(--green);font-weight:700}
+.dir-under{color:var(--red);font-weight:700}
+.edge-pos{color:var(--green);font-weight:700}
+.edge-neg{color:var(--red);font-weight:700}
+.kelly-val{color:var(--blue)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.action-badge{display:inline-block;border-radius:4px;padding:2px 8px;font-size:.68rem;font-weight:700;letter-spacing:.3px}
+.ab-bet{background:var(--bet-bg);border:1px solid var(--bet-border);color:var(--green)}
+.ab-small{background:var(--small-bg);border:1px solid var(--small-border);color:var(--amber)}
+.ab-lean{background:var(--lean-bg);border:1px solid var(--lean-border);color:var(--blue)}
+.ab-pass{background:var(--surface2);border:1px solid var(--border2);color:var(--text3)}
+.ab-wait{background:rgba(90,99,128,.12);border:1px solid rgba(90,99,128,.35);color:var(--text3)}
+/* Empty / no-games states */
+.no-games{text-align:center;padding:70px 20px;color:var(--text3)}
+.no-games h2{font-family:'Fraunces',serif;font-size:1.5rem;color:var(--text2);margin-bottom:8px}
+.no-games p{font-size:.82rem;line-height:1.7}
+.next-games{margin-top:20px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.next-game-pill{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:.78rem}
+.next-game-pill .ng-teams{font-weight:600;color:var(--text)}
+.next-game-pill .ng-time{font-size:.68rem;color:var(--text3);margin-top:2px}
+/* Footer */
+footer{text-align:center;font-size:.68rem;color:var(--text3);padding:24px 0 18px;border-top:1px solid var(--border);margin-top:22px;line-height:1.8}
+/* Responsive */
+@media(max-width:900px){.kpis{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">WizardOf<span class="acc">Odds</span></div>
+  <div class="nav-sep"></div>
+  <nav class="nav-links">
+    <a href="../Pre-Game/Distributions/" class="nav-link">Pre-Game</a>
+    <a href="" class="nav-link active">Live In-Play</a>
+  </nav>
+  <div class="hdr-right">
+    <div class="live-badge"><div class="dot"></div>LIVE</div>
+    <span>Gamma-Poisson Bayesian · Pace-adjusted</span>
+    <span>Refreshes every 30 s · <span id="cdSec" style="color:var(--gold)">30</span>s</span>
+  </div>
+</header>
+
+<main>
+  <div id="staleBanner" class="stale-banner" style="display:none">
+    ⚠ Data may be stale — last update <span id="staleAge">?</span> ago. Next update is scheduled via pipeline.
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpis">
+    <div class="kpi"><div class="val" id="k-games">—</div><div class="lbl">Active Games</div></div>
+    <div class="kpi green"><div class="val" id="k-edges">—</div><div class="lbl">Live Edges</div></div>
+    <div class="kpi gold"><div class="val" id="k-best">—</div><div class="lbl">Best Edge</div></div>
+    <div class="kpi amber"><div class="val" id="k-bet">—</div><div class="lbl">BET Signals</div></div>
+    <div class="kpi"><div class="val" id="k-updated" style="font-size:.82rem">—</div><div class="lbl">Data Age</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div id="statPills">
+      <button class="pill active" data-stat="">All</button>
+      <button class="pill" data-stat="PTS">PTS</button>
+      <button class="pill" data-stat="REB">REB</button>
+      <button class="pill" data-stat="AST">AST</button>
+      <button class="pill" data-stat="FG3M">3PM</button>
+      <button class="pill" data-stat="STL">STL</button>
+      <button class="pill" data-stat="BLK">BLK</button>
+    </div>
+    <div id="actionPills">
+      <button class="pill active" data-action="">All</button>
+      <button class="pill" data-action="BET">BET</button>
+      <button class="pill" data-action="SMALL BET">SMALL</button>
+      <button class="pill" data-action="LEAN">LEAN</button>
+    </div>
+    <input class="search-box" type="text" id="searchInput" placeholder="Search player…">
+    <div class="flt-spacer"></div>
+    <span class="count-label" id="totalEdgeCount">—</span>
+  </div>
+
+  <!-- Game panels container -->
+  <div id="gamePanels"></div>
+</main>
+
+<footer>
+  <div>WNBA Live In-Play Model — WizardOfOdds Sports Analytics</div>
+  <div>Gamma-Poisson Bayesian online updating · Pace-adjusted posterior projections · Updates ~every 7 min during games</div>
+  <div style="margin-top:4px;color:var(--text3)">For entertainment and research purposes only. Gamble responsibly. 21+</div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+let DATA = {};
+let ALL_ROWS = [];
+let statFilt = '', actionFilt = '', searchFilt = '';
+let cdTimer;
+const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes
+const POLL_INTERVAL_MS = 30 * 1000;
+
+// ── Fetch (cache-bust pointer, then fetch immutable payload) ────────
+// Phase A3: latest.json is a pointer. Page JS must:
+//   1. fetch latest.json with cache:'no-store' + timestamp
+//   2. validate pointer fields (release_id, game_date, payload_path)
+//   3. reject pointer whose game_date != target WNBA game date
+//   4. fetch immutable payload (releases/<release_id>.json) with cache:'no-store'
+//   5. reject payload if game_date or release_id mismatch
+//   6. never display stale cards as LIVE DATA
+function _todayET() {
+  const d = new Date();
+  const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+  return et.toISOString().slice(0, 10);
+}
+function load() {
+  const targetDate = new URLSearchParams(window.location.search).get('date') || _todayET();
+  fetch('latest.json?t=' + Date.now(), {cache: 'no-store'})
+    .then(r => r.json())
+    .then(ptr => {
+      // Pointer validation
+      if (!ptr.pointer) {
+        // Legacy full-payload format — accept but warn
+        DATA = ptr;
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          _showStaleAlert(ptr.game_date);
+          return;
+        }
+        buildRows(ptr); updateKPIs(ptr); renderPanels();
+        updateStaleCheck(ptr.generated_at || ptr.generated_at_utc);
+        startCountdown(POLL_INTERVAL_MS / 1000);
+        return;
+      }
+      if (ptr.game_date !== targetDate) {
+        _showStaleAlert(ptr.game_date); return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      fetch(payloadUrl, {cache: 'no-store'})
+        .then(r => r.json())
+        .then(data => {
+          if (data.game_date !== ptr.game_date) { _showStaleAlert(data.game_date); return; }
+          DATA = data;
+          buildRows(data); updateKPIs(data); renderPanels();
+          updateStaleCheck(data.generated_at || data.generated_at_utc || ptr.generated_at_utc);
+          startCountdown(POLL_INTERVAL_MS / 1000);
+        })
+        .catch(() => _showStaleAlert(null));
+    })
+    .catch(() => { /* keep old data, countdown continues */ });
+}
+function _showStaleAlert(foundDate) {
+  const el = document.getElementById('staleBanner');
+  if (el) {
+    el.style.display = '';
+    el.innerHTML = foundDate
+      ? '⚠ Page data is for ' + foundDate + ' — not the current game date. Refresh when updated.'
+      : '⚠ Could not load current page data. Check pipeline status.';
+  }
+}
+
+// ── Parse games → flat rows ───────────────────────────────────────
+function buildRows(data) {
+  ALL_ROWS = [];
+  const games = data.games || [];
+  games.forEach(game => {
+    (game.players || []).forEach(pl => {
+      const pp = pl.posterior_predictive || pl.live_props || {};
+      const liveStats = pl.live_stats || {};
+      Object.entries(pp).forEach(([statKey, pd]) => {
+        if (!pd || !pd.market_line) return;
+        const edge = (pd.p_over || pd.live_p_over || pd.model_p_over || 0) -
+                     (pd.market_p_over || pd.open_p_over || 0);
+        const kelly = (pd.live_kelly || pd.kelly_fraction || 0) * 100;
+        const line = pd.market_line;
+        const liveStat = liveStats[statKey.replace('posterior_','').replace('_','').toLowerCase()] ?? null;
+        ALL_ROWS.push({
+          game_id: game.game_id,
+          game_label: `${game.away_team||'?'} @ ${game.home_team||'?'}`,
+          score: game.home_score != null ? `${game.away_score}-${game.home_score}` : null,
+          period: game.current_period || game.period || null,
+          clock: game.current_clock || null,
+          player: pl.player_name,
+          on_court: pl.currently_on_court,
+          stat: statKey.toUpperCase().replace('POSTERIOR_PREDICTIVE.',''),
+          direction: edge >= 0 ? 'OVER' : 'UNDER',
+          live_stat: liveStat,
+          line,
+          prior_mean: pd.prior_mean || 0,
+          posterior_mean: pd.posterior_mean || pd.mean || 0,
+          model_p: pd.p_over || pd.live_p_over || pd.model_p_over || 0,
+          market_p: pd.market_p_over || pd.open_p_over || 0,
+          edge,
+          kelly,
+          action: edgeAction(edge, kelly),
+          game_status: game.game_status || 'in_play',
+        });
+      });
+    });
+  });
+  ALL_ROWS.sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge));
+}
+
+function edgeAction(edge, kelly) {
+  const ep = Math.abs(edge) * 100;
+  if (kelly >= 8) return 'BET';
+  if (kelly >= 4) return 'SMALL BET';
+  if (kelly >= 1) return 'LEAN';
+  if (ep < 2) return 'PASS';
+  return 'PASS';
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────
+function updateKPIs(data) {
+  const activeGames = (data.games || []).filter(g => g.game_status === 'in_play' || (data.active_games || 0) > 0).length || data.active_games || (data.games||[]).length;
+  document.getElementById('k-games').textContent = activeGames;
+  const edges = ALL_ROWS.filter(r => Math.abs(r.edge)*100 >= 2);
+  document.getElementById('k-edges').textContent = edges.length;
+  const bets = ALL_ROWS.filter(r => r.action === 'BET');
+  document.getElementById('k-bet').textContent = bets.length;
+  const bestEdge = ALL_ROWS.length ? Math.max(...ALL_ROWS.map(r => Math.abs(r.edge)*100)) : null;
+  document.getElementById('k-best').textContent = bestEdge != null ? '+' + bestEdge.toFixed(1) + '%' : '—';
+}
+
+function updateStaleCheck(genAt) {
+  const banner = document.getElementById('staleBanner');
+  if (!genAt) return;
+  const ageMs = Date.now() - new Date(genAt).getTime();
+  const ageMins = Math.floor(ageMs / 60000);
+  document.getElementById('k-updated').textContent = ageMins < 2 ? 'Just now' : ageMins + ' min ago';
+  if (ageMs > STALE_THRESHOLD_MS) {
+    banner.style.display = 'flex';
+    document.getElementById('staleAge').textContent = ageMins + ' min';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// ── Render per-game panels ────────────────────────────────────────
+function filteredRows() {
+  return ALL_ROWS.filter(r => {
+    if (statFilt && r.stat !== statFilt) return false;
+    if (actionFilt && r.action !== actionFilt) return false;
+    if (searchFilt && !r.player.toLowerCase().includes(searchFilt)) return false;
+    return true;
+  });
+}
+
+function renderPanels() {
+  const rows = filteredRows();
+  const container = document.getElementById('gamePanels');
+  document.getElementById('totalEdgeCount').textContent = rows.length + ' props';
+
+  if (!rows.length && !(DATA.games||[]).length) {
+    container.innerHTML = buildNoGamesHTML();
+    return;
+  }
+  if (!rows.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No props match current filters.</div>';
+    return;
+  }
+
+  // Group by game
+  const byGame = {};
+  rows.forEach(r => {
+    if (!byGame[r.game_id]) byGame[r.game_id] = { label: r.game_label, score: r.score, period: r.period, clock: r.clock, status: r.game_status, rows: [] };
+    byGame[r.game_id].rows.push(r);
+  });
+
+  container.innerHTML = Object.values(byGame).map(g => buildGamePanel(g)).join('');
+}
+
+function buildGamePanel(g) {
+  const scoreHtml = g.score ? `<span class="game-score">${g.score}</span>` : '';
+  const clockHtml = (g.period || g.clock) ? `<span class="game-clock">${g.period ? 'Q' + g.period : ''} ${g.clock || ''}</span>` : '';
+  const statusHtml = `<span class="game-status">${g.status === 'in_play' ? '● LIVE' : 'FINAL'}</span>`;
+
+  const rows = g.rows.map(r => buildPropRow(r)).join('');
+  return `
+  <div class="game-panel">
+    <div class="game-panel-hdr">
+      <span class="game-matchup">${g.label}</span>
+      ${scoreHtml}${clockHtml}${statusHtml}
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>On</th>
+            <th>Stat</th>
+            <th>So Far</th>
+            <th>Progress</th>
+            <th>Line</th>
+            <th>Post. Mean</th>
+            <th>Dir</th>
+            <th class="num">Live P%</th>
+            <th class="num">Open P%</th>
+            <th class="num">Edge</th>
+            <th class="num">Kelly%</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function buildPropRow(r) {
+  const ep = r.edge * 100;
+  const isOver = r.direction === 'OVER';
+  const edgeCls = ep >= 0 ? 'edge-pos' : 'edge-neg';
+  const dirCls = isOver ? 'dir-over' : 'dir-under';
+  const rowCls = r.action === 'BET' ? 'row-bet' : r.action === 'SMALL BET' ? 'row-small' : '';
+  const acCls = r.action === 'BET' ? 'ab-bet' : r.action === 'SMALL BET' ? 'ab-small' : r.action === 'LEAN' ? 'ab-lean' : r.action === 'WAIT' ? 'ab-wait' : 'ab-pass';
+  const onCls = r.on_court ? 'oncourt-yes' : 'oncourt-no';
+  const onTxt = r.on_court ? '●' : '○';
+
+  // Progress bar
+  let progHtml = '—';
+  if (r.live_stat != null && r.line > 0) {
+    const pct = Math.min(100, Math.round((r.live_stat / r.line) * 100));
+    const fillCls = r.live_stat >= r.line ? 'prog-fill over-line' : 'prog-fill';
+    progHtml = `<div class="prog-wrap">
+      <div class="prog-bar"><div class="${fillCls}" style="width:${pct}%"></div></div>
+      <span class="prog-text">${r.live_stat}/${r.line}</span>
+    </div>`;
+  }
+
+  const soFar = r.live_stat != null ? r.live_stat : '—';
+  const postMean = r.posterior_mean ? (+r.posterior_mean).toFixed(1) : '—';
+  const liveP = (r.model_p * 100).toFixed(1) + '%';
+  const openP = (r.market_p * 100).toFixed(1) + '%';
+  const edgeFmt = (ep >= 0 ? '+' : '') + ep.toFixed(1) + '%';
+  const kellyFmt = r.kelly > 0 ? r.kelly.toFixed(1) + '%' : '—';
+
+  return `<tr class="${rowCls}">
+    <td class="player-name">${r.player}</td>
+    <td><span class="${onCls}">${onTxt}</span></td>
+    <td><span class="stat-chip">${r.stat}</span></td>
+    <td class="num">${soFar}</td>
+    <td>${progHtml}</td>
+    <td class="num">${r.line}</td>
+    <td class="num">${postMean}</td>
+    <td><span class="${dirCls}">${r.direction}</span></td>
+    <td class="num">${liveP}</td>
+    <td class="num" style="color:var(--text3)">${openP}</td>
+    <td class="num ${edgeCls}">${edgeFmt}</td>
+    <td class="num ${r.kelly>0?'kelly-val':''}">${kellyFmt}</td>
+    <td><span class="action-badge ${acCls}">${r.action}</span></td>
+  </tr>`;
+}
+
+function buildNoGamesHTML() {
+  return `<div class="no-games">
+    <h2>No Live Games Right Now</h2>
+    <p>This platform activates automatically when WNBA games tip off.<br>
+       Live Bayesian posterior odds and pace-adjusted projections appear here in real time.<br>
+       Typical game windows: 7 PM – 11 PM ET (Thu–Sun).</p>
+    <div class="next-games" id="nextGames"></div>
+  </div>`;
+}
+
+// ── Filters ────────────────────────────────────────────────────────
+document.getElementById('statPills').addEventListener('click', e => {
+  const btn = e.target.closest('[data-stat]');
+  if (!btn) return;
+  statFilt = btn.dataset.stat;
+  document.querySelectorAll('#statPills .pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPanels();
+});
+document.getElementById('actionPills').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  actionFilt = btn.dataset.action;
+  document.querySelectorAll('#actionPills .pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPanels();
+});
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchFilt = e.target.value.trim().toLowerCase();
+  renderPanels();
+});
+
+// ── Countdown ──────────────────────────────────────────────────────
+function startCountdown(sec) {
+  clearInterval(cdTimer);
+  let t = Math.round(sec);
+  document.getElementById('cdSec').textContent = t;
+  cdTimer = setInterval(() => {
+    t--;
+    document.getElementById('cdSec').textContent = Math.max(t, 0);
+    if (t <= 0) { clearInterval(cdTimer); load(); }
+  }, 1000);
+}
+
+// ── Boot ───────────────────────────────────────────────────────────
+load();
+})();
+</script>
+</body>
+</html>
