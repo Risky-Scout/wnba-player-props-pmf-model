@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-01T00:05:51.530056+00:00",
+  "generated_at": "2026-08-01T03:30:59.310023+00:00",
   "game_date": "2026-08-01",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,127 +16,31 @@
   },
   "summary": {
     "date": "2026-08-01",
-    "generated_utc": "2026-08-01T00:05:51.530056+00:00",
+    "generated_utc": "2026-08-01T03:30:59.310023+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
-    "n_books_seen": 9,
+    "n_books_seen": 6,
     "books_seen": [
       "betonlineag",
       "betparx",
-      "betrivers",
       "draftkings",
       "fanduel",
-      "fliff",
       "hardrockbet",
-      "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 798,
-    "n_scored_rows": 686,
-    "n_qualifying": 4,
+    "n_quote_rows": 616,
+    "n_scored_rows": 580,
+    "n_qualifying": 2,
     "n_books_per_stat": {
-      "ast": 9,
-      "fg3m": 9,
-      "pts": 9,
-      "reb": 9
+      "ast": 6,
+      "fg3m": 6,
+      "pts": 6,
+      "reb": 6
     },
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "d113b66ed1649d47506a6434e06bd1b6",
-      "odds_api_event_id": "d113b66ed1649d47506a6434e06bd1b6",
-      "commence_time": "2026-08-01T17:00:00Z",
-      "home_team": {
-        "name": "Chicago Sky",
-        "abbreviation": "Chicago Sky"
-      },
-      "away_team": {
-        "name": "Las Vegas Aces",
-        "abbreviation": "Las Vegas Aces"
-      },
-      "players": [
-        {
-          "player_id": "d113b66ed1649d47506a6434e06bd1b6:Jackie Young:ast:6.5:under:williamhill_us",
-          "player_name": "Jackie Young",
-          "team_name": "",
-          "position": "williamhill_us +114 \u00b7 EV +4.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.5103,
-                "edge_vs_market": -0.047881,
-                "kelly_fraction": 0.0105
-              },
-              "soft_book": {
-                "book": "williamhill_us",
-                "side": "under",
-                "offered_odds": 114,
-                "ev_pct": 4.788,
-                "fair_p_side": 0.4897,
-                "consensus_p_over": 0.5103,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "williamhill_us",
-                "best_odds": 114
-              }
-            }
-          }
-        },
-        {
-          "player_id": "d113b66ed1649d47506a6434e06bd1b6:Jackie Young:ast:6.5:under:draftkings",
-          "player_name": "Jackie Young",
-          "team_name": "",
-          "position": "draftkings +110 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.5103,
-                "edge_vs_market": -0.028295,
-                "kelly_fraction": 0.0064
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 2.829,
-                "fair_p_side": 0.4897,
-                "consensus_p_over": 0.5103,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "williamhill_us",
-                "best_odds": 114
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "e9d3ed7c6df9b35e3b167038806ecd53",
       "odds_api_event_id": "e9d3ed7c6df9b35e3b167038806ecd53",
@@ -151,10 +55,10 @@
       },
       "players": [
         {
-          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Sabrina Ionescu:ast:5.5:over:hardrockbet",
-          "player_name": "Sabrina Ionescu",
+          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Kahleah Copper:ast:2.5:over:draftkings",
+          "player_name": "Kahleah Copper",
           "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +3.4%",
+          "position": "draftkings +141 \u00b7 EV +4.9%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -163,37 +67,37 @@
           "dnp_risk": 0,
           "stat_projections": {
             "assists": {
-              "mean": 5.5,
-              "median": 5.5,
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.5172,
-                "edge_vs_market": 0.034341,
-                "kelly_fraction": 0.0086
+                "market_line": 2.5,
+                "p_over": 0.4353,
+                "edge_vs_market": 0.049117,
+                "kelly_fraction": 0.0087
               },
               "soft_book": {
-                "book": "hardrockbet",
+                "book": "draftkings",
                 "side": "over",
-                "offered_odds": 100,
-                "ev_pct": 3.434,
-                "fair_p_side": 0.5172,
-                "consensus_p_over": 0.5172,
-                "consensus_n_books": 7,
+                "offered_odds": 141,
+                "ev_pct": 4.912,
+                "fair_p_side": 0.4353,
+                "consensus_p_over": 0.4353,
+                "consensus_n_books": 4,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5197,
-                "best_book": "hardrockbet",
-                "best_odds": 100
+                "sharp_consensus_p_over": 0.4106,
+                "best_book": "draftkings",
+                "best_odds": 141
               }
             }
           }
         },
         {
-          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Sabrina Ionescu:ast:5.5:over:betparx",
+          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Sabrina Ionescu:ast:5.5:over:hardrockbet",
           "player_name": "Sabrina Ionescu",
           "team_name": "",
-          "position": "betparx +100 \u00b7 EV +3.4%",
+          "position": "hardrockbet -105 \u00b7 EV +2.9%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -208,22 +112,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 5.5,
-                "p_over": 0.5172,
-                "edge_vs_market": 0.034341,
-                "kelly_fraction": 0.0086
+                "p_over": 0.5273,
+                "edge_vs_market": 0.029413,
+                "kelly_fraction": 0.0077
               },
               "soft_book": {
-                "book": "betparx",
+                "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": 100,
-                "ev_pct": 3.434,
-                "fair_p_side": 0.5172,
-                "consensus_p_over": 0.5172,
-                "consensus_n_books": 7,
+                "offered_odds": -105,
+                "ev_pct": 2.941,
+                "fair_p_side": 0.5273,
+                "consensus_p_over": 0.5273,
+                "consensus_n_books": 5,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5197,
+                "sharp_consensus_p_over": 0.5273,
                 "best_book": "hardrockbet",
-                "best_odds": 100
+                "best_odds": -105
               }
             }
           }
