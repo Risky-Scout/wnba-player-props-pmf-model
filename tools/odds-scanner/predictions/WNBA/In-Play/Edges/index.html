@@ -182,19 +182,62 @@ let cdTimer;
 const STALE_THRESHOLD_MS = 8 * 60 * 1000; // 8 minutes
 const POLL_INTERVAL_MS = 30 * 1000;
 
-// ── Fetch ─────────────────────────────────────────────────────────
+// ── Fetch (cache-bust pointer, then fetch immutable payload) ────────
+// Phase A3: latest.json is a pointer. Page JS must:
+//   1. fetch latest.json with cache:'no-store' + timestamp
+//   2. validate pointer fields (release_id, game_date, payload_path)
+//   3. reject pointer whose game_date != target WNBA game date
+//   4. fetch immutable payload (releases/<release_id>.json) with cache:'no-store'
+//   5. reject payload if game_date or release_id mismatch
+//   6. never display stale cards as LIVE DATA
+function _todayET() {
+  const d = new Date();
+  const et = new Date(d.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+  return et.toISOString().slice(0, 10);
+}
 function load() {
-  fetch('latest.json?t=' + Date.now())
+  const targetDate = new URLSearchParams(window.location.search).get('date') || _todayET();
+  fetch('latest.json?t=' + Date.now(), {cache: 'no-store'})
     .then(r => r.json())
-    .then(data => {
-      DATA = data;
-      buildRows(data);
-      updateKPIs(data);
-      renderPanels();
-      updateStaleCheck(data.generated_at);
-      startCountdown(POLL_INTERVAL_MS / 1000);
+    .then(ptr => {
+      // Pointer validation
+      if (!ptr.pointer) {
+        // Legacy full-payload format — accept but warn
+        DATA = ptr;
+        if (ptr.game_date && ptr.game_date !== targetDate) {
+          _showStaleAlert(ptr.game_date);
+          return;
+        }
+        buildRows(ptr); updateKPIs(ptr); renderPanels();
+        updateStaleCheck(ptr.generated_at || ptr.generated_at_utc);
+        startCountdown(POLL_INTERVAL_MS / 1000);
+        return;
+      }
+      if (ptr.game_date !== targetDate) {
+        _showStaleAlert(ptr.game_date); return;
+      }
+      const payloadUrl = (ptr.payload_path || ptr.release_payload_path) + '?r=' + encodeURIComponent(ptr.release_id || '');
+      fetch(payloadUrl, {cache: 'no-store'})
+        .then(r => r.json())
+        .then(data => {
+          if (data.game_date !== ptr.game_date) { _showStaleAlert(data.game_date); return; }
+          DATA = data;
+          buildRows(data); updateKPIs(data); renderPanels();
+          updateStaleCheck(data.generated_at || data.generated_at_utc || ptr.generated_at_utc);
+          startCountdown(POLL_INTERVAL_MS / 1000);
+        })
+        .catch(() => _showStaleAlert(null));
     })
     .catch(() => { /* keep old data, countdown continues */ });
+}
+function _showStaleAlert(foundDate) {
+  const el = document.getElementById('staleBanner');
+  if (el) {
+    el.style.display = '';
+    el.innerHTML = foundDate
+      ? '⚠ Page data is for ' + foundDate + ' — not the current game date. Refresh when updated.'
+      : '⚠ Could not load current page data. Check pipeline status.';
+  }
 }
 
 // ── Parse games → flat rows ───────────────────────────────────────
