@@ -93,5 +93,5 @@
     "odds parquet schema not recognized for pairing"
   ],
   "preservation_note": "GitHub Actions artifacts are ephemeral. These zip blobs and hashes are committed under artifacts/pregame_verification/2026-08-01/ as durable, overwrite-forbidden prospective evidence.",
-  "locked_at_utc": "2026-08-01T16:54:15.383005+00:00"
+  "locked_at_utc": "2026-08-01T16:55:00.880955+00:00"
 }
