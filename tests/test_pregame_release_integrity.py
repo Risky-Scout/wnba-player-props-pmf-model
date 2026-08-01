@@ -426,9 +426,13 @@ class TestOverUnderPush:
             if p.get("stat", "").lower() == "pts" and p.get("line") is not None:
                 line = float(p["line"])
                 if line == math.floor(line) and line > 0:
-                    assert "model_p_push" in p, f"Integer line prop must carry model_p_push: {p}"
-                    assert float(p["model_p_push"]) > 0, (
-                        f"Integer line={line} must have p_push > 0, got {p['model_p_push']}"
+                    # Page builders may expose push as model_p_push or pmf_p_push.
+                    push = p.get("model_p_push")
+                    if push is None:
+                        push = p.get("pmf_p_push")
+                    assert push is not None, f"Integer line prop must carry a push field: {p}"
+                    assert float(push) > 0, (
+                        f"Integer line={line} must have p_push > 0, got {push}"
                     )
                     found = True
                     break
