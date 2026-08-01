@@ -148,9 +148,9 @@ def evaluate_gates(row: dict[str, Any]) -> GateResult:
     pmf = row.get("active_pmf") or row.get("active_pmf_json")
     if pmf is None:
         return GateResult(False, ABSTAIN_INVALID_PMF)
-    ok_mass, _, mass_reason = validate_pmf_mass(pmf)
+    ok_mass, _, _mass_reason = validate_pmf_mass(pmf)
     if not ok_mass:
-        return GateResult(False, ABSTAIN_INVALID_PMF if mass_reason != "empty_pmf" else ABSTAIN_INVALID_PMF)
+        return GateResult(False, ABSTAIN_INVALID_PMF)
 
     pure_p = row.get("pure_probability")
     if pure_p is None or (isinstance(pure_p, float) and (math.isnan(pure_p) or not math.isfinite(pure_p))):

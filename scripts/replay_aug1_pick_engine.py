@@ -119,8 +119,8 @@ def main() -> int:
         try:
             man = json.loads(tip_manifest.read_text())
             pred_ts = man.get("prediction_timestamp") or man.get("generated_at") or pred_ts
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            print(f"slate_manifest parse skipped: {exc}")
 
     rel = load_or_fit_reliability_weights(args.weights)
     result = run_pick_engine(
