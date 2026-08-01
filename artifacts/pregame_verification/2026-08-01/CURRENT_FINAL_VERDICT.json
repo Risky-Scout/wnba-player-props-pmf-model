@@ -24,6 +24,8 @@
     "Player 631 Kiana Williams accepted with PHX slate team vs LA players-table team; EXCLUDE from settlement (slate-construction / post-signing stale PHX assignment)",
     "BDL UTC-date response includes IND@POR (24968) whose ET tip date is 2026-07-31; correctly excluded \u2014 production must set slate_timezone=America/New_York",
     "Original verification quote_pairs_valid=0 due to unrecognized wide odds schema without player_id (resolved via frozen adapter; does not alter forecasts)",
+    "9 exact player_points_q1 quote pairs have no frozen pts_q1 PMF target; excluded from model/market trace (game-period pairs remain 137)",
+    "14 Pinnacle game-period pairs lack delivered model_prob_over_final in market_comparison (likely unknown-book fail-closed at delivery); frozen PMF probs still traced",
     "STATUS_AUDIT shows UNKNOWN for quoted rows pending postgame settlement",
     "Calibration evidence labeled INSUFFICIENT_ONE_SLATE_SAMPLE \u2014 do not compute ECE from one slate",
     "GitHub Actions artifact retention is ephemeral; durable copies are the committed zip blobs under frozen_github_artifacts/"
@@ -31,5 +33,5 @@
   "do_not_fail_solely_for_original_quote_parse": true,
   "do_not_upgrade_without_exact_pairs": true,
   "frozen_evidence_lock": "artifacts/pregame_verification/2026-08-01/FROZEN_EVIDENCE_LOCK.json",
-  "updated_at_utc": "2026-08-01T16:54:15.849966+00:00"
+  "updated_at_utc": "2026-08-01T16:55:01.353192+00:00"
 }
