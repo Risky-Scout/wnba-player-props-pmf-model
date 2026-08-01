@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-08-01T22:28:28Z",
+  "generated_at": "2026-08-01T22:44:08Z",
   "game_date": "2026-08-01",
   "pipeline_run": "pregame_final",
   "model_version": "hgb_v2.3.1_idr_beta_conformal",
