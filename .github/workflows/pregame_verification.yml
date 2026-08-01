@@ -1,0 +1,526 @@
+# Pregame Verification — nonpublishing remote forecast + smoke + audit package.
+# NEVER publishes to gh-pages or FTP. NEVER commits forecasts to main.
+# Staging path: deliveries/pregame_verification/<game_date>/<prediction_timestamp>/
+name: Pregame Verification (nonpublishing)
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: "Slate date (YYYY-MM-DD)"
+        required: true
+        type: string
+      dry_run:
+        description: "Generate + validate only; never publish (must be true)"
+        required: true
+        type: boolean
+        default: true
+      publish:
+        description: "Publish pages (must be false — this workflow never publishes)"
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: pregame-verification-${{ github.event.inputs.game_date }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      GAME_DATE: ${{ github.event.inputs.game_date }}
+      PYTHONUNBUFFERED: "1"
+      PRE_GAME_DIR: tools/odds-scanner/predictions/WNBA/Pre-Game
+      NO_DEPLOY: "true"
+
+    steps:
+      - name: Enforce nonpublishing contract
+        run: |
+          set -euo pipefail
+          DRY='${{ github.event.inputs.dry_run }}'
+          PUB='${{ github.event.inputs.publish }}'
+          echo "dry_run=${DRY} publish=${PUB}"
+          if [ "$DRY" != "true" ]; then
+            echo "::error::dry_run must be true for Pregame Verification"
+            exit 1
+          fi
+          if [ "$PUB" != "false" ]; then
+            echo "::error::publish must be false — this workflow never publishes"
+            exit 1
+          fi
+          if [ -z "${BDL_API_KEY:-}" ]; then
+            echo "::error::BDL_API_KEY secret missing"
+            exit 1
+          fi
+          if [ -z "${ODDS_API_KEY:-}" ]; then
+            echo "::error::ODDS_API_KEY secret missing"
+            exit 1
+          fi
+          echo "Nonpublishing contract OK; secrets present (values not printed)."
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Create immutable staging directory
+        id: stage
+        run: |
+          set -euo pipefail
+          PRED_TS=$(date -u +%Y%m%dT%H%M%SZ)
+          STAGE="deliveries/pregame_verification/${GAME_DATE}/${PRED_TS}"
+          AUDIT="artifacts/pregame_verification/${GAME_DATE}"
+          mkdir -p "$STAGE" "$AUDIT" data/injuries data/processed data/raw/bdl deliveries/tonight
+          echo "PRED_TS=${PRED_TS}" >> "$GITHUB_ENV"
+          echo "STAGE_DIR=${STAGE}" >> "$GITHUB_ENV"
+          echo "AUDIT_DIR=${AUDIT}" >> "$GITHUB_ENV"
+          echo "pred_ts=${PRED_TS}" >> "$GITHUB_OUTPUT"
+          echo "stage_dir=${STAGE}" >> "$GITHUB_OUTPUT"
+          echo "Staging → ${STAGE}"
+          printf '%s\n' "$PRED_TS" > "${AUDIT}/PREDICTION_TIMESTAMP.txt"
+          printf '%s\n' "$STAGE" > "${AUDIT}/STAGE_DIR.txt"
+          printf '%s\n' "${GITHUB_SHA}" > "${AUDIT}/CODE_SHA.txt"
+
+      - name: Download calibrators (artifact-level resolver)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/models/calibration
+          python3 scripts/resolve_calibrator_artifact.py \
+            --repo "${{ github.repository }}" \
+            --cal-dir artifacts/models/calibration \
+            --github-env "$GITHUB_ENV"
+          test -f artifacts/models/calibration/artifact_manifest_calibrator.json
+
+      - name: Download stage4 model (latest successful daily_pipeline on main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/models/stage4_baseline
+          SOURCE_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/daily_pipeline.yml/runs?branch=main&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id')
+          if [ -z "$SOURCE_RUN_ID" ] || [ "$SOURCE_RUN_ID" = "null" ]; then
+            echo "[FATAL] No successful daily_pipeline run on main" >&2
+            exit 1
+          fi
+          AID=$(gh api "repos/${{ github.repository }}/actions/runs/${SOURCE_RUN_ID}/artifacts" \
+            --jq '[.artifacts[] | select(.name | startswith("model-stage4")) | select(.expired == false)] | .[0].id')
+          if [ -z "$AID" ] || [ "$AID" = "null" ]; then
+            echo "[FATAL] No model-stage4 artifact in run ${SOURCE_RUN_ID}" >&2
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/actions/artifacts/${AID}/zip" > /tmp/model_stage4.zip
+          unzip -o /tmp/model_stage4.zip -d artifacts/models/stage4_baseline
+          echo "SOURCE_MODEL_RUN_ID=${SOURCE_RUN_ID}" >> "$GITHUB_ENV"
+          test -f artifacts/models/stage4_baseline/artifact_manifest_model.json
+          echo "Model from run ${SOURCE_RUN_ID} artifact ${AID}"
+
+      - name: Resolve selected production package
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+          from pathlib import Path
+          pkg_path = Path("config/selected_production_package.json")
+          if not pkg_path.exists():
+              print("[FATAL] selected_production_package.json missing", file=sys.stderr)
+              sys.exit(1)
+          pkg = json.loads(pkg_path.read_text())
+          print(f"[A4] selected_package={pkg.get('selected_package')}")
+          print(f"[A4] model_version={pkg.get('model_version')}")
+          print(f"[A4] calibration_version={pkg.get('calibration_version')}")
+          if pkg.get("selected_package") not in ("ENHANCED_CHAMPION", "OPTIMIZED_CHALLENGER"):
+              print(f"[FATAL] Unknown selected_package={pkg.get('selected_package')!r}", file=sys.stderr)
+              sys.exit(1)
+          Path("${{ env.AUDIT_DIR }}").mkdir(parents=True, exist_ok=True)
+          Path("${{ env.AUDIT_DIR }}/selected_production_package.json").write_text(json.dumps(pkg, indent=2))
+          EOF
+
+      - name: Pull BDL current-season data
+        run: |
+          YEAR=$(date -u +%Y)
+          python scripts/pull_bdl_history.py \
+            --start-season "$YEAR" --end-season "$YEAR" \
+            --out-dir data/raw/bdl
+
+      - name: Build canonical tables
+        run: |
+          python scripts/build_canonical_tables.py \
+            --raw-dir data/raw/bdl \
+            --out-dir data/processed
+
+      - name: Build feature matrix
+        run: |
+          python scripts/build_features.py --data-dir data/processed
+
+      - name: Build next-game slate into staging
+        run: |
+          set -euo pipefail
+          python3 scripts/build_next_game_slate.py \
+            --game-date "$GAME_DATE" \
+            --out-dir "$STAGE_DIR"
+          test -f "${STAGE_DIR}/slate_${GAME_DATE}.parquet"
+          test -f "${STAGE_DIR}/slate_manifest_${GAME_DATE}.json"
+          # Smoke workflow expects deliveries/tonight paths — copy manifests/slate only
+          # (immutable stage remains authoritative; tonight is ephemeral workspace).
+          cp -f "${STAGE_DIR}/slate_${GAME_DATE}.parquet" "deliveries/tonight/"
+          cp -f "${STAGE_DIR}/slate_manifest_${GAME_DATE}.json" "deliveries/tonight/"
+          cp -f "${STAGE_DIR}/slate_manifest.json" "deliveries/tonight/"
+
+      - name: Fetch injury report
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, requests
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          api_key = os.environ["BDL_API_KEY"]
+          game_date = os.environ["GAME_DATE"]
+          stage = Path(os.environ["STAGE_DIR"])
+          out_path = Path(f"data/injuries/{game_date}.json")
+
+          resp = requests.get(
+              "https://api.balldontlie.io/wnba/v1/player_injuries",
+              params={"per_page": 100},
+              headers={"Authorization": api_key},
+              timeout=20,
+          )
+          resp.raise_for_status()
+          data = resp.json()
+          injuries = data.get("data", data) if isinstance(data, dict) else data
+          fetched = datetime.now(timezone.utc).isoformat()
+          normalized = []
+          for r in injuries:
+              player = r.get("player") or {}
+              pid = r.get("player_id") or player.get("id") or 0
+              name = r.get("player_name") or f"{player.get('first_name','')} {player.get('last_name','')}".strip()
+              normalized.append({
+                  "player_id": int(pid),
+                  "player_name": name,
+                  "status": str(r.get("status") or "available").lower(),
+                  "return_date": r.get("return_date"),
+                  "comment": r.get("comment"),
+                  "fetched_at_utc": fetched,
+              })
+          out_path.parent.mkdir(parents=True, exist_ok=True)
+          out_path.write_text(json.dumps(normalized, indent=2))
+          (stage / f"injuries_{game_date}.json").write_text(json.dumps(normalized, indent=2))
+          print(f"Saved {len(normalized)} injury records")
+          PYEOF
+
+      - name: Generate pre-game PMF projections (staging)
+        run: |
+          set -euo pipefail
+          SLATE="${STAGE_DIR}/slate_${GAME_DATE}.parquet"
+          python scripts/predict_today.py \
+            --features-wide "$SLATE" \
+            --game-date "$GAME_DATE" \
+            --out-dir "$STAGE_DIR" \
+            --model-dir artifacts/models/stage4_baseline \
+            --cal-dir artifacts/models/calibration \
+            --overrides config/player_overrides.json
+          cp -f "${STAGE_DIR}/full_pmfs_wide.parquet" deliveries/tonight/ || true
+          cp -f "${STAGE_DIR}/player_projections_${GAME_DATE}.parquet" deliveries/tonight/
+          cp -f "${STAGE_DIR}/player_projections_${GAME_DATE}.json" deliveries/tonight/ || true
+          cp -f "${STAGE_DIR}/fair_odds_board.parquet" deliveries/tonight/ || true
+
+      - name: Pull Odds API player props
+        run: |
+          set -euo pipefail
+          python3 scripts/pull_odds_api_props.py \
+            --game-date "$GAME_DATE" \
+            --out-dir data/processed
+          cp -f data/processed/wnba_player_props_oddsapi_latest.parquet \
+            "${STAGE_DIR}/wnba_player_props_oddsapi_latest.parquet" || true
+          cp -f "data/processed/wnba_player_props_oddsapi_${GAME_DATE}.parquet" \
+            "${STAGE_DIR}/" 2>/dev/null || true
+
+      - name: BDL props fallback when Odds API empty
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, time, pathlib
+          import requests
+          import pandas as pd
+
+          game_date = os.environ["GAME_DATE"]
+          bdl_key = os.environ["BDL_API_KEY"]
+          stage = pathlib.Path(os.environ["STAGE_DIR"])
+          oddsapi_path = pathlib.Path("data/processed/wnba_player_props_oddsapi_latest.parquet")
+          out_path = pathlib.Path("data/processed/wnba_player_props.parquet")
+          slate_path = stage / f"slate_{game_date}.parquet"
+
+          oddsapi_empty = (not oddsapi_path.exists()) or pd.read_parquet(oddsapi_path).empty
+          if not oddsapi_empty:
+              print("[BDL-fallback] Odds API has data — skipping")
+              # Still ensure raw-props path exists for edge report
+              if not out_path.exists():
+                  # Prefer oddsapi as raw if dedicated raw missing
+                  df = pd.read_parquet(oddsapi_path)
+                  df.to_parquet(out_path, index=False)
+              sys.exit(0)
+          if not slate_path.exists() or pd.read_parquet(slate_path).empty:
+              print("[BDL-fallback] No active slate — skipping")
+              sys.exit(0)
+
+          slate = pd.read_parquet(slate_path)
+          print(f"[BDL-fallback] Odds API empty with {len(slate)} players. Fetching BDL props.")
+          r = requests.get(
+              "https://api.balldontlie.io/wnba/v1/games",
+              headers={"Authorization": bdl_key},
+              params={"dates[]": game_date, "per_page": 100},
+              timeout=20,
+          )
+          games = r.json().get("data", []) if r.ok else []
+          PROP_MAP = {
+              "points": "pts", "rebounds": "reb", "assists": "ast",
+              "threes": "fg3m", "blocks": "blk", "steals": "stl",
+              "turnovers": "turnover",
+              "points_rebounds_assists": "pts_reb_ast",
+              "points_rebounds": "pts_reb", "points_assists": "pts_ast",
+              "rebounds_assists": "reb_ast", "blocks_steals": "stocks",
+          }
+          rows = []
+          for g in games:
+              gid = g["id"]
+              r2 = requests.get(
+                  "https://api.balldontlie.io/wnba/v1/odds/player_props",
+                  headers={"Authorization": bdl_key},
+                  params={"game_id": gid, "per_page": 100},
+                  timeout=20,
+              )
+              props = r2.json().get("data", []) if r2.ok else []
+              for p in props:
+                  mkt = p.get("market", {})
+                  if mkt.get("type") != "over_under":
+                      continue
+                  stat = PROP_MAP.get(p.get("prop_type", ""))
+                  if not stat:
+                      continue
+                  over_odds, under_odds = mkt.get("over_odds"), mkt.get("under_odds")
+                  if over_odds is None or under_odds is None:
+                      continue
+                  rows.append({
+                      "game_id": int(gid),
+                      "game_date": game_date,
+                      "player_id": int(p["player_id"]),
+                      "vendor": p.get("vendor", "bdl"),
+                      "stat": stat,
+                      "line": float(p.get("line_value", 0.0)),
+                      "over_odds": float(over_odds),
+                      "under_odds": float(under_odds),
+                      "market_type": "over_under",
+                      "updated_at": p.get("updated_at"),
+                  })
+              time.sleep(0.1)
+          if not rows:
+              print("[WARN] BDL fallback returned 0 usable props — continuing for audit")
+              pd.DataFrame(rows).to_parquet(out_path, index=False)
+          else:
+              pd.DataFrame(rows).to_parquet(out_path, index=False)
+              print(f"[BDL-fallback] Wrote {len(rows)} rows → {out_path}")
+          if out_path.exists():
+              pathlib.Path(stage / "wnba_player_props.parquet").write_bytes(out_path.read_bytes())
+          PYEOF
+
+      - name: Apply injury updates (rebuild affected PMFs)
+        run: |
+          set -euo pipefail
+          python3 scripts/apply_injury_updates.py \
+            --game-date "$GAME_DATE" \
+            --out-dir "$STAGE_DIR" \
+            --injuries-json "data/injuries/${GAME_DATE}.json" \
+            --slate "${STAGE_DIR}/full_pmfs_wide.parquet" \
+            --features "${STAGE_DIR}/slate_${GAME_DATE}.parquet" \
+            --model-dir artifacts/models/stage4_baseline \
+            --config-path config/model/stage4_baseline.yaml \
+            --cal-dir artifacts/models/calibration
+          cp -f "${STAGE_DIR}/full_pmfs_wide.parquet" deliveries/tonight/
+          cp -f "${STAGE_DIR}/player_projections_${GAME_DATE}.parquet" deliveries/tonight/ || true
+          # availability table if produced
+          if [ -f "${STAGE_DIR}/availability_table_${GAME_DATE}.parquet" ]; then
+            cp -f "${STAGE_DIR}/availability_table_${GAME_DATE}.parquet" deliveries/tonight/
+          fi
+
+      - name: Build edge report (nonpublishing)
+        run: |
+          set -euo pipefail
+          CAL_MANIFEST="artifacts/models/calibration/artifact_manifest_calibrator.json"
+          REQUIRE_VA_FLAG=""
+          if [ -f "$CAL_MANIFEST" ]; then
+            VA_REQUIRED=$(python3 -c "import json,sys; m=json.load(open(sys.argv[1])); method=str(m.get('calibration_method','') or '').lower(); print('true' if 'venn' in method or m.get('require_venn_abers',False) else 'false')" "$CAL_MANIFEST" 2>/dev/null || echo "false")
+            if [ "$VA_REQUIRED" = "true" ]; then
+              REQUIRE_VA_FLAG="--require-venn-abers"
+            fi
+          fi
+          RAW_PROPS="data/processed/wnba_player_props.parquet"
+          if [ ! -f "$RAW_PROPS" ]; then
+            RAW_PROPS="data/processed/wnba_player_props_oddsapi_latest.parquet"
+          fi
+          python3 scripts/build_edge_report.py \
+            --pmfs "${STAGE_DIR}/full_pmfs_wide.parquet" \
+            --raw-props "$RAW_PROPS" \
+            --out-dir "$STAGE_DIR" \
+            --slate-manifest "${STAGE_DIR}/slate_manifest.json" \
+            --game-date "$GAME_DATE" \
+            --odds-api-props data/processed/wnba_player_props_oddsapi_latest.parquet \
+            --policy config/recommendation_policy.yaml \
+            --require-policy \
+            $REQUIRE_VA_FLAG
+          for f in publishable_edges.parquet market_comparison.parquet expected_market_comparison_manifest.parquet; do
+            [ -f "${STAGE_DIR}/$f" ] && cp -f "${STAGE_DIR}/$f" deliveries/tonight/ || true
+          done
+          cp -f ${STAGE_DIR}/edge_report_*.json deliveries/tonight/ 2>/dev/null || true
+
+      - name: Stamp run metadata (staging only)
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, subprocess
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          stage = Path(os.environ["STAGE_DIR"])
+          game_date = os.environ["GAME_DATE"]
+          inj = Path(f"data/injuries/{game_date}.json")
+          try:
+              git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          except Exception:
+              git_commit = os.environ.get("GITHUB_SHA", "unknown")
+          meta = {
+              "github_run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "git_commit": git_commit,
+              "prediction_timestamp": os.environ.get("PRED_TS"),
+              "prediction_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+              "game_date": game_date,
+              "stage_dir": str(stage),
+              "source_model_run_id": os.environ.get("SOURCE_MODEL_RUN_ID", ""),
+              "source_calibrators_run_id": os.environ.get("SOURCE_CALIBRATORS_RUN_ID", ""),
+              "dry_run": True,
+              "publish": False,
+              "injury_snapshot_timestamp": (
+                  datetime.fromtimestamp(inj.stat().st_mtime, tz=timezone.utc).isoformat()
+                  if inj.exists() else ""
+              ),
+          }
+          (stage / "run_metadata.json").write_text(json.dumps(meta, indent=2))
+          Path(os.environ["AUDIT_DIR"]).mkdir(parents=True, exist_ok=True)
+          Path(os.environ["AUDIT_DIR"], "run_metadata.json").write_text(json.dumps(meta, indent=2))
+          print(json.dumps(meta, indent=2))
+          PYEOF
+
+      - name: Post-forecast smoke validation (dry_run, no publish)
+        id: smoke
+        run: |
+          set -euo pipefail
+          PROJ="deliveries/tonight/player_projections_${GAME_DATE}.parquet"
+          if [ ! -f "$PROJ" ]; then
+            echo "::error::Missing projection bundle $PROJ after forecast"
+            echo "smoke_status=FAIL" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          SLATE="deliveries/tonight/slate_manifest_${GAME_DATE}.json"
+          SCHED=$(python3 -c "import json; print(int(json.load(open('$SLATE')).get('scheduled_game_count',0)))")
+          NPROJ=$(python3 -c "import pandas as pd; print(len(pd.read_parquet('$PROJ')))")
+          echo "[smoke] scheduled_game_count=$SCHED projection_rows=$NPROJ"
+          if [ "$SCHED" -gt 0 ] && [ "$NPROJ" -le 0 ]; then
+            echo "::error::scheduled_game_count=$SCHED but 0 projection rows"
+            echo "smoke_status=FAIL" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          if [ "$SCHED" = "0" ]; then
+            echo "NO_GAMES_SCHEDULED — smoke short-circuit OK"
+            echo "smoke_status=NO_GAMES" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for SUB in Edge PMF-Distributions Distributions; do
+            rm -f "${PRE_GAME_DIR}/${SUB}/latest.json" || true
+          done
+          EDGE_FILE="deliveries/tonight/publishable_edges.parquet"
+          EDGE_AUDIT=$(ls deliveries/tonight/edge_report_*.json 2>/dev/null | head -1 || echo "")
+          GIT_COMMIT=$(git rev-parse HEAD)
+          python scripts/generate_web_pages.py \
+            --game-date "$GAME_DATE" --projections "$PROJ" \
+            ${EDGE_FILE:+--edges "$EDGE_FILE"} \
+            --out-dir "$PRE_GAME_DIR" \
+            --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT" \
+            --policy config/recommendation_policy.yaml \
+            ${EDGE_AUDIT:+--market-audit-json "$EDGE_AUDIT"}
+          python scripts/generate_distributions_page.py \
+            --game-date "$GAME_DATE" \
+            --base-dir tools/odds-scanner/predictions/WNBA \
+            --json-only --release-id "$GITHUB_RUN_ID" --git-commit "$GIT_COMMIT"
+          python scripts/validate_forecast_pages.py \
+            --pre-game-dir "$PRE_GAME_DIR" --require-forecast-rows
+          # Copy smoke pages into staging (not published)
+          mkdir -p "${STAGE_DIR}/forecast_pages"
+          cp -R "${PRE_GAME_DIR}/." "${STAGE_DIR}/forecast_pages/" || true
+          echo "DRY RUN OK for ${GAME_DATE}: pages generated + validated, NOT published."
+          echo "smoke_status=PASS" >> "$GITHUB_OUTPUT"
+
+      - name: Generate pregame verification audit package
+        run: |
+          set -euo pipefail
+          python3 scripts/run_pregame_verification_package.py \
+            --game-date "$GAME_DATE" \
+            --stage-dir "$STAGE_DIR" \
+            --audit-dir "$AUDIT_DIR" \
+            --code-sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --smoke-status "${{ steps.smoke.outputs.smoke_status }}"
+
+      - name: Upload staging forecast artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pregame-verification-stage-${{ env.GAME_DATE }}-${{ env.PRED_TS }}-${{ github.run_id }}
+          path: ${{ env.STAGE_DIR }}
+          retention-days: 30
+
+      - name: Upload audit package artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pregame-verification-audits-${{ env.GAME_DATE }}-${{ env.PRED_TS }}-${{ github.run_id }}
+          path: ${{ env.AUDIT_DIR }}
+          retention-days: 30
+
+      - name: Upload smoke pages artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pregame-verification-smoke-pages-${{ env.GAME_DATE }}-${{ github.run_id }}
+          path: ${{ env.PRE_GAME_DIR }}
+          retention-days: 14
+
+      - name: Final verdict gate
+        run: |
+          set -euo pipefail
+          SUMMARY="${AUDIT_DIR}/PREGAME_VERIFICATION_SUMMARY.json"
+          test -f "$SUMMARY"
+          VERDICT=$(python3 -c "import json; print(json.load(open('${SUMMARY}'))['verdict'])")
+          echo "VERDICT=${VERDICT}"
+          echo "### Pregame Verification" >> "$GITHUB_STEP_SUMMARY"
+          echo "- game_date: \`${GAME_DATE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- prediction_timestamp: \`${PRED_TS}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- stage: \`${STAGE_DIR}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- smoke: \`${{ steps.smoke.outputs.smoke_status }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- verdict: **${VERDICT}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- publish: false (enforced)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$VERDICT" = "FAIL_DO_NOT_PUBLISH" ]; then
+            echo "::error::Verification verdict FAIL_DO_NOT_PUBLISH"
+            exit 1
+          fi
