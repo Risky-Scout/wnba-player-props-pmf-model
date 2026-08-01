@@ -1,0 +1,138 @@
+{
+  "schema_version": "soft_book_edge_v1",
+  "generated_at": "2026-08-01T03:30:59.310023+00:00",
+  "game_date": "2026-08-01",
+  "board_type": "soft_book_ev",
+  "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
+  "ev_threshold_pct": 2.5,
+  "method": {
+    "definition": "Definition B: soft book vs sharp consensus. Find individual books whose posted price is better for the bettor than the no-vig consensus of the wider book set. No model and no information edge is used \u2014 pure market-vs-market line shopping.",
+    "devig": "Per-book two-sided de-vig via Shin's method (shin_no_vig_two_way).",
+    "consensus": "Consensus fair P(over) per (event, player, stat, line) = MEDIAN of the per-book no-vig P(over) across all books posting a two-sided price. The scored book is EXCLUDED from its own consensus (no self-reference).",
+    "ev_formula": "EV = fair_p * decimal_profit - (1 - fair_p); positive EV beats the fair line.",
+    "sharp_books_note": "Known-sharper books (pinnacle, betonlineag, lowvig) are ANNOTATED (is_sharp_book, sharp_consensus_p_over) but the qualifying EV is computed against the median-of-all consensus, which is robust to a single outlier without hard-coding sharpness.",
+    "guards": "Require >= min_consensus_books after self-exclusion, valid |American odds| >= 100, both sides present for the scored book, and drop stale (commence_time in the past).",
+    "render_note": "In the odds-scanner render JSON, calibrated_p_over.edge_vs_market carries the SIGNED EV (positive for over plays -> green OVER badge, negative for under plays -> red UNDER badge); the |value| is the EV. p_over is always the no-vig consensus P(over). The card meta (position field) shows 'book odds \u00b7 EV +X%' with the EV as a positive magnitude."
+  },
+  "summary": {
+    "date": "2026-08-01",
+    "generated_utc": "2026-08-01T03:30:59.310023+00:00",
+    "ev_threshold_pct": 2.5,
+    "min_consensus_books": 3,
+    "n_events": 2,
+    "n_books_seen": 6,
+    "books_seen": [
+      "betonlineag",
+      "betparx",
+      "draftkings",
+      "fanduel",
+      "hardrockbet",
+      "williamhill_us"
+    ],
+    "n_quote_rows": 616,
+    "n_scored_rows": 580,
+    "n_qualifying": 2,
+    "n_books_per_stat": {
+      "ast": 6,
+      "fg3m": 6,
+      "pts": 6,
+      "reb": 6
+    },
+    "status": "ok"
+  },
+  "games": [
+    {
+      "game_id": "e9d3ed7c6df9b35e3b167038806ecd53",
+      "odds_api_event_id": "e9d3ed7c6df9b35e3b167038806ecd53",
+      "commence_time": "2026-08-01T19:00:00Z",
+      "home_team": {
+        "name": "Phoenix Mercury",
+        "abbreviation": "Phoenix Mercury"
+      },
+      "away_team": {
+        "name": "New York Liberty",
+        "abbreviation": "New York Liberty"
+      },
+      "players": [
+        {
+          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Kahleah Copper:ast:2.5:over:draftkings",
+          "player_name": "Kahleah Copper",
+          "team_name": "",
+          "position": "draftkings +141 \u00b7 EV +4.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4353,
+                "edge_vs_market": 0.049117,
+                "kelly_fraction": 0.0087
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "over",
+                "offered_odds": 141,
+                "ev_pct": 4.912,
+                "fair_p_side": 0.4353,
+                "consensus_p_over": 0.4353,
+                "consensus_n_books": 4,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4106,
+                "best_book": "draftkings",
+                "best_odds": 141
+              }
+            }
+          }
+        },
+        {
+          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Sabrina Ionescu:ast:5.5:over:hardrockbet",
+          "player_name": "Sabrina Ionescu",
+          "team_name": "",
+          "position": "hardrockbet -105 \u00b7 EV +2.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.5273,
+                "edge_vs_market": 0.029413,
+                "kelly_fraction": 0.0077
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": -105,
+                "ev_pct": 2.941,
+                "fair_p_side": 0.5273,
+                "consensus_p_over": 0.5273,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5273,
+                "best_book": "hardrockbet",
+                "best_odds": -105
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

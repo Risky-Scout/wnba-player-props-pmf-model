@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WNBA Prop Edges — WizardOfOdds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0A0E1A;--surface:#0F1529;--surface2:#141B30;--surface3:#1A2238;
+  --border:#1E2640;--border2:#2A3350;
+  --gold:#D4AF37;--gold-dim:rgba(212,175,55,.12);--gold-border:rgba(212,175,55,.3);
+  --text:#E8EAF2;--text2:#9BA3BC;--text3:#5A6380;
+  --green:#2ECC71;--green-dim:rgba(46,204,113,.12);--green-border:rgba(46,204,113,.3);
+  --red:#E74C3C;--red-dim:rgba(231,76,60,.12);--red-border:rgba(231,76,60,.3);
+  --blue:#3B82F6;--amber:#F59E0B;
+}
+html{font-size:14px}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+
+/* Header */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:11px 22px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100}
+.brand{font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:var(--text)}
+.brand .acc{color:var(--gold)}
+.sep{width:1px;height:16px;background:var(--border2)}
+.nav-links{display:flex;gap:2px}
+.nav-link{font-size:.7rem;color:var(--text3);padding:3px 10px;border-radius:4px;text-decoration:none;transition:color .15s}
+.nav-link:hover,.nav-link.active{color:var(--gold)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:.7rem;color:var(--text3)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px;animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* Main */
+main{max-width:1500px;margin:20px auto;padding:0 20px}
+
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px}
+.kpi .val{font-family:'Fraunces',serif;font-size:1.55rem;font-weight:700;line-height:1.1;color:var(--text)}
+.kpi .val.gold{color:var(--gold)}
+.kpi .val.green{color:var(--green)}
+.kpi .val.red{color:var(--red)}
+.kpi .val.amber{color:var(--amber)}
+.kpi .lbl{font-size:.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
+
+/* Filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.pill{background:var(--surface2);border:1px solid var(--border2);color:var(--text3);border-radius:20px;padding:3px 13px;font-size:.7rem;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap}
+.pill:hover{border-color:var(--gold);color:var(--text)}
+.pill.active{background:var(--gold-dim);border-color:var(--gold);color:var(--gold)}
+.search-box{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:4px 12px;font-size:.76rem;font-family:inherit;outline:none;width:200px}
+.search-box:focus{border-color:var(--gold)}
+.flt-spacer{flex:1}
+.count-lbl{font-size:.7rem;color:var(--text3)}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:.76rem}
+thead{position:sticky;top:45px;z-index:5}
+th{background:var(--surface);color:var(--text3);padding:9px 12px;text-align:left;font-weight:600;font-size:.63rem;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--text)}
+th.sorted{color:var(--gold)}
+th.sorted::after{content:attr(data-arrow);color:var(--gold);margin-left:4px}
+th.numeric{text-align:right}
+td{padding:8px 12px;border-bottom:1px solid rgba(30,38,64,.5);white-space:nowrap;vertical-align:middle}
+td.numeric{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(212,175,55,.025)}
+
+/* Row tiers */
+tr.row-a td{background:rgba(46,204,113,.03)}
+tr.row-a:hover td{background:rgba(46,204,113,.055)}
+tr.row-b td{background:rgba(212,175,55,.02)}
+
+/* Cell styles */
+.player-cell{display:flex;align-items:center;gap:6px}
+.player-name{font-weight:600;color:var(--text)}
+.rlm-badge{background:rgba(123,79,207,.12);border:1px solid rgba(123,79,207,.35);color:#9386f2;border-radius:3px;font-size:.6rem;padding:1px 5px}
+.stat-chip{background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:1px 7px;font-size:.67rem;font-weight:600;color:var(--text2)}
+.dir-over{color:var(--green);font-weight:700}
+.dir-under{color:var(--amber);font-weight:700}
+.edge-pos{color:var(--green);font-weight:700}
+.edge-neg{color:var(--amber);font-weight:700}
+.prob-val{color:var(--text2)}
+
+/* Action badges */
+.ab{display:inline-flex;align-items:center;border-radius:4px;padding:2px 9px;font-size:.65rem;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.ab-bet{background:rgba(46,204,113,.12);border:1px solid rgba(46,204,113,.35);color:var(--green)}
+.ab-small{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
+.ab-lean{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+.ab-pass{background:var(--surface2);border:1px solid var(--border2);color:var(--text3)}
+
+/* Confidence tier */
+.tier{display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;border-radius:3px;font-size:.65rem;font-weight:700}
+.tier-a{background:rgba(46,204,113,.2);border:1px solid rgba(46,204,113,.5);color:var(--green)}
+.tier-b{background:var(--gold-dim);border:1px solid var(--gold-border);color:var(--gold)}
+.tier-c{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+.tier-d{background:var(--surface2);border:1px solid var(--border2);color:var(--text3)}
+
+/* Best Odds button */
+.odds-btn{display:inline-block;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s;background:var(--gold-dim);border:1px solid var(--gold-border);color:var(--gold)}
+.odds-btn:hover{background:rgba(212,175,55,.22);border-color:var(--gold)}
+.no-odds{color:var(--text3);font-size:.7rem}
+.odds-pos{color:var(--green)}
+.odds-neg{color:var(--text2)}
+
+/* Empty / loading */
+.empty-row td{text-align:center;padding:50px;color:var(--text3);font-size:.82rem}
+
+/* Footer */
+footer{text-align:center;font-size:.67rem;color:var(--text3);padding:26px 0 18px;border-top:1px solid var(--border);margin-top:28px;line-height:1.9}
+
+/* Responsive */
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:768px){.kpis{grid-template-columns:repeat(2,1fr)}.search-box{width:140px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">WizardOf<span class="acc">Odds</span></div>
+  <div class="sep"></div>
+  <nav class="nav-links">
+    <a href="" class="nav-link active">Prop Edges</a>
+    <a href="../Distributions/" class="nav-link">Distributions</a>
+    <a href="../Pricer/" class="nav-link">Market X-Ray</a>
+    <a href="../../In-Play/Edges/" class="nav-link">Live In-Play</a>
+  </nav>
+  <div class="hdr-right">
+    <span id="dateLabel">—</span>
+    <span><span class="dot"></span>WNBA Pre-Game · Bayesian PMF Model</span>
+    <span id="genTime" style="color:var(--text3)">—</span>
+  </div>
+</header>
+
+<main>
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi"><div class="val" id="kTotal">—</div><div class="lbl">Props Analyzed</div></div>
+    <div class="kpi"><div class="val green" id="kOver">—</div><div class="lbl">Over Signals</div></div>
+    <div class="kpi"><div class="val amber" id="kUnder">—</div><div class="lbl">Under Signals</div></div>
+    <div class="kpi"><div class="val gold" id="kBet">—</div><div class="lbl">BET Signals</div></div>
+    <div class="kpi"><div class="val" id="kTopEdge">—</div><div class="lbl">Best Edge</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div id="statPills">
+      <button class="pill active" data-stat="">All Stats</button>
+      <button class="pill" data-stat="PTS">PTS</button>
+      <button class="pill" data-stat="REB">REB</button>
+      <button class="pill" data-stat="AST">AST</button>
+      <button class="pill" data-stat="FG3M">3PM</button>
+      <button class="pill" data-stat="STL">STL</button>
+      <button class="pill" data-stat="BLK">BLK</button>
+      <button class="pill" data-stat="PTS_REB_AST">PRA</button>
+    </div>
+    <div id="dirPills">
+      <button class="pill active" data-dir="">Both</button>
+      <button class="pill" data-dir="OVER">Over</button>
+      <button class="pill" data-dir="UNDER">Under</button>
+    </div>
+    <div id="actionPills">
+      <button class="pill active" data-action="">All</button>
+      <button class="pill" data-action="BET">BET</button>
+      <button class="pill" data-action="SMALL BET">SMALL BET</button>
+      <button class="pill" data-action="LEAN">LEAN</button>
+    </div>
+    <input class="search-box" type="text" id="searchInput" placeholder="Search player…">
+    <div class="flt-spacer"></div>
+    <span class="count-lbl" id="countLbl">—</span>
+  </div>
+
+  <!-- Table -->
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-col="player">Player</th>
+          <th data-col="stat">Stat</th>
+          <th data-col="direction">Dir</th>
+          <th data-col="action">Action</th>
+          <th data-col="confidence">Tier</th>
+          <th data-col="market_line" class="numeric">Line</th>
+          <th data-col="model_mean" class="numeric">Mdl Mean</th>
+          <th data-col="model_p_over" class="numeric">Mdl P%</th>
+          <th data-col="market_p_over" class="numeric">Mkt P%</th>
+          <th data-col="edge" class="numeric sorted" data-arrow="↓">Edge%</th>
+          <th data-col="kelly_pct" class="numeric">Kelly%</th>
+          <th data-col="best_odds_american" class="numeric">Best Odds</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr class="empty-row"><td colspan="12">Loading prop edges…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<footer>
+  <div>WNBA Pre-Game Prop Edges — WizardOfOdds Sports Analytics</div>
+  <div>Edge = Model P(over) − Market P(no-vig) · Kelly criterion fractional sizing · BET ≥ 8% Kelly · SMALL BET ≥ 4% · LEAN ≥ 1%</div>
+  <div>Confidence A ≥ 10pp edge · B ≥ 6pp · C ≥ 3pp · D &lt; 3pp · RLM = Reverse Line Movement detected</div>
+  <div style="margin-top:4px;color:var(--text3)">For entertainment and research purposes only. Gamble responsibly. 21+</div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+
+let ALL = [];
+let sortCol = 'edge', sortAsc = false;
+let statFilt = '', dirFilt = '', actionFilt = '', searchFilt = '';
+
+const params = new URLSearchParams(location.search);
+const dataUrl = params.get('date') ? params.get('date') + '.json' : 'latest.json';
+
+fetch(dataUrl)
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(data => {
+    ALL = data.props || [];
+    updateKPIs(data);
+    render();
+  })
+  .catch(err => {
+    document.getElementById('tableBody').innerHTML =
+      `<tr class="empty-row"><td colspan="12">Failed to load: ${err.message}</td></tr>`;
+  });
+
+function updateKPIs(data) {
+  document.getElementById('kTotal').textContent = data.total_props || 0;
+  document.getElementById('kOver').textContent = data.over_signals || 0;
+  document.getElementById('kUnder').textContent = data.under_signals || 0;
+  document.getElementById('kBet').textContent = ALL.filter(p => p.action === 'BET').length;
+  const best = ALL.length ? Math.max(...ALL.map(p => Math.abs(p.edge) * 100)) : null;
+  document.getElementById('kTopEdge').textContent = best != null ? '+' + best.toFixed(1) + '%' : '—';
+  document.getElementById('dateLabel').textContent = data.game_date || '—';
+  document.getElementById('genTime').textContent = data.generated_at
+    ? 'Updated ' + new Date(data.generated_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+    : '';
+}
+
+const _STAT_DISPLAY = {
+  'FG3M':'3PM','PTS_REB':'Pts+Reb','PTS_AST':'Pts+Ast',
+  'REB_AST':'Reb+Ast','PTS_REB_AST':'Pts+Reb+Ast','STOCKS':'Stl+Blk','TURNOVER':'TO'
+};
+
+function filtered() {
+  return ALL.filter(p => {
+    if (statFilt && p.stat !== statFilt) return false;
+    if (dirFilt && p.direction !== dirFilt) return false;
+    if (actionFilt && p.action !== actionFilt) return false;
+    if (searchFilt && !p.player.toLowerCase().includes(searchFilt)) return false;
+    return true;
+  });
+}
+
+function sortedRows(rows) {
+  return [...rows].sort((a, b) => {
+    let av = a[sortCol] ?? 0, bv = b[sortCol] ?? 0;
+    if (sortCol === 'edge') { av = Math.abs(av); bv = Math.abs(bv); }
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av - bv : bv - av;
+  });
+}
+
+function pct(v) { return (+(v) * 100).toFixed(1) + '%'; }
+
+function render() {
+  const rows = sortedRows(filtered());
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('countLbl').textContent = rows.length + ' props shown';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="12">No props match the current filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(p => {
+    const isOver = p.direction === 'OVER';
+    const ep = p.edge * 100;
+    const edgeFmt = (ep >= 0 ? '+' : '') + ep.toFixed(1) + '%';
+    const edgeCls = isOver ? 'edge-pos' : 'edge-neg';
+    const rowCls = p.confidence === 'A' ? 'row-a' : p.confidence === 'B' ? 'row-b' : '';
+
+    const acCls = p.action === 'BET' ? 'ab-bet' : p.action === 'SMALL BET' ? 'ab-small' : p.action === 'LEAN' ? 'ab-lean' : 'ab-pass';
+    const tierCls = p.confidence === 'A' ? 'tier-a' : p.confidence === 'B' ? 'tier-b' : p.confidence === 'C' ? 'tier-c' : 'tier-d';
+
+    const rlm = p.reverse_line_movement ? '<span class="rlm-badge">RLM</span>' : '';
+    const st = _STAT_DISPLAY[p.stat] || p.stat;
+
+    // Best odds cell
+    let oddsCell;
+    if (p.best_bookmaker && p.best_odds_american != null) {
+      const sign = p.best_odds_american >= 0 ? '+' : '';
+      const oddsLabel = `${p.best_bookmaker} ${sign}${p.best_odds_american}`;
+      const href = p.best_deep_link || '#';
+      const oddsCls = p.best_odds_american >= 0 ? 'odds-pos' : 'odds-neg';
+      oddsCell = `<a href="${href}" target="_blank" rel="noopener" class="odds-btn">
+        <span class="${oddsCls}">${oddsLabel}</span></a>`;
+    } else {
+      oddsCell = '<span class="no-odds">—</span>';
+    }
+
+    const kelly = p.kelly_pct > 0 ? p.kelly_pct.toFixed(1) + '%' : '—';
+    const kellyCls = p.kelly_pct > 0 ? 'style="color:var(--blue)"' : 'style="color:var(--text3)"';
+
+    return `<tr class="${rowCls}">
+      <td><div class="player-cell"><span class="player-name">${p.player}</span>${rlm}</div></td>
+      <td><span class="stat-chip">${st}</span></td>
+      <td><span class="${isOver ? 'dir-over' : 'dir-under'}">${p.direction}</span></td>
+      <td><span class="ab ${acCls}">${p.action || '—'}</span></td>
+      <td><span class="tier ${tierCls}">${p.confidence || '—'}</span></td>
+      <td class="numeric">${p.market_line}</td>
+      <td class="numeric">${p.model_mean ? p.model_mean.toFixed(2) : '—'}</td>
+      <td class="numeric prob-val">${pct(p.model_p_over)}</td>
+      <td class="numeric prob-val">${pct(p.market_p_over)}</td>
+      <td class="numeric ${edgeCls}">${edgeFmt}</td>
+      <td class="numeric" ${kellyCls}>${kelly}</td>
+      <td class="numeric">${oddsCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Filters
+document.getElementById('statPills').addEventListener('click', e => {
+  const btn = e.target.closest('[data-stat]');
+  if (!btn) return;
+  statFilt = btn.dataset.stat;
+  document.querySelectorAll('#statPills .pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+});
+document.getElementById('dirPills').addEventListener('click', e => {
+  const btn = e.target.closest('[data-dir]');
+  if (!btn) return;
+  dirFilt = btn.dataset.dir;
+  document.querySelectorAll('#dirPills .pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+});
+document.getElementById('actionPills').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  actionFilt = btn.dataset.action;
+  document.querySelectorAll('#actionPills .pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+});
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchFilt = e.target.value.trim().toLowerCase();
+  render();
+});
+
+// Column sort
+document.querySelectorAll('th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (sortCol === col) { sortAsc = !sortAsc; }
+    else { sortCol = col; sortAsc = col === 'player' || col === 'stat'; }
+    document.querySelectorAll('th[data-col]').forEach(t => {
+      t.classList.remove('sorted');
+      delete t.dataset.arrow;
+    });
+    th.classList.add('sorted');
+    th.dataset.arrow = sortAsc ? '↑' : '↓';
+    render();
+  });
+});
+
+})();
+</script>
+</body>
+</html>
