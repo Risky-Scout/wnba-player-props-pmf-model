@@ -134,11 +134,22 @@ def _build_json(
         # B1 PROBABILITY CONTRACT: the bettor-facing settled probability is the upstream
         # decision-grade model_prob_over_final (push-safe + binary-calibrated), NEVER recomputed
         # from PMF mass. PMF pairs feed ONLY the *unconditional* distribution-shape fields.
-        model_prob_over_final = float(
-            p.get("model_prob_over_final", p.get("model_p_over") or 0) or 0)
-        p_over_computed = round(model_prob_over_final, 6)
-        p_push_computed = round(float(p.get("model_p_push") or p.get("pmf_p_push") or 0), 6)
-        p_under_computed = round(max(0.0, 1.0 - p_over_computed), 6)   # settled Under = 1 - final
+        # NO_MARKET rows must preserve null line-display probs (never coerce to 0/0.5).
+        row_status = str(
+            p.get("row_status") or p.get("pricing_status")
+            or ("PRICED" if has_market_line else "NO_MARKET_AVAILABLE")
+        ).upper()
+        raw_final = p.get("model_prob_over_final", p.get("model_p_over"))
+        if has_market_line and raw_final is not None:
+            model_prob_over_final = float(raw_final or 0)
+            p_over_computed = round(model_prob_over_final, 6)
+            p_push_computed = round(float(p.get("model_p_push") or p.get("pmf_p_push") or 0), 6)
+            p_under_computed = round(max(0.0, 1.0 - p_over_computed), 6)
+        else:
+            model_prob_over_final = None
+            p_over_computed = None
+            p_push_computed = None
+            p_under_computed = None
         # Unconditional PMF mass (distribution shape only) - clearly separated from the above.
         if has_market_line and pmf_pairs:
             pmf_over_u, pmf_under_u, pmf_push_u = _compute_push_aware_probs(pmf_pairs, market_line)
@@ -158,6 +169,8 @@ def _build_json(
             "stat_raw": p.get("stat_raw", stat_up.lower()),
             "line": market_line,
             "has_market_line": has_market_line,
+            "row_status": row_status,
+            "pricing_status": row_status,
             "mean": p.get("mean"),
             "median": p.get("median"),
             "mode": p.get("mode"),
@@ -168,16 +181,28 @@ def _build_json(
             "model_p_over": p_over_computed,
             "model_p_under": p_under_computed,
             "model_p_push": p_push_computed,
-            "model_prob_over_final": round(model_prob_over_final, 6),
-            "model_prob_under_final": round(max(0.0, 1.0 - model_prob_over_final), 6),
+            "model_prob_over_final": (
+                round(model_prob_over_final, 6) if model_prob_over_final is not None else None
+            ),
+            "model_prob_under_final": (
+                round(max(0.0, 1.0 - model_prob_over_final), 6)
+                if model_prob_over_final is not None else None
+            ),
             "pmf_p_over_unconditional": pmf_over_u,
             "pmf_p_under_unconditional": pmf_under_u,
             "pmf_p_push": pmf_push_u,
-            "market_p_over": round(float(p.get("market_p_over") or 0), 4),
-            "no_vig_over_prob": round(float(p.get("no_vig_over_prob") or p.get("market_p_over") or 0), 4),
-            "no_vig_under_prob": round(float(p.get("no_vig_under_prob") or 0), 4),
+            "market_p_over": (
+                round(float(p.get("market_p_over") or 0), 4) if has_market_line else None
+            ),
+            "no_vig_over_prob": (
+                round(float(p.get("no_vig_over_prob") or p.get("market_p_over") or 0), 4)
+                if has_market_line else None
+            ),
+            "no_vig_under_prob": (
+                round(float(p.get("no_vig_under_prob") or 0), 4) if has_market_line else None
+            ),
             "edge_pp": edge_pp,
-            "kelly_pct": round(float(p.get("kelly_pct") or 0), 2),
+            "kelly_pct": round(float(p.get("kelly_pct") or 0), 2) if has_market_line else 0.0,
             # pmf_full: complete mass (sum=1); use this for all probability calculations
             "pmf_full": pmf_pairs,
             # pmf_chart: filtered for rendering (may exclude small tail mass)
