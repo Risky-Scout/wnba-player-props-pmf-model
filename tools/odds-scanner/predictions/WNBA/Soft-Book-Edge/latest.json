@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-01T03:30:59.310023+00:00",
+  "generated_at": "2026-08-01T19:06:06.723773+00:00",
   "game_date": "2026-08-01",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,123 +16,33 @@
   },
   "summary": {
     "date": "2026-08-01",
-    "generated_utc": "2026-08-01T03:30:59.310023+00:00",
+    "generated_utc": "2026-08-01T19:06:06.723773+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
-    "n_books_seen": 6,
+    "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
       "betparx",
+      "betrivers",
       "draftkings",
+      "espnbet",
       "fanduel",
+      "fliff",
       "hardrockbet",
+      "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 616,
-    "n_scored_rows": 580,
-    "n_qualifying": 2,
+    "n_quote_rows": 633,
+    "n_scored_rows": 0,
+    "n_qualifying": 0,
     "n_books_per_stat": {
-      "ast": 6,
-      "fg3m": 6,
-      "pts": 6,
-      "reb": 6
+      "ast": 10,
+      "fg3m": 10,
+      "pts": 10,
+      "reb": 10
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "e9d3ed7c6df9b35e3b167038806ecd53",
-      "odds_api_event_id": "e9d3ed7c6df9b35e3b167038806ecd53",
-      "commence_time": "2026-08-01T19:00:00Z",
-      "home_team": {
-        "name": "Phoenix Mercury",
-        "abbreviation": "Phoenix Mercury"
-      },
-      "away_team": {
-        "name": "New York Liberty",
-        "abbreviation": "New York Liberty"
-      },
-      "players": [
-        {
-          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Kahleah Copper:ast:2.5:over:draftkings",
-          "player_name": "Kahleah Copper",
-          "team_name": "",
-          "position": "draftkings +141 \u00b7 EV +4.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4353,
-                "edge_vs_market": 0.049117,
-                "kelly_fraction": 0.0087
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "over",
-                "offered_odds": 141,
-                "ev_pct": 4.912,
-                "fair_p_side": 0.4353,
-                "consensus_p_over": 0.4353,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4106,
-                "best_book": "draftkings",
-                "best_odds": 141
-              }
-            }
-          }
-        },
-        {
-          "player_id": "e9d3ed7c6df9b35e3b167038806ecd53:Sabrina Ionescu:ast:5.5:over:hardrockbet",
-          "player_name": "Sabrina Ionescu",
-          "team_name": "",
-          "position": "hardrockbet -105 \u00b7 EV +2.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 5.5,
-              "median": 5.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.5273,
-                "edge_vs_market": 0.029413,
-                "kelly_fraction": 0.0077
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -105,
-                "ev_pct": 2.941,
-                "fair_p_side": 0.5273,
-                "consensus_p_over": 0.5273,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5273,
-                "best_book": "hardrockbet",
-                "best_odds": -105
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
