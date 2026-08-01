@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from wnba_props_model.models.simulation import pmf_to_json
 from wnba_props_model.pick_engine.certification import evaluate_certification_gate
 from wnba_props_model.pick_engine.constants import (
     CERTIFIED_MODEL_PICK,
@@ -27,11 +28,16 @@ from wnba_props_model.pick_engine.odds_math import (
     is_integer_line,
     side_settlement_probs,
 )
-from wnba_props_model.pick_engine.probabilities import pick_probability, pure_settled_from_active_pmf
+from wnba_props_model.pick_engine.probabilities import (
+    pick_probability,
+    pure_settled_from_active_pmf,
+)
 from wnba_props_model.pick_engine.ranking import assign_selection_status, rank_candidates
 from wnba_props_model.pick_engine.reference import build_reference_probability
-from wnba_props_model.pick_engine.reliability import default_reliability_weights, fit_reliability_weights
-from wnba_props_model.models.simulation import pmf_to_json
+from wnba_props_model.pick_engine.reliability import (
+    default_reliability_weights,
+    fit_reliability_weights,
+)
 
 
 def _dense_pmf(mean: float = 10.0, size: int = 40) -> list[float]:
@@ -120,7 +126,7 @@ def test_integer_pushes_enter_ev_correctly():
     # Integer line with push mass: EV ignores push P/L.
     ev = expected_value(p_win=0.4, p_lose=0.4, p_push=0.2, decimal_odds=2.0)
     assert ev == pytest.approx(0.4 * 1.0 - 0.4)
-    p_win, p_lose, p_push = side_settlement_probs(
+    _p_win, _p_lose, p_push = side_settlement_probs(
         side="over", p_over_unc=0.4, p_under_unc=0.4, p_push=0.2, line=10.0
     )
     assert p_push == pytest.approx(0.2)
@@ -128,7 +134,7 @@ def test_integer_pushes_enter_ev_correctly():
 
 
 def test_half_point_lines_cannot_push():
-    p_win, p_lose, p_push = side_settlement_probs(
+    _p_win, _p_lose, p_push = side_settlement_probs(
         side="under", p_over_unc=0.45, p_under_unc=0.55, p_push=0.2, line=10.5
     )
     assert p_push == 0.0

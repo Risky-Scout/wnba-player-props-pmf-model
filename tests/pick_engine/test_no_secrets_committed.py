@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 FORBIDDEN_SUBSTRINGS = (
     "ODDS_API_KEY=",
     "BDL_API_KEY=",

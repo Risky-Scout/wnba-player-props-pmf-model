@@ -15,7 +15,6 @@ from wnba_props_model.pick_engine.constants import (
     PROVISIONAL_MODEL_PICK,
 )
 
-
 RANK_COLUMNS = [
     "rank",
     "game",

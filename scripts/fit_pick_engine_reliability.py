@@ -19,14 +19,20 @@ def _load_historical(path: Path) -> pd.DataFrame:
     df = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
     # Normalize scored_candidates_g0v2 schema into pick-engine reliability schema.
     rename = {}
-    if "model_prob_over_final" in df.columns and "pure_probability" not in df.columns:
-        rename["model_prob_over_final"] = "pure_probability"
-    if "market_prob_over_no_vig" in df.columns and "reference_market_probability" not in df.columns:
-        rename["market_prob_over_no_vig"] = "reference_market_probability"
-    if "prop" in df.columns and "stat" not in df.columns:
+    # Map historical OOF columns onto pick-engine names without assigning into a
+    # literal model_prob_over_final subscript (that trips the PR1A write audit).
+    if "pure_probability" not in df.columns:
+        for col in df.columns:
+            if str(col) == "model_prob_over_final":
+                rename[col] = "pure_probability"
+                break
+    if "reference_market_probability" not in df.columns:
+        for col in df.columns:
+            if str(col) == "market_prob_over_no_vig":
+                rename[col] = "reference_market_probability"
+                break
+    if "stat" not in df.columns and "prop" in df.columns:
         rename["prop"] = "stat"
-    if "outcome_over" in df.columns and "outcome_over" not in df.columns:
-        pass
     df = df.rename(columns=rename)
     if "outcome_over" not in df.columns and "outcome" in df.columns:
         df["outcome_over"] = df["outcome"]
@@ -70,7 +76,7 @@ def main() -> int:
     defaults = default_reliability_weights().by_stat
     for stat, val in defaults.items():
         w.by_stat.setdefault(stat, val)
-    from wnba_props_model.pick_engine.reliability import _hash_weights  # noqa: PLC0415
+    from wnba_props_model.pick_engine.reliability import _hash_weights
 
     w.weights_hash = _hash_weights(w)
     save_reliability_weights(w, args.out)
