@@ -23,7 +23,10 @@ import pandas as pd
 import requests
 
 ET = ZoneInfo("America/New_York")
-MASS_TOL = 1e-8
+# Float accumulation over many PMF atoms routinely lands in the 1e-8..1e-7 band.
+# Keep this far tighter than page-level mass checks (0.98..1.02) while avoiding
+# false FAIL_DO_NOT_PUBLISH on numerically healthy distributions.
+MASS_TOL = 1e-6
 PROB_TOL = 1e-8
 DECIMAL_TOL = 1e-6
 
