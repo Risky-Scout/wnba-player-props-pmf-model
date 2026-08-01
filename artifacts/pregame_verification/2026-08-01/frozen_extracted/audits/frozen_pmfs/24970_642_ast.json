@@ -1,0 +1,41 @@
+{
+  "identity": {
+    "game_id": 24970,
+    "player_id": 642,
+    "target": "ast",
+    "prediction_timestamp": "20260801T162447Z",
+    "forecast_horizon": "2026-08-01",
+    "model_hash": "d7b190139c0114b5be31093ea85963e58afaa1b84bda1ae9090d16aa001b028b",
+    "distribution_hash": "d3c82cef26759f443d68f430b29f5033bb4e6042a9ca32eb3a62c53e20b81e32"
+  },
+  "atoms": [
+    [
+      0.0,
+      0.98821873
+    ],
+    [
+      1.0,
+      0.01117616
+    ],
+    [
+      2.0,
+      0.00056267
+    ],
+    [
+      3.0,
+      3.886e-05
+    ],
+    [
+      4.0,
+      3.24e-06
+    ],
+    [
+      5.0,
+      3.1e-07
+    ],
+    [
+      6.0,
+      3e-08
+    ]
+  ]
+}
