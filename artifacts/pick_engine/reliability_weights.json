@@ -1,0 +1,42 @@
+{
+  "by_horizon": {},
+  "by_stat": {
+    "ast": 0.2,
+    "blk": 0.2,
+    "fg3m": 0.05,
+    "pts": 0.05,
+    "reb": 0.15000000000000002,
+    "stl": 0.2,
+    "turnover": 0.25
+  },
+  "by_stat_role": {
+    "ast|bench": 0.19250000000000003,
+    "ast|core": 0.2,
+    "ast|fringe": 0.19900000000000004,
+    "ast|rotation": 0.359375,
+    "ast|starter": 0.30000000000000004,
+    "fg3m|bench": 0.04125,
+    "fg3m|core": 0.0,
+    "fg3m|fringe": 0.04993750000000001,
+    "fg3m|rotation": 0.68,
+    "fg3m|starter": 0.0,
+    "pts|bench": 0.029375000000000002,
+    "pts|core": 0.15000000000000002,
+    "pts|fringe": 0.0539375,
+    "pts|inactive_risk": 0.051187500000000004,
+    "pts|rotation": 0.2,
+    "pts|starter": 0.0,
+    "reb|bench": 0.16625,
+    "reb|core": 0.15000000000000002,
+    "reb|fringe": 0.15350000000000003,
+    "reb|inactive_risk": 0.15106250000000004,
+    "reb|rotation": 0.25,
+    "reb|starter": 0.0
+  },
+  "global_weight": 0.1,
+  "method": "chronological_oof_logit_shrinkage_v1",
+  "n_training_rows": 1572,
+  "training_date_max": "2026-07-19",
+  "training_date_min": "2026-06-13",
+  "weights_hash": "691b8a9b507cfa6e411c21c2492352f015fa105e5af0dbc2e249ced27a128bea"
+}
