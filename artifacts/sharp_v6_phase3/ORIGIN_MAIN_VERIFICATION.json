@@ -1,0 +1,12 @@
+{
+  "artifact": "ORIGIN_MAIN_VERIFICATION",
+  "generated_at_utc": "2026-08-02T07:43:32.684842+00:00",
+  "accepted_head": "5ef2758d85942fdfe849b6b5b88b5dbd7c9311e7",
+  "main_sha": "9c84fd211e86d23c8d09d740dc2e525ead97de8f",
+  "origin_main_sha": "9c84fd211e86d23c8d09d740dc2e525ead97de8f",
+  "main_equals_origin_main": true,
+  "accepted_is_ancestor_of_origin_main": true,
+  "production_pointer": "artifacts/releases/wnba-pmf-production-v1.1",
+  "promotion": "FAIL_KEEP_V1_1",
+  "pr": "https://github.com/Risky-Scout/wnba-player-props-pmf-model/pull/109"
+}
