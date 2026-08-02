@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-02T03:30:31.251119+00:00",
+  "generated_at": "2026-08-02T19:07:06.479499+00:00",
   "game_date": "2026-08-02",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,30 +16,88 @@
   },
   "summary": {
     "date": "2026-08-02",
-    "generated_utc": "2026-08-02T03:30:31.251119+00:00",
+    "generated_utc": "2026-08-02T19:07:06.479499+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
-    "n_books_seen": 7,
+    "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
+      "betparx",
+      "betrivers",
       "draftkings",
       "espnbet",
       "fanduel",
       "fliff",
+      "hardrockbet",
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1396,
-    "n_scored_rows": 1362,
-    "n_qualifying": 0,
+    "n_quote_rows": 1573,
+    "n_scored_rows": 1304,
+    "n_qualifying": 1,
     "n_books_per_stat": {
-      "ast": 7,
-      "fg3m": 7,
-      "pts": 7,
-      "reb": 7
+      "ast": 10,
+      "fg3m": 10,
+      "pts": 10,
+      "reb": 10
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "e15c637f66763f4ab0621898bd92d2bb",
+      "odds_api_event_id": "e15c637f66763f4ab0621898bd92d2bb",
+      "commence_time": "2026-08-02T19:30:00Z",
+      "home_team": {
+        "name": "Portland Fire",
+        "abbreviation": "Portland Fire"
+      },
+      "away_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "players": [
+        {
+          "player_id": "e15c637f66763f4ab0621898bd92d2bb:Dearica Hamby:ast:2.5:under:fanduel",
+          "player_name": "Dearica Hamby",
+          "team_name": "",
+          "position": "fanduel +130 \u00b7 EV +3.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.5495,
+                "edge_vs_market": -0.036165,
+                "kelly_fraction": 0.007
+              },
+              "soft_book": {
+                "book": "fanduel",
+                "side": "under",
+                "offered_odds": 130,
+                "ev_pct": 3.616,
+                "fair_p_side": 0.4505,
+                "consensus_p_over": 0.5495,
+                "consensus_n_books": 4,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5712,
+                "best_book": "fanduel",
+                "best_odds": 130
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
