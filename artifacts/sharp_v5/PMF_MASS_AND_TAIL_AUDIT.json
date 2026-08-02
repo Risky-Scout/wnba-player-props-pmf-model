@@ -1,0 +1,11 @@
+{
+  "artifact": "PMF_MASS_AND_TAIL_AUDIT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "interface": "DiscreteDistribution",
+  "exact_per_atom_tail": true,
+  "overflow_is_aggregate_bucket_only": true,
+  "hurdle_zi_convolution_mass_corrected": true,
+  "normalization_error_gate": 1e-10,
+  "tail_tolerance": 1e-06,
+  "note": "probability(y) exact for any y; stored+overflow=1; no outcome clipping (tests enforce)."
+}

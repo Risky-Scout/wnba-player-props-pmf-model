@@ -1,0 +1,24 @@
+# Modeling Design V5 — coherent atom distributions + production pricing. Frozen before production OOF.
+# V2/V3/V4 preserved unmodified. V5 selection uses 2023-2025 folds ONLY (V3/V4 2026 holdout CONSUMED).
+version: v5
+release: wnba-sharp-pmf-v5
+baseline: wnba-sharp-pmf-v4
+selection_data: "2023-2025 folds only"
+prospective_start: "first immutable forecast after this freeze (append-only, prequential)"
+corrections_over_v4:
+  pmf_abstraction: "single DiscreteDistribution interface; exact per-atom analytic tail; overflow is an aggregate bucket only"
+  hurdle_zi_convolution_mass: "corrected — positive normalizer includes analytic positive tail; convolution not renormalized"
+  market_projection: "push-aware A/(A+B); one multi-line PMF per player-stat-timestamp; min-KL tilt; fail-closed INFEASIBLE"
+  minutes: "regulation 0..40 + separate overtime mixture; observed minutes never clipped"
+  minutes_propagation: "every stat PMF = analytic MIXTURE over the minutes PMF (wider minutes -> wider stat tails)"
+  feature_contracts: "resolved on training data, saved+hashed, reused unchanged at inference (schema drift fails closed)"
+  bdl_labels: "re-pull FGM/FTM to enable structural shooting identities (validated)"
+candidate_families:
+  minutes: [hierarchical_empirical_bayes, role_state_mixture, quantile_pmf]
+  direct_stats: [minutes_mixture_nb2, nb2_control, hurdle_nb2, poisson_lognormal]
+  conversion: [hierarchical_beta_binomial, logistic_normal]
+  dependence: [shared_latent, shared_latent_gaussian_copula, student_t_copula_if_supported]
+gates_ref: config/model_selection_gates_v5.yaml
+oof_ref: config/chronological_oof_v5.yaml
+support_ref: config/pmf_support_v5.yaml
+seed: 20260730

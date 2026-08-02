@@ -1,0 +1,16 @@
+{
+  "artifact": "BDL_PLAYER_STATS_ENDPOINT_AUDIT",
+  "generated_at_utc": "2026-08-02T00:30:45.629109+00:00",
+  "correct_endpoint": "/wnba/v1/player_stats",
+  "status": 200,
+  "rows_pulled": 9587,
+  "seasons": [
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "credit_calls": 244,
+  "correction": "V5 probed /wnba/v1/stats,/box_scores,/season_stats (all 404, undocumented). The documented /wnba/v1/player_stats returns FGM/FTM. V5 'tier-blocked' was WRONG.",
+  "fgm_ftm_present": true
+}

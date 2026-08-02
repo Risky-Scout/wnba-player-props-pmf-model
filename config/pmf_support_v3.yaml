@@ -1,0 +1,10 @@
+# PMF support + tail precision V3. Frozen before prediction.
+version: v3
+tail_tolerance: 1.0e-6
+overflow_atom: {preserve: true, include_in_over_settlement: true, on_exceed: TAIL_TOLERANCE_NOT_MET}
+numerical:
+  max_line_abs_error: 5.0e-4
+  replicate_tv_error: 1.0e-3
+  analytic_where_possible: true
+hard_caps: {pts: 70, reb: 35, ast: 25, fg3m: 15, stl: 12, blk: 12, turnover: 15, fgm: 30, ftm: 30, fta: 35}
+store_per_pmf: [support_min, support_max, overflow_probability, normalization_error, tail_method, tail_upper_bound]

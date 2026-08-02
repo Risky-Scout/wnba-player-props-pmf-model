@@ -1,0 +1,2 @@
+role_band,note
+ALL_ACTIVE,role bands from pregame predicted minutes; aggregate metrics in HISTORICAL_DEVELOPMENT_METRICS.csv; subgroup certification withheld (<300 rows/30 dates guard)

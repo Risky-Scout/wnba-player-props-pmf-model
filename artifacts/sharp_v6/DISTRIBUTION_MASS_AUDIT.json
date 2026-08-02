@@ -1,0 +1,9 @@
+{
+  "artifact": "DISTRIBUTION_MASS_AUDIT",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "tilted_stored_plus_overflow_error": 0.0,
+  "hurdle_analytic_variance": 9.036198792928483,
+  "normalization_error_gate": 1e-10,
+  "exact_per_atom_tail": true,
+  "note": "tilt applied to complete base incl. tail (TiltedDistribution); no overflow reattached after normalization"
+}

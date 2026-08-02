@@ -1,0 +1,2 @@
+role_band,note,min_rows_gate,min_dates_gate
+ALL_ACTIVE,role bands (pregame predicted-minutes) not subgroup-certified this run; aggregate metrics in DEVELOPMENT_OOF_METRICS_BY_STAT.csv,300,30

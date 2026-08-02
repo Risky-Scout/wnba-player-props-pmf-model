@@ -1,0 +1,6 @@
+{
+  "artifact": "JOINT_DEPENDENCE_AUDIT",
+  "generated_at_utc": "2026-07-30T22:55:54.726476+00:00",
+  "status": "NOT_FITTED",
+  "production": "combos MARKET_CONSISTENT_ZERO_RESIDUAL (never summed independent marginals)"
+}

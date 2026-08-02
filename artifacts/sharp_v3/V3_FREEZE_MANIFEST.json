@@ -1,0 +1,13 @@
+{
+  "artifact": "V3_FREEZE_MANIFEST",
+  "frozen_at_utc": "2026-07-30T18:46:21.872661+00:00",
+  "file_hashes": {
+    "config/modeling_design_v3.yaml": "bc422052d027d8b616679c3abfaadbe835cca38e5d64aadbce40834322872516",
+    "config/chronological_oof_v3.yaml": "2e9b0b7cbad4e28f0a9e1bfbd2633b2a45777f109ceff52570142750e5830d42",
+    "config/pmf_support_v3.yaml": "69045db4db2aba6dea1123ff4b41b42a29c3b9118f39d6f4200ea9f2a153ea2f",
+    "config/model_selection_gates_v3.yaml": "52f9bd5a1ce8d23fc7cab15d7e2bb839f302b136e309884337997277a71cb4e9",
+    "docs/MODELING_DESIGN_V3.md": "3514df9d2395bee664f51adae533ddc147d3335c6c444aa1b7eade378a570f5c"
+  },
+  "modeling_design_v3_sha256": "b05b9c7f0debc0d22383b44cda246a5a2b35a42b64f614997fd6d772d97b3074",
+  "rule": "No outer-fold prediction before this freeze. V3 closed after first outer prediction."
+}

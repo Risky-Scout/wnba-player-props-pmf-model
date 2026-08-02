@@ -1,0 +1,11 @@
+version: v4
+lexicographic_pure_selection:
+  hard_pass: [no_leakage, valid_support, normalized, structural_identities, tail_tolerance,
+              numerical_precision, inference_parity, min_coverage, no_catastrophic_block]
+  order: [full_distribution_nll, crps, pit_interval_calibration, worst_block, simpler_when_indistinguishable]
+  forbid: [select_by_roi, select_by_ece_alone, use_2026_v3_holdout]
+market_residual_activation:
+  requires: [delta_logloss_lt_0, one_sided_95_gamedate_clustered_upper_bound_lt_0, holm_correction]
+  supporting_not_worse: [brier, calibration_intercept, calibration_slope, ece, crps]
+  bootstrap: {replicates: 5000, block: game_date, min_rows: 300, min_game_dates: 30}
+prospective_certification: {min_game_dates: 30, min_settled_rows: 300, before: PROSPECTIVE_EVIDENCE_ACCUMULATING}

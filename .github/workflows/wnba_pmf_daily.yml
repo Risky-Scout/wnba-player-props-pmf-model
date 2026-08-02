@@ -1,0 +1,117 @@
+name: WNBA PMF Daily (authoritative V6)
+
+# One daily remote workflow:
+# schedule → BDL data → rosters/availability → live features → frozen bundle →
+# full PMFs → quotes → deterministic pick ranking → immutable artifacts.
+# Does NOT retrain. Fails when games exist but PMFs are missing.
+
+on:
+  schedule:
+    - cron: "0 15 * * *"   # 11:00 ET during WNBA season
+  workflow_dispatch:
+    inputs:
+      slate_date:
+        description: "Optional slate date YYYY-MM-DD"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: wnba-pmf-daily-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Assert frozen production bundle present
+        run: |
+          test -f artifacts/releases/wnba-pmf-production-v1/MANIFEST.json
+          test -f artifacts/releases/wnba-pmf-production-v1/model_bundle.pkl
+          python - <<'PY'
+          import json
+          m=json.load(open("artifacts/releases/wnba-pmf-production-v1/MANIFEST.json"))
+          assert m.get("retrain_in_daily") is False
+          assert "predict_slate" in m.get("inference_function","")
+          print("bundle_ok", m["bundle_id"], m["code_sha"][:12])
+          PY
+
+      - name: Pull current BDL history window
+        run: |
+          python scripts/pull_bdl_history.py --start-season 2025 --end-season 2026 --out-dir data/raw/bdl_daily
+          python scripts/build_canonical_tables.py --raw-dir data/raw/bdl_daily --out-dir data/recovered_v2
+          python scripts/build_features.py --data-dir data/recovered_v2
+          cp -f data/processed/wnba_player_game_features_wide.parquet data/recovered_v2/
+          cp -f data/processed/feature_schema_manifest.json data/recovered_v2/
+          python scripts/build_stage9_modeling_artifacts.py
+
+      - name: Run authoritative V6 slate inference (no retrain)
+        id: infer
+        run: |
+          ARGS=(--bundle-dir artifacts/releases/wnba-pmf-production-v1)
+          if [ -n "${{ inputs.slate_date }}" ]; then ARGS+=(--date "${{ inputs.slate_date }}"); fi
+          python scripts/run_wnba_pmf.py "${ARGS[@]}"
+          SLATE=""
+          for d in deliveries/sharp_v6/20*/; do
+            [ -d "$d" ] || continue
+            base=$(basename "$d")
+            SLATE=$base
+          done
+          echo "slate_date=$SLATE" >> "$GITHUB_OUTPUT"
+          test -n "$SLATE"
+          test -f "deliveries/sharp_v6/${SLATE}/T-live/active_atom_pmfs.parquet"
+          test -f "deliveries/sharp_v6/${SLATE}/T-live/pricing_manifest.json"
+          python - <<PY
+          import json
+          from pathlib import Path
+          import pandas as pd
+          slate = "${SLATE}"
+          man = json.loads(Path(f"deliveries/sharp_v6/{slate}/T-live/pricing_manifest.json").read_text())
+          atoms = pd.read_parquet(f"deliveries/sharp_v6/{slate}/T-live/active_atom_pmfs.parquet")
+          assert man.get("retrain") is False
+          assert man.get("n_pmfs", 0) > 0, "FAIL_CLOSED: games exist but PMFs missing"
+          assert len(atoms) > 0
+          print("ok", man["n_games"], man["n_players"], man["n_pmfs"])
+          PY
+
+      - name: Deterministic pick ranking from calibrated PMFs
+        run: |
+          SLATE="${{ steps.infer.outputs.slate_date }}"
+          if [ -f scripts/run_pick_engine.py ]; then
+            python scripts/run_pick_engine.py \
+              --pmfs "deliveries/sharp_v6/${SLATE}/T-live/active_atom_pmfs.parquet" \
+              --out-dir "deliveries/sharp_v6/${SLATE}/T-live/picks" || true
+          fi
+
+      - name: Upload immutable delivery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wnba-pmf-daily-${{ steps.infer.outputs.slate_date }}-${{ github.run_id }}
+          path: deliveries/sharp_v6/${{ steps.infer.outputs.slate_date }}/
+          retention-days: 30
+
+      - name: Upload prospective registry
+        uses: actions/upload-artifact@v4
+        with:
+          name: wnba-pmf-prospective-${{ github.run_id }}
+          path: deliveries/sharp_v6/prospective/
+          retention-days: 90
+          if-no-files-found: ignore

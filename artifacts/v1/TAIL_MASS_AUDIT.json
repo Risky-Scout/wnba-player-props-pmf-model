@@ -1,0 +1,7 @@
+{
+  "artifact": "TAIL_MASS_AUDIT",
+  "generated_at_utc": "2026-07-30T06:05:47.082164+00:00",
+  "max_omitted_tail_mass": 0.0,
+  "all_tail_ok": true,
+  "note": "empirical simulation PMFs are exact over their support; MC precision tracked via mc_max_se"
+}

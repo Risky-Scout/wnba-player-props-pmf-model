@@ -1,0 +1,28 @@
+# Chronological OOF protocol (FROZEN, V2). Strictly expanding-window; no in-sample fallback.
+oof_id: chronological_oof_v2
+version: 2
+protocol: expanding_window_chronological
+grain: unique_game_date
+outer:
+  n_blocks: 6
+  warmup_blocks: 1            # earliest block = priors/warm-up only (no outer prediction)
+  min_train_rows: 500
+  predicted_blocks: [1, 2, 3, 4, 5]
+inner:
+  n_blocks: 3                 # inner expanding folds WITHIN each outer training window
+  min_inner_train_rows: 300
+  purpose: hyperparameter_selection_only
+leakage_controls:
+  same_date_never_split_across_folds: true
+  all_players_from_a_game_same_fold: true
+  transforms_fitted_inside_fold: true
+  feature_selection_inside_fold: true
+  hyperparameter_selection_inside_training_history: true
+  calibration_from_prior_oof_only: true
+  in_sample_fallback: forbidden
+eligibility:
+  outer_validation_rows: EXACT_T12
+  training_rows: [EXACT_T12, CONSERVATIVE_PRETIP]
+  excluded_rows: [PIT_INELIGIBLE]
+failure_policy:
+  failed_prediction_handling: "record exclusion; NEVER substitute training-fit, same-block baseline, future-season average, or market probability"

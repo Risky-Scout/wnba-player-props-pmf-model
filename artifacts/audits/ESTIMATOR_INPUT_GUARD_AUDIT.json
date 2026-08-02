@@ -1,0 +1,19 @@
+{
+  "artifact": "ESTIMATOR_INPUT_GUARD_AUDIT",
+  "accepts_valid_frame": true,
+  "injection_rejected": {
+    "target_actual_pts": true,
+    "did_play": true,
+    "actual_minutes": true,
+    "settlement_status": true,
+    "sportsbook_price": true,
+    "prop_line": true,
+    "market_probability": true,
+    "identifier_game_id": true,
+    "duplicate_column": true,
+    "unexpected_column": true,
+    "schema_hash_mismatch": true,
+    "forbidden_name_alarm": true
+  },
+  "rejects_all_injections": true
+}

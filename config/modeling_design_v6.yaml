@@ -1,0 +1,18 @@
+# Modeling Design V6 — production-complete coherent player distributions. Frozen before V6 OOF.
+# V2-V5 preserved unmodified. V6 selection uses 2023-2025 folds only (2026 retrospective/refit only).
+version: v6
+release: wnba-sharp-pmf-v6
+baseline: wnba-sharp-pmf-v5
+selection_data: "2023-2025 folds only"
+corrections_over_v5:
+  bdl_endpoint: "CORRECTED to /wnba/v1/player_stats (V5 probed undocumented /stats,/box_scores,/season_stats -> 404)"
+  fgm_ftm_recovery: "FGM/FTM recovered + pts identity validated (structural shooting labels)"
+  market_projection_mass: "TiltedDistribution applies tilt to COMPLETE base incl tail; Z with certified remainder; stored+overflow=1"
+  hurdle_variance: "analytic complete second moment (not stored-atoms-with-zero-tail)"
+  bounded_tilt_basis: "bounded mean/dispersion/zero basis -> transformed infinite tail stays summable"
+distribution_interface: "sharp_v5.DiscreteDistribution + sharp_v6.TiltedDistribution"
+stat_model: "minutes-mixture NB2 (from V5, unchanged fit) + structural shooting candidate on recovered labels"
+tail_tolerance: 1.0e-6
+normalization_error_gate: 1.0e-10
+seed: 20260730
+notes: "V6 core changes are pricing/distribution correctness + label recovery; the V5 stat fit is retained."

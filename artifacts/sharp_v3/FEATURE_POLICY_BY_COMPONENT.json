@@ -1,0 +1,193 @@
+{
+  "artifact": "FEATURE_POLICY_BY_COMPONENT",
+  "generated_at_utc": "2026-07-30T18:58:16.227972+00:00",
+  "label_columns_excluded": [
+    "participation",
+    "actual_minutes",
+    "pts",
+    "reb",
+    "ast",
+    "fg3m",
+    "stl",
+    "blk",
+    "turnover",
+    "stocks",
+    "pts_ast",
+    "pts_reb",
+    "reb_ast",
+    "pts_reb_ast"
+  ],
+  "components": {
+    "pts": {
+      "n_domain_core": 124,
+      "feature_hash": "c26ed7e31aa1b12b",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_pos_pts_allowed_mean_l5",
+        "opp_pts_allowed_mean_l10",
+        "opp_pts_allowed_mean_l5",
+        "opp_pts_allowed_per_100_poss_l10",
+        "opp_pts_allowed_per_100_poss_l5",
+        "opp_rest_days",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio"
+      ],
+      "excludes_labels": true
+    },
+    "reb": {
+      "n_domain_core": 121,
+      "feature_hash": "cb95b7d8a8b5327d",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_reb_allowed_mean_l10",
+        "opp_reb_allowed_mean_l5",
+        "opp_reb_allowed_per_100_poss_l10",
+        "opp_reb_allowed_per_100_poss_l5",
+        "opp_rest_days",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form"
+      ],
+      "excludes_labels": true
+    },
+    "ast": {
+      "n_domain_core": 129,
+      "feature_hash": "a3f1119c56530492",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_ast_allowed_mean_l10",
+        "opp_ast_allowed_mean_l5",
+        "opp_ast_allowed_per_100_poss_l10",
+        "opp_ast_allowed_per_100_poss_l5",
+        "opp_rest_days",
+        "player_ast_away_mean_l10",
+        "player_ast_away_mean_l5",
+        "player_ast_ewma_halflife3",
+        "player_ast_ewma_halflife5",
+        "player_ast_form_delta_ewma3_vs_season"
+      ],
+      "excludes_labels": true
+    },
+    "fg3m": {
+      "n_domain_core": 117,
+      "feature_hash": "39bf1d9b12eabaa2",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_fg3m_allowed_mean_l10",
+        "opp_fg3m_allowed_mean_l5",
+        "opp_fg3m_allowed_per_100_poss_l10",
+        "opp_fg3m_allowed_per_100_poss_l5",
+        "opp_rest_days",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form"
+      ],
+      "excludes_labels": true
+    },
+    "stl": {
+      "n_domain_core": 117,
+      "feature_hash": "e11daa2e88197308",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_rest_days",
+        "opp_stl_allowed_mean_l10",
+        "opp_stl_allowed_mean_l5",
+        "opp_stl_allowed_per_100_poss_l10",
+        "opp_stl_allowed_per_100_poss_l5",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form"
+      ],
+      "excludes_labels": true
+    },
+    "blk": {
+      "n_domain_core": 117,
+      "feature_hash": "51067480d53ab53e",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_blk_allowed_mean_l10",
+        "opp_blk_allowed_mean_l5",
+        "opp_blk_allowed_per_100_poss_l10",
+        "opp_blk_allowed_per_100_poss_l5",
+        "opp_rest_days",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form"
+      ],
+      "excludes_labels": true
+    },
+    "turnover": {
+      "n_domain_core": 116,
+      "feature_hash": "4f8f03ae5cd380a8",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_rest_days",
+        "opp_turnover_forced_mean_l10",
+        "opp_turnover_forced_mean_l5",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form",
+        "player_ast_pi_home_form",
+        "player_ast_season_zscore"
+      ],
+      "excludes_labels": true
+    },
+    "minutes": {
+      "n_domain_core": 93,
+      "feature_hash": "b26248b779f793bc",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_rest_days",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form",
+        "player_ast_pi_home_form",
+        "player_ast_season_zscore",
+        "player_blk_form_delta_ewma3_vs_season",
+        "player_blk_form_delta_ewma5_vs_season"
+      ],
+      "excludes_labels": true
+    },
+    "participation": {
+      "n_domain_core": 93,
+      "feature_hash": "b26248b779f793bc",
+      "sample": [
+        "cumulative_minutes_l7",
+        "game_number_in_season",
+        "opp_rest_days",
+        "player_ast_form_delta_ewma3_vs_season",
+        "player_ast_form_delta_ewma5_vs_season",
+        "player_ast_form_delta_l5_vs_l10",
+        "player_ast_form_vs_season_ratio",
+        "player_ast_pi_away_form",
+        "player_ast_pi_home_form",
+        "player_ast_season_zscore",
+        "player_blk_form_delta_ewma3_vs_season",
+        "player_blk_form_delta_ewma5_vs_season"
+      ],
+      "excludes_labels": true
+    }
+  }
+}

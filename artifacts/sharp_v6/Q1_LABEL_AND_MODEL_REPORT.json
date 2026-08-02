@@ -1,0 +1,10 @@
+{
+  "artifact": "Q1_LABEL_AND_MODEL_REPORT",
+  "status": "FITTED_NESTED_MINUTES",
+  "targets": [
+    "q1_pts",
+    "q1_reb",
+    "q1_ast"
+  ],
+  "team_q1_minutes": 50
+}

@@ -1,0 +1,45 @@
+{
+  "artifact": "STL_BLK_TOV_MULTI_HORIZON_COVERAGE",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "markets": [
+    "player_steals",
+    "player_blocks",
+    "player_turnovers",
+    "player_blocks_steals"
+  ],
+  "regions": "us",
+  "events": [
+    {
+      "event": "c1d42f6695414bf61ecb07b706cce413",
+      "status": 200,
+      "found": []
+    },
+    {
+      "event": "ba08696dc9c287df669bc353e504f1be",
+      "status": 200,
+      "found": []
+    },
+    {
+      "event": "86a42225bc8fb8c6d5c57f0732338c65",
+      "status": 200,
+      "found": []
+    },
+    {
+      "event": "19a1dc62b2c56fbc46c270d09d0e0221",
+      "status": 200,
+      "found": []
+    },
+    {
+      "event": "602eaac6e4e24cebabf1cd350f82f07c",
+      "status": 200,
+      "found": []
+    },
+    {
+      "event": "79a00262dc799b713bbcb4473a7be183",
+      "status": 200,
+      "found": []
+    }
+  ],
+  "any_coverage": false,
+  "note": "current-slate single snapshot; multi-horizon T-6h..T-2m accrues via prospective collection"
+}

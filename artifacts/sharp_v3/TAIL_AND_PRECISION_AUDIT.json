@@ -1,0 +1,8 @@
+{
+  "artifact": "TAIL_AND_PRECISION_AUDIT",
+  "generated_at_utc": "2026-07-30T19:04:16.194683+00:00",
+  "tail_method": "analytic NB2/Poisson survival beyond adaptive cap (pmf_builders)",
+  "tail_tolerance": 1e-06,
+  "max_overflow_probability_slate": 3.3306690738754696e-16,
+  "note": "direct-stat marginal PMFs are analytic (no MC error). Joint/copula simulation precision (<=5e-4) applies only when simulation is used; not activated this run."
+}

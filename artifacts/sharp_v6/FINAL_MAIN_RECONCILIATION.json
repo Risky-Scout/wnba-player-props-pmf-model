@@ -1,0 +1,23 @@
+{
+  "artifact": "FINAL_MAIN_RECONCILIATION",
+  "generated_at_utc": "2026-08-02T00:27:38.217714+00:00",
+  "pr": 99,
+  "branch": "cursor/wnba-sharp-pmf-v3",
+  "starting_origin_main_sha": "71753223e0cece1b056b1b36719bc0f6127b6404",
+  "branch_head_before_merge": "941b7c3e42dcf6f1b2f171bf2b0d651bc9b276a4",
+  "branch_head_after_merge": "7cf93cab4b93e5eaf30eca36a74159985526699b",
+  "origin_main_sha_at_reconcile": "71753223e0cece1b056b1b36719bc0f6127b6404",
+  "merge_strategy": "git merge origin/main --no-edit",
+  "merge_result": "clean_ort_auto_merge",
+  "conflicts": [],
+  "preserved": {
+    "v6_pmf_mathematics": true,
+    "pick_engine_from_pr105": true,
+    "pregame_verification_workflow": true,
+    "security_and_ci_fixes": true
+  },
+  "not_replaced_with_older_stage4_v4_v5": true,
+  "ahead_of_main_commits": 49,
+  "behind_main_commits": 0,
+  "status": "RECONCILED_WITH_ORIGIN_MAIN"
+}

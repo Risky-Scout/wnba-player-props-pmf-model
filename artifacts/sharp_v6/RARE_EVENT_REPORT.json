@@ -1,0 +1,14 @@
+{
+  "artifact": "RARE_EVENT_REPORT",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "stats": {
+    "stl": 1.1631420787180329,
+    "blk": 0.7886394357508574,
+    "turnover": 1.4666212461101402
+  },
+  "families_available": [
+    "nb2",
+    "hurdle_nb2",
+    "zinb"
+  ]
+}

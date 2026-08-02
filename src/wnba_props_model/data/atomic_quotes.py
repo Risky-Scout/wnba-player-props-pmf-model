@@ -25,17 +25,42 @@ ATOMIC_QUOTE_COLUMNS = [
     "line",                     # exact line
     "side",                     # 'over' | 'under'
     "american_odds",            # exact price
-    "snapshot_label",           # 'decision' | 'closing'
-    "snapshot_time",            # ISO UTC of the quote snapshot
-    "decision_timestamp",       # ISO UTC decision cutoff (tip - lead)
+    "snapshot_label",           # legacy alias of snapshot_role
+    # --- CANONICAL immutable timestamp provenance (Section 3/4) ---------------------
+    "snapshot_role",            # 'decision' | 'closing'
+    "requested_snapshot_utc",   # the historical snapshot time WE requested (NOT a quote time)
+    "provider_snapshot_utc",    # response wrapper 'timestamp' (snapshot the API returned)
+    "previous_timestamp",       # response wrapper 'previous_timestamp'
+    "next_timestamp",           # response wrapper 'next_timestamp'
+    "bookmaker_last_update_utc", # per-bookmaker 'last_update'
+    "market_last_update_utc",   # per-market 'last_update' (the true quote provenance time)
+    "quote_timestamp_utc",      # == market_last_update_utc; the ACTUAL quote time (pairing/id)
+    "quote_timestamp_source",   # 'market_last_update' | 'BLOCKED_NO_MARKET_TIMESTAMP'
     "scheduled_tip_utc",        # ISO UTC scheduled tip
+    "decision_cutoff_utc",      # tip - 12h
+    "closing_cutoff_utc",       # tip - 5m
+    "role_cutoff_utc",          # decision_cutoff_utc for decision; closing_cutoff_utc for closing
+    "collection_timestamp_utc", # when WE collected the row
+    # legacy names kept for back-compat with existing rows/tests (never used for pairing):
+    "snapshot_time", "decision_timestamp", "requested_snapshot_time",
+    "provider_snapshot_time", "market_last_update", "collection_timestamp",
     "prediction_timestamp",     # ISO UTC when the model prediction was made
     "model_prob_over_final",    # delivered probability (lineage output)
     "probability_lineage_version",
     "model_hash", "calibrator_hash", "feature_schema_hash", "quote_policy_hash",
     "settlement_status",        # 'settled' | 'push' | 'void' | 'pending'
     "actual_outcome",           # realized stat value (when settled)
-    "exact_quote_status",       # 'EXACT' | 'BLOCKED_EXACT_QUOTES'
+    "exact_quote_status",       # 'EXACT' | 'BLOCKED_EXACT_QUOTES' (mirrors eligibility_status)
+    "exact_block_reason",       # alias of blocking_reason (back-compat)
+    # --- explicit eligibility (blocked rows are RETAINED, never dropped) --------------
+    "timing_status",            # ELIGIBLE | AT_OR_AFTER_TIP | AFTER_ROLE_CUTOFF |
+                                # MISSING_MARKET_TIMESTAMP | INVALID_SCHEDULED_TIP | INVALID_ROLE_CUTOFF
+    "eligibility_status",       # ELIGIBLE | BLOCKED
+    "blocking_reason",          # first failing reason by precedence (None when ELIGIBLE)
+    "usable_for_pairing",       # bool: eligible identity + eligible timing
+    "usable_for_decision_analysis",  # bool: usable_for_pairing and role == decision
+    "usable_for_closing_analysis",   # bool: usable_for_pairing and role == closing
+    "identity_method",          # exact_roster_name | approved_alias | normalized_relaxed | unmatched | collision
     "source",                   # provenance
 ]
 
@@ -64,6 +89,148 @@ def assert_no_book_averaging(df: pd.DataFrame) -> None:
         raise ValueError(
             f"{int(bad.sum() + banned.sum())} atomic-quote row(s) are missing a book or are "
             "aggregates; atomic quotes must be single-book (never averaged).")
+
+
+# Columns the pairing builder (quote_pairs.build_quote_pairs) requires.
+_RAW_SIDE_COLUMNS = [
+    "provider", "sportsbook", "event_id", "player_id", "prop", "line", "side",
+    "snapshot_timestamp", "american_odds", "scheduled_tip_utc", "decision_timestamp_utc",
+]
+
+
+def to_raw_side_snapshots(atomic: pd.DataFrame, *, provider_default: str = "odds_api") -> pd.DataFrame:
+    """Explicit, validated adapter: map canonical atomic-store rows to the raw-side schema
+    ``quote_pairs.build_quote_pairs`` consumes, WITHOUT mutating any timestamp.
+
+    * The pairing/quote timestamp is strictly ``quote_timestamp_utc`` == market_last_update.
+      Rows with NO market timestamp are DROPPED here (blocked) rather than fabricating a time
+      from the requested snapshot.
+    * The cutoff passed to the pair builder is the ROLE cutoff:
+        - snapshot_role == 'decision'  -> role_cutoff_utc = decision_cutoff_utc (tip - 12h)
+        - snapshot_role == 'closing'   -> role_cutoff_utc = closing_cutoff_utc  (tip - 5m)
+      We NEVER null the cutoff or substitute the tip; each role carries its own cutoff.
+    """
+    if atomic is None or atomic.empty:
+        return pd.DataFrame(columns=_RAW_SIDE_COLUMNS)
+    df = atomic.copy()
+
+    def _first(cols: list[str]) -> pd.Series:
+        out = pd.Series([None] * len(df), index=df.index, dtype=object)
+        for c in cols:
+            if c in df.columns:
+                out = out.where(out.notna(), df[c])
+        return out
+
+    provider = df["provider"] if "provider" in df.columns else pd.Series([None] * len(df), index=df.index)
+    if "source" in df.columns:
+        provider = provider.where(provider.notna(), df["source"].apply(
+            lambda s: "odds_api" if isinstance(s, str) and s.startswith("odds_api") else s))
+    provider = provider.where(provider.notna(), provider_default)
+
+    role = _first(["snapshot_role", "snapshot_label"])
+    # ACTUAL quote time only — no fallback to provider snapshot or requested date.
+    quote_ts = _first(["quote_timestamp_utc", "market_last_update_utc", "market_last_update"])
+    role_cut = _first(["role_cutoff_utc"])
+    decision_cut = _first(["decision_cutoff_utc", "decision_timestamp"])
+    closing_cut = _first(["closing_cutoff_utc"])
+
+    # If role_cutoff_utc is not explicitly stored, derive it from the role's own cutoff
+    # (never a null; never the tip).
+    def _role_cut(r):
+        if pd.notna(r["role_cut"]):
+            return r["role_cut"]
+        return r["closing_cut"] if str(r["role"]).lower() == "closing" else r["decision_cut"]
+
+    helper = pd.DataFrame({"role": role, "role_cut": role_cut,
+                           "decision_cut": decision_cut, "closing_cut": closing_cut})
+    effective_cut = helper.apply(_role_cut, axis=1)
+
+    raw = pd.DataFrame({
+        "provider": provider,
+        "sportsbook": df.get("sportsbook"),
+        "event_id": df.get("event_id"),
+        "player_id": df.get("player_id"),
+        "prop": df.get("prop"),
+        "line": df.get("line"),
+        "side": df.get("side"),
+        "snapshot_timestamp": quote_ts,
+        "american_odds": df.get("american_odds"),
+        "scheduled_tip_utc": df.get("scheduled_tip_utc"),
+        "decision_timestamp_utc": effective_cut,     # ROLE cutoff (build_quote_pairs enforces)
+        "snapshot_label": role,
+    })
+    # Only ELIGIBLE rows reach exact-pair construction (blocked timing/identity rows are
+    # retained in the store but never paired). Fall back to the quote-timestamp presence
+    # check for legacy rows without the eligibility column.
+    if "eligibility_status" in df.columns:
+        raw = raw[df["eligibility_status"].to_numpy() == "ELIGIBLE"].reset_index(drop=True)
+    else:
+        raw = raw[raw["snapshot_timestamp"].notna()].reset_index(drop=True)
+    return raw
+
+
+# Counterpart-rejection statuses (Section 5) — a diagnostic SEPARATE from build_quote_pairs.
+ONE_SIDED = "ONE_SIDED"
+CROSS_BOOK_COUNTERPART_ONLY = "CROSS_BOOK_COUNTERPART_ONLY"
+CROSS_LINE_COUNTERPART_ONLY = "CROSS_LINE_COUNTERPART_ONLY"
+DUPLICATE_SIDE = "DUPLICATE_SIDE"
+AMBIGUOUS_PLAYER = "AMBIGUOUS_PLAYER"
+HAS_EXACT_COUNTERPART = "HAS_EXACT_COUNTERPART"
+
+
+def counterpart_rejection_audit(atomic: pd.DataFrame) -> pd.DataFrame:
+    """Explain WHY a raw side did not form an exact same-book/same-line pair.
+
+    The pair builder groups by (book, line), so it structurally cannot emit CROSS_BOOK or
+    CROSS_LINE. This audit inspects the raw sides directly and classifies each side:
+
+      * unresolved player                                 -> AMBIGUOUS_PLAYER
+      * >1 same-key side (same book/line/role/side)        -> DUPLICATE_SIDE
+      * exact opposite side at SAME book & line & role     -> HAS_EXACT_COUNTERPART
+      * opposite side exists only at ANOTHER book          -> CROSS_BOOK_COUNTERPART_ONLY
+      * opposite side exists only at ANOTHER line same book -> CROSS_LINE_COUNTERPART_ONLY
+      * no opposite side anywhere                           -> ONE_SIDED
+
+    Returns the input rows with a 'counterpart_status' column. A cross-line/-book status is
+    NOT a pairing error — it explains why no *exact* counterpart existed.
+    """
+    cols = ["event_id", "sportsbook", "player_id", "prop", "line", "side"]
+    if atomic is None or atomic.empty:
+        return pd.DataFrame(columns=cols + ["counterpart_status"])
+    df = atomic.copy()
+    df["_side"] = df["side"].astype(str).str.lower()
+    role_col = "snapshot_role" if "snapshot_role" in df.columns else (
+        "snapshot_label" if "snapshot_label" in df.columns else None)
+    df["_role"] = df[role_col].astype(str) if role_col else "decision"
+
+    def _classify(row) -> str:
+        pid = row["player_id"]
+        if pid is None or (isinstance(pid, float) and pd.isna(pid)) or str(pid).strip() in ("", "nan", "None"):
+            return AMBIGUOUS_PLAYER
+        opp = "under" if row["_side"] == "over" else "over"
+        same_ev_pl_prop_role = df[(df["event_id"] == row["event_id"]) & (df["player_id"] == pid) &
+                                  (df["prop"] == row["prop"]) & (df["_role"] == row["_role"])]
+        # duplicate same-key side?
+        same_key_same_side = same_ev_pl_prop_role[
+            (same_ev_pl_prop_role["sportsbook"] == row["sportsbook"]) &
+            (same_ev_pl_prop_role["line"] == row["line"]) &
+            (same_ev_pl_prop_role["_side"] == row["_side"])]
+        if len(same_key_same_side) > 1:
+            return DUPLICATE_SIDE
+        opp_rows = same_ev_pl_prop_role[same_ev_pl_prop_role["_side"] == opp]
+        if len(opp_rows) == 0:
+            return ONE_SIDED
+        same_book_line = opp_rows[(opp_rows["sportsbook"] == row["sportsbook"]) &
+                                  (opp_rows["line"] == row["line"])]
+        if len(same_book_line) >= 1:
+            return HAS_EXACT_COUNTERPART
+        same_book = opp_rows[opp_rows["sportsbook"] == row["sportsbook"]]
+        if len(same_book) >= 1:
+            return CROSS_LINE_COUNTERPART_ONLY   # opposite only at another line, same book
+        return CROSS_BOOK_COUNTERPART_ONLY       # opposite only at another book
+
+    df["counterpart_status"] = df.apply(_classify, axis=1)
+    return df[cols + ["_role", "counterpart_status"]].rename(columns={"_role": "snapshot_role"})
 
 
 def append_atomic_quotes(store_path, new_rows: pd.DataFrame) -> dict:

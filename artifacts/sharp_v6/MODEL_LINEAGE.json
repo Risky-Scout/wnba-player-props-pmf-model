@@ -1,0 +1,8 @@
+{
+  "artifact": "MODEL_LINEAGE",
+  "generated_at_utc": "2026-07-31T00:00:48.716519+00:00",
+  "code_sha": "7fc2eea46493d33e47e2ba5ac9532685262a9e36",
+  "design_hash": "520f076f58a762cacb7add3d912d4bf02fbc84c1f39a7132420bbee6617a9800",
+  "seed": 20260730,
+  "note": "references final implementation SHA that generated the artifacts"
+}

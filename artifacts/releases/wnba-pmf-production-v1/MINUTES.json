@@ -1,0 +1,7 @@
+{
+  "family": "role_band_truncnorm_mixture",
+  "feature_hash": "adce920e467a64e5",
+  "team_regulation_minutes": 200,
+  "team_q1_minutes": 50,
+  "ot_shared": true
+}

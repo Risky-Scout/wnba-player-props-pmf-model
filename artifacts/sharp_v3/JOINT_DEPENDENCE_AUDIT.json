@@ -1,0 +1,14 @@
+{
+  "artifact": "JOINT_DEPENDENCE_AUDIT",
+  "generated_at_utc": "2026-07-30T19:04:16.194683+00:00",
+  "combos": [
+    "stocks",
+    "pts_ast",
+    "pts_reb",
+    "reb_ast",
+    "pts_reb_ast"
+  ],
+  "fitted_dependence": "NOT_FITTED_THIS_RUN",
+  "status": "MARKET_FALLBACK",
+  "note": "Gaussian/Student-t copula + shared-latent allocation are designed (config v3) and scaffolded in pricing/joint_generator.py but not fitted/certified here. Combination markets abstain to market fallback rather than summing independent marginals."
+}

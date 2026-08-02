@@ -1,0 +1,13 @@
+version: v6
+scheme: expanding_window_nested
+grouping: {unit: game_date, rule: "all players of a game-date in one fold"}
+selection_window: {start: 2023-01-01, end: 2025-12-31, note: "V4 candidate selection uses 2023-2025 ONLY"}
+development_outer_folds:
+  - {name: v4_dev_2024_h1, train_end: 2024-05-01, eval: [2024-05-01, 2024-06-30]}
+  - {name: v4_dev_2024_h2, train_end: 2024-07-01, eval: [2024-07-01, 2024-09-30]}
+  - {name: v4_dev_2025_h1, train_end: 2025-05-01, eval: [2025-05-01, 2025-06-30]}
+  - {name: v4_dev_2025_h2, train_end: 2025-07-01, eval: [2025-07-01, 2025-10-31]}
+refit_for_production: {through: latest_completed_game_2026-07-29, note: "refit selected algo; NOT for selection"}
+prospective_holdout: {start: after_v4_freeze, mode: prequential_append_only, horizons: [T-12h,T-6h,T-3h,T-90m,T-30m,T-10m]}
+leakage_controls: [preprocessing_in_train_only, feature_selection_in_train_only, calibration_earlier_oof_only,
+                   no_same_date_leakage, no_future_season_priors, no_actual_same_game_box_or_market, no_outcome_clipping]

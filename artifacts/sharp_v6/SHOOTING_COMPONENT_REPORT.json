@@ -1,0 +1,6 @@
+{
+  "artifact": "SHOOTING_COMPONENT_REPORT",
+  "status": "FITTED",
+  "n_train": 4192,
+  "points_model": "structural_shooting"
+}

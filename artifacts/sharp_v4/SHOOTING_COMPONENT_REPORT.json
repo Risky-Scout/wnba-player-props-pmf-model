@@ -1,0 +1,18 @@
+{
+  "artifact": "SHOOTING_COMPONENT_REPORT",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "available_components": [
+    "2PA=fga-fg3a",
+    "3PA=fg3a",
+    "FTA=fta",
+    "3PM=fg3m -> 3P% = fg3m/fg3a"
+  ],
+  "missing_in_recovered_data": [
+    "FGM",
+    "FTM"
+  ],
+  "consequence": "a fully-fitted STRUCTURAL POINTS decomposition (needs 2PM/FTM labels) is NOT possible from the recovered data (FGM/FTM absent; recoverable via a BDL box-score re-pull).",
+  "points_model": "V4 exact-tail hierarchical-dispersion DIRECT model (direct_nb2_exacttail) \u2014 NOT labelled structural",
+  "threes_model": "attempt(3PA) x conversion(3P%) components available; direct fg3m selected by OOF NLL",
+  "status": "PARTIAL_DATA_LIMITED"
+}

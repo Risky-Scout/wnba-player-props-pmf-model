@@ -1,0 +1,10 @@
+{
+  "artifact": "PROSPECTIVE_REGISTRY_STATUS",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "mode": "append_only_prequential",
+  "registry_rows": 1568,
+  "appended": 1568,
+  "distinct_predictions": 1568,
+  "append_only": true,
+  "status": "PROSPECTIVE_EVIDENCE_ACCUMULATING"
+}

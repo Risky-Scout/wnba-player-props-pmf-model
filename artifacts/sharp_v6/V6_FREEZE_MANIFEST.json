@@ -1,0 +1,17 @@
+{
+  "artifact": "V6_FREEZE_MANIFEST",
+  "frozen_at_utc": "2026-07-30T23:39:18.951273+00:00",
+  "file_hashes": {
+    "config/modeling_design_v6.yaml": "23bf19fee88acd66616d39d925cf44ef88a1409ebb9a5e25dd469f30998a07ec",
+    "config/chronological_oof_v6.yaml": "e8f21d3b6fdca231a32a68433038a72ae1775a470310e1c1fc3d10d11f9c77dc",
+    "config/pmf_support_v6.yaml": "8d73a09fe53e9b17914c3339269e78ad72b7fe65ffba2b6b436db7c03385a35b",
+    "config/model_selection_gates_v6.yaml": "60f92ffc49d874280d68e620d513fb2cf84c257471e298eb8b5b0a57c7465a82",
+    "config/season_transition_v6.yaml": "efa4d6d082be3698ba3fd06b1402b95b01cf1089ba11f993cd257c7fdf6fd883",
+    "docs/MODELING_DESIGN_V6.md": "f9f2c7593cb8b8d1eaff1b9d1bb8ec1d747f44c5f360c9a75c562b4b87792dc0"
+  },
+  "code_sha": "800f2c3f0bc074b0a6c5609d4e46a8863b4b2774",
+  "selection_data": "2023-2025 folds only",
+  "prospective_evaluation_start": "2026-07-30T23:39:18.951273+00:00",
+  "modeling_design_v6_sha256": "520f076f58a762cacb7add3d912d4bf02fbc84c1f39a7132420bbee6617a9800",
+  "rule": "No V6 outer-fold prediction before this manifest; no semantic change after first V6 OOF."
+}

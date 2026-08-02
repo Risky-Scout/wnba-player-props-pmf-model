@@ -1,0 +1,53 @@
+{
+  "artifact": "HOLDOUT_LINEAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T19:47:25.245379+00:00",
+  "v3_holdout_dates": "2026-01-01..2026-12-31 (season-to-date, latest completed 2026-07-29)",
+  "opened_flag": "opened 2026-07-30T18:58:25.395055+00:00",
+  "code_sha_that_evaluated": "34de118502b8ffbaf53641506ac4899f6c270065",
+  "metrics_observed": {
+    "ast": {
+      "nll": 1.6795,
+      "crps": 0.8316,
+      "mean_mae": 1.2293,
+      "pit_ks": 0.0362
+    },
+    "blk": {
+      "nll": 0.7464,
+      "crps": 0.2697,
+      "mean_mae": 0.4802,
+      "pit_ks": 0.0299
+    },
+    "fg3m": {
+      "nll": 1.1362,
+      "crps": 0.4774,
+      "mean_mae": 0.7493,
+      "pit_ks": 0.0106
+    },
+    "pts": {
+      "nll": 3.0538,
+      "crps": 2.9749,
+      "mean_mae": 4.1677,
+      "pit_ks": 0.0844
+    },
+    "reb": {
+      "nll": 2.0512,
+      "crps": 1.1786,
+      "mean_mae": 1.7147,
+      "pit_ks": 0.0517
+    },
+    "stl": {
+      "nll": 1.1025,
+      "crps": 0.436,
+      "mean_mae": 0.712,
+      "pit_ks": 0.0232
+    },
+    "turnover": {
+      "nll": 1.4003,
+      "crps": 0.5958,
+      "mean_mae": 0.9083,
+      "pit_ks": 0.0239
+    }
+  },
+  "status": "CONSUMED_NOT_VALID_FOR_V4_SELECTION",
+  "rule": "V4 model-family/feature/calibration/hyperparameter selection uses 2023-2025 folds ONLY. 2026 outcomes may be used to REFIT the already-selected V4 algorithm, never to choose candidates. The V4 prospective holdout begins with the first forecast AFTER the V4 freeze and is append-only."
+}

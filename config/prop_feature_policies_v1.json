@@ -1,0 +1,574 @@
+{
+  "artifact": "prop_feature_policies_v1",
+  "selection_method": "nested_chronological_rolling_origin_PMF_selection",
+  "notes": [
+    "Selection scores the actual count PMF (count log score / CRPS / line-level log loss), NOT a surrogate binary Over classifier.",
+    "Tier A = mandatory causal core (required); Tier B = optional lagged context (>=60% inner-fold stability); Tier C = game/market context (B6/B7 only).",
+    "|corr|>0.90 rolling variants collapsed to one representative before selection.",
+    "K_max = min(20, floor(n_train/50)); fewer features are used when fewer survive."
+  ],
+  "data_state": "DATA_ABSENT",
+  "candidates": {
+    "minutes": {
+      "B0_BASE_RATE": {
+        "stat": "minutes",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "minutes_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "minutes",
+        "mode": "explicit",
+        "required_columns": [
+          "minutes_roll5",
+          "minutes_roll10",
+          "minutes_std10",
+          "minutes_lag1",
+          "recent_starter_rate5"
+        ],
+        "optional_columns": [
+          "p_inactive",
+          "player_games_in_last_7d",
+          "rest_advantage",
+          "rest_days",
+          "role_bucket_code",
+          "pred_minutes_q25",
+          "minutes_roll3"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "minutes_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "minutes",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "minutes_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "minutes",
+        "mode": "explicit",
+        "required_columns": [
+          "minutes_roll5",
+          "minutes_roll10",
+          "minutes_std10",
+          "minutes_lag1",
+          "recent_starter_rate5"
+        ],
+        "optional_columns": [
+          "p_inactive",
+          "player_games_in_last_7d",
+          "rest_advantage",
+          "rest_days",
+          "role_bucket_code",
+          "pred_minutes_q25",
+          "minutes_roll3",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "minutes_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "pts": {
+      "B0_BASE_RATE": {
+        "stat": "pts",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "pts_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "pts",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "fga_per_min_roll5",
+          "fta_per_min_roll5",
+          "fg3m_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "recent_starter_rate5",
+          "minutes_roll5",
+          "minutes_std10",
+          "player_usage_pct_ewma10",
+          "opp_pts_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "rest_advantage",
+          "player_load_index"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "pts_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "pts",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "pts_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "pts",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "fga_per_min_roll5",
+          "fta_per_min_roll5",
+          "fg3m_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "recent_starter_rate5",
+          "minutes_roll5",
+          "minutes_std10",
+          "player_usage_pct_ewma10",
+          "opp_pts_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "rest_advantage",
+          "player_load_index",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "pts_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      },
+      "B7_EXTERNAL_MARKET_CONTEXT": {
+        "stat": "pts",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "fga_per_min_roll5",
+          "fta_per_min_roll5",
+          "fg3m_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "recent_starter_rate5",
+          "minutes_roll5",
+          "minutes_std10",
+          "player_usage_pct_ewma10",
+          "opp_pts_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "rest_advantage",
+          "player_load_index",
+          "game_total",
+          "game_spread_home"
+        ],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "pts_B7_EXTERNAL_MARKET_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "reb": {
+      "B0_BASE_RATE": {
+        "stat": "reb",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "reb_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "reb",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "reb_per_min_roll5"
+        ],
+        "optional_columns": [
+          "recent_starter_rate5",
+          "opp_reb_allowed_roll5",
+          "opp_rim_pressure_proxy_roll5",
+          "team_pace_proxy_roll5",
+          "role_bucket_code",
+          "minutes_roll5",
+          "minutes_std10"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "reb_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "reb",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "reb_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "reb",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "reb_per_min_roll5"
+        ],
+        "optional_columns": [
+          "recent_starter_rate5",
+          "opp_reb_allowed_roll5",
+          "opp_rim_pressure_proxy_roll5",
+          "team_pace_proxy_roll5",
+          "role_bucket_code",
+          "minutes_roll5",
+          "minutes_std10",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "reb_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "ast": {
+      "B0_BASE_RATE": {
+        "stat": "ast",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "ast_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "ast",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "ast_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "player_usage_pct_ewma10",
+          "opp_ast_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "recent_starter_rate5",
+          "player_games_in_last_7d",
+          "minutes_roll5"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "ast_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "ast",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "ast_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "ast",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "pred_minutes_q25",
+          "ast_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "player_usage_pct_ewma10",
+          "opp_ast_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "recent_starter_rate5",
+          "player_games_in_last_7d",
+          "minutes_roll5",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "ast_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "fg3m": {
+      "B0_BASE_RATE": {
+        "stat": "fg3m",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "fg3m_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "fg3m",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "fg3m_per_min_roll5",
+          "fga_per_min_roll5"
+        ],
+        "optional_columns": [
+          "pred_minutes_q25",
+          "usage_proxy_roll5",
+          "player_usage_pct_ewma10",
+          "opp_pts_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "recent_starter_rate5"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "fg3m_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "fg3m",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "fg3m_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "fg3m",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "fg3m_per_min_roll5",
+          "fga_per_min_roll5"
+        ],
+        "optional_columns": [
+          "pred_minutes_q25",
+          "usage_proxy_roll5",
+          "player_usage_pct_ewma10",
+          "opp_pts_allowed_roll5",
+          "team_pace_proxy_roll5",
+          "recent_starter_rate5",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "fg3m_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "stl": {
+      "B0_BASE_RATE": {
+        "stat": "stl",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "stl_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "stl",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "stl_per_min_roll10"
+        ],
+        "optional_columns": [
+          "stl_opp_tov_rate",
+          "stl_opp_pass_risk",
+          "opp_tov_rate_roll5",
+          "team_pace_proxy_roll5",
+          "defender_role_code",
+          "recent_starter_rate5"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "stl_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "stl",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "stl_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "stl",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "stl_per_min_roll10"
+        ],
+        "optional_columns": [
+          "stl_opp_tov_rate",
+          "stl_opp_pass_risk",
+          "opp_tov_rate_roll5",
+          "team_pace_proxy_roll5",
+          "defender_role_code",
+          "recent_starter_rate5",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "stl_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "blk": {
+      "B0_BASE_RATE": {
+        "stat": "blk",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "blk_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "blk",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "blk_per_min_roll10"
+        ],
+        "optional_columns": [
+          "blk_opp_rim_att",
+          "opp_rim_pressure_proxy_roll5",
+          "defender_role_code",
+          "role_bucket_code",
+          "recent_starter_rate5"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "blk_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "blk",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "blk_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "blk",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "blk_per_min_roll10"
+        ],
+        "optional_columns": [
+          "blk_opp_rim_att",
+          "opp_rim_pressure_proxy_roll5",
+          "defender_role_code",
+          "role_bucket_code",
+          "recent_starter_rate5",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "blk_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    },
+    "turnover": {
+      "B0_BASE_RATE": {
+        "stat": "turnover",
+        "mode": "base_rate",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "turnover_B0_BASE_RATE_v1",
+        "certifiable": true
+      },
+      "B2_COMPACT_CAUSAL_CORE": {
+        "stat": "turnover",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "tov_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "fga_per_min_roll5",
+          "player_usage_pct_ewma10",
+          "opp_tov_rate_roll5",
+          "team_pace_proxy_roll5",
+          "recent_starter_rate5"
+        ],
+        "information_contract": "pure_forecast",
+        "missing_required_policy": "raise",
+        "feature_set_id": "turnover_B2_COMPACT_CAUSAL_CORE_v1",
+        "certifiable": true
+      },
+      "B4_FULL_379_CONTROL": {
+        "stat": "turnover",
+        "mode": "legacy_full_diagnostic",
+        "required_columns": [],
+        "optional_columns": [],
+        "information_contract": "external_market_anchored",
+        "missing_required_policy": "raise",
+        "feature_set_id": "turnover_B4_FULL_CONTROL_v1",
+        "certifiable": false
+      },
+      "B6_INTERNAL_GAME_CONTEXT": {
+        "stat": "turnover",
+        "mode": "explicit",
+        "required_columns": [
+          "pred_minutes_mean",
+          "tov_per_min_roll5",
+          "usage_proxy_roll5"
+        ],
+        "optional_columns": [
+          "fga_per_min_roll5",
+          "player_usage_pct_ewma10",
+          "opp_tov_rate_roll5",
+          "team_pace_proxy_roll5",
+          "recent_starter_rate5",
+          "game_pace_predicted"
+        ],
+        "information_contract": "internal_game_context",
+        "missing_required_policy": "raise",
+        "feature_set_id": "turnover_B6_INTERNAL_GAME_CONTEXT_v1",
+        "certifiable": true
+      }
+    }
+  },
+  "data_absent_note": "data/processed/wnba_player_game_features_wide.parquet not present; emitted frozen v1 candidate policies only. Data-driven B3_COMPACT_PLUS_STABLE_LAGGED / B5_PBP_TRACKING require the feature parquet and are filled by re-running this script in an environment with the license-restricted data."
+}

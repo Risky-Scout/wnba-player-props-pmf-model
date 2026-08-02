@@ -1,0 +1,17 @@
+{
+  "artifact": "PROSPECTIVE_REGISTRY_STATUS",
+  "generated_at_utc": "2026-07-30T20:06:04.674812+00:00",
+  "mode": "append_only_prequential",
+  "registry_path": "deliveries/sharp_v4/prospective/registry.parquet (gitignored)",
+  "registry_rows": 1568,
+  "appended": 0,
+  "distinct_game_dates": 1,
+  "distinct_predictions": 1568,
+  "append_only": true,
+  "prospective_start": "2026-07-30T20:06:04.674812+00:00",
+  "certification_threshold": {
+    "min_game_dates": 30,
+    "min_settled_rows": 300
+  },
+  "status": "PROSPECTIVE_EVIDENCE_ACCUMULATING"
+}

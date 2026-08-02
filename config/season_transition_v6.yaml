@@ -1,0 +1,10 @@
+version: v6
+season_transition:
+  refresh: [teams, rosters, injuries, schedule]
+  detect: [rookies, unseen_players, team_changes]
+  reset: [team_effects, lineup_effects]
+  retain: {player_history: hierarchical_shrinkage}
+  widen_uncertainty: [minutes, role]
+  early_season: {shrink_to: role_league_priors, market_anchor: where_available, abstain: unresolved_critical}
+  recency_decay: {select_on: development_folds, then: freeze}
+  identity_validation: required

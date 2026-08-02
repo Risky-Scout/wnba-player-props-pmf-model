@@ -1,0 +1,14 @@
+{
+  "artifact": "JOINT_DEPENDENCE_AUDIT",
+  "status": "FITTED",
+  "method": "gaussian_copula_psd",
+  "stats": [
+    "pts",
+    "reb",
+    "ast",
+    "fg3m",
+    "stl",
+    "blk",
+    "turnover"
+  ]
+}

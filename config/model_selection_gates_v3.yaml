@@ -1,0 +1,17 @@
+# Model selection + statistical activation gates V3. Frozen before prediction.
+version: v3
+pure_component_selection:
+  primary: full_distribution_nll
+  supporting: [crps_rps, mean_mse, mean_mae, pit_calibration, interval_coverage, tail_calibration, worst_fold]
+  rule: "simplest candidate with material + stable proper-score improvement; never select on betting ROI."
+market_residual_activation:
+  primary: delta_logloss   # residual_model - same_time_market, identical settled rows
+  certification:
+    - delta_logloss_lt_0
+    - one_sided_95_gamedate_clustered_upper_bound_lt_0
+    - holm_adjusted_across_activation_claims
+  supporting_not_worse: [brier, ece, calibration_slope, calibration_intercept, crps]
+  bootstrap: {replicates: 5000, block: game_date, min_rows: 300, min_game_dates: 30}
+  ece_is_supporting_only: true
+role_subgroup_min: {settled_rows: 300, distinct_game_dates: 30}
+roles_defined_by: [pregame_predicted_minutes, starter_probability]   # never actual minutes

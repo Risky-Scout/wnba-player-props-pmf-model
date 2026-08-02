@@ -1,0 +1,8 @@
+{
+  "artifact": "MINUTES_AND_OT_REPORT",
+  "status": "FITTED",
+  "team_regulation_minutes": 200,
+  "team_q1_minutes": 50,
+  "ot_shared_game_state": true,
+  "family": "role_band_truncnorm_mixture"
+}

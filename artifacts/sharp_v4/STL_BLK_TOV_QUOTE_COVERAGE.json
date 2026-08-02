@@ -1,0 +1,6 @@
+{
+  "artifact": "STL_BLK_TOV_QUOTE_COVERAGE",
+  "generated_at_utc": "2026-07-30T20:05:11.018621+00:00",
+  "note": "focused audit requires player_steals/blocks/turnovers markets on event-specific endpoint; not requested in this run (Tier A pts/reb/ast/threes prioritized). Recorded as pending.",
+  "status": "PENDING_FOCUSED_AUDIT"
+}

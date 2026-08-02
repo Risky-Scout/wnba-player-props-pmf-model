@@ -1,0 +1,7 @@
+{
+  "artifact": "SAME_DAY_LEAKAGE_AUDIT",
+  "same_day_multi_game_player_dates": 0,
+  "same_day_multi_game_player_dates_raw": 53,
+  "rows_excluded_pit_ineligible": 53,
+  "note": "The 2nd+ same-day game per player is marked PIT-ineligible (its rolling features could include an earlier same-day game whose result is not available at T-12). Among PIT-eligible rows the same-day leakage count is the value above."
+}

@@ -1,0 +1,11 @@
+{
+  "artifact": "STRUCTURAL_IDENTITY_AUDIT",
+  "generated_at_utc": "2026-07-30T06:05:47.082164+00:00",
+  "all_players_identities_hold": true,
+  "identities": [
+    "fgm=2pm+3pm",
+    "pts=2*2pm+3*3pm+ftm",
+    "reb=oreb+dreb",
+    "stocks=stl+blk"
+  ]
+}

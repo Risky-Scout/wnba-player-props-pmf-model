@@ -1,0 +1,11 @@
+{
+  "artifact": "MARKET_PROJECTION_MASS_AUDIT",
+  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
+  "projection_status": "PROJECTED",
+  "max_abs_residual": 6.075163164226405e-05,
+  "projected_stored_plus_overflow_error": 0.0,
+  "push_aware": "A/(A+B)",
+  "multi_line_single_pmf": true,
+  "fail_closed": "MARKET_PROJECTION_INFEASIBLE",
+  "v5_bug_fixed": "stored atoms were normalized then original overflow reattached (sum>1); now tail-aware tilt"
+}

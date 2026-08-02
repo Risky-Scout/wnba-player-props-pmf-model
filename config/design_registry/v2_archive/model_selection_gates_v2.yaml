@@ -1,0 +1,34 @@
+# Numerical model-selection gates (FROZEN, V2). Feature-only proper scores + calibration.
+# Market data may never break ties or influence any gate. Tolerances are frozen; do not change
+# after seeing results.
+selection_gates_id: model_selection_gates_v2
+version: 2
+pmf_validity:
+  max_normalization_error: 1.0e-6
+  max_negative_probability: 0.0
+  cdf_monotone: required
+  invalid_pmf_rows_allowed: 0
+oof_coverage:
+  min_outer_rows_per_target: 500
+  min_outer_dates_per_target: 20
+proper_score_improvement:
+  metric: nll
+  vs: feature_only_hierarchical_baseline
+  rule: "selected NLL < baseline NLL - 1.0e-3  (strict improvement) OR baseline itself if no candidate improves"
+  crps_not_materially_worse_tol: 0.02
+calibration:
+  pit_ks_max: 0.05
+  calibration_slope_range: [0.80, 1.25]
+  interval_80_coverage_range: [0.72, 0.88]
+stability:
+  max_season_subgroup_nll_ratio: 1.25     # no season with NLL > 1.25x overall
+  no_severe_minutes_or_role_subgroup_failure: true
+reproducibility:
+  deterministic_rerun_required: true
+  float_tolerance: 1.0e-9
+tie_break:
+  order: [lower_nll, lower_crps, better_pit_ks, simpler_family]
+  market_tie_break: forbidden
+release_state_mapping:
+  all_gates_pass: RESEARCH            # (or SHADOW_CANDIDATE_PENDING_FREEZE at freeze time)
+  any_gate_fail: WITHHELD

@@ -1,0 +1,20 @@
+{
+  "artifact": "PMF_SUPPORT_AND_OVERFLOW_AUDIT",
+  "generated_at_utc": "2026-07-30T20:02:28.683332+00:00",
+  "tail_tolerance": 1e-06,
+  "emergency_caps": "match frozen config/pmf_support_v4.yaml",
+  "operating_regime": "fitted hierarchical dispersion",
+  "max_stored_atom_overflow_by_stat": {
+    "pts": 0.02246248623049405,
+    "reb": 0.0011596527270763585,
+    "ast": 6.982344579266743e-05,
+    "fg3m": 0.0019213084003994237,
+    "stl": 0.00016438044458591994,
+    "blk": 0.00024728284874891347,
+    "turnover": 1.6284364945188376e-05
+  },
+  "outcome_clipping": "PROHIBITED \u2014 exact analytic tail (CountPMF.logpmf/cdf/prob_over) used in NLL/CRPS/pricing",
+  "pricing_uses_exact_analytic_survival": true,
+  "fail_closed": "extreme-overdispersion rows whose survival>1e-6 at the emergency cap emit TAIL_TOLERANCE_NOT_MET; overflow is retained + included in Over settlement, never clipped",
+  "note": "the stored-atom overflow bound (<=~4e-4) affects only the truncated atom array, not the exact analytic tail used for scoring and pricing"
+}

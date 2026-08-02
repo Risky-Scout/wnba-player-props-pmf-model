@@ -1,0 +1,7 @@
+{
+  "artifact": "REBOUND_MODEL_REPORT",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "structural": "OREB and DREB fitted separately; REB=OREB+DREB by convolution",
+  "selected_family": "direct_nb2_exacttail",
+  "note": "direct exact-tail model selected by OOF NLL vs structural convolution"
+}

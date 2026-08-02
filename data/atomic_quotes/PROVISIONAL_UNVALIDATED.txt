@@ -1,0 +1,13 @@
+PROVISIONAL_UNVALIDATED
+=======================
+The raw Odds API responses in data/atomic_quotes/raw_odds/ were collected by an
+UNAUTHORIZED, USER-INTERRUPTED run of scripts/backfill_historical_quotes.py
+(2023-05-03 .. 2024-06-15 partial; interrupted via SIGINT, exit 130).
+
+- No atomic_quotes.parquet / quote_pairs.parquet / settled_quote_pairs.parquet was
+  written by this run (the store is only appended at end-of-run).
+- These raw JSON responses are PRESERVED for audit and for offline (no-API) canary
+  rebuilds only. They are NOT validated evidence and MUST NOT be treated as a
+  completed backfill.
+- No further BDL or Odds API collection is authorized until the user types:
+  APPROVE BACKFILL

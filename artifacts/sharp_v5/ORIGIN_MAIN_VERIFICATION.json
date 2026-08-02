@@ -1,0 +1,10 @@
+{
+  "artifact": "ORIGIN_MAIN_VERIFICATION",
+  "generated_at_utc": "2026-07-30T22:57:27.958700+00:00",
+  "branch": "cursor/wnba-sharp-pmf-v3",
+  "branch_head": "034f6974422bd2396db7609eafe9cdb60e0b6c58",
+  "origin_main": "166c29ac609a4fd4b0d845e87d211d72011681a5",
+  "merged_to_main": false,
+  "on_main": false,
+  "merge_blocker": "agent GitHub CLI is READ-ONLY and no merge/ready tool is available; a maintainer must run `gh pr ready 99 && gh pr merge 99 --squash`. On-main verification passes only after that."
+}

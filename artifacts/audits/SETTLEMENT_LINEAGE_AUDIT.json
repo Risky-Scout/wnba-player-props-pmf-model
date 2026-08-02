@@ -1,0 +1,12 @@
+{
+  "artifact": "SETTLEMENT_LINEAGE_AUDIT",
+  "generated_at_utc": "2026-07-30T00:56:13.891197+00:00",
+  "settlement_source": "bdl_player_stats (data/recovered_v2)",
+  "decision_pairs": 50753,
+  "closing_pairs": 67635,
+  "settled_status_counts": {
+    "UNDER_WIN": 26781,
+    "OVER_WIN": 23264,
+    "VOID": 708
+  }
+}

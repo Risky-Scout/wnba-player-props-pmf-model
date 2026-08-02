@@ -1,0 +1,9 @@
+{
+  "artifact": "MODEL_LINEAGE",
+  "generated_at_utc": "2026-07-30T20:07:55.121073+00:00",
+  "code_sha": "f193767ceefcb0995f1ab828ce7aeba9e456344a",
+  "design_hash": "8eda1df9f631a1411e7087c289b323fa6173a775b4be2e5b3211a4aecbe7773e",
+  "seed": 20260730,
+  "selection_data": "2023-2025",
+  "refit_through": "2026-07-29 (production), live slate 2026-07-31"
+}

@@ -72,23 +72,47 @@ class FoldModel:
 # ---------------------------------------------------------------------------
 
 def stat_feature_subset(X_played: "pd.DataFrame", stat: str, cfg: dict) -> "pd.DataFrame":
-    """Restrict the training matrix to a stat's optimal feature subset when a prop feature
-    map is configured; otherwise return X_played unchanged (identical to global behavior).
+    """Restrict the training matrix to a stat's explicit feature subset (fail-closed).
 
-    The map is cfg["prop_feature_map"] = {stat: [feature_cols]}. Inference is automatically
-    aligned because each stat model stores its own trained columns (`_usable_cols`) and
-    reindexes to them at predict time — so subsetting here needs no inference-path change.
-    Non-informative or missing entries fall back to the full feature set (never fewer than a
-    configurable floor) so the map can only help, never silently starve a model.
+    The map is ``cfg["prop_feature_map"] = {stat: [feature_cols]}``. Inference is
+    automatically aligned because each stat model stores its own trained columns
+    (``_usable_cols``) and reindexes to them at predict time.
+
+    Semantics (see :mod:`wnba_props_model.models.prop_feature_policy`):
+
+    * **No map configured, or this ``stat`` not in the map** -> return ``X_played``
+      unchanged. This is the legacy full-matrix (P0) behavior and is *non-certifiable*;
+      it is preserved so the live pipeline (which ships no map) is byte-for-byte
+      unchanged.
+    * **``stat`` mapped to an explicit non-empty list** -> use *exactly* those columns.
+      There is **no minimum-column floor**: a one- or two-feature map stays one or two
+      features. It **never** silently falls back to the full matrix.
+    * **``stat`` mapped to an empty list ``[]``** -> a declared base-rate (intercept)
+      candidate; returns a zero-column frame. The caller must route this to a base-rate
+      model, not an HGB on the full matrix.
+
+    A required column that is missing from ``X_played`` raises when
+    ``cfg.get("prop_feature_strict", True)`` (the fail-closed default). The historical
+    ``prop_feature_min_cols`` floor is intentionally ignored.
     """
     fmap = cfg.get("prop_feature_map") or {}
+    if stat not in fmap:
+        return X_played  # legacy full matrix (non-certifiable P0), unchanged
     cols = fmap.get(stat)
-    if not cols:
-        return X_played  # OFF by default: exact global behavior
+    if cols is None:
+        return X_played
+    if len(cols) == 0:
+        # Intentionally-empty set == base-rate/intercept candidate. Never the full matrix.
+        return X_played.iloc[:, :0]
+    present = set(X_played.columns)
+    missing = [c for c in cols if c not in present]
+    if missing and bool(cfg.get("prop_feature_strict", True)):
+        raise ValueError(
+            f"prop_feature_map[{stat!r}] requires columns absent from the training matrix "
+            f"{missing}. Refusing to silently fall back to the full feature set "
+            f"(set prop_feature_strict=False only for diagnostic runs)."
+        )
     keep = [c for c in X_played.columns if c in set(cols)]
-    floor = int(cfg.get("prop_feature_min_cols", 8))
-    if len(keep) < floor:
-        return X_played  # too aggressive — fall back to the full set
     return X_played[keep]
 
 

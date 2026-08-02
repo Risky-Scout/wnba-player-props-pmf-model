@@ -1,0 +1,5 @@
+{
+  "artifact": "FIRST_BASKET_REPORT",
+  "status": "FITTED_COMPETING_RISK",
+  "normalization": "per_game_sums_to_one"
+}

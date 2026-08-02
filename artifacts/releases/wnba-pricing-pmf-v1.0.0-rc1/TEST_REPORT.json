@@ -1,0 +1,6 @@
+{
+  "artifact": "TEST_REPORT",
+  "generated_at_utc": "2026-07-30T06:05:57.696715+00:00",
+  "pricing_tests": "tests/test_pricing_v1.py",
+  "note": "see MANIFEST for suite totals"
+}
