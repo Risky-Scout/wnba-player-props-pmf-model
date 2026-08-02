@@ -155,10 +155,29 @@ def _player_minutes_atoms(mu: float, sd: float, p_ot: float) -> np.ndarray:
     return atoms / atoms.sum()
 
 
-def _frame_features(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """Align a frame to a frozen feature contract; missing columns become NaN (HGB-native)."""
-    out = df.reindex(columns=cols)
-    return out.apply(pd.to_numeric, errors="coerce")
+def _frame_features(
+    df: pd.DataFrame,
+    cols: list[str],
+    *,
+    mode: str = "production",
+    contracts: dict | None = None,
+    return_result: bool = False,
+):
+    """Align a frame to a frozen feature contract under the governed missingness policy.
+
+    OPTIONAL_WITH_NATIVE_MISSING_SUPPORT columns may be NaN (explicit HGB policy).
+    REQUIRED identity failures quarantine or fail — never silent league-average fill.
+    """
+    from wnba_props_model.sharp_v6.feature_policy import (
+        classify_contract_features,
+        prepare_feature_frame,
+    )
+
+    specs = classify_contract_features(contracts or {})
+    result = prepare_feature_frame(df, cols, specs, mode=mode)
+    if return_result:
+        return result
+    return result.frame
 
 
 def predict_minutes_means(model: MinutesModel, slate: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -170,11 +189,25 @@ def predict_minutes_means(model: MinutesModel, slate: pd.DataFrame) -> tuple[np.
     return mu, sds, ot
 
 
-def allocate_team_minutes(mu: np.ndarray, target: float = TEAM_REG_MINUTES) -> np.ndarray:
-    """Joint soft allocation so team expected regulation minutes equal `target`."""
+def allocate_team_minutes(
+    mu: np.ndarray,
+    target: float = TEAM_REG_MINUTES,
+    *,
+    mode: str = "production",
+) -> np.ndarray:
+    """Documented soft reconciliation so team expected regulation minutes equal ``target``.
+
+    Scales player means proportionally. Does not apply an opaque post-PMF rescale.
+    In production mode, an all-zero mean vector fails closed instead of equal-splitting.
+    """
     mu = np.clip(np.asarray(mu, float), 0.0, None)
     s = mu.sum()
     if s <= 1e-9:
+        if mode == "production":
+            raise RuntimeError(
+                "FAIL_CLOSED: cannot reconcile team minutes from all-zero projected means"
+            )
+        # research-only equal allocation
         return np.full(mu.shape, target / max(len(mu), 1))
     return mu * (target / s)
 
@@ -184,6 +217,7 @@ def minutes_pmf_rows(
     slate: pd.DataFrame,
     *,
     reconcile_teams: bool = True,
+    mode: str = "production",
 ) -> list[np.ndarray]:
     mu, sds, ot = predict_minutes_means(model, slate)
     if reconcile_teams and "game_id" in slate.columns and "team_id" in slate.columns:
@@ -191,12 +225,17 @@ def minutes_pmf_rows(
         pos = pd.Series(np.arange(len(slate)), index=slate.index)
         for (_, _), idx in slate.groupby(["game_id", "team_id"]).groups.items():
             ii = pos.loc[list(idx)].to_numpy()
-            mu_adj[ii] = allocate_team_minutes(mu[ii], TEAM_REG_MINUTES)
+            mu_adj[ii] = allocate_team_minutes(mu[ii], TEAM_REG_MINUTES, mode=mode)
         mu = mu_adj
     return [_player_minutes_atoms(float(m), float(s), float(p)) for m, s, p in zip(mu, sds, ot)]
 
 
-def q1_minutes_pmf_rows(model: MinutesModel, slate: pd.DataFrame) -> list[np.ndarray]:
+def q1_minutes_pmf_rows(
+    model: MinutesModel,
+    slate: pd.DataFrame,
+    *,
+    mode: str = "production",
+) -> list[np.ndarray]:
     """Q1 minutes: scale regulation means to team total 50, support 0..15."""
     mu, sds, _ = predict_minutes_means(model, slate)
     mu_q1 = mu * (TEAM_Q1_MINUTES / TEAM_REG_MINUTES)
@@ -204,7 +243,7 @@ def q1_minutes_pmf_rows(model: MinutesModel, slate: pd.DataFrame) -> list[np.nda
         pos = pd.Series(np.arange(len(slate)), index=slate.index)
         for (_, _), idx in slate.groupby(["game_id", "team_id"]).groups.items():
             ii = pos.loc[list(idx)].to_numpy()
-            mu_q1[ii] = allocate_team_minutes(mu_q1[ii], TEAM_Q1_MINUTES)
+            mu_q1[ii] = allocate_team_minutes(mu_q1[ii], TEAM_Q1_MINUTES, mode=mode)
     out = []
     grid = np.arange(0, 16)
     for m, s in zip(mu_q1, sds * 0.35):

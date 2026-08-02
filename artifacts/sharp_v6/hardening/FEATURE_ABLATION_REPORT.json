@@ -1,0 +1,10 @@
+{
+  "artifact": "FEATURE_ABLATION_REPORT",
+  "baseline_features": "frozen_v6_contracts",
+  "added_feature_group": null,
+  "decision": "RETAIN_FROZEN_SET",
+  "rationale": "No feature accumulation on this hardening branch. Frozen contracts retained; candidates require rolling OOF evidence.",
+  "oof_metric_delta": null,
+  "stability_across_folds": "not_recomputed_this_branch",
+  "missingness_policy": "OPTIONAL_WITH_NATIVE_MISSING_SUPPORT"
+}

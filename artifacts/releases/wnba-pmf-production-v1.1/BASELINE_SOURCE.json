@@ -1,0 +1,6 @@
+{
+  "baseline_dir": "artifacts/releases/wnba-pmf-production-v1",
+  "baseline_claimed_model_sha256": "932d6078c50fa296c2e0970163a986cd0ddcd9a712a56d5c571021134feeba15",
+  "candidate_model_sha256": "81a6cd76aa41f52909c1df9ef5d3cb7086315965c65fd71c3a090f853981216f",
+  "note": "Baseline preserved immutable; candidate rebuilt with fail-closed integrity."
+}

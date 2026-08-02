@@ -42,16 +42,24 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Assert frozen production bundle present
+      - name: Assert frozen production bundle present and integrity-verified
         run: |
-          test -f artifacts/releases/wnba-pmf-production-v1/MANIFEST.json
-          test -f artifacts/releases/wnba-pmf-production-v1/model_bundle.pkl
+          test -f artifacts/releases/PRODUCTION_POINTER.json
           python - <<'PY'
           import json
-          m=json.load(open("artifacts/releases/wnba-pmf-production-v1/MANIFEST.json"))
-          assert m.get("retrain_in_daily") is False
-          assert "predict_slate" in m.get("inference_function","")
-          print("bundle_ok", m["bundle_id"], m["code_sha"][:12])
+          from pathlib import Path
+          from wnba_props_model.sharp_v6.bundle import verify_bundle_integrity
+          pointer = json.loads(Path("artifacts/releases/PRODUCTION_POINTER.json").read_text())
+          bundle_dir = pointer["production_bundle"]
+          assert Path(bundle_dir, "MANIFEST.json").exists()
+          assert Path(bundle_dir, "model_bundle.pkl").exists()
+          # Baseline v1 preserved immutable; pointer targets the integrity-hardened bundle.
+          info = verify_bundle_integrity(bundle_dir)
+          assert info["retrain_in_daily"] is False
+          assert "predict_slate" in info["inference_function"]
+          assert pointer.get("authoritative") is True
+          assert pointer.get("model_sha256") == info["model_sha256"]
+          print("bundle_ok", info["bundle_id"], info["model_sha256"][:16])
           PY
 
       - name: Pull current BDL history window
@@ -83,7 +91,8 @@ jobs:
       - name: Run authoritative V6 slate inference (no retrain)
         id: infer
         run: |
-          ARGS=(--bundle-dir artifacts/releases/wnba-pmf-production-v1)
+          BUNDLE=$(python -c "import json; print(json.load(open('artifacts/releases/PRODUCTION_POINTER.json'))['production_bundle'])")
+          ARGS=(--bundle-dir "$BUNDLE" --mode production)
           if [ -n "${{ inputs.slate_date }}" ]; then ARGS+=(--date "${{ inputs.slate_date }}"); fi
           python scripts/run_wnba_pmf.py "${ARGS[@]}"
           SLATE=""

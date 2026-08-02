@@ -1,0 +1,37 @@
+{
+  "pts": {
+    "method": "identity",
+    "pit_ks_before": 0.6033635723773619,
+    "pit_ks_after": 0.6033635723773619
+  },
+  "reb": {
+    "method": "identity",
+    "pit_ks_before": 0.5445907801756854,
+    "pit_ks_after": 0.5445907801756854
+  },
+  "ast": {
+    "method": "identity",
+    "pit_ks_before": 0.5454509204929425,
+    "pit_ks_after": 0.5454509204929425
+  },
+  "fg3m": {
+    "method": "identity",
+    "pit_ks_before": 0.5371328791501391,
+    "pit_ks_after": 0.5371328791501391
+  },
+  "stl": {
+    "method": "identity",
+    "pit_ks_before": 0.5151095499539818,
+    "pit_ks_after": 0.5151095499539818
+  },
+  "blk": {
+    "method": "identity",
+    "pit_ks_before": 0.5175079786008203,
+    "pit_ks_after": 0.5175079786008203
+  },
+  "turnover": {
+    "method": "identity",
+    "pit_ks_before": 0.5065118871983456,
+    "pit_ks_after": 0.5065118871983456
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "artifact": "MANIFEST",
+  "bundle_id": "wnba-pmf-production-v1.1",
+  "code_sha": "987c07fab0315ac026c446ed0ca7d9c9aedca17c",
+  "training_cutoff": "2025-10-31",
+  "data_hashes": {
+    "features": "70dad3f35ab98e5216ae7377675c7eba071292fbfdc923f27df72b450a01bc33",
+    "targets": "75fbdbef3208c53dd7f7d87e10af575302464e9eb92e77216511351727cd80e0",
+    "stats": "a8e5cf13ddbf1d579ee373000a0a03a52a27b90dd45756feed9272065523012d",
+    "shooting": "f8383b92e54114bc56d81567536c57f2fd7f83a804cf534a9d45af4ad99d0327"
+  },
+  "identity_snapshot_hash": null,
+  "feature_hashes": {
+    "participation": "eef2d3449d135223",
+    "minutes": "adce920e467a64e5",
+    "pts": "afb4dd07c1d94070",
+    "reb": "666ac1e7d92fc87d",
+    "ast": "73ad4f27f820207a",
+    "fg3m": "47512bb66b58c50f",
+    "stl": "920c6f532e283133",
+    "blk": "a80a23b12e0b5463",
+    "turnover": "0eb3b6b9a687b3ed",
+    "fg2a": "91320efec5ea130e",
+    "fg3a": "d6e6dd2c92ac5958",
+    "fta": "9efa3a8a80b1e7f4",
+    "oreb": "666ac1e7d92fc87d",
+    "dreb": "666ac1e7d92fc87d",
+    "game_environment": "a991e2c7b2edbeb7"
+  },
+  "feature_contract_hash": "c2fd1d592d88e3f755779258ae8f5b9b1e089bbd0f4908d7b9f3f055b522a94e",
+  "model_sha256": "3005c790e705843b7e9ce8633a0855bf99b53fe23aab92112fdd405df51b3b92",
+  "calibrator_hashes": {
+    "pts": "e584d2b4c474c87789786b523f31b7fa497e606eb85cdef72e0ff7434f8d841d",
+    "reb": "294e352590c7f93d3dd5faba5f9e99505dc18e950cd10346be022d831c595ce7",
+    "ast": "053a5ae6cd93c5199aa6205254f222801fe0ad70e61c195adf8f6efe7f371902",
+    "fg3m": "67953a97040e25824a9a1ea9c8364c9ee74c2b2473954d6788b46cb424f6e49a",
+    "stl": "1b324ea1aaa5d3824905b3fa8acdc4f2eecc707db7762a4268acc69034201564",
+    "blk": "25fc231e5cd93f770f684c27cfc87844fcd7fdea5a5aa3a9f2c3077782e23683",
+    "turnover": "4df2201131ec12da36af6b58b8a4ddd0f6bd6121c8b9b2f9e5d35c33b12a98d8"
+  },
+  "dependence_hash": "b29dd81dcdc0db3ce3b38cd528fe91a17ed87f2e62003ab6501088d01f3d3b4d",
+  "random_seeds": {
+    "SEED": 20260730
+  },
+  "supported_markets": [
+    "pts",
+    "reb",
+    "ast",
+    "fg3m",
+    "stl",
+    "blk",
+    "turnover",
+    "stocks",
+    "pts_ast",
+    "pts_reb",
+    "reb_ast",
+    "pts_reb_ast",
+    "q1_pts",
+    "q1_reb",
+    "q1_ast",
+    "first_basket"
+  ],
+  "unsupported_markets": {
+    "fantasy_points": "requires operator scoring configuration at runtime",
+    "double_double": "derived from joint sims; enabled when dependence present",
+    "triple_double": "derived from joint sims; enabled when dependence present"
+  },
+  "rollback_bundle": "artifacts/releases/wnba-pmf-production-v1",
+  "inference_function": "wnba_props_model.sharp_v6.inference.predict_slate",
+  "retrain_in_daily": false,
+  "selected_families": {
+    "pts": "structural_shooting",
+    "reb": "structural_oreb_dreb",
+    "ast": "minutes_mixture_nb2",
+    "fg3m": "minutes_mixture_nb2",
+    "stl": "hurdle_nb2",
+    "blk": "minutes_mixture_nb2",
+    "turnover": "hurdle_nb2"
+  },
+  "calibration_policy": {
+    "pts": "identity",
+    "reb": "identity",
+    "ast": "identity",
+    "fg3m": "identity",
+    "stl": "identity",
+    "blk": "identity",
+    "turnover": "identity"
+  }
+}
