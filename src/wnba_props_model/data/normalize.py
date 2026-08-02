@@ -160,6 +160,16 @@ def flatten_player_stat_row(row: dict[str, Any]) -> dict[str, Any]:
     out["fta"] = _coerce_int(row.get("fta"))
     out["pf"] = _coerce_int(row.get("pf"))
     out["plus_minus"] = row.get("plus_minus")
+    # Derived shooting splits (retained for structural labels; never invent fgm/ftm)
+    out["fg2a"] = int(out["fga"]) - int(out["fg3a"])
+    out["fg2m"] = int(out["fgm"]) - int(out["fg3m"])
+    # Rebound reconciliation: official reb stays primary; preserve oreb+dreb and a flag
+    oreb_i = int(out["oreb"])
+    dreb_i = int(out["dreb"])
+    reb_official = int(out["reb"]) if out["reb"] is not None else 0
+    out["reb"] = reb_official
+    out["reb_oreb_dreb_sum"] = oreb_i + dreb_i
+    out["reb_reconcile_flag"] = "match" if (oreb_i + dreb_i) == reb_official else "provider_or_team_reb_discrepancy"
     return out
 
 
@@ -225,8 +235,9 @@ def normalize_player_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
     if df.empty:
         return df
     stat_cols = list(STAT_TO_BDL_COL)
-    for c in stat_cols + ["oreb", "dreb", "fga", "fta", "pf", "minutes"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+    for c in stat_cols + ["oreb", "dreb", "fga", "fg3a", "fta", "pf", "minutes", "fg2a", "fg2m"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
     # Combo stats (raw names; canonical names applied in build_canonical_tables)
     df["pa"] = df["pts"] + df["ast"]
     df["pr"] = df["pts"] + df["reb"]
@@ -237,6 +248,36 @@ def normalize_player_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
     return df.sort_values(["game_date", "game_id", "team_id", "player_id"]).reset_index(
         drop=True
     )
+
+
+def shooting_identity_violations(df: pd.DataFrame) -> dict[str, int]:
+    """Count shooting / scoring identity violations without rewriting official stats."""
+    if df.empty:
+        return {
+            "fg2a_negative": 0,
+            "fg2m_negative": 0,
+            "fg2m_gt_fg2a": 0,
+            "fg3m_gt_fg3a": 0,
+            "ftm_gt_fta": 0,
+            "pts_identity_violation": 0,
+            "rows_evaluated": 0,
+        }
+    need = ["fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "pts"]
+    if any(c not in df.columns for c in need):
+        return {"rows_evaluated": 0, "missing_columns": [c for c in need if c not in df.columns]}
+    sub = df.dropna(subset=need).copy()
+    fg2a = sub["fga"] - sub["fg3a"]
+    fg2m = sub["fgm"] - sub["fg3m"]
+    pts_check = 2 * fg2m + 3 * sub["fg3m"] + sub["ftm"]
+    return {
+        "fg2a_negative": int((fg2a < 0).sum()),
+        "fg2m_negative": int((fg2m < 0).sum()),
+        "fg2m_gt_fg2a": int((fg2m > fg2a).sum()),
+        "fg3m_gt_fg3a": int((sub["fg3m"] > sub["fg3a"]).sum()),
+        "ftm_gt_fta": int((sub["ftm"] > sub["fta"]).sum()),
+        "pts_identity_violation": int((pts_check != sub["pts"]).sum()),
+        "rows_evaluated": int(len(sub)),
+    }
 
 
 # ---------------------------------------------------------------------------

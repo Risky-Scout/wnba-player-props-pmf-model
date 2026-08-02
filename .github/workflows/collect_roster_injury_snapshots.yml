@@ -1,0 +1,70 @@
+name: Prospective Roster + Injury Snapshots
+
+# Append-only forward capture for future confirmed participation labels.
+# Stores private payloads as workflow artifacts (never committed to git).
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date YYYY-MM-DD (default: today UTC)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "30 14 * * *"
+    - cron: "30 18 * * *"
+    - cron: "30 21 * * *"
+
+concurrency:
+  group: collect-roster-injury-snapshots
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Resolve target date
+        id: d
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            echo "date=${{ github.event.inputs.date }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Warn (not fail) if BDL_API_KEY is missing
+        run: |
+          if [ -z "$BDL_API_KEY" ]; then
+            echo "::warning::BDL_API_KEY not set — collector will fail-open (no snapshot)."
+          fi
+
+      - name: Collect roster + injury snapshots (append-only)
+        run: |
+          python scripts/collect_roster_injury_snapshots.py --date "${{ steps.d.outputs.date }}"
+
+      - name: Upload private snapshots (gitignored data/; never commit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: roster-injury-${{ steps.d.outputs.date }}-${{ github.run_id }}
+          path: |
+            data/snapshots/roster_injury_forward/**
+            artifacts/phase2_repair/ROSTER_INJURY_SNAPSHOT_MANIFEST.json
+          if-no-files-found: warn
+          retention-days: 90

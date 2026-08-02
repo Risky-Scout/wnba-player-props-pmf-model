@@ -1,0 +1,118 @@
+{
+  "generated_at_utc": "2026-08-02T06:33:57.760999+00:00",
+  "raw_dir": "data/raw/bdl_full",
+  "player_game_rows": 24175,
+  "seasons": [
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "shooting_label_rows": 5430,
+  "shooting_coverage_by_season": [
+    {
+      "season": 2023,
+      "rows_with_fgm_ftm": 1331,
+      "players": 117,
+      "games": 262
+    },
+    {
+      "season": 2024,
+      "rows_with_fgm_ftm": 1306,
+      "players": 121,
+      "games": 264
+    },
+    {
+      "season": 2025,
+      "rows_with_fgm_ftm": 1555,
+      "players": 143,
+      "games": 312
+    },
+    {
+      "season": 2026,
+      "rows_with_fgm_ftm": 1238,
+      "players": 166,
+      "games": 218
+    }
+  ],
+  "shooting_identity_violations": {
+    "fg2a_negative": 0,
+    "fg2m_negative": 0,
+    "fg2m_gt_fg2a": 0,
+    "fg3m_gt_fg3a": 0,
+    "ftm_gt_fta": 0,
+    "pts_identity_violation": 0,
+    "rows_evaluated": 5430
+  },
+  "rebound_reconciliation": [
+    {
+      "season": 2023,
+      "rows": 5794,
+      "match": 5794,
+      "discrepancy": 0
+    },
+    {
+      "season": 2024,
+      "rows": 5929,
+      "match": 5929,
+      "discrepancy": 0
+    },
+    {
+      "season": 2025,
+      "rows": 7140,
+      "match": 7140,
+      "discrepancy": 0
+    },
+    {
+      "season": 2026,
+      "rows": 5312,
+      "match": 5312,
+      "discrepancy": 0
+    }
+  ],
+  "fgm_ftm_source": "recovered_shooting_labels_merged_into_bdl_full_cache",
+  "missing_final_games_checked": [
+    {
+      "season": 2023,
+      "game_id": 3368,
+      "game_date": "2023-06-07"
+    },
+    {
+      "season": 2026,
+      "game_id": 24935,
+      "game_date": "2026-07-17"
+    }
+  ],
+  "missing_final_games_still_absent": [
+    {
+      "season": 2023,
+      "game_id": 3368,
+      "game_date": "2023-06-07"
+    },
+    {
+      "season": 2026,
+      "game_id": 24935,
+      "game_date": "2026-07-17"
+    }
+  ],
+  "targeted_bdl_requests": [
+    {
+      "endpoint": "/wnba/v1/player_stats",
+      "game_id": 3368,
+      "status": 200,
+      "n_rows": 0,
+      "timestamp_utc": "2026-08-02T06:33:57.971605+00:00"
+    },
+    {
+      "endpoint": "/wnba/v1/player_stats",
+      "game_id": 24935,
+      "status": 200,
+      "n_rows": 0,
+      "timestamp_utc": "2026-08-02T06:33:58.166213+00:00"
+    }
+  ],
+  "canonical_stats_path": "data/processed/phase2/wnba_player_game_stats.parquet",
+  "production_pointer_unchanged": true,
+  "model_fitted": false,
+  "games_rows": 1172
+}

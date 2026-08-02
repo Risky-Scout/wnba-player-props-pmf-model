@@ -1,0 +1,14 @@
+{
+  "workflow": ".github/workflows/collect_roster_injury_snapshots.yml",
+  "script": "scripts/collect_roster_injury_snapshots.py",
+  "status": "added_append_only_fail_open",
+  "stores": "workflow artifacts + gitignored data/snapshots/roster_injury_forward",
+  "snapshot_id_format": "forecast_timestamp|source|payload_hash",
+  "sources": [
+    "/wnba/v1/players/active",
+    "/wnba/v1/player_injuries",
+    "scheduled_team_player_crosscheck"
+  ],
+  "modifies_predictions": false,
+  "private_payloads_committed_to_git": false
+}

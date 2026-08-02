@@ -1,0 +1,8 @@
+{
+  "date_returned_prohibited_as_onset_feature": true,
+  "total_games_missed_prohibited_as_onset_feature": true,
+  "unresolved_identities_cannot_confirm_inactive": true,
+  "ambiguous_identities_cannot_confirm_inactive": true,
+  "unresolved_2026_returns_remain_open": true,
+  "private_injury_rows_committed": false
+}
