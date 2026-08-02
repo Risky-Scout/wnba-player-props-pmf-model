@@ -1,0 +1,252 @@
+name: WNBA Pick Engine
+
+# Builds ranked model selections + provisional picks for a slate.
+# Never publishes automatically. Never commits raw quotes or live pick boards.
+# PR #99 is not touched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target ET slate date YYYY-MM-DD (empty = next upcoming WNBA slate)"
+        required: false
+        default: ""
+      mode:
+        description: "full (forecast+quotes+picks) | replay-aug1 | picks-only"
+        required: false
+        default: "full"
+  pull_request:
+    paths:
+      - "src/wnba_props_model/pick_engine/**"
+      - "scripts/run_pick_engine.py"
+      - "scripts/replay_aug1_pick_engine.py"
+      - "scripts/fit_pick_engine_reliability.py"
+      - "tests/pick_engine/**"
+      - ".github/workflows/pick_engine.yml"
+  push:
+    branches: ["cursor/wnba-pick-engine-v1"]
+    paths:
+      - "src/wnba_props_model/pick_engine/**"
+      - "scripts/*pick_engine*"
+      - "tests/pick_engine/**"
+
+concurrency:
+  group: pick-engine-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install
+        run: pip install -e ".[dev]"
+      # Repo CI does not gate on ruff (see AGENTS.md); keep pytest + actionlint + build.
+      - name: Pytest pick engine
+        run: python -m pytest tests/pick_engine -q
+      - name: Fit reliability weights
+        run: PYTHONPATH=src python scripts/fit_pick_engine_reliability.py
+      - name: Install actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.7
+          sudo mv actionlint /usr/local/bin/actionlint
+          actionlint -version
+      - name: Actionlint pick_engine workflow
+        run: actionlint -shellcheck= -pyflakes= .github/workflows/pick_engine.yml
+      - name: Build sdist/wheel
+        run: |
+          pip install build
+          python -m build
+
+  replay-aug1:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'replay-aug1'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - name: Download soft-book quotes for 2026-08-01
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data/snapshots/soft_book_quotes
+          # Latest non-expired soft-book-quotes artifact for Aug 1
+          ART_ID=$(gh api repos/${{ github.repository }}/actions/artifacts --paginate \
+            --jq '.artifacts[] | select(.name|test("soft-book-quotes-2026-08-01")) | .id' | head -1)
+          if [ -z "$ART_ID" ]; then echo "No Aug1 quote artifact"; exit 1; fi
+          gh api repos/${{ github.repository }}/actions/artifacts/$ART_ID/zip > /tmp/q.zip
+          unzip -o /tmp/q.zip -d data/snapshots/soft_book_quotes
+      - name: Require frozen stage dir (local or downloaded)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STAGE="deliveries/pregame_verification/2026-08-01/20260731T223428Z"
+          if [ ! -f "$STAGE/full_pmfs_wide.parquet" ]; then
+            echo "Frozen local stage missing; downloading pregame stage artifact"
+            ART_ID=$(gh api repos/${{ github.repository }}/actions/artifacts --paginate \
+              --jq '.artifacts[] | select(.name|test("pregame-verification-stage-2026-08-01")) | .id' | head -1)
+            mkdir -p deliveries/pregame_verification/2026-08-01
+            gh api repos/${{ github.repository }}/actions/artifacts/$ART_ID/zip > /tmp/stage.zip
+            unzip -o /tmp/stage.zip -d /tmp/stage_out
+            # Locate full_pmfs_wide.parquet
+            FOUND=$(find /tmp/stage_out -name full_pmfs_wide.parquet | head -1)
+            if [ -z "$FOUND" ]; then echo "stage artifact missing PMFs"; exit 1; fi
+            SDIR=$(dirname "$FOUND")
+            mkdir -p "$STAGE"
+            cp -R "$SDIR"/* "$STAGE"/
+          fi
+      - name: Run Aug1 retrospective replay
+        run: PYTHONPATH=src python scripts/replay_aug1_pick_engine.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aug1-pick-engine-replay
+          path: |
+            artifacts/pick_engine/AUG1_PICK_ENGINE_REPLAY.csv
+            artifacts/pick_engine/AUG1_PICK_ENGINE_AUDIT.json
+            deliveries/pick_engine/2026-08-01/RETROSPECTIVE/**
+
+  next-slate:
+    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'full' || inputs.mode == 'picks-only')
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - name: Discover next upcoming WNBA slate (ET)
+        id: slate
+        env:
+          INPUT_DATE: ${{ github.event.inputs.date }}
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          from datetime import datetime, timedelta, timezone
+          from zoneinfo import ZoneInfo
+          import requests
+
+          et = ZoneInfo("America/New_York")
+          forced = (os.environ.get("INPUT_DATE") or "").strip()
+          if forced:
+              print(f"date={forced}")
+              print("source=input")
+              raise SystemExit(0)
+
+          key = os.environ.get("BDL_API_KEY")
+          today = datetime.now(et).date()
+          chosen = None
+          if key:
+              now = datetime.now(timezone.utc)
+              for delta in range(0, 8):
+                  d = today + timedelta(days=delta)
+                  try:
+                      r = requests.get(
+                          "https://api.balldontlie.io/v1/games",
+                          params={"dates[]": d.isoformat(), "per_page": 100},
+                          headers={"Authorization": key},
+                          timeout=30,
+                      )
+                  except Exception:
+                      continue
+                  if r.status_code != 200:
+                      continue
+                  games = r.json().get("data") or []
+                  future = []
+                  for g in games:
+                      raw = g.get("datetime")
+                      if not raw:
+                          continue
+                      try:
+                          t = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                          if t.tzinfo is None:
+                              t = t.replace(tzinfo=timezone.utc)
+                          if t > now:
+                              future.append(g)
+                      except Exception:
+                          continue
+                  if future:
+                      chosen = d.isoformat()
+                      break
+          if not chosen:
+              chosen = (today + timedelta(days=1)).isoformat()
+          print(f"date={chosen}")
+          print("source=dynamic")
+          PY
+
+      - name: Collect soft-book quotes
+        run: |
+          python scripts/collect_soft_book_quotes.py --date "${{ steps.slate.outputs.date }}" --region "us,us2" || true
+
+      - name: Build forecasts when mode=full
+        if: ${{ github.event.inputs.mode == 'full' }}
+        run: |
+          # Best-effort production path; fail-open to picks-only if models/data absent.
+          if [ -f scripts/predict_today.py ]; then
+            python scripts/predict_today.py --help >/dev/null 2>&1 || true
+          fi
+          # Prefer existing tonight/next_game deliveries if present on the runner workspace.
+          ls deliveries/tonight deliveries/next_game || true
+
+      - name: Fit weights
+        run: PYTHONPATH=src python scripts/fit_pick_engine_reliability.py
+
+      - name: Run pick engine (dry review — no publish)
+        id: picks
+        run: |
+          DATE="${{ steps.slate.outputs.date }}"
+          QUOTES="data/snapshots/soft_book_quotes/snapshot_date_utc=${DATE}"
+          PMFS=""
+          for cand in \
+            "deliveries/tonight/full_pmfs_wide.parquet" \
+            "deliveries/next_game/full_pmfs_wide.parquet" \
+            "deliveries/pregame_verification/${DATE}"/*/full_pmfs_wide.parquet
+          do
+            for f in $cand; do
+              if [ -f "$f" ]; then PMFS="$f"; break 2; fi
+            done
+          done
+          if [ -z "$PMFS" ] || [ ! -d "$QUOTES" ]; then
+            echo "missing_inputs=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Missing PMFs or quotes for ${DATE}; uploading empty review stub."
+            mkdir -p "deliveries/pick_engine/${DATE}/DRY_RUN"
+            echo "player,reason" > "deliveries/pick_engine/${DATE}/DRY_RUN/abstentions.csv"
+            echo "missing_pmf_or_quotes" >> "deliveries/pick_engine/${DATE}/DRY_RUN/abstentions.csv"
+            printf '%s\n' '{"status":"missing_inputs","date":"'"$DATE"'"}' > "deliveries/pick_engine/${DATE}/DRY_RUN/pick_manifest.json"
+            exit 0
+          fi
+          FAIR=""
+          FDIR=$(dirname "$PMFS")
+          if [ -f "$FDIR/fair_odds_board.parquet" ]; then FAIR="--fair-odds $FDIR/fair_odds_board.parquet"; fi
+          PYTHONPATH=src python scripts/run_pick_engine.py \
+            --date "$DATE" \
+            --quotes "$QUOTES" \
+            --pmfs "$PMFS" \
+            $FAIR \
+            --out-root deliveries/pick_engine
+          echo "missing_inputs=false" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pick-engine-${{ steps.slate.outputs.date }}-${{ github.run_id }}
+          path: deliveries/pick_engine/${{ steps.slate.outputs.date }}/**
+          if-no-files-found: warn

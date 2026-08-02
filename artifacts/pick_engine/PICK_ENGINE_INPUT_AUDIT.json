@@ -1,0 +1,152 @@
+{
+  "audit_version": "pick_engine_input_audit_v1",
+  "audited_at_utc": "2026-08-01T18:00:00Z",
+  "starting_main_sha": "2caef26fa235a9f2cdccc900bd44f42974915e4d",
+  "pure_vs_market_consistent_separable": true,
+  "separation_gate": "PASS",
+  "notes": [
+    "Pure settled O/U probability is derived from active_pmf_json via settled_probabilities_from_pmf / availability_pmf.build_availability_conditioned_row and is never market-anchored on the pure_forecast track.",
+    "Production/fair pricing currently serializes the same pure lineage into fair_odds_board.p_over (and model_prob_over_final). That value is persisted as production_probability but is NEVER copied into pick_probability.",
+    "Market-consistent / zero-residual consensus probabilities come from soft-book no-vig aggregation (soft_book_scan / Definition B) and are stored only as reference_market_probability.",
+    "PR #99 (cursor/wnba-sharp-pmf-v3) is reference-only and is not merged by this work."
+  ],
+  "fields": {
+    "pure_pmf": {
+      "primary_path": "deliveries/pregame_verification/<date>/<timestamp>/full_pmfs_wide.parquet",
+      "column": "active_pmf_json",
+      "fallback_column": "pmf_json",
+      "settlement_basis": "active_pmf_push_safe_void_on_dnp",
+      "producer": "scripts/predict_today.py / pipeline deliver path"
+    },
+    "pure_settled_over_under_probability": {
+      "function": "wnba_props_model.models.market.settled_probabilities_from_pmf",
+      "lineage": "wnba_props_model.models.availability_pmf.build_availability_conditioned_row",
+      "fields": [
+        "model_prob_over_settled_from_active_pmf",
+        "p_over_settled",
+        "p_under_settled",
+        "p_push"
+      ],
+      "must_not_contain": [
+        "offered_sportsbook_price",
+        "same_time_consensus",
+        "closing_odds",
+        "market_consistent_tilt",
+        "zero_residual_fallback"
+      ]
+    },
+    "market_consistent_probability": {
+      "primary_path": "artifacts/edge_board/SOFT_BOOK_EDGE_<date>.json",
+      "module": "wnba_props_model.edge.soft_book_scan",
+      "fields": ["fair_p", "consensus_p_over", "no_vig_over", "market_prob_over_no_vig"],
+      "role_in_pick_engine": "reference_market_probability only; never alpha / pick_probability"
+    },
+    "production_probability": {
+      "primary_path": "deliveries/.../fair_odds_board.parquet",
+      "fields": ["p_over", "p_under", "p_push", "fair_over_american", "fair_under_american"],
+      "delivery_alias": "model_prob_over_final from probability_lineage (pure_forecast track on main)",
+      "note": "May be market-consistent in future pricing paths; pick_probability must remain independent."
+    },
+    "executable_sportsbook_line_and_odds": {
+      "live_snapshot_path": "data/snapshots/soft_book_quotes/snapshot_date_utc=<date>/quotes_*.parquet",
+      "fields": [
+        "event_id",
+        "book",
+        "market_key",
+        "stat",
+        "player_name",
+        "side",
+        "line",
+        "american_odds",
+        "collected_utc",
+        "book_last_update",
+        "commence_time"
+      ],
+      "historical_pairs": "data/processed/atomic_quotes/atomic_pairs.parquet",
+      "pair_module": "wnba_props_model.data.quote_pairs"
+    },
+    "no_vig_reference_probability": {
+      "construction": "same-book Over/Under de-vig, then robust consensus excluding candidate book",
+      "modules": [
+        "wnba_props_model.models.market.shin_no_vig_two_way",
+        "wnba_props_model.pick_engine.reference.build_reference_probability"
+      ]
+    },
+    "player_game_identity": {
+      "slate": "deliveries/.../slate_<date>.parquet / player_projections_*.parquet",
+      "fields": [
+        "game_id",
+        "player_id",
+        "player_name",
+        "team_id",
+        "team_abbreviation",
+        "opponent_team_abbreviation"
+      ],
+      "aug1_identity_audit": "tests/fixtures/pick_engine/aug1_player_identity_audit.csv",
+      "game_audit": "artifacts/pregame_verification/<date>/GAME_AUDIT.csv"
+    },
+    "timestamps": {
+      "quote": ["collected_utc", "book_last_update", "provider_quote_timestamp", "pair_timestamp_utc"],
+      "availability": ["source_timestamp", "availability snapshot under data/snapshots/availability"],
+      "prediction": ["PREDICTION_TIMESTAMP.txt", "slate_manifest prediction timestamp"],
+      "tip": ["scheduled_tip_utc", "commence_time"]
+    },
+    "model_calibrator_hashes": {
+      "frozen_manifest_example": "FROZEN_PREDICTION_MANIFEST.json (GHA pregame verification artifact)",
+      "fields": [
+        "model_hash",
+        "calibrator_hash",
+        "feature_hash",
+        "data_hash",
+        "quote_hash",
+        "availability_hash",
+        "code_sha",
+        "model_version"
+      ],
+      "fair_odds_board_model_version_field": "model_version"
+    }
+  },
+  "edge_board": {
+    "definition_b_path": "artifacts/edge_board/SOFT_BOOK_EDGE_<date>.json",
+    "builder": "scripts/build_soft_book_edge_board.py",
+    "note": "Soft-book Definition B is market-vs-market only; pick engine is Definition A (model vs executable price) with a separate reference track."
+  },
+  "activation_registry": {
+    "path": "config/stat_registry.json",
+    "supported_initial_markets": [
+      "player_points",
+      "player_rebounds",
+      "player_assists",
+      "player_threes",
+      "player_steals",
+      "player_blocks",
+      "player_turnovers"
+    ],
+    "internal_stat_keys": ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"],
+    "excluded_until_joint_model": [
+      "pts_ast",
+      "pts_reb",
+      "reb_ast",
+      "pts_reb_ast",
+      "stocks",
+      "player_points_rebounds_assists",
+      "player_points_rebounds",
+      "player_points_assists",
+      "player_rebounds_assists"
+    ]
+  },
+  "frozen_august_1": {
+    "immutable": true,
+    "local_stage_dir": "deliveries/pregame_verification/2026-08-01/20260731T223428Z",
+    "committed_soft_board": "artifacts/edge_board/SOFT_BOOK_EDGE_2026-08-01.json",
+    "quote_snapshots": "GHA artifact soft-book-quotes-2026-08-01-* (gitignored data/snapshots/)",
+    "identity_rejects": 7,
+    "team_mismatch_warning": "Kiana Williams (player_id=631)",
+    "do_not_regenerate": true
+  },
+  "pr_99_reference_only": {
+    "url": "https://github.com/Risky-Scout/wnba-player-props-pmf-model/pull/99",
+    "head": "cursor/wnba-sharp-pmf-v3",
+    "action": "parked_unmerged"
+  }
+}

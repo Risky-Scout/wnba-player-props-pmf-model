@@ -103,6 +103,11 @@ CLASSIFICATION: dict[str, str] = {
     "src/wnba_props_model/models/availability_pmf.py": "permitted_pmf_diagnostic",
     "scripts/verify_delivered_lineage.py": "permitted_pmf_diagnostic",
     "scripts/validate_forecast_pages.py": "permitted_pmf_diagnostic",
+    # Pick engine: pure-track settled probs from active PMF (not production lineage mutation)
+    "src/wnba_props_model/pick_engine/probabilities.py": "permitted_pmf_diagnostic",
+    "scripts/fit_pick_engine_reliability.py": "permitted_pmf_diagnostic",
+    "scripts/replay_aug1_pick_engine.py": "permitted_pmf_diagnostic",
+    "scripts/run_pick_engine.py": "permitted_pmf_diagnostic",
     # the audit itself references the symbols as detection strings
     "scripts/audit_probability_consumers.py": "audit_tool",
 }

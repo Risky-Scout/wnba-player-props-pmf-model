@@ -2,9 +2,6 @@
   "schema_version": "soft_book_edge_v1",
   "generated_at": "2026-08-01T20:50:17.413993+00:00",
   "game_date": "2026-08-01",
-  "board_type": "soft_book_ev",
-  "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
-  "ev_threshold_pct": 2.5,
   "method": {
     "definition": "Definition B: soft book vs sharp consensus. Find individual books whose posted price is better for the bettor than the no-vig consensus of the wider book set. No model and no information edge is used \u2014 pure market-vs-market line shopping.",
     "devig": "Per-book two-sided de-vig via Shin's method (shin_no_vig_two_way).",
@@ -36,5 +33,6 @@
     },
     "status": "ok"
   },
-  "games": []
+  "board": [],
+  "top_by_ev_all": []
 }
