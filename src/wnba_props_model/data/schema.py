@@ -64,12 +64,16 @@ PLAYER_GAME_STATS_SCHEMA = TableSchema(
         "source", "pull_timestamp_utc",
     ],
     numeric_columns=[
-        "minutes", "pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
-        "oreb", "dreb", "fga", "fg3a", "fta", "pf",
+        "minutes", "pts", "reb", "ast", "fgm", "fg3m", "ftm", "stl", "blk", "turnover",
+        "oreb", "dreb", "fga", "fg3a", "fta", "fg2a", "fg2m", "pf",
     ],
     datetime_columns=["game_date"],
     nonneg_stat_columns=["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover", "minutes"],
-    notes="opponent_team_id, is_home, home_away, did_play are derived in build_canonical_tables.",
+    notes=(
+        "opponent_team_id, is_home, home_away, did_play are derived in build_canonical_tables. "
+        "fgm/ftm retained from BDL player_stats; fg2m/fg2a derived; official reb is primary "
+        "with reb_oreb_dreb_sum + reb_reconcile_flag for discrepancies."
+    ),
 )
 
 TEAMS_SCHEMA = TableSchema(

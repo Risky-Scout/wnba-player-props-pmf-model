@@ -1,0 +1,9 @@
+{
+  "identity_counts": {
+    "exact_roster_name": 811,
+    "unresolved": 42,
+    "ambiguous_name": 2
+  },
+  "evidence_rows": 6872,
+  "private_rows_committed": false
+}

@@ -94,12 +94,14 @@ MODEL_PROP_MARKET_KEYS: tuple[str, ...] = tuple(MODEL_PROP_MARKETS.keys())
 ODDS_API_MODEL_MARKETS = MODEL_PROP_MARKETS
 ODDS_API_MODEL_MARKET_KEYS = MODEL_PROP_MARKET_KEYS
 
-# BDL raw column name → internal stat key (used in flatten_player_stat_row)
+# Output column → BDL raw field (used in flatten_player_stat_row)
 STAT_TO_BDL_COL = {
     "pts": "pts",
     "reb": "reb",
     "ast": "ast",
+    "fgm": "fgm",
     "fg3m": "fg3m",
+    "ftm": "ftm",
     "tov": "turnover",  # BDL field "turnover" → raw parquet col "tov" → canonical renames to "turnover"
     "stl": "stl",
     "blk": "blk",

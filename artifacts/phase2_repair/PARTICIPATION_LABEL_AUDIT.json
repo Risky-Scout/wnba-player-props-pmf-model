@@ -1,0 +1,138 @@
+{
+  "generated_at_utc": "2026-08-02T06:33:57.760999+00:00",
+  "rows": 24175,
+  "counts_by_season": [
+    {
+      "season": 2023,
+      "CONFIRMED_ACTIVE": 4918,
+      "CONFIRMED_INACTIVE": 406,
+      "INFERRED_ELIGIBLE_DNP": 470,
+      "UNKNOWN_ROSTER_ELIGIBILITY": 0,
+      "training_eligible": 5324,
+      "inferred_excluded_from_training": 470,
+      "unknown_excluded_from_training": 0
+    },
+    {
+      "season": 2024,
+      "CONFIRMED_ACTIVE": 4928,
+      "CONFIRMED_INACTIVE": 429,
+      "INFERRED_ELIGIBLE_DNP": 572,
+      "UNKNOWN_ROSTER_ELIGIBILITY": 0,
+      "training_eligible": 5357,
+      "inferred_excluded_from_training": 572,
+      "unknown_excluded_from_training": 0
+    },
+    {
+      "season": 2025,
+      "CONFIRMED_ACTIVE": 5869,
+      "CONFIRMED_INACTIVE": 641,
+      "INFERRED_ELIGIBLE_DNP": 630,
+      "UNKNOWN_ROSTER_ELIGIBILITY": 0,
+      "training_eligible": 6510,
+      "inferred_excluded_from_training": 630,
+      "unknown_excluded_from_training": 0
+    },
+    {
+      "season": 2026,
+      "CONFIRMED_ACTIVE": 4324,
+      "CONFIRMED_INACTIVE": 574,
+      "INFERRED_ELIGIBLE_DNP": 414,
+      "UNKNOWN_ROSTER_ELIGIBILITY": 0,
+      "training_eligible": 4898,
+      "inferred_excluded_from_training": 414,
+      "unknown_excluded_from_training": 0
+    }
+  ],
+  "long_counts": [
+    {
+      "season": 2023,
+      "participation_label_class": "CONFIRMED_ACTIVE",
+      "n": 4918
+    },
+    {
+      "season": 2023,
+      "participation_label_class": "CONFIRMED_INACTIVE",
+      "n": 406
+    },
+    {
+      "season": 2023,
+      "participation_label_class": "INFERRED_ELIGIBLE_DNP",
+      "n": 470
+    },
+    {
+      "season": 2024,
+      "participation_label_class": "CONFIRMED_ACTIVE",
+      "n": 4928
+    },
+    {
+      "season": 2024,
+      "participation_label_class": "CONFIRMED_INACTIVE",
+      "n": 429
+    },
+    {
+      "season": 2024,
+      "participation_label_class": "INFERRED_ELIGIBLE_DNP",
+      "n": 572
+    },
+    {
+      "season": 2025,
+      "participation_label_class": "CONFIRMED_ACTIVE",
+      "n": 5869
+    },
+    {
+      "season": 2025,
+      "participation_label_class": "CONFIRMED_INACTIVE",
+      "n": 641
+    },
+    {
+      "season": 2025,
+      "participation_label_class": "INFERRED_ELIGIBLE_DNP",
+      "n": 630
+    },
+    {
+      "season": 2026,
+      "participation_label_class": "CONFIRMED_ACTIVE",
+      "n": 4324
+    },
+    {
+      "season": 2026,
+      "participation_label_class": "CONFIRMED_INACTIVE",
+      "n": 574
+    },
+    {
+      "season": 2026,
+      "participation_label_class": "INFERRED_ELIGIBLE_DNP",
+      "n": 414
+    }
+  ],
+  "confirmed_inactive_evidence_sources": {
+    "injury_workbook_exact_identity": 2050
+  },
+  "inferred_dnp_excluded_from_training": 2086,
+  "unknown_excluded_from_training": 0,
+  "injury_identity_counts": {
+    "exact_roster_name": 811,
+    "unresolved": 42,
+    "ambiguous_name": 2
+  },
+  "training_policy": {
+    "CONFIRMED_ACTIVE": {
+      "training_eligible": true,
+      "weight": 1.0
+    },
+    "CONFIRMED_INACTIVE": {
+      "training_eligible": true,
+      "weight": 1.0
+    },
+    "INFERRED_ELIGIBLE_DNP": {
+      "training_eligible": false,
+      "weight": 0.0
+    },
+    "UNKNOWN_ROSTER_ELIGIBILITY": {
+      "training_eligible": false,
+      "binary": null,
+      "weight": 0.0
+    }
+  },
+  "model_fitted": false
+}

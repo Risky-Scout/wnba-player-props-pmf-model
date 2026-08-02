@@ -165,6 +165,29 @@ def _build_player_stats(raw_dir: Path, games_df: pd.DataFrame) -> pd.DataFrame:
             median_min = playing.median()
             df.loc[grp.index, "started_proxy"] = grp["minutes"] >= median_min * 0.85
 
+    # Shooting splits: retain fgm/ftm when present; derive fg2*; never invent makes
+    for c in ["fgm", "ftm", "fga", "fg3m", "fg3a", "fta"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    if {"fga", "fg3a"}.issubset(df.columns):
+        df["fg2a"] = df["fga"] - df["fg3a"]
+    if {"fgm", "fg3m"}.issubset(df.columns):
+        df["fg2m"] = df["fgm"] - df["fg3m"]
+
+    # Rebounds: official reb remains primary; preserve oreb+dreb reconciliation
+    if {"oreb", "dreb"}.issubset(df.columns):
+        df["reb_oreb_dreb_sum"] = (
+            pd.to_numeric(df["oreb"], errors="coerce").fillna(0).astype(int)
+            + pd.to_numeric(df["dreb"], errors="coerce").fillna(0).astype(int)
+        )
+        if "reb" in df.columns:
+            reb_official = pd.to_numeric(df["reb"], errors="coerce").fillna(0).astype(int)
+            df["reb"] = reb_official
+            df["reb_reconcile_flag"] = [
+                "match" if a == b else "provider_or_team_reb_discrepancy"
+                for a, b in zip(df["reb_oreb_dreb_sum"], reb_official, strict=False)
+            ]
+
     # Audit flags
     df["zero_minute_flag"] = df["minutes"] == 0.0
     df["non_playing_flag"] = df.get("minutes_flag", pd.Series(dtype=str)) == "non_playing"
