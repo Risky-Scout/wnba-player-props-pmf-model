@@ -1,0 +1,152 @@
+{
+  "artifact": "AUDIT_VERIFICATION_GATE",
+  "generated_at_utc": "2026-08-02T06:30:00+00:00",
+  "starting_main_sha": "188f9b99bfe35d187fd8fd5f22bd228fec8c8fc8",
+  "origin_main_sha": "188f9b99bfe35d187fd8fd5f22bd228fec8c8fc8",
+  "pr_107_present": true,
+  "pr_107_merge_sha": "188f9b99bfe35d187fd8fd5f22bd228fec8c8fc8",
+  "production_pointer": {
+    "path": "artifacts/releases/PRODUCTION_POINTER.json",
+    "bundle_id": "wnba-pmf-production-v1.1",
+    "production_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+    "unchanged": true
+  },
+  "audit_inputs_present": true,
+  "verdict": "PASS_CONTINUE_TO_REPAIR",
+  "feature_counts": {
+    "unique_production_features": 284,
+    "component_feature_slots": 895,
+    "matrix_rows_including_component_notes": 898,
+    "matrix_unique_names_including_notes": 287,
+    "matrix_only_extras": [
+      "__component_note__first_basket",
+      "__component_note__joint_dependence",
+      "__component_note__q1"
+    ],
+    "by_source_class_unique_production_features": {
+      "OBSERVED_BDL": 0,
+      "OBSERVED_INJURY_WORKBOOK": 0,
+      "DERIVED_POINT_IN_TIME": 284,
+      "OPTIONAL_MANUAL_OVERRIDE": 0,
+      "MARKET_ONLY": 0,
+      "UNAVAILABLE_EXCLUDED": 0,
+      "LEAKAGE_PROHIBITED": 0,
+      "UNKNOWN_SOURCE": 0
+    },
+    "why_all_derived": "Production FEATURE_CONTRACTS features are lagged/rolling/EWMA/z-score/interaction transforms computed from prior-game BDL box-score observations (shift-1 / rolling prior). Raw observed BDL fields are inputs to derivation, not the contracted feature names themselves. No market columns, workbook onset leaks, or unavailable mandatory inputs appear in the pure-model contracts."
+  },
+  "pure_model_integrity": {
+    "required_MARKET_ONLY": 0,
+    "required_UNKNOWN_SOURCE": 0,
+    "required_LEAKAGE_PROHIBITED": 0,
+    "unavailable_mandatory_production_features": 0,
+    "same_game_outcome_fields_in_contracts": 0,
+    "postgame_starter_minutes_fields_in_contracts": 0,
+    "pass": true
+  },
+  "silent_defaults": [
+    {
+      "feature_or_path": "player_is_confirmed_starter",
+      "default": "0.0 / all-zero column in wide matrix",
+      "in_production_contract": false,
+      "verdict": "dead_code_unsafe_if_required",
+      "note": "UNAVAILABLE_EXCLUDED; not in FEATURE_CONTRACTS"
+    },
+    {
+      "feature_or_path": "flatten_player_stat_row null box stats",
+      "default": "0 for missing numeric box fields",
+      "in_production_contract": false,
+      "verdict": "unsafe_at_raw_layer_for_auditability",
+      "note": "Coerces null to 0 before parquet write; contributes to fgm/ftm omission when keys absent from STAT_TO_BDL_COL"
+    },
+    {
+      "feature_or_path": "production HGB features",
+      "default": "native NaN missing support (OPTIONAL_WITH_NATIVE_MISSING_SUPPORT)",
+      "in_production_contract": true,
+      "verdict": "legitimate",
+      "note": "Matrix marks current_code_silently_defaults=false for all 895 contract rows"
+    }
+  ],
+  "fgm_ftm_root_cause": {
+    "api_player_stats_contains_fgm_ftm": true,
+    "canary_game_id": 3858,
+    "normalized_cache_contains_fgm_ftm": false,
+    "dropped_by": "src/wnba_props_model/data/normalize.py::flatten_player_stat_row + constants.STAT_TO_BDL_COL",
+    "canonicalization_defect": true,
+    "full_core_repull_unnecessary": true,
+    "offline_partial_restore_available": true,
+    "offline_partial_source": "data/recovered_v2/wnba_player_shooting_labels.parquet (5430 rows)",
+    "offline_full_restore_from_normalized_cache": false,
+    "note": "Normalized parquet never persisted fgm/ftm. Code repair + merge of recovered shooting labels restores offline where present; remaining coverage needs non-destructive targeted field backfill (not a full core-data wipe/repull)."
+  },
+  "participation_label_reproduction": {
+    "method": "Box-score panel from data/raw/bdl_full/wnba_player_game_stats.parquet: CONFIRMED_ACTIVE=minutes>0; CONFIRMED_INACTIVE=minutes_flag=='non_playing'; INFERRED_ELIGIBLE_DNP=minutes<=0 and minutes_flag!='non_playing'; UNKNOWN_ROSTER_ELIGIBILITY not enumerable without historical roster snapshots",
+    "by_season": [
+      {"season": 2023, "confirmed_active": 4918, "inferred_eligible_dnp": 876, "confirmed_inactive": 0},
+      {"season": 2024, "confirmed_active": 4928, "inferred_eligible_dnp": 1001, "confirmed_inactive": 0},
+      {"season": 2025, "confirmed_active": 5869, "inferred_eligible_dnp": 1250, "confirmed_inactive": 21},
+      {"season": 2026, "confirmed_active": 4324, "inferred_eligible_dnp": 981, "confirmed_inactive": 7}
+    ],
+    "reproduced": true,
+    "negatives_distinguishable_by_evidence_quality": true
+  },
+  "injury_workbook": {
+    "event_table_columns_only": true,
+    "summary_columns_excluded": true,
+    "rows_by_season": {"2023": 175, "2024": 203, "2025": 252, "2026": 225},
+    "exact_identities": 811,
+    "unresolved": 42,
+    "ambiguous": 2,
+    "unrestricted_fuzzy_matching": false,
+    "date_returned_not_pre_injury_feature": true,
+    "total_games_missed_not_pre_injury_feature": true,
+    "unresolved_2026_returns_remain_open": true,
+    "leakage_rules_valid": true
+  },
+  "valid_minutes_contract": {
+    "buildable_from_legitimate_inputs": true,
+    "requires_official_starters": false,
+    "requires_structured_lineups": false,
+    "requires_tracking": false,
+    "requires_bdl_projected_minutes": false,
+    "allowed_inputs": [
+      "lagged_historical_performance",
+      "current_roster",
+      "current_availability",
+      "derived_role_state",
+      "teammate_absences",
+      "rest_schedule",
+      "game_environment",
+      "optional_timestamped_manual_overrides"
+    ]
+  },
+  "gate_conditions": {
+    "no_required_unknown_or_prohibited_source": true,
+    "fgm_ftm_canonicalization_defect_confirmed": true,
+    "participation_negatives_distinguishable": true,
+    "injury_workbook_leakage_rules_valid": true,
+    "conditional_active_minutes_buildable": true
+  },
+  "inconsistencies_found": [
+    {
+      "id": "FEATURE_COUNT_MATRIX_VS_CONTRACTS",
+      "severity": "low",
+      "detail": "FINAL_REPORT unique_production_feature_names=284 matches FEATURE_CONTRACTS. Matrix lists 287 unique names because it adds 3 __component_note__* rows for first_basket/q1/joint_dependence. Not a source-class contradiction."
+    },
+    {
+      "id": "FGM_FTM_OFFLINE_FULL_RESTORE",
+      "severity": "medium",
+      "detail": "Audit correctly identifies canonicalization drop and API presence, but normalized caches lack fgm/ftm so full offline restore from those parquets alone is impossible. Partial offline restore via recovered shooting labels (5430 rows) is available. Proceeding because defect is confirmed and full core-data repull remains unnecessary."
+    }
+  ],
+  "code_cross_checks": {
+    "production_feature_contracts": "artifacts/releases/wnba-pmf-production-v1.1/FEATURE_CONTRACTS.json",
+    "canonical_builder": "scripts/build_canonical_tables.py",
+    "bdl_normalizer": "src/wnba_props_model/data/normalize.py::flatten_player_stat_row",
+    "stat_map": "src/wnba_props_model/constants.py::STAT_TO_BDL_COL",
+    "participation_current": "did_play = minutes > 0 in build_canonical_tables; fit_participation uses binary participation",
+    "minutes_training": "active-only actual_minutes > 0; contract hash adce920e467a64e5",
+    "live_features": "src/wnba_props_model/sharp_v6/live_features.py",
+    "bundle_manifest": "artifacts/releases/wnba-pmf-production-v1.1/MANIFEST.json"
+  }
+}
