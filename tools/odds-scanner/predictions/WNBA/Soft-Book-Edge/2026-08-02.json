@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-02T21:54:45.979057+00:00",
+  "generated_at": "2026-08-02T22:55:41.674638+00:00",
   "game_date": "2026-08-02",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,10 +16,10 @@
   },
   "summary": {
     "date": "2026-08-02",
-    "generated_utc": "2026-08-02T21:54:45.979057+00:00",
+    "generated_utc": "2026-08-02T22:55:41.674638+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
-    "n_events": 3,
+    "n_events": 2,
     "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1008,
-    "n_scored_rows": 876,
-    "n_qualifying": 5,
+    "n_quote_rows": 986,
+    "n_scored_rows": 872,
+    "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -44,231 +44,5 @@
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "8cb92d45e2c4570ff14320738ec395f2",
-      "odds_api_event_id": "8cb92d45e2c4570ff14320738ec395f2",
-      "commence_time": "2026-08-02T23:00:00Z",
-      "home_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "away_team": {
-        "name": "Connecticut Sun",
-        "abbreviation": "Connecticut Sun"
-      },
-      "players": [
-        {
-          "player_id": "8cb92d45e2c4570ff14320738ec395f2:Arike Ogunbowale:reb:2.5:under:hardrockbet",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "hardrockbet +135 \u00b7 EV +4.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5561,
-                "edge_vs_market": -0.043171,
-                "kelly_fraction": 0.008
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 135,
-                "ev_pct": 4.317,
-                "fair_p_side": 0.4439,
-                "consensus_p_over": 0.5561,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5421,
-                "best_book": "hardrockbet",
-                "best_odds": 135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "8cb92d45e2c4570ff14320738ec395f2:Arike Ogunbowale:reb:2.5:under:betparx",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "betparx +135 \u00b7 EV +4.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5561,
-                "edge_vs_market": -0.043171,
-                "kelly_fraction": 0.008
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": 135,
-                "ev_pct": 4.317,
-                "fair_p_side": 0.4439,
-                "consensus_p_over": 0.5561,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5421,
-                "best_book": "hardrockbet",
-                "best_odds": 135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "8cb92d45e2c4570ff14320738ec395f2:Arike Ogunbowale:pts:15.5:under:hardrockbet",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "hardrockbet +115 \u00b7 EV +3.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 15.5,
-              "median": 15.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.5207,
-                "edge_vs_market": -0.030518,
-                "kelly_fraction": 0.0066
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 115,
-                "ev_pct": 3.052,
-                "fair_p_side": 0.4793,
-                "consensus_p_over": 0.5207,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5209,
-                "best_book": "hardrockbet",
-                "best_odds": 115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "8cb92d45e2c4570ff14320738ec395f2:Arike Ogunbowale:fg3m:1.5:under:hardrockbet",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "hardrockbet +125 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.543,
-                "edge_vs_market": -0.028174,
-                "kelly_fraction": 0.0056
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 125,
-                "ev_pct": 2.817,
-                "fair_p_side": 0.457,
-                "consensus_p_over": 0.543,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5421,
-                "best_book": "hardrockbet",
-                "best_odds": 125
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "b69cd4efd717cb22355b34ad83ba553a",
-      "odds_api_event_id": "b69cd4efd717cb22355b34ad83ba553a",
-      "commence_time": "2026-08-03T00:30:00Z",
-      "home_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "away_team": {
-        "name": "Toronto Tempo",
-        "abbreviation": "Toronto Tempo"
-      },
-      "players": [
-        {
-          "player_id": "b69cd4efd717cb22355b34ad83ba553a:Julie Allemand:pts:7.5:over:williamhill_us",
-          "player_name": "Julie Allemand",
-          "team_name": "",
-          "position": "williamhill_us +110 \u00b7 EV +3.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 7.5,
-              "median": 7.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.4945,
-                "edge_vs_market": 0.038372,
-                "kelly_fraction": 0.0087
-              },
-              "soft_book": {
-                "book": "williamhill_us",
-                "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 3.837,
-                "fair_p_side": 0.4945,
-                "consensus_p_over": 0.4945,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "williamhill_us",
-                "best_odds": 110
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
