@@ -155,8 +155,14 @@ def _player_minutes_atoms(mu: float, sd: float, p_ot: float) -> np.ndarray:
     return atoms / atoms.sum()
 
 
+def _frame_features(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """Align a frame to a frozen feature contract; missing columns become NaN (HGB-native)."""
+    out = df.reindex(columns=cols)
+    return out.apply(pd.to_numeric, errors="coerce")
+
+
 def predict_minutes_means(model: MinutesModel, slate: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    X = slate[model.feature_cols].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+    X = _frame_features(slate, model.feature_cols).to_numpy(float)
     mu = np.clip(model.regressor.predict(X), 0, REG_MAX)
     bands = role_band(slate)
     sds = np.array([model.sd_by_band.get(int(b), 6.0) for b in bands])
@@ -301,7 +307,7 @@ def fit_game_environment(train_features: pd.DataFrame, stats: pd.DataFrame, game
 
 def predict_game_environment(model: GameEnvironmentModel, slate: pd.DataFrame) -> pd.DataFrame:
     team = slate.groupby(["game_id", "team_id"], as_index=False).first()
-    X = team[model.feature_cols].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+    X = _frame_features(team, model.feature_cols).to_numpy(float)
     out = team[["game_id", "team_id"]].copy()
     for name, reg in model.targets.items():
         out[name] = reg.predict(X)
@@ -369,7 +375,7 @@ def predict_stat_atoms(
     slate: pd.DataFrame,
     minutes_atoms: list[np.ndarray],
 ) -> list[tuple[np.ndarray, float]]:
-    X = slate[model.feature_cols].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+    X = _frame_features(slate, model.feature_cols).to_numpy(float)
     lam = np.clip(model.rate_regressor.predict(X), 1e-6, None)
     bands = role_band(slate)
     K = EMERGENCY_CAP.get(model.stat, 60)
@@ -449,7 +455,7 @@ def structural_points_pmf(
     att = {k: predict_stat_atoms(v, slate, minutes_atoms) for k, v in shoot.attempts.items()}
     make_p = {}
     for make, spec in shoot.makes_rate.items():
-        X = slate[spec["feature_cols"]].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+        X = _frame_features(slate, spec["feature_cols"]).to_numpy(float)
         make_p[make] = np.clip(spec["regressor"].predict(X), 0.05, 0.95)
     K = EMERGENCY_CAP["pts"]
     out = []

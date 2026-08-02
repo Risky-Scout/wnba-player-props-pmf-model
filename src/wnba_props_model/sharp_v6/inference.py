@@ -83,7 +83,8 @@ def predict_slate(
         )
 
     # participation
-    Xp = slate[model_bundle.participation.feature_cols].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+    from wnba_props_model.sharp_v6.models import _frame_features
+    Xp = _frame_features(slate, model_bundle.participation.feature_cols).to_numpy(float)
     p_active = model_bundle.participation.predict_proba(Xp)
 
     # minutes (team-reconciled) + shared game environment
@@ -431,8 +432,9 @@ def _predict_from_feature_slate(prediction_timestamp, slate, bundle, stats, game
 
     # Direct path: temporarily use slate as live rows by invoking math sections
     # via a local duplicate of the core loop with prebuilt slate.
+    from wnba_props_model.sharp_v6.models import _frame_features
     ts = prediction_timestamp
-    Xp = slate[bundle.participation.feature_cols].apply(pd.to_numeric, errors="coerce").to_numpy(float)
+    Xp = _frame_features(slate, bundle.participation.feature_cols).to_numpy(float)
     p_active = bundle.participation.predict_proba(Xp)
     matoms = minutes_pmf_rows(bundle.minutes, slate, reconcile_teams=True)
     q1_atoms = q1_minutes_pmf_rows(bundle.minutes, slate)
