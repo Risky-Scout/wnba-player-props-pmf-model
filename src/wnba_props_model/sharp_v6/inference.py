@@ -55,6 +55,11 @@ def _normalize_pmf(
     mode: str,
     context: str,
 ) -> tuple[np.ndarray, float]:
+    """Validate PMF mass identity. Never rewrites atoms/overflow by renormalization.
+
+    Production PMFs must already satisfy |sum(atoms)+overflow-1| <= 1e-10 from the
+    authoritative distribution layer. This gate fails closed on violations.
+    """
     a = np.asarray(atoms, float)
     ovf = float(overflow)
     if not np.isfinite(a).all() or not np.isfinite(ovf):
@@ -66,13 +71,18 @@ def _normalize_pmf(
     mass = float(a.sum()) + ovf
     if mass <= 0:
         raise InferenceError(f"FAIL_CLOSED: zero PMF mass ({context})")
-    if abs(mass - 1.0) > 1e-6:
-        if mode == "production" and abs(mass - 1.0) > 1e-3:
-            raise InferenceError(
-                f"FAIL_CLOSED: PMF normalization failure mass={mass} ({context})"
-            )
-        a = a / mass
-        ovf = ovf / mass
+    err = abs(mass - 1.0)
+    # Production: strict mass identity from the distribution layer.
+    if mode == "production" and err > NORM_TOL:
+        raise InferenceError(
+            f"FAIL_CLOSED: PMF normalization failure mass={mass} err={err} ({context})"
+        )
+    # Non-production research paths: still refuse to silently renormalize; only allow
+    # tiny float noise up to 1e-6 before failing.
+    if mode != "production" and err > 1e-6:
+        raise InferenceError(
+            f"FAIL_CLOSED: PMF normalization failure mass={mass} err={err} ({context})"
+        )
     return a, ovf
 
 
