@@ -1,10 +1,6 @@
-"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate."""
-"""Real-slate pricing from fitted sharp_v3 artifacts (NOT a fixture).
+"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate.
 
-Refit participation + minutes + Tier A stat models on all history strictly before the slate date,
-then price the newest real WNBA slate available in the recovered dataset from real point-in-time
-features. Emits atom PMFs + fair Over/Under prices with full lineage. Players missing a valid
-fitted path abstain honestly.
+Research-only V3 slate runner. Pass --allow-research to execute.
 """
 from __future__ import annotations
 
@@ -53,7 +49,15 @@ def _sha(p: Path) -> str:
 
 
 @app.command()
-def main(date: str = typer.Option(None, "--date", help="slate date; default = latest in data")) -> None:
+def main(
+    date: str = typer.Option(None, "--date", help="slate date; default = latest in data"),
+    allow_research: bool = typer.Option(False, "--allow-research"),
+) -> None:
+    if not allow_research:
+        raise SystemExit(
+            "DEPRECATED: production inference is scripts/run_wnba_pmf.py → "
+            "sharp_v6.predict_slate. Pass --allow-research for LEGACY_CONTROL only."
+        )
     _, df = C.load_verified()
     slate_date = pd.Timestamp(date) if date else df["game_date"].max()
     train = df[df["game_date"] < slate_date]

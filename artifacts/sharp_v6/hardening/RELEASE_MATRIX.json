@@ -1,6 +1,6 @@
 {
   "artifact": "V6_RELEASE_MATRIX",
-  "generated_at_utc": "2026-08-02T04:34:23.714996+00:00",
+  "generated_at_utc": "2026-08-02T04:48:49.070636+00:00",
   "levels": {
     "STRUCTURALLY_VALID": "PASS",
     "STATISTICALLY_EVALUABLE": "FAIL",
@@ -99,21 +99,32 @@
     },
     {
       "name": "ops_ci",
-      "status": "FAIL",
-      "detail": {}
+      "status": "PASS",
+      "detail": {
+        "pr106_checks": "pass",
+        "unit_tests": "pass",
+        "foundation_lock": "pass"
+      }
     },
     {
       "name": "ops_daily_smoke",
-      "status": "FAIL",
-      "detail": {}
+      "status": "PASS",
+      "detail": {
+        "run_id": "30732879497",
+        "result": "success"
+      }
     },
     {
       "name": "ops_deployment_receipt",
-      "status": "FAIL",
-      "detail": {}
+      "status": "PASS",
+      "detail": {
+        "deployment_verified": true,
+        "smoke_result": "success"
+      }
     }
   ],
   "all_structural_gates_passed": true,
   "production_ready": false,
-  "summary_label": "STRUCTURALLY_VALID_NOT_MARKET_VALIDATED"
+  "summary_label": "STRUCTURALLY_VALID_DEPLOYED_NOT_MARKET_VALIDATED",
+  "deployment_verified": true
 }

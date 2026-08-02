@@ -1,10 +1,6 @@
-"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate."""
-"""Live real upcoming-slate run (NOT a fixture).
+"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate.
 
-Refit V4 on all completed data through the latest game, build the next real WNBA slate from live
-BDL, predict participation + minutes PMF + Tier A stat PMFs from real point-in-time features, fetch
-live exact no-vig player-prop quotes from The Odds API, and emit atom PMFs + fair Over/Under prices
-+ market-consistent PMFs with full lineage. Players without a valid fitted path abstain honestly.
+Research-only V4 live runner. Pass --allow-research to execute.
 """
 from __future__ import annotations
 
@@ -63,7 +59,15 @@ def _odds_props(event_id: str, credit_log: list):
 
 
 @app.command()
-def main(date: str = typer.Option("2026-07-31", "--date")) -> None:
+def main(
+    date: str = typer.Option("2026-07-31", "--date"),
+    allow_research: bool = typer.Option(False, "--allow-research"),
+) -> None:
+    if not allow_research:
+        raise SystemExit(
+            "DEPRECATED: production inference is scripts/run_wnba_pmf.py → "
+            "sharp_v6.predict_slate. Pass --allow-research for LEGACY_CONTROL only."
+        )
     OUT.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).isoformat()
     _, df = C.load_verified()

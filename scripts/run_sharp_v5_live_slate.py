@@ -1,8 +1,6 @@
-"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate."""
-"""Live real upcoming-slate run for V5 (not a fixture): minutes-mixture stat PMFs + push-aware
-multi-line market-consistent projection from live no-vig odds. Refits V5 through latest completed
-game; builds the next real WNBA slate from live BDL; emits atom PMFs + fair Over/Under prices +
-market-consistent prices with full lineage.
+"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate.
+
+Research-only V5 live runner. Pass --allow-research to execute.
 """
 from __future__ import annotations
 
@@ -37,7 +35,15 @@ def _norm(s):
 
 
 @app.command()
-def main(date: str = typer.Option(None, "--date")) -> None:
+def main(
+    date: str = typer.Option(None, "--date"),
+    allow_research: bool = typer.Option(False, "--allow-research"),
+) -> None:
+    if not allow_research:
+        raise SystemExit(
+            "DEPRECATED: production inference is scripts/run_wnba_pmf.py → "
+            "sharp_v6.predict_slate. Pass --allow-research for LEGACY_CONTROL only."
+        )
     OUT.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).isoformat()
     _, df = V4C.load_verified()
