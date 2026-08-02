@@ -1,0 +1,170 @@
+{
+  "artifact": "PMF_IMPLEMENTATION_INVENTORY",
+  "phase": 1,
+  "starting_main_sha": "796a6b0dbd9b49eec8713fedb44b635560c98162",
+  "note": "Executable inventory of distribution / mixture paths. Status reflects pre-repair main.",
+  "implementations": [
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "DiscreteDistribution.materialize",
+      "status": "production",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": true,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": "family-dependent",
+      "production_consumers": ["TiltedDistribution", "market_projection", "tests"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "CountDistribution",
+      "status": "production",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": true,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": true,
+      "production_consumers": ["MixtureDistribution", "HurdleDistribution", "ZeroInflatedDistribution", "TiltedDistribution", "predict_stat_atoms"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "HurdleDistribution",
+      "status": "production_defective_moments",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": true,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": "mean_ok_variance_zeros_overflow",
+      "production_consumers": ["predict_stat_atoms (post-repair)", "market_projection tests"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "ZeroInflatedDistribution",
+      "status": "production",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": true,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": true,
+      "production_consumers": ["tests", "research"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "MixtureDistribution",
+      "status": "production_incomplete_validation",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": true,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": true,
+      "production_consumers": ["mix_atoms (post-repair)", "predict_stat_atoms"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "ConvolutionDistribution",
+      "status": "production_truncated_components",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": "partial_direct_sum",
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": true,
+      "production_consumers": ["structural_reb path (later phase)", "tests"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "TiltedDistribution",
+      "status": "production_defective_tail_bound_as_mass",
+      "finite_atoms_renormalized": "normalizer_includes_bound_as_mass",
+      "overflow_separate": true,
+      "exact_prob_beyond_support": true,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": "mean_ignores_unresolved_tail",
+      "production_consumers": ["market_projection.project_multiline", "pricing"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/distribution.py",
+      "symbol": "TabularDistribution",
+      "status": "production",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": false,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": false,
+      "production_consumers": ["calibrated delivery tables", "settlement via atoms+overflow"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/models.py",
+      "symbol": "mix_atoms",
+      "status": "production_DEFECTIVE",
+      "finite_atoms_renormalized": true,
+      "overflow_separate": "reported_as_1_minus_pre_renorm_stored",
+      "exact_prob_beyond_support": false,
+      "mixture_weights_dropped": "matoms<=1e-4 dropped",
+      "mean_variance_include_tails": "broken_when_atoms_renormalized",
+      "production_consumers": [
+        "predict_stat_atoms",
+        "inference._core_pmf_delivery",
+        "fit_wnba_pmf_bundle (OOF)",
+        "structural_points_pmf (attempt volumes)",
+        "structural_reb_pmf (oreb/dreb)"
+      ],
+      "defect_demo": "atoms/=sum then overflow=1-s_before yields atoms+overflow>1"
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/models.py",
+      "symbol": "predict_stat_atoms",
+      "status": "production_DEFECTIVE_hurdle_renorm",
+      "finite_atoms_renormalized": true,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": false,
+      "mixture_weights_dropped": "via mix_atoms",
+      "mean_variance_include_tails": false,
+      "production_consumers": ["inference live+historical", "fit_wnba_pmf_bundle", "structural attempt PMFs"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/inference.py",
+      "symbol": "_normalize_pmf",
+      "status": "production_safety_renorm",
+      "finite_atoms_renormalized": "renormalizes when |mass-1|>1e-6",
+      "overflow_separate": true,
+      "exact_prob_beyond_support": false,
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": "n/a",
+      "production_consumers": ["_core_pmf_delivery"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v6/inference.py",
+      "symbol": "_settle",
+      "status": "production",
+      "finite_atoms_renormalized": false,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": "overflow added to over only",
+      "mixture_weights_dropped": false,
+      "mean_variance_include_tails": "n/a",
+      "production_consumers": ["_core_pmf_delivery pricing rows"]
+    },
+    {
+      "file": "src/wnba_props_model/sharp_v5/models.py",
+      "symbol": "mix_atoms / build_mixture",
+      "status": "research_legacy_not_production",
+      "finite_atoms_renormalized": true,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": false,
+      "mixture_weights_dropped": "matoms<=1e-4",
+      "mean_variance_include_tails": false,
+      "production_consumers": []
+    },
+    {
+      "file": "scripts/run_sharp_v5_oof.py",
+      "symbol": "_mix_atoms",
+      "status": "research_legacy",
+      "finite_atoms_renormalized": true,
+      "overflow_separate": true,
+      "exact_prob_beyond_support": false,
+      "mixture_weights_dropped": "matoms<=1e-4",
+      "mean_variance_include_tails": false,
+      "production_consumers": []
+    }
+  ],
+  "authoritative_post_repair": "wnba_props_model.sharp_v6.distribution.DiscreteDistribution (+ mix_atoms adapter calling MixtureDistribution materialize)"
+}

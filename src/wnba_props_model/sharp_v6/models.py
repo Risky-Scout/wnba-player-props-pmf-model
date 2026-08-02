@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.stats import nbinom, poisson, truncnorm
+from scipy.stats import truncnorm
 from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.isotonic import IsotonicRegression
 
@@ -23,10 +23,9 @@ from wnba_props_model.sharp_v6.contracts import (
     role_band,
 )
 from wnba_props_model.sharp_v6.distribution import (
-    CountDistribution,
     HurdleDistribution,
-    MixtureDistribution,
-    TabularDistribution,
+    materialize_minutes_mixture,
+    minutes_count_mixture,
 )
 
 _HGB = {
@@ -393,20 +392,78 @@ def fit_stat_mixture(train: pd.DataFrame, stat: str, family: str = "nb2") -> Sta
 
 
 def mix_atoms(lam: float, r: float | None, matoms: np.ndarray, K: int) -> tuple[np.ndarray, float]:
-    idx = np.where(matoms > 1e-4)[0]
-    w = matoms[idx]
-    means = np.clip(lam * idx, 1e-6, None)
-    k = np.arange(K + 1)
-    if r is None or (isinstance(r, float) and np.isnan(r)):
-        comp = poisson.pmf(k[:, None], means[None, :])
+    """Authoritative minutes mixture materialization (adapter for array callers).
+
+    P(Y=y|X) = sum_m P(M=m|X) * P(Y=y|M=m,X)
+
+    Does **not** drop minutes states by a per-state threshold, and does **not**
+    renormalize stored atoms independently of overflow.
+
+    Always returns atoms on support 0..K with overflow = P(Y>K).
+    """
+    mat = materialize_minutes_mixture(lam, r, matoms, int(K), tail_tolerance=1.0)
+    # Force exact 0..K support via the mixture object (vectorized path may expand).
+    # materialize_minutes_mixture with tail_tolerance=1.0 skips adaptive expansion.
+    if mat.support_max != int(K) or mat.atoms.size != int(K) + 1:
+        mix = minutes_count_mixture(lam, r, matoms)
+        atoms = np.array([mix.probability(y) for y in range(int(K) + 1)], dtype=float)
+        ovf = float(mix.survival(int(K)))
     else:
-        p = r / (r + means)
-        comp = nbinom.pmf(k[:, None], r, p[None, :])
-    atoms = comp @ w
-    s = float(atoms.sum())
-    if s > 0:
-        atoms = atoms / s
-    return atoms, float(max(0.0, 1.0 - s))
+        atoms = np.asarray(mat.atoms, dtype=float)
+        ovf = float(mat.overflow_probability)
+    err = abs(float(atoms.sum()) + ovf - 1.0)
+    if err > 1e-10:
+        raise ValueError(
+            f"mix_atoms normalization_error={err} stored={atoms.sum()} overflow={ovf}"
+        )
+    if mat.discarded_mixture_mass > 1e-10:
+        raise ValueError(
+            f"mix_atoms discarded_mixture_mass={mat.discarded_mixture_mass} exceeds 1e-10"
+        )
+    return atoms, ovf
+
+
+def predict_stat_distribution(
+    model: StatMixtureModel,
+    slate: pd.DataFrame,
+    minutes_atoms: list[np.ndarray],
+) -> list:
+    """Return the authoritative DiscreteDistribution per slate row (OOF/live/pricing)."""
+    X = _frame_features(slate, model.feature_cols).to_numpy(float)
+    lam = np.clip(model.rate_regressor.predict(X), 1e-6, None)
+    bands = role_band(slate)
+    out = []
+    p_pos = None
+    if model.hurdle_clf is not None:
+        p_pos = np.clip(model.hurdle_clf.predict_proba(X)[:, 1], 1e-4, 1 - 1e-4)
+    for i in range(len(slate)):
+        r = model.r_by_band.get(int(bands[i]), model.r_by_band.get("__global__"))
+        r_i = None if r is None else float(r)
+        base = minutes_count_mixture(float(lam[i]), r_i, minutes_atoms[i])
+        if p_pos is not None:
+            out.append(HurdleDistribution(float(p_pos[i]), base))
+        else:
+            out.append(base)
+    return out
+
+
+def _apply_hurdle_atoms(
+    atoms: np.ndarray,
+    overflow: float,
+    p_positive: float,
+) -> tuple[np.ndarray, float]:
+    """Apply hurdle mass to a materialized base without renormalizing atoms vs overflow.
+
+    P(0)=1-p_pos; P(y)=p_pos * base.P(y)/base.P(Y>=1) for y>=1;
+    overflow = p_pos * base.P(Y>K)/base.P(Y>=1).
+    """
+    p_pos = float(min(max(p_positive, 0.0), 1.0))
+    pos_norm = max(1.0 - float(atoms[0]), 1e-12)  # base P(Y>=1) = 1 - P(0)
+    out = np.empty_like(atoms)
+    out[0] = 1.0 - p_pos
+    out[1:] = p_pos * atoms[1:] / pos_norm
+    ovf = p_pos * float(overflow) / pos_norm
+    return out, ovf
 
 
 def predict_stat_atoms(
@@ -414,33 +471,31 @@ def predict_stat_atoms(
     slate: pd.DataFrame,
     minutes_atoms: list[np.ndarray],
 ) -> list[tuple[np.ndarray, float]]:
+    """Materialize authoritative per-row distributions on the emergency support.
+
+    Same mathematics as ``predict_stat_distribution`` — vectorized array form for
+    delivery tables. Stored atoms are never renormalized independently of overflow.
+    """
     X = _frame_features(slate, model.feature_cols).to_numpy(float)
     lam = np.clip(model.rate_regressor.predict(X), 1e-6, None)
     bands = role_band(slate)
     K = EMERGENCY_CAP.get(model.stat, 60)
-    out = []
     p_pos = None
     if model.hurdle_clf is not None:
         p_pos = np.clip(model.hurdle_clf.predict_proba(X)[:, 1], 1e-4, 1 - 1e-4)
+    out: list[tuple[np.ndarray, float]] = []
     for i in range(len(slate)):
         r = model.r_by_band.get(int(bands[i]), model.r_by_band.get("__global__"))
-        a, ovf = mix_atoms(float(lam[i]), None if r is None else float(r), minutes_atoms[i], K)
+        r_i = None if r is None else float(r)
+        atoms, ovf = mix_atoms(float(lam[i]), r_i, minutes_atoms[i], K)
         if p_pos is not None:
-            a = a.copy()
-            a[0] = 0.0
-            s = a.sum()
-            if s > 0:
-                a = a / s
-            mixed = np.zeros_like(a)
-            mixed[0] = 1 - p_pos[i]
-            mixed[1:] = p_pos[i] * a[1:]
-            a = mixed
-            ovf = ovf * float(p_pos[i])
-            tot = a.sum() + ovf
-            if tot > 0:
-                a = a / tot
-                ovf = ovf / tot
-        out.append((a, ovf))
+            atoms, ovf = _apply_hurdle_atoms(atoms, ovf, float(p_pos[i]))
+        if abs(float(atoms.sum()) + float(ovf) - 1.0) > 1e-10:
+            raise ValueError(
+                f"predict_stat_atoms mass identity failed: "
+                f"stored={atoms.sum()} overflow={ovf}"
+            )
+        out.append((atoms, float(ovf)))
     return out
 
 

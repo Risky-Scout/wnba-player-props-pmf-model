@@ -1,0 +1,46 @@
+{
+  "recorded_at_utc": "2026-08-02T05:13:16.562889+00:00",
+  "starting_main_sha": "796a6b0dbd9b49eec8713fedb44b635560c98162",
+  "origin_main_sha": "796a6b0dbd9b49eec8713fedb44b635560c98162",
+  "production_pointer": {
+    "artifact": "PRODUCTION_POINTER",
+    "updated_at_utc": "2026-08-02T01:33:07.629267+00:00",
+    "production_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+    "bundle_id": "wnba-pmf-production-v1.1",
+    "model_sha256": "3005c790e705843b7e9ce8633a0855bf99b53fe23aab92112fdd405df51b3b92",
+    "feature_contract_hash": "c2fd1d592d88e3f755779258ae8f5b9b1e089bbd0f4908d7b9f3f055b522a94e",
+    "inference_function": "wnba_props_model.sharp_v6.inference.predict_slate",
+    "daily_workflow": ".github/workflows/wnba_pmf_daily.yml",
+    "daily_command": "python scripts/run_wnba_pmf.py --bundle-dir artifacts/releases/wnba-pmf-production-v1.1",
+    "authoritative": true,
+    "baseline_preserved": "artifacts/releases/wnba-pmf-production-v1",
+    "baseline_claimed_model_sha256": "932d6078c50fa296c2e0970163a986cd0ddcd9a712a56d5c571021134feeba15",
+    "supersedes": [
+      "stage4_baseline",
+      "sharp_v3",
+      "sharp_v4",
+      "sharp_v5",
+      "wnba-pmf-production-v1"
+    ],
+    "supersedes_workflows": [
+      "daily_pipeline.yml (LEGACY_CONTROL; AUTHORITATIVE_PUBLISH=false)"
+    ],
+    "reproducibility_verified": true,
+    "reproducibility_note": "Canonical bundle bytes verified via integrity + identical copy; sklearn estimator re-pickle is not bit-stable across loads.",
+    "note": "v1.1 integrity-hardened rewrap of accepted V6 fitted components. Baseline v1 preserved immutable."
+  },
+  "v1.1_bundle_content_sha256": "71183462a7e56ccf3329f4a59b9e83a093729126c52a695bfeed829e0dbb0413",
+  "daily_workflow_sha256": "8e6482784d67ba84ac4ae4d17beea30854f61aeeccc6e0ddb26a87cf1135f09a",
+  "private_input_hashes": {
+    "data/recovered_v2/wnba_player_game_features_long.parquet": "851197a51ce9156cdff59e74da098e7d5bfa058b360dbb078f6cd6f89d7d8187",
+    "data/recovered_v2/wnba_games.parquet": "88d7c5072f6661b9cbc21a10cc5ee74771b51b64bf0dfe64750f579a75f388db"
+  },
+  "branch": "cursor/v6-p0-phase1-pmf-math",
+  "phase": 1,
+  "scope": "pmf_mixture_mass_and_tail_mathematics_only",
+  "current_test_status": {
+    "targeted_phase1": "19 passed (tests/test_p0_phase1_pmf_math.py)",
+    "sharp_v6_suite": "30 passed (phase1 + test_sharp_v6.py)",
+    "production_pointer": "artifacts/releases/wnba-pmf-production-v1.1"
+  }
+}

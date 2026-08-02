@@ -1,0 +1,32 @@
+{
+  "artifact": "MIXTURE_MASS_AUDIT",
+  "phase": 1,
+  "recorded_at_utc": "2026-08-02T05:20:07.081266+00:00",
+  "bundle_dir": "artifacts/releases/wnba-pmf-production-v1.1",
+  "bundle_model_sha256": "3005c790e705843b7e9ce8633a0855bf99b53fe23aab92112fdd405df51b3b92",
+  "features_path": "data/recovered_v2/wnba_player_game_features_long.parquet",
+  "features_sha256": "851197a51ce9156cdff59e74da098e7d5bfa058b360dbb078f6cd6f89d7d8187",
+  "n_rows_audited": 1400,
+  "stats": [
+    "pts",
+    "reb",
+    "ast",
+    "fg3m",
+    "stl",
+    "blk",
+    "turnover"
+  ],
+  "worst_repaired_normalization_error": 1.2212453270876722e-15,
+  "worst_legacy_normalization_error_demo": 0.0009424725410935864,
+  "largest_previous_dropped_minutes_mass": 0.0009349730017994551,
+  "largest_mean_difference": 0.00983228612477216,
+  "largest_variance_difference": 0.17170980568185001,
+  "largest_line_probability_difference": 0.0009183589087978784,
+  "rows_affected_gt": {
+    "0.0001": 1319,
+    "0.001": 0,
+    "0.01": 0
+  },
+  "max_repaired_moment_normalization_error": 1.3322676295501878e-15,
+  "note": "Parameter estimates unchanged (v1.1). Differences reflect mass/tail math repair only."
+}

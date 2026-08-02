@@ -1,0 +1,10 @@
+{
+  "slate_date": "2026-08-01",
+  "n_players": 40,
+  "publication": "disabled",
+  "n_pmfs": 280,
+  "n_atom_rows": 4037,
+  "worst_delivery_normalization_error": 9.992007221626409e-16,
+  "n_pmf_groups": 280,
+  "status": "ok"
+}
