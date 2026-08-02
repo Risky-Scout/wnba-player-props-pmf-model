@@ -1,9 +1,14 @@
 {
   "artifact": "ORIGIN_MAIN_VERIFICATION",
-  "generated_at_utc": "2026-08-02T00:39:31.189339+00:00",
-  "branch_head": "7cf93cab4b93e5eaf30eca36a74159985526699b",
-  "origin_main": "71753223e0cece1b056b1b36719bc0f6127b6404",
-  "merged_to_main": false,
-  "on_main": false,
-  "note": "will update after merge"
+  "generated_at_utc": "2026-08-02T00:58:02.280773+00:00",
+  "pr": 99,
+  "starting_origin_main_sha": "71753223e0cece1b056b1b36719bc0f6127b6404",
+  "final_accepted_branch_sha": "ab0bdb2ef035afc8c5f4df3434d132413eb3d137",
+  "merge_sha": "ee35dc7d25aeca153ae4d05335820f3aee8bf1c4",
+  "verified_origin_main_sha": "ee35dc7d25aeca153ae4d05335820f3aee8bf1c4",
+  "merged_to_main": true,
+  "on_main": true,
+  "authoritative_inference": "wnba_props_model.sharp_v6.inference.predict_slate",
+  "production_bundle": "artifacts/releases/wnba-pmf-production-v1",
+  "daily_workflow": ".github/workflows/wnba_pmf_daily.yml"
 }
