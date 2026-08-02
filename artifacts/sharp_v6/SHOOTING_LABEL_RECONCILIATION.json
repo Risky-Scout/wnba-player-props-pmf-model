@@ -1,18 +1,18 @@
 {
   "artifact": "SHOOTING_LABEL_RECONCILIATION",
-  "generated_at_utc": "2026-07-30T23:33:25.411095+00:00",
-  "rows_total": 9509,
-  "rows_valid": 5387,
+  "generated_at_utc": "2026-08-02T00:30:45.629109+00:00",
+  "rows_total": 9587,
+  "rows_valid": 5430,
   "identity_violations": {
     "fg2a_negative": 0,
     "fg2m_negative": 0,
     "fg2m_gt_fg2a": 0,
     "fg3m_gt_fg3a": 0,
     "ftm_gt_fta": 0,
-    "oreb_dreb_ne_reb": 4238,
-    "pts_identity_violation": 4122
+    "oreb_dreb_ne_reb": 4273,
+    "pts_identity_violation": 4157
   },
-  "valid_rate": 0.5665159322746871,
+  "valid_rate": 0.5663919891519766,
   "private_table": "data/recovered_v2/wnba_player_shooting_labels.parquet (gitignored)",
   "derivations": [
     "fg2a=fga-fg3a",

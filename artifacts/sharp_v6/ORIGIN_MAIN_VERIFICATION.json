@@ -1,9 +1,9 @@
 {
   "artifact": "ORIGIN_MAIN_VERIFICATION",
-  "generated_at_utc": "2026-07-31T00:00:48.716519+00:00",
-  "branch_head": "7fc2eea46493d33e47e2ba5ac9532685262a9e36",
-  "origin_main": "5d496072dcd0c101d0e5b7a538ad3dff961e190e",
+  "generated_at_utc": "2026-08-02T00:39:31.189339+00:00",
+  "branch_head": "7cf93cab4b93e5eaf30eca36a74159985526699b",
+  "origin_main": "71753223e0cece1b056b1b36719bc0f6127b6404",
   "merged_to_main": false,
   "on_main": false,
-  "merge_blocker": "agent gh is read-only, no merge/ready tool; maintainer runs `gh pr ready 99 && gh pr merge 99 --squash`"
+  "note": "will update after merge"
 }

@@ -1,3 +1,4 @@
+"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate."""
 """Real-slate pricing from fitted sharp_v3 artifacts (NOT a fixture).
 
 Refit participation + minutes + Tier A stat models on all history strictly before the slate date,

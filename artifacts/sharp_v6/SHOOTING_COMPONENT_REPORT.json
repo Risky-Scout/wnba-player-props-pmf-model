@@ -1,9 +1,6 @@
 {
   "artifact": "SHOOTING_COMPONENT_REPORT",
-  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
-  "fgm_ftm_endpoint": "/wnba/v1/player_stats (CORRECTED)",
-  "labels_recovered": true,
-  "coverage": "partial (~5.4k player-games with clean pts identity; resumable full pull pending)",
-  "structural_points_status": "LABELS_RECOVERED_FIT_PENDING_FULL_COVERAGE",
-  "points_model_in_production": "V5 minutes-mixture NB2 (control retained)"
+  "status": "FITTED",
+  "n_train": 4192,
+  "points_model": "structural_shooting"
 }

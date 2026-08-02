@@ -1,9 +1,10 @@
-"""WNBA Sharp PMF v4 — atom-reliable production forecasting + pricing.
+"""WNBA Sharp PMF v4 — RESEARCH_ONLY / LEGACY_CONTROL / DEPRECATED.
 
-V4 repairs the V3 core statistical defects (explicit feature contracts, 1:1 join cardinality,
-no outcome clipping / exact-tail scoring, adaptive support + overflow atoms, hierarchical
-dispersion), adds a structural shooting model + minutes-as-a-distribution, and a market-consistent
-atom PMF. Sportsbook data never enters the PURE track.
+Not called by production workflows. Authoritative inference lives in ``sharp_v6.predict_slate``.
 """
 DESIGN_VERSION = "wnba-sharp-pmf-v4"
 SEED = 20260730
+RESEARCH_ONLY = True
+LEGACY_CONTROL = True
+DEPRECATED = True
+PRODUCTION = False

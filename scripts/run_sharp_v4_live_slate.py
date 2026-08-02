@@ -1,3 +1,4 @@
+"""DEPRECATED / LEGACY_CONTROL — production uses scripts/run_wnba_pmf.py → sharp_v6.predict_slate."""
 """Live real upcoming-slate run (NOT a fixture).
 
 Refit V4 on all completed data through the latest game, build the next real WNBA slate from live

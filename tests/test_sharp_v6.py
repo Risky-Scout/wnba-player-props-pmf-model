@@ -8,9 +8,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from wnba_props_model.sharp_v5.distribution import CountDistribution, HurdleDistribution
 from wnba_props_model.sharp_v6 import market_projection as MP
-from wnba_props_model.sharp_v6.distribution import TiltedDistribution, analytic_hurdle_variance
+from wnba_props_model.sharp_v6.distribution import (
+    CountDistribution,
+    HurdleDistribution,
+    TiltedDistribution,
+    analytic_hurdle_variance,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 

@@ -1,15 +1,7 @@
-"""Generate calibrated PMF predictions for today's WNBA slate.
+"""LEGACY_CONTROL Stage-4 predictor retained for rollback tests.
 
-Uses the Stage 4 HGB engine + Stage 6 isotonic calibrators (if available).
-
-Usage:
-    python scripts/predict_today.py \\
-        --features-wide data/processed/wnba_player_game_features_wide.parquet \\
-        --model-dir artifacts/models/stage4_baseline \\
-        --cal-dir artifacts/models/calibration \\
-        --overrides config/player_overrides.json \\
-        --raw-props data/processed/player_props.parquet \\
-        --out-dir deliveries/today
+Production daily inference is ``scripts/run_wnba_pmf.py`` → ``sharp_v6.predict_slate``.
+Pass ``--use-v6`` to delegate to the authoritative V6 path.
 """
 from __future__ import annotations
 
@@ -45,8 +37,16 @@ def main(
     ),
     export_grids_json: bool = typer.Option(False, "--export-grids-json",
         help="Also write a full WNBAPMFGrid JSON sidecar with all markets at 0.5-step lines."),
+    use_v6: bool = typer.Option(False, "--use-v6", help="Delegate to authoritative sharp_v6.predict_slate."),
+    bundle_dir: str = typer.Option("artifacts/releases/wnba-pmf-production-v1", "--bundle-dir"),
 ) -> None:
     """Predict today's WNBA player stat PMFs and compute market edges."""
+    if use_v6:
+        raise SystemExit(
+            "Production inference is scripts/run_wnba_pmf.py "
+            f"(bundle={bundle_dir}) → sharp_v6.predict_slate. "
+            "Stage-4 predict_today is LEGACY_CONTROL only."
+        )
     features_df = pd.read_parquet(features_wide)
 
     if game_date:

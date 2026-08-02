@@ -1,5 +1,6 @@
 {
   "artifact": "PARTICIPATION_REPORT",
-  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
-  "note": "reuses V5/V4 participation (HGB + calibrator selection); DNP separate from zero atom"
+  "status": "FITTED",
+  "calibration_method": "identity",
+  "feature_hash": "eef2d3449d135223"
 }

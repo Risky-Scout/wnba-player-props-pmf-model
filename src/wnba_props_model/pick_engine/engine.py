@@ -308,14 +308,15 @@ def build_candidates(
             ref_tier_ok = False
 
         w = rel.weight_for(stat=str(stat or ""), role=role)
+        # Authoritative pick input: model_probability settled from the calibrated V6 PMF.
+        # Market reference / production / reliability-blend are diagnostic only — they must
+        # not replace the model probability for ranking or EV.
+        model_probability = float(pure_p) if pure_p is not None else None
+        p_pick = model_probability
+        # Diagnostic blend retained for historical comparison only (not used for EV/ranking).
+        diagnostic_pick_blend = None
         if pure_p is not None and ref_p is not None:
-            p_pick = pick_probability(pure_p, ref_p, w)
-        elif pure_p is not None:
-            # No reference: pick track follows pure (w applied vs 0.5 neutral only for ranking).
-            p_pick = float(pure_p)
-            w = float(w)  # retain reliability for conservative bound
-        else:
-            p_pick = None
+            diagnostic_pick_blend = pick_probability(pure_p, ref_p, w)
 
         quote_ts = qr.get("book_last_update") or qr.get("collected_utc")
         quote_age = None
@@ -453,9 +454,12 @@ def build_candidates(
             "american_odds": american,
             "decimal_odds": decimal,
             "pure_probability": pure_p,
-            "reference_probability": ref_p,
-            "production_probability": prod_p,
-            "pick_probability": p_pick,
+            "model_probability": model_probability,
+            "reference_probability": ref_p,  # diagnostic
+            "reference_market_probability": ref_p,  # diagnostic
+            "production_probability": prod_p,  # diagnostic only
+            "pick_probability": p_pick,  # == model_probability (calibrated V6 PMF settled)
+            "diagnostic_pick_blend": diagnostic_pick_blend,  # historical comparison only
             "break_even_probability": break_even_probability(decimal),
             "p_win": p_win,
             "p_lose": p_lose,

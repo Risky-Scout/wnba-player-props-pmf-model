@@ -1,5 +1,5 @@
 {
   "artifact": "FIRST_BASKET_REPORT",
-  "generated_at_utc": "2026-07-30T23:59:38.314218+00:00",
-  "status": "NO_VALID_FITTED_EVENT_MODEL"
+  "status": "FITTED_COMPETING_RISK",
+  "normalization": "per_game_sums_to_one"
 }

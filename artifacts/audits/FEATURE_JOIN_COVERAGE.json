@@ -1,13 +1,13 @@
 {
   "artifact": "FEATURE_JOIN_COVERAGE",
-  "generated_at_utc": "2026-07-30T03:46:22.993717+00:00",
-  "matched_keys": 23931,
+  "generated_at_utc": "2026-08-02T00:32:31.445638+00:00",
+  "matched_keys": 24175,
   "feature_only_keys": 0,
   "target_only_keys": 0,
   "feature_duplicate_keys": 0,
   "target_duplicate_keys": 0,
   "many_to_many_rows": 0,
-  "missing_scheduled_tip": 10660,
+  "missing_scheduled_tip": 0,
   "missing_prediction_cutoff": 0,
   "join_cardinality_valid": true
 }

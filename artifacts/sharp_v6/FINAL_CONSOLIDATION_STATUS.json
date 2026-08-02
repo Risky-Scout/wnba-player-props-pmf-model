@@ -1,0 +1,44 @@
+{
+  "artifact": "FINAL_IMPLEMENTATION_REPORT",
+  "generated_at_utc": "2026-08-02T00:39:31.191065+00:00",
+  "authoritative_inference": "wnba_props_model.sharp_v6.inference.predict_slate",
+  "production_bundle": "artifacts/releases/wnba-pmf-production-v1",
+  "bundle_sha256": "31d504d80abba82a5be23db8209979d9c403773f4a695a0eb05a5f406e31e5f8",
+  "selected_families": {
+    "pts": "structural_shooting",
+    "reb": "minutes_mixture_nb2",
+    "ast": "minutes_mixture_nb2",
+    "fg3m": "minutes_mixture_nb2",
+    "stl": "hurdle_nb2",
+    "blk": "minutes_mixture_nb2",
+    "turnover": "hurdle_nb2"
+  },
+  "historical_oof_nll": {
+    "ast": 1.6802,
+    "blk": 0.7847,
+    "fg3m": 1.1033,
+    "pts": 3.738,
+    "reb": 2.1018,
+    "stl": 1.1577,
+    "turnover": 1.4652
+  },
+  "historical_oof_crps": {
+    "ast": 0.8375,
+    "blk": 0.2867,
+    "fg3m": 0.4663,
+    "pts": 3.2856,
+    "reb": 1.2663,
+    "stl": 0.4624,
+    "turnover": 0.6465
+  },
+  "upcoming_slate": {
+    "date": "2026-08-02",
+    "n_games": 3,
+    "n_players": 128,
+    "n_pmfs": 896
+  },
+  "ranked_picks": 188,
+  "positive_ev_picks": 93,
+  "designed_not_fitted_remaining": [],
+  "market_superiority_claimed": false
+}

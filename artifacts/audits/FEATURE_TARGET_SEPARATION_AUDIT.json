@@ -1,11 +1,11 @@
 {
   "artifact": "FEATURE_TARGET_SEPARATION_AUDIT",
-  "generated_at_utc": "2026-07-30T03:46:22.993717+00:00",
+  "generated_at_utc": "2026-08-02T00:32:31.445638+00:00",
   "feature_artifact": {
     "path": "data/recovered_v2/modeling/wnba_pregame_features_t12.parquet",
-    "rows": 23931,
+    "rows": 24175,
     "cols": 336,
-    "sha256": "70afb7e05af7f826f65050fb52c6add54c0a5bfdef7bb88316c322165dc222c0",
+    "sha256": "70dad3f35ab98e5216ae7377675c7eba071292fbfdc923f27df72b450a01bc33",
     "schema": [
       "game_id",
       "player_id",
@@ -348,9 +348,9 @@
   },
   "target_artifact": {
     "path": "data/recovered_v2/modeling/wnba_player_targets.parquet",
-    "rows": 23931,
+    "rows": 24175,
     "cols": 16,
-    "sha256": "0ecb09878770a073535afd578877aaf7c52710a4eae5ae1c020fa2ac145727e6",
+    "sha256": "75fbdbef3208c53dd7f7d87e10af575302464e9eb92e77216511351727cd80e0",
     "schema": [
       "game_id",
       "player_id",

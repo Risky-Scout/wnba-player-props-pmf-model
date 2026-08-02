@@ -115,14 +115,17 @@ def rank_candidates(
     if df.empty:
         return pd.DataFrame(columns=RANK_COLUMNS)
 
-    df["pick_probability_advantage"] = df["pick_probability"].astype(float) - df[
+    # Ranking uses model_probability (= calibrated V6 PMF settled). Market blend is diagnostic only.
+    model_col = "model_probability" if "model_probability" in df.columns else "pick_probability"
+    df["pick_probability_advantage"] = df[model_col].astype(float) - df[
         "break_even_probability"
     ].astype(float)
     df["quote_age_sort"] = df["quote_age"].fillna(1e9).astype(float)
     df["uncertainty_sort"] = df["uncertainty"].fillna(1.0).astype(float)
+    ev_col = "raw_expected_value" if "raw_expected_value" in df.columns else "conservative_expected_value"
     df = df.sort_values(
         by=[
-            "conservative_expected_value",
+            ev_col,
             "pick_probability_advantage",
             "reliability_weight",
             "quote_age_sort",

@@ -3,17 +3,17 @@
   "method": "recompute rolling feature from strictly-prior games (shift(1)); compare to stored",
   "rolling_features_checked": {
     "player_pts_mean_l5": {
-      "n_compared": 23597,
+      "n_compared": 23841,
       "mismatches_gt_0.05": 0,
       "match_rate": 1.0
     },
     "player_reb_mean_l5": {
-      "n_compared": 23597,
+      "n_compared": 23841,
       "mismatches_gt_0.05": 0,
       "match_rate": 1.0
     },
     "player_minutes_mean_l5": {
-      "n_compared": 23597,
+      "n_compared": 23841,
       "mismatches_gt_0.05": 0,
       "match_rate": 1.0
     }
