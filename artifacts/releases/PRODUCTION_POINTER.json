@@ -1,9 +1,9 @@
 {
-  "artifact": "selected_production_package",
-  "updated_at_utc": "2026-08-02T00:39:30.880261+00:00",
+  "artifact": "PRODUCTION_POINTER",
+  "updated_at_utc": "2026-08-02T00:49:40.008068+00:00",
   "production_bundle": "artifacts/releases/wnba-pmf-production-v1",
   "bundle_id": "wnba-pmf-production-v1",
-  "model_sha256": "31d504d80abba82a5be23db8209979d9c403773f4a695a0eb05a5f406e31e5f8",
+  "model_sha256": "932d6078c50fa296c2e0970163a986cd0ddcd9a712a56d5c571021134feeba15",
   "inference_function": "wnba_props_model.sharp_v6.inference.predict_slate",
   "daily_workflow": ".github/workflows/wnba_pmf_daily.yml",
   "daily_command": "python scripts/run_wnba_pmf.py --bundle-dir artifacts/releases/wnba-pmf-production-v1",
@@ -15,7 +15,7 @@
     "sharp_v5"
   ],
   "supersedes_workflows": [
-    "daily_pipeline.yml (Stage-4; retained for rollback, not authoritative PMF path)"
+    "daily_pipeline.yml (Stage-4 rollback path; not authoritative PMF)"
   ],
-  "authoritative_daily_workflow": ".github/workflows/wnba_pmf_daily.yml"
+  "note": "config/selected_production_package.json retains Stage-4 champion fields for legacy gates; this pointer is authoritative for V6 PMF production."
 }
