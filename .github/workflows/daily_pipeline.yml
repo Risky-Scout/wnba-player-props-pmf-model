@@ -1,5 +1,3 @@
-# SUPERSEDED for player-prop PMF production by wnba_pmf_daily.yml (sharp_v6).
-# Retained temporarily for Stage-4 rollback / non-PMF jobs.
 name: Daily WNBA PMF Pipeline
 
 on:

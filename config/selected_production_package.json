@@ -13,5 +13,9 @@
     "sharp_v3",
     "sharp_v4",
     "sharp_v5"
-  ]
+  ],
+  "supersedes_workflows": [
+    "daily_pipeline.yml (Stage-4; retained for rollback, not authoritative PMF path)"
+  ],
+  "authoritative_daily_workflow": ".github/workflows/wnba_pmf_daily.yml"
 }
