@@ -86,10 +86,53 @@ def build_all_contracts(all_cols: list[str]) -> dict[str, dict]:
             "n": len(cols),
             "schema_hash": contract_hash(cols),
             "features": cols,
-            "missingness": "HGB native NaN handling",
+            # Explicit classification — not an unclassified silent NaN-fill policy.
+            "missingness": "OPTIONAL_WITH_NATIVE_MISSING_SUPPORT",
+            "feature_class_default": "OPTIONAL_WITH_NATIVE_MISSING_SUPPORT",
             "provenance": "pregame T-1.2 lagged features (recovered_v2)",
+            "pit_rule": "available_at <= prediction_timestamp",
         }
     return contracts
+
+
+# Governed constants — purpose / unit / range / sensitivity notes for audits.
+GOVERNED_CONSTANTS = {
+    "SEED": {
+        "value": SEED, "purpose": "deterministic RNG for sims/calibration",
+        "unit": "dimensionless", "allowed_range": "fixed", "sensitivity": "reproducibility_only",
+    },
+    "NORM_TOL": {
+        "value": NORM_TOL, "purpose": "PMF mass equality tolerance",
+        "unit": "probability", "allowed_range": "[1e-12, 1e-6]", "sensitivity": "invariant_gate",
+    },
+    "TAIL_TOL": {
+        "value": TAIL_TOL, "purpose": "overflow / tail mass floor",
+        "unit": "probability", "allowed_range": "[1e-9, 1e-4]", "sensitivity": "tail_events",
+    },
+    "OREB_SHARE_FALLBACK": {
+        "value": 0.28, "purpose": "operational split when oreb/dreb labels absent at fit",
+        "unit": "share", "allowed_range": "[0.2, 0.4]",
+        "sensitivity": "reb_component_only", "selection": "conservative_operational_constraint",
+    },
+    "TEAM_REG_MINUTES": {
+        "value": 200, "purpose": "regulation team minutes invariant",
+        "unit": "minutes", "allowed_range": "200", "sensitivity": "mathematical_invariant",
+    },
+    "TEAM_Q1_MINUTES": {
+        "value": 50, "purpose": "Q1 team minutes invariant",
+        "unit": "minutes", "allowed_range": "50", "sensitivity": "mathematical_invariant",
+    },
+    "FIRST_BASKET_OTHER_MASS": {
+        "value": 0.02, "purpose": "residual other/no-basket competing-risk mass",
+        "unit": "probability", "allowed_range": "[0.01, 0.05]",
+        "sensitivity": "first_basket_only", "selection": "conservative_operational_constraint",
+    },
+    "ROLE_BAND_BREAKS": {
+        "value": [12, 22, 30], "purpose": "minutes role-band boundaries for dispersion",
+        "unit": "minutes", "allowed_range": "monotonic increasing in (0, 40)",
+        "sensitivity": "dispersion_pooling", "selection": "oof_role_stability",
+    },
+}
 
 
 def role_band(df: pd.DataFrame) -> np.ndarray:

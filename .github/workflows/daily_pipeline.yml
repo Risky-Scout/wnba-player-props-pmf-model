@@ -1,13 +1,16 @@
 name: Daily WNBA PMF Pipeline
 
+# LEGACY_CONTROL — Stage-4 / foundation-lock rollback path only.
+# AUTHORITATIVE_PUBLISH: false
+# Authoritative production inference is wnba_pmf_daily.yml →
+# scripts/run_wnba_pmf.py → sharp_v6.predict_slate.
+# This workflow must not write deliveries/sharp_v6 or overwrite the V6 production pointer.
+# Publish/dispatch steps are gated off while AUTHORITATIVE_PUBLISH is false.
+
 on:
   schedule:
-    # Morning run: 6 AM ET (10:00 UTC) -- trains models, builds slate for TODAY
-    # Moved to 6 AM to guarantee edges are published ≥12h before any WNBA tip-off (earliest ~7 PM ET).
-    # pregame_initial.yml fires 30 min after this, publishing Edge Board by ~6:30 AM ET.
+    # Retained for foundation-lock / rollback drills only — not authoritative PMF publish.
     - cron: "0 10 * * *"
-    # Mid-morning run: 10 AM ET (14:00 UTC) -- re-pulls props after books post WNBA lines
-    # Bookmakers typically post WNBA player props by 2 PM ET; this run captures early movers.
     - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
@@ -43,8 +46,17 @@ jobs:
       contents: write
       actions: write
     timeout-minutes: 120
+    env:
+      AUTHORITATIVE_PUBLISH: "false"
+      LEGACY_CONTROL: "true"
+      V6_AUTHORITATIVE_WORKFLOW: wnba_pmf_daily.yml
 
     steps:
+      - name: Assert legacy non-authoritative
+        run: |
+          test "${AUTHORITATIVE_PUBLISH}" = "false"
+          echo "LEGACY_CONTROL: Stage-4 rollback only; V6 publishes via wnba_pmf_daily.yml"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -689,7 +701,8 @@ jobs:
         # When target_date != today (off-day advance), daily_pipeline writes to
         # deliveries/next_game/ but pregame_final reads from deliveries/tonight/.
         # Copy outputs so the pregame-initial artifact chain works correctly.
-        if: ${{ !cancelled() }}
+        # Gated: LEGACY_CONTROL with AUTHORITATIVE_PUBLISH=false must not publish.
+        if: ${{ !cancelled() && env.AUTHORITATIVE_PUBLISH == 'true' }}
         run: |
           TARGET="${{ steps.date.outputs.target_date }}"
           TODAY=$(date -u +%Y-%m-%d)
@@ -738,7 +751,8 @@ jobs:
         # workflow_run events are unreliable for schedule-triggered parent workflows.
         # Explicitly dispatch pregame_initial after daily_pipeline runs so the
         # dashboard always reflects today's model output. Fires unless cancelled.
-        if: ${{ !cancelled() }}
+        # Gated: LEGACY_CONTROL with AUTHORITATIVE_PUBLISH=false must not publish.
+        if: ${{ !cancelled() && env.AUTHORITATIVE_PUBLISH == 'true' }}
         run: |
           gh workflow run pregame_initial.yml \
             --ref ${{ github.ref_name }} \

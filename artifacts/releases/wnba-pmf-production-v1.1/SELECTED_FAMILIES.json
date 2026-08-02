@@ -1,0 +1,9 @@
+{
+  "pts": "structural_shooting",
+  "reb": "structural_oreb_dreb",
+  "ast": "minutes_mixture_nb2",
+  "fg3m": "minutes_mixture_nb2",
+  "stl": "hurdle_nb2",
+  "blk": "minutes_mixture_nb2",
+  "turnover": "hurdle_nb2"
+}

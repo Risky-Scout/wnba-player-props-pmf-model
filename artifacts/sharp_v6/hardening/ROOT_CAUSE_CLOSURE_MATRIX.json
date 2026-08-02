@@ -1,0 +1,241 @@
+{
+  "artifact": "ROOT_CAUSE_CLOSURE_MATRIX",
+  "generated_at_utc": "2026-08-02T04:34:23.708780+00:00",
+  "baseline_bundle": "artifacts/releases/wnba-pmf-production-v1",
+  "baseline_claimed_model_sha256": "932d6078c50fa296c2e0970163a986cd0ddcd9a712a56d5c571021134feeba15",
+  "candidate_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+  "candidate_integrity": {
+    "bundle_dir": "artifacts/releases/wnba-pmf-production-v1.1",
+    "bundle_id": "wnba-pmf-production-v1.1",
+    "model_sha256": "3005c790e705843b7e9ce8633a0855bf99b53fe23aab92112fdd405df51b3b92",
+    "code_sha": "987c07fab0315ac026c446ed0ca7d9c9aedca17c",
+    "feature_contract_hash": "c2fd1d592d88e3f755779258ae8f5b9b1e089bbd0f4908d7b9f3f055b522a94e",
+    "data_hashes": {
+      "features": "70dad3f35ab98e5216ae7377675c7eba071292fbfdc923f27df72b450a01bc33",
+      "targets": "75fbdbef3208c53dd7f7d87e10af575302464e9eb92e77216511351727cd80e0",
+      "stats": "a8e5cf13ddbf1d579ee373000a0a03a52a27b90dd45756feed9272065523012d",
+      "shooting": "f8383b92e54114bc56d81567536c57f2fd7f83a804cf534a9d45af4ad99d0327"
+    },
+    "selected_families": {
+      "pts": "structural_shooting",
+      "reb": "structural_oreb_dreb",
+      "ast": "minutes_mixture_nb2",
+      "fg3m": "minutes_mixture_nb2",
+      "stl": "hurdle_nb2",
+      "blk": "minutes_mixture_nb2",
+      "turnover": "hurdle_nb2"
+    },
+    "inference_function": "wnba_props_model.sharp_v6.inference.predict_slate",
+    "retrain_in_daily": false
+  },
+  "items": [
+    {
+      "root_cause": "1_train_serve_skew",
+      "implementation_change": "Unify _core_pmf_delivery; parity tests",
+      "tests_or_evidence": "tests/test_v6_hardening.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "tests/test_v6_hardening.py"
+    },
+    {
+      "root_cause": "2_silent_generic_identity",
+      "implementation_change": "Typed identity statuses + quarantine",
+      "tests_or_evidence": "src/wnba_props_model/sharp_v6/identity.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "src/wnba_props_model/sharp_v6/identity.py"
+    },
+    {
+      "root_cause": "3_unexplained_heuristics",
+      "implementation_change": "GOVERNED_CONSTANTS registry",
+      "tests_or_evidence": "src/wnba_props_model/sharp_v6/contracts.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "src/wnba_props_model/sharp_v6/contracts.py"
+    },
+    {
+      "root_cause": "4_pseudo_features",
+      "implementation_change": "Feature registry + ablation stub from frozen contracts",
+      "tests_or_evidence": "feature_policy.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "feature_policy.py"
+    },
+    {
+      "root_cause": "5_date_effective_identity",
+      "implementation_change": "build_date_effective_identity_table",
+      "tests_or_evidence": "identity.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "identity.py"
+    },
+    {
+      "root_cause": "6_ambient_artifact_discovery",
+      "implementation_change": "Explicit --bundle-dir + verify_bundle_integrity",
+      "tests_or_evidence": "bundle.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "bundle.py"
+    },
+    {
+      "root_cause": "7_silent_fallback",
+      "implementation_change": "Production fail-closed modes",
+      "tests_or_evidence": "inference.py / run_wnba_pmf.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "inference.py / run_wnba_pmf.py"
+    },
+    {
+      "root_cause": "8_coherence_invariants",
+      "implementation_change": "PMF norm fail-closed; team minutes invariants",
+      "tests_or_evidence": "inference.py / models.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "inference.py / models.py"
+    },
+    {
+      "root_cause": "9_one_probabilistic_system",
+      "implementation_change": "Combos/Q1/FB from shared core",
+      "tests_or_evidence": "inference.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "inference.py"
+    },
+    {
+      "root_cause": "10_calibration_collapse",
+      "implementation_change": "Explicit identity calibrators; wrong-stat guard",
+      "tests_or_evidence": "inference.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "inference.py"
+    },
+    {
+      "root_cause": "11_market_external",
+      "implementation_change": "MARKET_EXTERNAL_NOTE; no overwrite",
+      "tests_or_evidence": "run_wnba_pmf.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "run_wnba_pmf.py"
+    },
+    {
+      "root_cause": "12_tautological_gates",
+      "implementation_change": "gate_not_tautology + mutation tests",
+      "tests_or_evidence": "release.py / tests",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "release.py / tests"
+    },
+    {
+      "root_cause": "13_vacuous_passes",
+      "implementation_change": "NOT_EVALUABLE on zero rows",
+      "tests_or_evidence": "release.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "release.py"
+    },
+    {
+      "root_cause": "14_unified_readiness",
+      "implementation_change": "ReleaseMatrix levels",
+      "tests_or_evidence": "release.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "release.py"
+    },
+    {
+      "root_cause": "15_raw_data_audit",
+      "implementation_change": "Documented requirement; pipeline preserves counts in manifests",
+      "tests_or_evidence": "reports",
+      "status": "PARTIAL",
+      "remaining_risk": "full duplicate classification report pending next data pull",
+      "affected_files": "reports"
+    },
+    {
+      "root_cause": "16_production_fail_closed",
+      "implementation_change": "--mode production nonzero exit",
+      "tests_or_evidence": "run_wnba_pmf.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "run_wnba_pmf.py"
+    },
+    {
+      "root_cause": "17_validation_exceptions",
+      "implementation_change": "FAILED_GATE.json on exception",
+      "tests_or_evidence": "run_wnba_pmf.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "run_wnba_pmf.py"
+    },
+    {
+      "root_cause": "18_behavioral_tests",
+      "implementation_change": "tests/test_v6_hardening.py",
+      "tests_or_evidence": "tests",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "tests"
+    },
+    {
+      "root_cause": "19_no_market_superiority_claim",
+      "implementation_change": "market_superiority=NOT_PROVEN",
+      "tests_or_evidence": "release.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "OOF ablation / market validation remain NOT_PROVEN until prospective evidence",
+      "affected_files": "release.py"
+    },
+    {
+      "root_cause": "20_withhold_unsupported",
+      "implementation_change": "unsupported map in manifest",
+      "tests_or_evidence": "bundle.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "bundle.py"
+    },
+    {
+      "root_cause": "21_feature_engineering",
+      "implementation_change": "Feature registry + ablation report scaffold",
+      "tests_or_evidence": "hardening reports",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "OOF ablation / market validation remain NOT_PROVEN until prospective evidence",
+      "affected_files": "hardening reports"
+    },
+    {
+      "root_cause": "22_provenance",
+      "implementation_change": "Bundle hashes + deployment receipt",
+      "tests_or_evidence": "bundle.py / release.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "bundle.py / release.py"
+    },
+    {
+      "root_cause": "23_one_production_truth",
+      "implementation_change": "Legacy workflow AUTHORITATIVE_PUBLISH false",
+      "tests_or_evidence": "workflows",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "workflows"
+    },
+    {
+      "root_cause": "24_docs_match_runtime",
+      "implementation_change": "MODEL_CARD from manifest",
+      "tests_or_evidence": "bundle.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "bundle.py"
+    },
+    {
+      "root_cause": "25_invalidate_on_contract_change",
+      "implementation_change": "feature_contract_hash in manifest",
+      "tests_or_evidence": "bundle.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "bundle.py"
+    },
+    {
+      "root_cause": "26_deployment_proof",
+      "implementation_change": "DEPLOYMENT_RECEIPT.json",
+      "tests_or_evidence": "release.py",
+      "status": "IMPLEMENTED",
+      "remaining_risk": "monitor_in_prospective",
+      "affected_files": "release.py"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "artifact": "STATISTICAL_EVALUATION_REPORT",
+  "selected_families": {
+    "pts": "structural_shooting",
+    "reb": "structural_oreb_dreb",
+    "ast": "minutes_mixture_nb2",
+    "fg3m": "minutes_mixture_nb2",
+    "stl": "hurdle_nb2",
+    "blk": "minutes_mixture_nb2",
+    "turnover": "hurdle_nb2"
+  },
+  "calibration": {
+    "pts": "identity",
+    "reb": "identity",
+    "ast": "identity",
+    "fg3m": "identity",
+    "stl": "identity",
+    "blk": "identity",
+    "turnover": "identity"
+  },
+  "market_superiority": "NOT_PROVEN",
+  "positive_ev_rows_are_not_profitability": true,
+  "withheld": {
+    "fantasy_points": "requires operator scoring configuration at runtime",
+    "double_double": "joint sim gate",
+    "triple_double": "joint sim gate"
+  },
+  "note": "Identity calibration retained as explicit OOF selection. No market-superiority claim is made on this branch."
+}

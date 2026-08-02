@@ -1,0 +1,84 @@
+{
+  "artifact": "DEPENDENCY_REBUILD_GRAPH",
+  "edges": [
+    {
+      "change": "raw_data",
+      "rebuild": [
+        "features",
+        "identity",
+        "bundle",
+        "evaluation",
+        "reports"
+      ]
+    },
+    {
+      "change": "player_identity",
+      "rebuild": [
+        "identity",
+        "features",
+        "bundle",
+        "evaluation"
+      ]
+    },
+    {
+      "change": "feature_transformations",
+      "rebuild": [
+        "feature_contract",
+        "bundle",
+        "calibrators",
+        "dependence",
+        "evaluation"
+      ]
+    },
+    {
+      "change": "imputation_policy",
+      "rebuild": [
+        "feature_contract",
+        "bundle",
+        "evaluation"
+      ]
+    },
+    {
+      "change": "model_family",
+      "rebuild": [
+        "bundle",
+        "calibrators",
+        "dependence",
+        "evaluation",
+        "pointer"
+      ]
+    },
+    {
+      "change": "calibration",
+      "rebuild": [
+        "bundle",
+        "evaluation",
+        "pointer"
+      ]
+    },
+    {
+      "change": "dependence",
+      "rebuild": [
+        "bundle",
+        "combo_markets",
+        "evaluation"
+      ]
+    },
+    {
+      "change": "source_code",
+      "rebuild": [
+        "bundle_code_sha",
+        "evaluation",
+        "deployment_receipt"
+      ]
+    },
+    {
+      "change": "dependency_versions",
+      "rebuild": [
+        "bundle",
+        "reproducibility",
+        "evaluation"
+      ]
+    }
+  ]
+}

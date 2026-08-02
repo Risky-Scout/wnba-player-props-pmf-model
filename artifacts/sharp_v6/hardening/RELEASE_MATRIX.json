@@ -1,0 +1,119 @@
+{
+  "artifact": "V6_RELEASE_MATRIX",
+  "generated_at_utc": "2026-08-02T04:34:23.714996+00:00",
+  "levels": {
+    "STRUCTURALLY_VALID": "PASS",
+    "STATISTICALLY_EVALUABLE": "FAIL",
+    "CALIBRATED": "PASS",
+    "PROSPECTIVELY_MONITORED": "FAIL",
+    "MARKET_VALIDATED": "NOT_PROVEN",
+    "PRODUCTION_READY": "FAIL"
+  },
+  "market_family_status": {
+    "pts": "STRUCTURALLY_VALID",
+    "reb": "STRUCTURALLY_VALID",
+    "ast": "STRUCTURALLY_VALID",
+    "fg3m": "STRUCTURALLY_VALID",
+    "stl": "STRUCTURALLY_VALID",
+    "blk": "STRUCTURALLY_VALID",
+    "turnover": "STRUCTURALLY_VALID",
+    "combinations": "STRUCTURALLY_VALID",
+    "q1": "STRUCTURALLY_VALID",
+    "first_basket": "STRUCTURALLY_VALID",
+    "double_double": "WITHHELD",
+    "triple_double": "WITHHELD",
+    "fantasy_points": "WITHHELD"
+  },
+  "market_superiority": "NOT_PROVEN",
+  "gates": [
+    {
+      "name": "structural_one_production_model",
+      "status": "PASS",
+      "detail": {
+        "production_flags": {
+          "v3": false,
+          "v4": false,
+          "v5": false,
+          "v6": true
+        },
+        "pointer_authoritative": true
+      }
+    },
+    {
+      "name": "structural_bundle_integrity",
+      "status": "PASS",
+      "detail": {
+        "bundle_dir": "artifacts/releases/wnba-pmf-production-v1.1",
+        "bundle_id": "wnba-pmf-production-v1.1",
+        "model_sha256": "3005c790e705843b7e9ce8633a0855bf99b53fe23aab92112fdd405df51b3b92",
+        "code_sha": "987c07fab0315ac026c446ed0ca7d9c9aedca17c",
+        "feature_contract_hash": "c2fd1d592d88e3f755779258ae8f5b9b1e089bbd0f4908d7b9f3f055b522a94e",
+        "data_hashes": {
+          "features": "70dad3f35ab98e5216ae7377675c7eba071292fbfdc923f27df72b450a01bc33",
+          "targets": "75fbdbef3208c53dd7f7d87e10af575302464e9eb92e77216511351727cd80e0",
+          "stats": "a8e5cf13ddbf1d579ee373000a0a03a52a27b90dd45756feed9272065523012d",
+          "shooting": "f8383b92e54114bc56d81567536c57f2fd7f83a804cf534a9d45af4ad99d0327"
+        },
+        "selected_families": {
+          "pts": "structural_shooting",
+          "reb": "structural_oreb_dreb",
+          "ast": "minutes_mixture_nb2",
+          "fg3m": "minutes_mixture_nb2",
+          "stl": "hurdle_nb2",
+          "blk": "minutes_mixture_nb2",
+          "turnover": "hurdle_nb2"
+        },
+        "inference_function": "wnba_props_model.sharp_v6.inference.predict_slate",
+        "retrain_in_daily": false
+      }
+    },
+    {
+      "name": "structural_no_legacy_publish",
+      "status": "PASS",
+      "detail": {
+        "legacy_blocked": true,
+        "v6_workflow_ok": true,
+        "legacy_writes_sharp_v6": false,
+        "publish_gated": true
+      }
+    },
+    {
+      "name": "structural_calibration_explicit",
+      "status": "PASS",
+      "detail": {}
+    },
+    {
+      "name": "structural_dependence_valid",
+      "status": "PASS",
+      "detail": {}
+    },
+    {
+      "name": "structural_train_serve_parity",
+      "status": "PASS",
+      "detail": {}
+    },
+    {
+      "name": "structural_reproducibility",
+      "status": "PASS",
+      "detail": {}
+    },
+    {
+      "name": "ops_ci",
+      "status": "FAIL",
+      "detail": {}
+    },
+    {
+      "name": "ops_daily_smoke",
+      "status": "FAIL",
+      "detail": {}
+    },
+    {
+      "name": "ops_deployment_receipt",
+      "status": "FAIL",
+      "detail": {}
+    }
+  ],
+  "all_structural_gates_passed": true,
+  "production_ready": false,
+  "summary_label": "STRUCTURALLY_VALID_NOT_MARKET_VALIDATED"
+}

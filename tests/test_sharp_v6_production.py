@@ -109,6 +109,22 @@ def test_daily_workflow_does_not_retrain():
     assert "retrain" in yml.lower()
 
 
+def test_predict_today_is_thin_v6_wrapper():
+    src = (REPO / "scripts/predict_today.py").read_text()
+    assert "sharp_v6.predict_slate" in src or "run_wnba_pmf.py" in src
+    assert "--legacy-stage4" in src
+    assert "use_v6: bool = typer.Option(True" in src or 'use_v6: bool = typer.Option(\n        True' in src
+    # Default path must not call Stage-4 predict_player_pmfs unless legacy flag.
+    tree = ast.parse(src)
+    # Source-level: Stage-4 import is inside the legacy branch.
+    assert "if use_v6 and not legacy_stage4" in src
+    assert "from wnba_props_model.pipeline.predict import predict_player_pmfs" in src
+    # Ensure the Stage-4 import is indented (inside legacy branch), not module-level.
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == "wnba_props_model.pipeline.predict":
+            raise AssertionError("Stage-4 predict import must not be module-level")
+
+
 def test_picks_use_model_probability_not_market_blend():
     src = (REPO / "src/wnba_props_model/pick_engine/engine.py").read_text()
     assert "model_probability = float(pure_p)" in src
