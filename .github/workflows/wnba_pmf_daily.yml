@@ -61,6 +61,23 @@ jobs:
           python scripts/build_features.py --data-dir data/recovered_v2
           cp -f data/processed/wnba_player_game_features_wide.parquet data/recovered_v2/
           cp -f data/processed/feature_schema_manifest.json data/recovered_v2/
+          # Tip store may be absent in Actions; synthesize from games for T-12 cutoffs.
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          p = Path("data/atomic_quotes/atomic_quotes.parquet")
+          if not p.exists():
+              p.parent.mkdir(parents=True, exist_ok=True)
+              g = pd.read_parquet("data/recovered_v2/wnba_games.parquet")
+              tip = pd.to_datetime(g["game_date"], utc=True) + pd.Timedelta(hours=19)
+              pd.DataFrame({
+                  "game_id": g["game_id"].astype(str),
+                  "scheduled_tip_utc": tip.dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+              }).to_parquet(p, index=False)
+              print(f"wrote stub tips {len(g)} -> {p}")
+          else:
+              print(f"using existing tip store {p}")
+          PY
           python scripts/build_stage9_modeling_artifacts.py
 
       - name: Run authoritative V6 slate inference (no retrain)
