@@ -1,4 +1,5 @@
 """Phase-2 canonical repair + participation-label contract tests."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +8,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from wnba_props_model.data.injury_workbook import (
+    LEAKAGE_PROHIBITED_FEATURES,
+    assert_no_onset_leakage,
+    eligibility_evidence_from_injury_events,
+    load_injury_events_from_rows,
+    match_athlete_exact,
+)
 from wnba_props_model.data.normalize import (
     flatten_player_stat_row,
     normalize_player_stats,
@@ -20,13 +28,6 @@ from wnba_props_model.data.participation_labels import (
     build_conditional_minutes_training_table,
     build_participation_labels,
     classify_box_score_row,
-)
-from wnba_props_model.data.injury_workbook import (
-    LEAKAGE_PROHIBITED_FEATURES,
-    assert_no_onset_leakage,
-    eligibility_evidence_from_injury_events,
-    load_injury_events_from_rows,
-    match_athlete_exact,
 )
 
 
@@ -152,23 +153,29 @@ def test_injury_return_and_games_missed_prohibited_as_onset_features():
 
 def test_unresolved_workbook_identities_cannot_create_labels():
     events = load_injury_events_from_rows(
-        [{
-            "athlete": "Unknown Person",
-            "team": "NYL",
-            "date_injured": "2025-06-01",
-            "date_returned": "2025-06-20",
-            "total_games_missed": 5,
-            "season_sheet": 2025,
-        }],
+        [
+            {
+                "athlete": "Unknown Person",
+                "team": "NYL",
+                "date_injured": "2025-06-01",
+                "date_returned": "2025-06-20",
+                "total_games_missed": 5,
+                "season_sheet": 2025,
+            }
+        ],
         roster_name_to_ids={"a player": [1]},
     )
     assert events.loc[0, "identity_status"] == "unresolved"
-    panel = pd.DataFrame([{
-        "game_id": 100,
-        "player_id": 1,
-        "game_date": "2025-06-05",
-        "minutes": 0.0,
-    }])
+    panel = pd.DataFrame(
+        [
+            {
+                "game_id": 100,
+                "player_id": 1,
+                "game_date": "2025-06-05",
+                "minutes": 0.0,
+            }
+        ]
+    )
     evid = eligibility_evidence_from_injury_events(events, panel)
     assert evid.empty
 
@@ -180,26 +187,48 @@ def test_ambiguous_name_cannot_confirm_inactive():
 
 
 def test_conditional_minutes_table_active_only_and_no_target_leakage():
-    labels = build_participation_labels(pd.DataFrame([
-        {"game_id": 1, "game_date": "2025-06-01", "season": 2025,
-         "player_id": 1, "team_id": 10, "minutes": 30.0, "minutes_flag": None},
-        {"game_id": 1, "game_date": "2025-06-01", "season": 2025,
-         "player_id": 2, "team_id": 10, "minutes": 0.0, "minutes_flag": None},
-    ]))
-    feats = pd.DataFrame([
-        {"game_id": 1, "player_id": 1, "player_minutes_mean_l5": 28.0},
-        {"game_id": 1, "player_id": 2, "player_minutes_mean_l5": 10.0},
-    ])
+    labels = build_participation_labels(
+        pd.DataFrame(
+            [
+                {
+                    "game_id": 1,
+                    "game_date": "2025-06-01",
+                    "season": 2025,
+                    "player_id": 1,
+                    "team_id": 10,
+                    "minutes": 30.0,
+                    "minutes_flag": None,
+                },
+                {
+                    "game_id": 1,
+                    "game_date": "2025-06-01",
+                    "season": 2025,
+                    "player_id": 2,
+                    "team_id": 10,
+                    "minutes": 0.0,
+                    "minutes_flag": None,
+                },
+            ]
+        )
+    )
+    feats = pd.DataFrame(
+        [
+            {"game_id": 1, "player_id": 1, "player_minutes_mean_l5": 28.0},
+            {"game_id": 1, "player_id": 2, "player_minutes_mean_l5": 10.0},
+        ]
+    )
     with pytest.raises(ValueError, match="leakage"):
         build_conditional_minutes_training_table(
-            labels, feats,
+            labels,
+            feats,
             feature_cols=["player_minutes_mean_l5", "actual_minutes"],
             feature_cutoff="t",
             data_hash="x",
             feature_contract_hash="y",
         )
     table = build_conditional_minutes_training_table(
-        labels, feats,
+        labels,
+        feats,
         feature_cols=["player_minutes_mean_l5"],
         feature_cutoff="prior_game_date_shift1",
         data_hash="abc",
@@ -220,7 +249,7 @@ def test_prospective_snapshots_append_only(tmp_path, monkeypatch):
 
     class _NoClient:
         def __init__(self, *args, **kwargs):
-            raise BDLAPIError("missing key")
+            raise BDLAPIError("BDL_API_KEY is required")
 
     monkeypatch.setattr(mod, "BDLClient", _NoClient)
     monkeypatch.setattr(
@@ -235,12 +264,19 @@ def test_prospective_snapshots_append_only(tmp_path, monkeypatch):
             "2026-08-02",
         ],
     )
-    mod.main()
+    rc = mod.main()
+    assert rc == 2
     assert man.exists()
     payload = json.loads(man.read_text())
     assert payload["append_only"] is True
+    assert payload["fail_closed"] is True
+    assert payload["fail_open"] is False
     assert payload["private_payloads_committed_to_git"] is False
-    assert payload["status"] == "no_bdl_api_key"
+    assert payload["status"] == "AUTHENTICATION_FAILURE"
+    # Failed auth must never be treated as healthy-empty injury/roster data.
+    for src in payload["sources"].values():
+        assert src.get("healthy_empty") is False
+        assert src.get("status") == "AUTHENTICATION_FAILURE"
 
     # Second invocation must not rewrite prior contract fields to allow commits
     man.write_text(json.dumps({**payload, "run": 1}))
@@ -269,12 +305,28 @@ def test_no_private_injury_rows_or_api_payloads_in_git_paths():
 
 
 def test_build_participation_labels_training_policy():
-    df = pd.DataFrame([
-        {"game_id": 1, "game_date": "2025-06-01", "season": 2025,
-         "player_id": 1, "team_id": 10, "minutes": 12.0, "minutes_flag": None},
-        {"game_id": 1, "game_date": "2025-06-01", "season": 2025,
-         "player_id": 2, "team_id": 10, "minutes": 0.0, "minutes_flag": None},
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "game_id": 1,
+                "game_date": "2025-06-01",
+                "season": 2025,
+                "player_id": 1,
+                "team_id": 10,
+                "minutes": 12.0,
+                "minutes_flag": None,
+            },
+            {
+                "game_id": 1,
+                "game_date": "2025-06-01",
+                "season": 2025,
+                "player_id": 2,
+                "team_id": 10,
+                "minutes": 0.0,
+                "minutes_flag": None,
+            },
+        ]
+    )
     labels = build_participation_labels(df)
     active = labels[labels["participation_label_class"] == CONFIRMED_ACTIVE].iloc[0]
     inferred = labels[labels["participation_label_class"] == INFERRED_ELIGIBLE_DNP].iloc[0]

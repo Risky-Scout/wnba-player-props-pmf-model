@@ -3,12 +3,14 @@
 Private workbook rows must never be committed. This module exposes schema,
 exact-identity matching, and leakage guards only.
 """
+
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
 
@@ -27,10 +29,12 @@ EVENT_COLUMNS = (
 )
 
 # Forbidden as onset-time / pre-injury predictive features.
-LEAKAGE_PROHIBITED_FEATURES = frozenset({
-    "date_returned",
-    "total_games_missed",
-})
+LEAKAGE_PROHIBITED_FEATURES = frozenset(
+    {
+        "date_returned",
+        "total_games_missed",
+    }
+)
 
 SUMMARY_COLUMN_PREFIXES = (
     "league-wide_games_missed",
@@ -83,8 +87,7 @@ def assert_no_onset_leakage(feature_names: Iterable[str]) -> None:
     bad = sorted(set(feature_names) & LEAKAGE_PROHIBITED_FEATURES)
     if bad:
         raise ValueError(
-            "injury workbook leakage: prohibited onset-time features: "
-            + ", ".join(bad)
+            "injury workbook leakage: prohibited onset-time features: " + ", ".join(bad)
         )
 
 
@@ -122,19 +125,21 @@ def load_injury_events_from_rows(
         match = match_athlete_exact(str(athlete or ""), roster_name_to_ids)
         injured = parse_workbook_date(r.get("date_injured"))
         returned = parse_workbook_date(r.get("date_returned"))
-        out.append({
-            "athlete": athlete,
-            "team": r.get("team"),
-            "body_part": r.get("body_part"),
-            "date_injured": injured,
-            "date_returned": returned,
-            "total_games_missed": r.get("total_games_missed"),
-            "position": r.get("position"),
-            "player_id": match.player_id,
-            "identity_status": match.status,
-            "return_open": returned is None,
-            "season_sheet": r.get("season_sheet"),
-        })
+        out.append(
+            {
+                "athlete": athlete,
+                "team": r.get("team"),
+                "body_part": r.get("body_part"),
+                "date_injured": injured,
+                "date_returned": returned,
+                "total_games_missed": r.get("total_games_missed"),
+                "position": r.get("position"),
+                "player_id": match.player_id,
+                "identity_status": match.status,
+                "return_open": returned is None,
+                "season_sheet": r.get("season_sheet"),
+            }
+        )
     return pd.DataFrame(out)
 
 
@@ -161,9 +166,22 @@ def load_injury_workbook(
         headers = [normalize_header(h) for h in header]
         # Keep leftmost event block; drop summary columns to the right.
         keep_idx = [
-            i for i, h in enumerate(headers)
-            if h and not is_summary_column(h) and (
-                h in EVENT_COLUMNS or h in {"date_injured", "date_returned", "athlete", "team", "body_part", "total_games_missed", "position"}
+            i
+            for i, h in enumerate(headers)
+            if h
+            and not is_summary_column(h)
+            and (
+                h in EVENT_COLUMNS
+                or h
+                in {
+                    "date_injured",
+                    "date_returned",
+                    "athlete",
+                    "team",
+                    "body_part",
+                    "total_games_missed",
+                    "position",
+                }
             )
         ]
         # Heuristic season from sheet name
@@ -238,15 +256,17 @@ def eligibility_evidence_from_injury_events(
             except TypeError:
                 continue
             # Player appears on a box row for that game/team context → eligible association
-            rows.append({
-                "game_id": g["game_id"],
-                "player_id": pid,
-                "on_eligible_roster": True,
-                "injury_interval": True,
-                "reviewed_workbook_inactive": True,
-                "evidence_timestamp": str(start),
-                "label_source": "injury_workbook_exact_identity",
-            })
+            rows.append(
+                {
+                    "game_id": g["game_id"],
+                    "player_id": pid,
+                    "on_eligible_roster": True,
+                    "injury_interval": True,
+                    "reviewed_workbook_inactive": True,
+                    "evidence_timestamp": str(start),
+                    "label_source": "injury_workbook_exact_identity",
+                }
+            )
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows).drop_duplicates(["game_id", "player_id"])

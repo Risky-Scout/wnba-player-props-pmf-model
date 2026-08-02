@@ -1,0 +1,41 @@
+{
+  "artifact": "PROMOTION_GATE",
+  "generated_at_utc": "2026-08-02T07:32:33.839703+00:00",
+  "result": "FAIL_KEEP_V1_1",
+  "production_pointer_updated": false,
+  "reason": "Downstream prop PMF noninferiority failed vs frozen tolerances; challenger remains v1.2-rc1 only.",
+  "aggregate_delta_nll": 0.0222085541907977,
+  "aggregate_tolerance": 0.02,
+  "per_stat_failures": [
+    {
+      "stat": "pts",
+      "delta_nll": 0.0579726865940983
+    },
+    {
+      "stat": "reb",
+      "delta_nll": 0.0504787882877604
+    }
+  ],
+  "gates": {
+    "labels_revalidated": true,
+    "no_inferred_unknown_negatives_used": true,
+    "participation_chronological": true,
+    "participation_applicability_explicit": true,
+    "minutes_chronological": true,
+    "minutes_family_selected": "hgb_residual",
+    "downstream_aggregate_nll_noninferior": false,
+    "downstream_per_stat_noninferior": false,
+    "live_roster_availability_path": true,
+    "shadow_unresolved_critical": true,
+    "pmf_normalization": true,
+    "tests": "PENDING",
+    "lineage": true,
+    "v1_1_loadable_rollback": true
+  },
+  "participation_oof_log_loss": 0.35515424203803064,
+  "minutes_oof_nll": 3.3026412470494044,
+  "minutes_oof_crps": 3.5422447930940146,
+  "challenger_bundle": "artifacts/releases/wnba-pmf-production-v1.2-rc1",
+  "rollback_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+  "mixed_result_note": "Participation injury-conditioned model is evaluable; minutes challenger does not pass downstream gates; do not promote."
+}

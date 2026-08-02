@@ -4,6 +4,7 @@ Schemas describe what each canonical table must contain.  Validators return
 structured dicts suitable for JSON audit reports.  They never raise on
 optional-endpoint absence; missing optional tables produce explicit statuses.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -11,10 +12,10 @@ from typing import Any
 
 import pandas as pd
 
-
 # ---------------------------------------------------------------------------
 # Schema dataclass
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TableSchema:
@@ -36,12 +37,20 @@ GAMES_SCHEMA = TableSchema(
     name="wnba_games",
     primary_key=["game_id"],
     required_columns=[
-        "game_id", "season", "game_date", "status", "status_normalized",
-        "home_team_id", "visitor_team_id",
-        "home_team_abbreviation", "visitor_team_abbreviation",
-        "has_final_score", "is_played_game",
+        "game_id",
+        "season",
+        "game_date",
+        "status",
+        "status_normalized",
+        "home_team_id",
+        "visitor_team_id",
+        "home_team_abbreviation",
+        "visitor_team_abbreviation",
+        "has_final_score",
+        "is_played_game",
         "has_player_stats",
-        "source", "pull_timestamp_utc",
+        "source",
+        "pull_timestamp_utc",
     ],
     numeric_columns=["home_team_score", "visitor_team_score", "total_score"],
     datetime_columns=["game_date"],
@@ -52,20 +61,50 @@ PLAYER_GAME_STATS_SCHEMA = TableSchema(
     name="wnba_player_game_stats",
     primary_key=["player_id", "game_id"],
     required_columns=[
-        "game_id", "game_date", "season",
-        "player_id", "player_name",
-        "team_id", "team_abbreviation",
+        "game_id",
+        "game_date",
+        "season",
+        "player_id",
+        "player_name",
+        "team_id",
+        "team_abbreviation",
         "opponent_team_id",
-        "is_home", "home_away",
+        "is_home",
+        "home_away",
         "position",
-        "minutes", "minutes_raw", "minutes_flag",
+        "minutes",
+        "minutes_raw",
+        "minutes_flag",
         "did_play",
-        "pts", "reb", "ast", "fg3m", "stl", "blk", "turnover",
-        "source", "pull_timestamp_utc",
+        "pts",
+        "reb",
+        "ast",
+        "fg3m",
+        "stl",
+        "blk",
+        "turnover",
+        "source",
+        "pull_timestamp_utc",
     ],
     numeric_columns=[
-        "minutes", "pts", "reb", "ast", "fgm", "fg3m", "ftm", "stl", "blk", "turnover",
-        "oreb", "dreb", "fga", "fg3a", "fta", "fg2a", "fg2m", "pf",
+        "minutes",
+        "pts",
+        "reb",
+        "ast",
+        "fgm",
+        "fg3m",
+        "ftm",
+        "stl",
+        "blk",
+        "turnover",
+        "oreb",
+        "dreb",
+        "fga",
+        "fg3a",
+        "fta",
+        "fg2a",
+        "fg2m",
+        "pf",
     ],
     datetime_columns=["game_date"],
     nonneg_stat_columns=["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover", "minutes"],
@@ -94,9 +133,16 @@ PLAYER_PROPS_SCHEMA = TableSchema(
     name="wnba_player_props",
     primary_key=[],  # multiple rows per player/game/vendor/stat
     required_columns=[
-        "game_id", "player_id", "vendor", "prop_type_raw", "stat", "line",
-        "over_odds", "under_odds",
-        "source", "pull_timestamp_utc",
+        "game_id",
+        "player_id",
+        "vendor",
+        "prop_type_raw",
+        "stat",
+        "line",
+        "over_odds",
+        "under_odds",
+        "source",
+        "pull_timestamp_utc",
     ],
     numeric_columns=["line", "over_odds", "under_odds"],
     evaluation_only=True,
@@ -112,16 +158,31 @@ ODDS_SCHEMA = TableSchema(
     name="wnba_odds",
     primary_key=[],  # multiple rows per game/vendor
     required_columns=[
-        "odds_id", "game_id", "vendor",
-        "spread_home_value", "spread_home_odds", "spread_away_value", "spread_away_odds",
-        "moneyline_home_odds", "moneyline_away_odds",
-        "total_value", "total_over_odds", "total_under_odds",
-        "source", "pull_timestamp_utc",
+        "odds_id",
+        "game_id",
+        "vendor",
+        "spread_home_value",
+        "spread_home_odds",
+        "spread_away_value",
+        "spread_away_odds",
+        "moneyline_home_odds",
+        "moneyline_away_odds",
+        "total_value",
+        "total_over_odds",
+        "total_under_odds",
+        "source",
+        "pull_timestamp_utc",
     ],
     numeric_columns=[
-        "spread_home_value", "spread_home_odds", "spread_away_value", "spread_away_odds",
-        "moneyline_home_odds", "moneyline_away_odds",
-        "total_value", "total_over_odds", "total_under_odds",
+        "spread_home_value",
+        "spread_home_odds",
+        "spread_away_value",
+        "spread_away_odds",
+        "moneyline_home_odds",
+        "moneyline_away_odds",
+        "total_value",
+        "total_over_odds",
+        "total_under_odds",
     ],
     evaluation_only=True,
     notes=(
@@ -168,7 +229,8 @@ SHOT_LOCATIONS_SCHEMA = TableSchema(
 
 # All schemas indexed by table name
 ALL_SCHEMAS: dict[str, TableSchema] = {
-    s.name: s for s in [
+    s.name: s
+    for s in [
         GAMES_SCHEMA,
         PLAYER_GAME_STATS_SCHEMA,
         TEAMS_SCHEMA,
@@ -190,6 +252,7 @@ REQUIRED_TABLES = {"wnba_games", "wnba_player_game_stats", "wnba_teams", "wnba_p
 # ---------------------------------------------------------------------------
 # Validator
 # ---------------------------------------------------------------------------
+
 
 def validate_table(
     df: pd.DataFrame,
@@ -270,7 +333,13 @@ def validate_table(
     # Injury status normalization check
     if schema.name == "wnba_injuries" and "injury_status_normalized" in cols:
         _valid_statuses = {
-            "available", "probable", "questionable", "doubtful", "out", "inactive", "unknown"
+            "available",
+            "probable",
+            "questionable",
+            "doubtful",
+            "out",
+            "inactive",
+            "unknown",
         }
         invalid = df["injury_status_normalized"][
             ~df["injury_status_normalized"].isin(_valid_statuses)

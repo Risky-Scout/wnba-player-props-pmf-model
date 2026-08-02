@@ -1,0 +1,26 @@
+{
+  "date": "2026-08-02",
+  "collector_exit_code": 0,
+  "manifest_status": "ok",
+  "source_health": "ok",
+  "availability_gate": "PASSED",
+  "workflow_gate": "PASSED",
+  "scheduled_games_exist": true,
+  "sources": {
+    "players_active": "SUCCESS_POPULATED",
+    "player_injuries": "SUCCESS_POPULATED",
+    "scheduled_team_player_crosscheck": "SUCCESS_POPULATED"
+  },
+  "result": "OK",
+  "n_games": 4,
+  "n_roster_players": 388,
+  "availability_coverage": {
+    "NOT_LISTED": 373,
+    "OUT": 11,
+    "UNKNOWN_SOURCE": 4
+  },
+  "minutes_coverage": 373,
+  "control_bundle_loadable": true,
+  "challenger_present": true,
+  "historical_last_team_fallback": false
+}

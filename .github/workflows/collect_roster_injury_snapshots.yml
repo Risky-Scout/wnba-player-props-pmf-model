@@ -2,6 +2,7 @@ name: Prospective Roster + Injury Snapshots
 
 # Append-only forward capture for future confirmed participation labels.
 # Stores private payloads as workflow artifacts (never committed to git).
+# Fail-closed: roster/injury source failure with scheduled games fails the job.
 
 on:
   workflow_dispatch:
@@ -48,17 +49,23 @@ jobs:
             echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Warn (not fail) if BDL_API_KEY is missing
+      - name: Require BDL_API_KEY (fail-closed)
         run: |
           if [ -z "$BDL_API_KEY" ]; then
-            echo "::warning::BDL_API_KEY not set — collector will fail-open (no snapshot)."
+            echo "::error::BDL_API_KEY not set — refuse to treat missing key as healthy empty data."
+            exit 1
           fi
 
-      - name: Collect roster + injury snapshots (append-only)
+      - name: Collect roster + injury snapshots (append-only, fail-closed)
+        id: collect
         run: |
-          python scripts/collect_roster_injury_snapshots.py --date "${{ steps.d.outputs.date }}"
+          set +e
+          python3 scripts/collect_roster_injury_snapshots.py --date "${{ steps.d.outputs.date }}"
+          ec=$?
+          echo "exit_code=$ec" >> "$GITHUB_OUTPUT"
+          exit $ec
 
-      - name: Upload private snapshots (gitignored data/; never commit)
+      - name: Upload private snapshots / diagnostics (gitignored data/; never commit)
         if: always()
         uses: actions/upload-artifact@v4
         with:

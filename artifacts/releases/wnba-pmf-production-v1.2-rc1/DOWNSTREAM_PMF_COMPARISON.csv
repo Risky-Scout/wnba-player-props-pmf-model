@@ -1,0 +1,2 @@
+control_bundle,challenger_minutes_family,direct_stat_models_refit,aggregate_delta_nll,aggregate_tolerance,per_stat_tolerance,status
+artifacts/releases/wnba-pmf-production-v1.1,hgb_residual,False,0.022208554190797765,0.02,0.05,FAIL

@@ -14,6 +14,7 @@ Usage:
         --raw-dir data/raw/bdl \\
         --out-dir data/processed
 """
+
 from __future__ import annotations
 
 import json
@@ -63,7 +64,9 @@ def _read_raw(raw_dir: Path, name: str) -> pd.DataFrame | None:
     return pd.read_parquet(p)
 
 
-def _build_games(raw_dir: Path, stats_df: pd.DataFrame | None, odds_df: pd.DataFrame | None) -> pd.DataFrame:
+def _build_games(
+    raw_dir: Path, stats_df: pd.DataFrame | None, odds_df: pd.DataFrame | None
+) -> pd.DataFrame:
     df = _read_raw(raw_dir, "wnba_games")
     if df is None or df.empty:
         raise RuntimeError("Required raw file wnba_games.parquet not found.")
@@ -93,6 +96,7 @@ def _build_games(raw_dir: Path, stats_df: pd.DataFrame | None, odds_df: pd.DataF
     # without needing to re-pull from the API.
     if "status" in df.columns:
         from wnba_props_model.data.normalize import normalize_game_status
+
         df["status_normalized"] = df["status"].apply(normalize_game_status)
         df["has_final_score"] = df["status_normalized"] == "final"
         df["is_played_game"] = df["status_normalized"] == "final"
@@ -116,8 +120,12 @@ def _build_player_stats(raw_dir: Path, games_df: pd.DataFrame) -> pd.DataFrame:
     # Enrich with opponent and home/away from games
     if not games_df.empty:
         game_lookup = games_df.set_index("game_id")[
-            ["home_team_id", "visitor_team_id",
-             "home_team_abbreviation", "visitor_team_abbreviation"]
+            [
+                "home_team_id",
+                "visitor_team_id",
+                "home_team_abbreviation",
+                "visitor_team_abbreviation",
+            ]
         ]
         df = df.join(game_lookup, on="game_id", how="left")
 
@@ -130,17 +138,20 @@ def _build_player_stats(raw_dir: Path, games_df: pd.DataFrame) -> pd.DataFrame:
             axis=1,
         )
         df["opponent_team_abbreviation"] = df.apply(
-            lambda r: r["visitor_team_abbreviation"]
-            if r.get("is_home")
-            else r["home_team_abbreviation"],
+            lambda r: (
+                r["visitor_team_abbreviation"] if r.get("is_home") else r["home_team_abbreviation"]
+            ),
             axis=1,
         )
         # Drop the joined helper columns we no longer need
         df = df.drop(
             columns=[
-                c for c in [
-                    "home_team_id", "visitor_team_id",
-                    "home_team_abbreviation", "visitor_team_abbreviation",
+                c
+                for c in [
+                    "home_team_id",
+                    "visitor_team_id",
+                    "home_team_abbreviation",
+                    "visitor_team_abbreviation",
                 ]
                 if c in df.columns
             ]
@@ -176,10 +187,9 @@ def _build_player_stats(raw_dir: Path, games_df: pd.DataFrame) -> pd.DataFrame:
 
     # Rebounds: official reb remains primary; preserve oreb+dreb reconciliation
     if {"oreb", "dreb"}.issubset(df.columns):
-        df["reb_oreb_dreb_sum"] = (
-            pd.to_numeric(df["oreb"], errors="coerce").fillna(0).astype(int)
-            + pd.to_numeric(df["dreb"], errors="coerce").fillna(0).astype(int)
-        )
+        df["reb_oreb_dreb_sum"] = pd.to_numeric(df["oreb"], errors="coerce").fillna(0).astype(
+            int
+        ) + pd.to_numeric(df["dreb"], errors="coerce").fillna(0).astype(int)
         if "reb" in df.columns:
             reb_official = pd.to_numeric(df["reb"], errors="coerce").fillna(0).astype(int)
             df["reb"] = reb_official
@@ -244,10 +254,8 @@ def main(
         written["wnba_games"] = p
         seasons = sorted(int(s) for s in games_df["season"].dropna().unique())
         typer.echo(f"  wnba_games: {len(games_df):,} rows  seasons={seasons}")
-        validation_results.append(
-            validate_table(games_df, ALL_SCHEMAS["wnba_games"], str(p))
-        )
-    except Exception as exc:
+        validation_results.append(validate_table(games_df, ALL_SCHEMAS["wnba_games"], str(p)))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         errors.append(f"FAIL wnba_games: {exc}")
         typer.echo(f"  [FAIL] wnba_games: {exc}", err=True)
 
@@ -265,7 +273,7 @@ def main(
         validation_results.append(
             validate_table(stats_df, ALL_SCHEMAS["wnba_player_game_stats"], str(p))
         )
-    except Exception as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         errors.append(f"FAIL wnba_player_game_stats: {exc}")
         typer.echo(f"  [FAIL] wnba_player_game_stats: {exc}", err=True)
 
@@ -285,9 +293,7 @@ def main(
         players_raw.to_parquet(p, index=False)
         written["wnba_players"] = p
         typer.echo(f"  wnba_players: {len(players_raw):,} rows")
-        validation_results.append(
-            validate_table(players_raw, ALL_SCHEMAS["wnba_players"], str(p))
-        )
+        validation_results.append(validate_table(players_raw, ALL_SCHEMAS["wnba_players"], str(p)))
     else:
         typer.echo("  wnba_players: NOT AVAILABLE (raw not found)")
 
@@ -307,9 +313,7 @@ def main(
         inj_raw.to_parquet(p, index=False)
         written["wnba_injuries"] = p
         typer.echo(f"  wnba_injuries: {len(inj_raw):,} rows")
-        validation_results.append(
-            validate_table(inj_raw, ALL_SCHEMAS["wnba_injuries"], str(p))
-        )
+        validation_results.append(validate_table(inj_raw, ALL_SCHEMAS["wnba_injuries"], str(p)))
 
     # -- Odds (optional) --
     # Enrich with game_date and season from the games table (not in BDL odds response).
@@ -325,7 +329,11 @@ def main(
         p = out / "wnba_odds.parquet"
         odds_df.to_parquet(p, index=False)
         written["wnba_odds"] = p
-        vendors = sorted(odds_df["vendor"].dropna().unique().tolist()) if "vendor" in odds_df.columns else []
+        vendors = (
+            sorted(odds_df["vendor"].dropna().unique().tolist())
+            if "vendor" in odds_df.columns
+            else []
+        )
         typer.echo(f"  wnba_odds: {len(odds_df):,} rows  vendors={vendors}")
         validation_results.append(validate_table(odds_df, ALL_SCHEMAS["wnba_odds"], str(p)))
 
@@ -335,7 +343,11 @@ def main(
         p = out / "wnba_player_props.parquet"
         props_raw.to_parquet(p, index=False)
         written["wnba_player_props"] = p
-        vendors_p = sorted(props_raw["vendor"].dropna().unique().tolist()) if "vendor" in props_raw.columns else []
+        vendors_p = (
+            sorted(props_raw["vendor"].dropna().unique().tolist())
+            if "vendor" in props_raw.columns
+            else []
+        )
         typer.echo(f"  wnba_player_props: {len(props_raw):,} rows  vendors={vendors_p}")
         validation_results.append(
             validate_table(props_raw, ALL_SCHEMAS["wnba_player_props"], str(p))

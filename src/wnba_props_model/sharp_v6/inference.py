@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from wnba_props_model.sharp_v6.availability_policy import decide_availability
 from wnba_props_model.sharp_v6.contracts import COMBOS, EMERGENCY_CAP, NORM_TOL, SEED, TIER_A
 from wnba_props_model.sharp_v6.identity import (
     IdentityResolutionError,
@@ -112,6 +113,48 @@ def _core_pmf_delivery(
         mode=mode, contracts=bundle.contracts,
     ).to_numpy(float)
     p_active = bundle.participation.predict_proba(Xp)
+    # Availability is an explicit pre-PMF gate: failed sources never become healthy.
+    # Missing availability columns → UNSPECIFIED (keep model p_active). Do not treat
+    # blank historical rows as NOT_LISTED / p_active=1.
+    apply_availability = (
+        "availability_status" in slate.columns
+        or "availability_snapshot_success" in slate.columns
+        or "explicitly_not_listed" in slate.columns
+    )
+    if apply_availability:
+        has_snap_col = "availability_snapshot_success" in slate.columns
+        decisions = [
+            decide_availability(
+                row.get("availability_status"),
+                snapshot_success=(
+                    bool(row.get("availability_snapshot_success"))
+                    if has_snap_col
+                    else True
+                ),
+                injury_model_in_domain=bool(row.get("injury_model_in_domain", False)),
+                explicitly_not_listed=bool(row.get("explicitly_not_listed", False)),
+            )
+            for _, row in slate.iterrows()
+        ]
+        for i, decision in enumerate(decisions):
+            if decision.overrides_model_p_active:
+                p_active[i] = float(decision.p_active)
+    else:
+        from wnba_props_model.sharp_v6.availability_policy import (
+            AvailabilityDecision,
+            AvailabilityStatus,
+        )
+
+        decisions = [
+            AvailabilityDecision(
+                AvailabilityStatus.UNSPECIFIED,
+                "MODEL_DEFAULT",
+                None,
+                None,
+                "NO_AVAILABILITY_COLUMNS",
+            )
+            for _ in range(len(slate))
+        ]
 
     matoms = minutes_pmf_rows(bundle.minutes, slate, reconcile_teams=True, mode=mode)
     q1_atoms = q1_minutes_pmf_rows(bundle.minutes, slate, mode=mode)
@@ -174,7 +217,11 @@ def _core_pmf_delivery(
             "feature_source": row.get("feature_source", ""),
             "feature_contract_hash": row.get("feature_contract_hash", ""),
             "identity_status": row.get("_identity_status", "OK"),
+            "availability_action": decisions[i].action,
+            "availability_reason": decisions[i].reason,
         })
+        if decisions[i].should_abstain:
+            continue
         for stat, rows in calibrated.items():
             a, ovf = _normalize_pmf(
                 rows[i][0], rows[i][1], mode=mode, context=f"{stat}:{gid}:{pid}"

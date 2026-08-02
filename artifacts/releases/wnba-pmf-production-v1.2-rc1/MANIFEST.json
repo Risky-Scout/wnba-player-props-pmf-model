@@ -1,0 +1,97 @@
+{
+  "artifact": "MANIFEST",
+  "bundle_id": "wnba-pmf-production-v1.2-rc1",
+  "status": "CHALLENGER_NOT_PROMOTED",
+  "code_sha": "45fcb682ee8db669520eace4713bba4096eb27d6",
+  "created_at_utc": "2026-08-02T07:32:12.706681+00:00",
+  "training_cutoff": "2025-10-31",
+  "oof_periods": "chronological_through_2025",
+  "participation_model_hash": "bcd585fce16ce6df7047d6f8be33b9176e33e1c2f920294c4bcaae2b1b5112cf",
+  "participation_calibrator_hash": "34f3cd8b995ee0cf8ed1fac6b44b0927a91a4e79fa594c8596ac3c7edd24105c",
+  "minutes_model_hash": "6dcde5279297be4c483a0b844bc6ce0e221771ef53cba5d1a91f152878babdde",
+  "feature_hashes": {
+    "participation": "98e7d3325850ddd5",
+    "minutes": "38ef476f1c9d18fa"
+  },
+  "applicability_limitations": {
+    "scope": "injury_conditioned_only",
+    "claim": "Does not estimate unconditional P(active|all roster-eligible players)",
+    "supported_statuses": [
+      "DOUBTFUL",
+      "QUESTIONABLE",
+      "PROBABLE"
+    ],
+    "unsupported_statuses": [
+      "NOT_LISTED",
+      "UNKNOWN_SOURCE",
+      "OUT",
+      "SUSPENDED"
+    ],
+    "not_listed_policy": "ACTIVE_ROSTER_NOT_LISTED_not_historically_calibrated",
+    "unknown_source_policy": "ABSTAIN_OR_FAIL_AVAILABILITY_GATE",
+    "training_max_year": 2025,
+    "feature_cols": [
+      "cumulative_minutes_l7",
+      "is_home",
+      "player_days_since_last_game",
+      "player_minutes_away_mean_l10",
+      "player_minutes_away_mean_l5",
+      "player_minutes_ewma_halflife3",
+      "player_minutes_ewma_halflife5",
+      "player_minutes_form_delta_ewma3_vs_season",
+      "player_minutes_form_delta_ewma5_vs_season",
+      "player_minutes_form_delta_l5_vs_l10",
+      "player_minutes_form_vs_season_ratio",
+      "player_minutes_home_mean_l10",
+      "player_minutes_home_mean_l5",
+      "player_minutes_l10_support",
+      "player_minutes_l3_sum",
+      "player_minutes_l3_support",
+      "player_minutes_l5_support",
+      "player_minutes_last1",
+      "player_minutes_last2",
+      "player_minutes_last3",
+      "player_minutes_max_l10",
+      "player_minutes_mean_l10",
+      "player_minutes_mean_l3",
+      "player_minutes_mean_l5",
+      "player_minutes_mean_season",
+      "player_minutes_median_l5",
+      "player_minutes_min_l10",
+      "player_minutes_momentum_ewma3_vs_ewma5",
+      "player_minutes_season_zscore",
+      "player_minutes_std_l10",
+      "player_minutes_std_l5",
+      "player_minutes_vs_opp_l3",
+      "player_rest_days",
+      "team_rest_days"
+    ],
+    "feature_hash": "98e7d3325850ddd5",
+    "family": "hgb",
+    "calibration_method": "platt"
+  },
+  "unsupported_availability_states": [
+    "NOT_LISTED",
+    "UNKNOWN_SOURCE",
+    "OUT",
+    "SUSPENDED"
+  ],
+  "rollback_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+  "downstream_status": "FAIL",
+  "minutes_family": "hgb_residual",
+  "minutes_report": {
+    "selected_family": "hgb_residual",
+    "ot_status": "PLAYER_LEVEL_OT_APPROXIMATION_PENDING_SHARED_GAME_OT",
+    "support_max": 48,
+    "oof_nll": 3.3026412470494044,
+    "oof_crps": 3.5422447930940146,
+    "families_considered": [
+      "hgb_residual",
+      "role_mixture",
+      "ordinal_survival"
+    ],
+    "max_year_for_selection": 2025
+  },
+  "production_pointer_updated": false,
+  "direct_stat_models": "inherited_from_v1.1_not_refit"
+}

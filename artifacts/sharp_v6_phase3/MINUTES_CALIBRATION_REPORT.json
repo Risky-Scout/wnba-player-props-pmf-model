@@ -1,0 +1,13 @@
+{
+  "selected_family": "hgb_residual",
+  "ot_status": "PLAYER_LEVEL_OT_APPROXIMATION_PENDING_SHARED_GAME_OT",
+  "support_max": 48,
+  "oof_nll": 3.3026412470494044,
+  "oof_crps": 3.5422447930940146,
+  "families_considered": [
+    "hgb_residual",
+    "role_mixture",
+    "ordinal_survival"
+  ],
+  "max_year_for_selection": 2025
+}
