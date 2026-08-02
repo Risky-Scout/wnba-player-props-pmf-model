@@ -1,6 +1,6 @@
 {
   "artifact": "ROOT_CAUSE_CLOSURE_MATRIX",
-  "generated_at_utc": "2026-08-02T01:33:27.636432+00:00",
+  "generated_at_utc": "2026-08-02T04:34:23.708780+00:00",
   "baseline_bundle": "artifacts/releases/wnba-pmf-production-v1",
   "baseline_claimed_model_sha256": "932d6078c50fa296c2e0970163a986cd0ddcd9a712a56d5c571021134feeba15",
   "candidate_bundle": "artifacts/releases/wnba-pmf-production-v1.1",

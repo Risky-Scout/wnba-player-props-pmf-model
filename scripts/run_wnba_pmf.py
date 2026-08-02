@@ -180,6 +180,35 @@ def main(
     delivery.prices_frame.to_parquet(out / "fair_prices.parquet", index=False)
     delivery.prices_frame.to_csv(out / "pricing_inventory.csv", index=False)
     delivery.participation_frame.to_parquet(out / "participation.parquet", index=False)
+    # Legacy-compatible wide PMF for pregame consumers (same calibrated V6 atoms).
+    wide_rows = []
+    if not delivery.atoms_frame.empty:
+        for (gid, pid, stat), g in delivery.atoms_frame.groupby(
+            ["game_id", "player_id", "stat"], sort=False
+        ):
+            g = g.sort_values("atom_value")
+            pmf = {
+                str(int(r.atom_value)): float(r.atom_probability)
+                for r in g.itertuples()
+                if float(r.atom_probability) > 0.0
+            }
+            ovf = float(g["overflow_probability"].iloc[0])
+            if ovf > 1e-12:
+                k_max = int(g["atom_value"].max()) + 1
+                pmf[str(k_max)] = pmf.get(str(k_max), 0.0) + ovf
+            pmf_json = json.dumps(pmf)
+            wide_rows.append({
+                "game_id": int(gid),
+                "player_id": int(pid),
+                "stat": str(stat),
+                "player_name": str(g["player_name"].iloc[0]),
+                "active_pmf_json": pmf_json,
+                "pmf_json": pmf_json,
+                "p_active": float(g["p_active"].iloc[0]),
+                "pmf_mean": float(g["predictive_mean"].iloc[0]),
+                "source_track": "CALIBRATED_V6_PMF",
+            })
+    pd.DataFrame(wide_rows).to_parquet(out / "full_pmfs_wide.parquet", index=False)
     if delivery.combo_frame is not None:
         delivery.combo_frame.to_parquet(out / "combo_prices.parquet", index=False)
     if delivery.q1_frame is not None:

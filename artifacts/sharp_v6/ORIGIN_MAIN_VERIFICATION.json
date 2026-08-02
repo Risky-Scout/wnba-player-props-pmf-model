@@ -1,13 +1,18 @@
 {
   "artifact": "ORIGIN_MAIN_VERIFICATION",
-  "generated_at_utc": "2026-08-02T01:33:31.016773+00:00",
-  "expected_origin_main": "987c07fab0315ac026c446ed0ca7d9c9aedca17c",
-  "actual_origin_main": "987c07fab0315ac026c446ed0ca7d9c9aedca17c",
-  "match": true,
-  "pr99_merge": "ee35dc7d25aeca153ae4d05335820f3aee8bf1c4",
+  "generated_at_utc": "2026-08-02T04:34:24.726121+00:00",
+  "pr": 99,
+  "follow_through_pr": 106,
+  "starting_origin_main_sha": "71753223e0cece1b056b1b36719bc0f6127b6404",
+  "pr99_merge_sha": "ee35dc7d25aeca153ae4d05335820f3aee8bf1c4",
+  "final_accepted_branch_sha": "8c57b0b5decf6eea901dd123410df404d494b9d2",
+  "verified_origin_main_sha": "3b6ab4c2a66aa50e776c872c29e33f3bf67e3644",
+  "merged_to_main": true,
+  "on_main": true,
+  "hardening_pending_merge": true,
+  "authoritative_inference": "wnba_props_model.sharp_v6.inference.predict_slate",
   "production_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
   "model_sha256": "3005c790e705843b7e9ce8633a0855bf99b53fe23aab92112fdd405df51b3b92",
-  "baseline_preserved": "artifacts/releases/wnba-pmf-production-v1",
-  "last_known_smoke_run": "30726462645",
-  "proof_facts_consistent": true
+  "daily_workflow": ".github/workflows/wnba_pmf_daily.yml",
+  "daily_command": "python scripts/run_wnba_pmf.py --bundle-dir artifacts/releases/wnba-pmf-production-v1.1"
 }

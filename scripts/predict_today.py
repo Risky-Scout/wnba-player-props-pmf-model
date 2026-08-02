@@ -1,52 +1,198 @@
-"""LEGACY_CONTROL Stage-4 predictor retained for rollback tests.
+"""Thin production wrapper around ``sharp_v6.predict_slate``.
 
-Production daily inference is ``scripts/run_wnba_pmf.py`` → ``sharp_v6.predict_slate``.
-Pass ``--use-v6`` to delegate to the authoritative V6 path.
+Default path loads the authoritative PRODUCTION_POINTER bundle and delegates to
+``scripts/run_wnba_pmf.py`` (same inference graph as OOF / live / prospective).
+
+Pass ``--legacy-stage4`` only for LEGACY_CONTROL / RESEARCH_ONLY Stage-4 rollback.
 """
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import typer
 
-from wnba_props_model.models.pmf_grid import pmfs_df_to_grids
-from wnba_props_model.pipeline.deliver import write_delivery
-from wnba_props_model.pipeline.overrides import apply_overrides, override_summary
-from wnba_props_model.pipeline.predict import predict_player_pmfs
-
 app = typer.Typer(add_completion=False)
+REPO = Path(__file__).resolve().parents[1]
+POINTER = REPO / "artifacts" / "releases" / "PRODUCTION_POINTER.json"
+
+
+def _resolve_bundle_dir(bundle_dir: str | None) -> str:
+    if bundle_dir:
+        return bundle_dir
+    if POINTER.exists():
+        ptr = json.loads(POINTER.read_text())
+        return str(ptr["production_bundle"])
+    return "artifacts/releases/wnba-pmf-production-v1.1"
+
+
+def _atoms_to_legacy_wide(atoms: pd.DataFrame) -> pd.DataFrame:
+    """Convert V6 atom PMFs into the legacy full_pmfs_wide consumer schema."""
+    if atoms.empty:
+        return pd.DataFrame(
+            columns=[
+                "game_id", "player_id", "stat", "player_name",
+                "active_pmf_json", "pmf_json", "p_active", "pmf_mean", "source_track",
+            ]
+        )
+    rows: list[dict] = []
+    keys = ["game_id", "player_id", "stat"]
+    for (gid, pid, stat), g in atoms.groupby(keys, sort=False):
+        g = g.sort_values("atom_value")
+        pmf = {
+            str(int(r.atom_value)): float(r.atom_probability)
+            for r in g.itertuples()
+            if float(r.atom_probability) > 0.0
+        }
+        ovf = float(g["overflow_probability"].iloc[0]) if "overflow_probability" in g.columns else 0.0
+        if ovf > 1e-12:
+            k_max = int(g["atom_value"].max()) + 1
+            pmf[str(k_max)] = pmf.get(str(k_max), 0.0) + ovf
+        mean = float(g["predictive_mean"].iloc[0]) if "predictive_mean" in g.columns else float("nan")
+        pa = float(g["p_active"].iloc[0]) if "p_active" in g.columns else 1.0
+        pname = str(g["player_name"].iloc[0]) if "player_name" in g.columns else ""
+        pmf_json = json.dumps(pmf)
+        rows.append({
+            "game_id": int(gid),
+            "player_id": int(pid),
+            "stat": str(stat),
+            "player_name": pname,
+            "active_pmf_json": pmf_json,
+            "pmf_json": pmf_json,
+            "p_active": pa,
+            "pmf_mean": mean,
+            "mean": mean,
+            "source_track": "CALIBRATED_V6_PMF",
+            "model_version": "wnba-sharp-pmf-v6",
+        })
+    return pd.DataFrame(rows)
+
+
+def _write_legacy_compat(v6_out: Path, dest: Path, game_date: str | None) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    atoms_path = v6_out / "active_atom_pmfs.parquet"
+    if not atoms_path.exists():
+        raise SystemExit(f"FAIL_CLOSED: missing V6 atoms at {atoms_path}")
+    atoms = pd.read_parquet(atoms_path)
+    wide = _atoms_to_legacy_wide(atoms)
+    wide.to_parquet(dest / "full_pmfs_wide.parquet", index=False)
+    date_tag = game_date or "latest"
+    proj_cols = [
+        c for c in [
+            "game_id", "player_id", "player_name", "stat", "p_active",
+            "pmf_mean", "mean", "active_pmf_json", "pmf_json", "source_track",
+            "model_version",
+        ] if c in wide.columns
+    ]
+    proj = wide[proj_cols].copy()
+    proj.to_parquet(dest / f"player_projections_{date_tag}.parquet", index=False)
+    proj.drop(columns=["pmf_json", "active_pmf_json"], errors="ignore").to_json(
+        dest / f"player_projections_{date_tag}.json", orient="records", indent=2
+    )
+    # Fair board from V6 prices when present
+    prices = v6_out / "fair_prices.parquet"
+    if prices.exists():
+        pdf = pd.read_parquet(prices)
+        pdf.to_parquet(dest / "fair_odds_board.parquet", index=False)
+    man = {
+        "source": "sharp_v6.predict_slate",
+        "wrapper": "scripts/predict_today.py",
+        "v6_out": str(v6_out),
+        "game_date": game_date,
+        "n_pmfs": int(len(wide)),
+        "legacy_stage4": False,
+    }
+    (dest / "PREDICT_TODAY_V6_WRAPPER.json").write_text(json.dumps(man, indent=2))
+
+
+def _run_v6(
+    *,
+    game_date: str | None,
+    out_dir: str,
+    bundle_dir: str,
+    features: str | None,
+    mode: str,
+) -> None:
+    bundle = _resolve_bundle_dir(bundle_dir)
+    v6_out = Path(out_dir)
+    # Keep V6 native layout under sharp_v6 when caller uses tonight/next_game dirs
+    native = REPO / "deliveries" / "sharp_v6" / (game_date or "live") / "T-live"
+    cmd = [
+        sys.executable, str(REPO / "scripts" / "run_wnba_pmf.py"),
+        "--bundle-dir", bundle,
+        "--mode", mode,
+        "--out-dir", str(native),
+    ]
+    if game_date:
+        cmd.extend(["--date", game_date])
+    if features:
+        cmd.extend(["--features", features])
+    typer.echo(f"[V6] Delegating to sharp_v6.predict_slate via run_wnba_pmf.py (bundle={bundle})")
+    proc = subprocess.run(cmd, cwd=str(REPO), check=False)
+    if proc.returncode != 0:
+        raise SystemExit(proc.returncode)
+    _write_legacy_compat(native, v6_out, game_date)
+    typer.echo(f"[V6] Wrote legacy-compatible delivery → {v6_out}")
 
 
 @app.command()
 def main(
-    features_wide: str = typer.Option(..., help="Wide feature parquet from build_features.py."),
-    model_dir: str = typer.Option("artifacts/models/stage4_baseline", help="Stage 4 HGB artifact directory."),
-    config: str = typer.Option("config/model/stage4_baseline.yaml", help="Stage 4 YAML config."),
-    cal_dir: str | None = typer.Option("artifacts/models/calibration", help="Calibrator directory; None to skip."),
-    no_calibration: bool = typer.Option(False, "--no-calibration", help="Skip calibration application."),
-    raw_props: str | None = typer.Option(None, help="BDL player props parquet for edge calculation."),
-    out_dir: str = typer.Option("deliveries/today", help="Delivery output directory."),
-    game_date: str | None = typer.Option(None, help="ISO date filter (YYYY-MM-DD); predicts only this date."),
-    overrides: str | None = typer.Option(
-        None, "--overrides",
-        help="Path to player_overrides.json (blueprint §6.1). "
-             "Reads active overrides for game_date and applies UTM redistribution.",
+    features_wide: str = typer.Option(
+        None, help="Optional features parquet (V6 rebuilds live features; used as --features hint).",
     ),
-    export_grids_json: bool = typer.Option(False, "--export-grids-json",
-        help="Also write a full WNBAPMFGrid JSON sidecar with all markets at 0.5-step lines."),
-    use_v6: bool = typer.Option(False, "--use-v6", help="Delegate to authoritative sharp_v6.predict_slate."),
-    bundle_dir: str = typer.Option("artifacts/releases/wnba-pmf-production-v1", "--bundle-dir"),
+    model_dir: str = typer.Option(
+        "artifacts/models/stage4_baseline",
+        help="LEGACY_CONTROL only (ignored unless --legacy-stage4).",
+    ),
+    config: str = typer.Option(
+        "config/model/stage4_baseline.yaml",
+        help="LEGACY_CONTROL only (ignored unless --legacy-stage4).",
+    ),
+    cal_dir: str | None = typer.Option(
+        "artifacts/models/calibration",
+        help="LEGACY_CONTROL only (ignored unless --legacy-stage4).",
+    ),
+    no_calibration: bool = typer.Option(False, "--no-calibration"),
+    raw_props: str | None = typer.Option(None, help="Optional props parquet for legacy edge board."),
+    out_dir: str = typer.Option("deliveries/today", help="Delivery output directory."),
+    game_date: str | None = typer.Option(None, help="ISO date filter (YYYY-MM-DD)."),
+    overrides: str | None = typer.Option(None, "--overrides", help="Ignored on V6 path (availability snapshot)."),
+    export_grids_json: bool = typer.Option(False, "--export-grids-json"),
+    use_v6: bool = typer.Option(True, "--use-v6/--no-use-v6", help="Default: authoritative V6."),
+    bundle_dir: str | None = typer.Option(None, "--bundle-dir", help="Override production bundle path."),
+    legacy_stage4: bool = typer.Option(
+        False, "--legacy-stage4", help="LEGACY_CONTROL Stage-4 path (research/rollback only).",
+    ),
+    mode: str = typer.Option("production", "--mode"),
 ) -> None:
-    """Predict today's WNBA player stat PMFs and compute market edges."""
-    if use_v6:
-        raise SystemExit(
-            "Production inference is scripts/run_wnba_pmf.py "
-            f"(bundle={bundle_dir}) → sharp_v6.predict_slate. "
-            "Stage-4 predict_today is LEGACY_CONTROL only."
+    """Predict today's WNBA player stat PMFs (authoritative V6 by default)."""
+    if use_v6 and not legacy_stage4:
+        feat_hint = None
+        if features_wide and Path(features_wide).exists():
+            # Prefer recovered_v2 modeling features when the caller passes a slate parquet
+            recovered = REPO / "data/recovered_v2/modeling/wnba_pregame_features_t12.parquet"
+            feat_hint = str(recovered) if recovered.exists() else features_wide
+        _run_v6(
+            game_date=game_date,
+            out_dir=out_dir,
+            bundle_dir=bundle_dir or "",
+            features=feat_hint,
+            mode=mode,
         )
+        return
+
+    # ── LEGACY_CONTROL Stage-4 path (explicit opt-in only) ─────────────────
+    from wnba_props_model.models.pmf_grid import pmfs_df_to_grids
+    from wnba_props_model.pipeline.deliver import write_delivery
+    from wnba_props_model.pipeline.overrides import apply_overrides, override_summary
+    from wnba_props_model.pipeline.predict import predict_player_pmfs
+
+    typer.echo("[LEGACY_CONTROL] Stage-4 predict_today path — not authoritative production")
+    if not features_wide:
+        raise SystemExit("FAIL_CLOSED: --features-wide required for --legacy-stage4")
     features_df = pd.read_parquet(features_wide)
 
     if game_date:
@@ -58,8 +204,6 @@ def main(
             else:
                 _unique_input_dates = features_df["game_date"].astype(str).unique()
                 if len(_unique_input_dates) > 1:
-                    # Multi-date historical table: this date has no scheduled games.
-                    # Do NOT fall back to all historical rows — that produces nonsense output.
                     typer.echo(
                         f"[INFO] 0 rows for game_date={game_date} in historical feature table "
                         f"({len(_unique_input_dates)} dates, last={sorted(_unique_input_dates)[-1]}). "
@@ -67,7 +211,6 @@ def main(
                     )
                     raise typer.Exit(0)
                 else:
-                    # Single-date slate: all rows belong to the target date already.
                     typer.echo(
                         f"[WARN] 0 rows for game_date={game_date} in slate. "
                         "Using all rows from single-date slate input."
@@ -77,39 +220,12 @@ def main(
         typer.echo(f"[WARN] No player rows to predict — no games on {game_date}. Exiting.")
         raise typer.Exit(0)
 
-    # ── Apply manual overrides from config/player_overrides.json (blueprint §6.1) ──
     if overrides:
         features_df = _apply_json_overrides(features_df, overrides, game_date, out_dir)
 
-    typer.echo(f"Generating PMFs for {len(features_df):,} player-game rows...")
-
+    typer.echo(f"Generating Stage-4 PMFs for {len(features_df):,} player-game rows...")
     apply_cal = not no_calibration
     effective_cal_dir = cal_dir if apply_cal else None
-
-    # Part 7B: Calibrator freshness guard
-    if apply_cal and cal_dir is not None:
-        import datetime as _dt
-        _meta_path = Path(cal_dir) / "calibration_metadata.json"
-        if _meta_path.exists():
-            try:
-                _meta = json.loads(_meta_path.read_text())
-                _cal_date = _dt.datetime.fromisoformat(_meta["fitted_at"])
-                _age_days = (_dt.datetime.now(_dt.timezone.utc) - _cal_date).days
-                if _age_days > 60:
-                    typer.echo(
-                        f"[ERROR] Calibrators are {_age_days} days old (fitted {_meta['fitted_at']}). "
-                        "Predictions may be badly miscalibrated. Trigger weekly_calibration."
-                    )
-                elif _age_days > 21:
-                    typer.echo(
-                        f"[WARN] Calibrators are {_age_days} days old (fitted {_meta['fitted_at']}). "
-                        "Consider triggering weekly_calibration to refresh."
-                    )
-                else:
-                    typer.echo(f"[OK] Calibrators age: {_age_days} days (fitted {_meta['fitted_at']})")
-            except Exception as _e:
-                typer.echo(f"[WARN] Could not read calibration_metadata.json: {_e}")
-
     pmfs = predict_player_pmfs(
         feature_df=features_df,
         model_dir=model_dir,
@@ -118,94 +234,17 @@ def main(
         apply_calibration=apply_cal,
     )
     typer.echo(f"Generated {len(pmfs):,} PMF rows (stats × players × games)")
-    n_cal = pmfs["is_calibrated"].sum() if "is_calibrated" in pmfs.columns else 0
-    typer.echo(f"Calibrated: {n_cal:,}/{len(pmfs):,} rows")
-
     props_df = pd.read_parquet(raw_props) if raw_props else None
-
-    # Game Total Anchoring (Item 6) — ensure player projections are coherent
-    # with the efficiently-priced game total market before delivering.
-    try:
-        from wnba_props_model.models.game_total_anchor import GameTotalAnchoring  # noqa: PLC0415
-        odds_df: pd.DataFrame | None = None
-        odds_candidates = [
-            Path("data/processed/wnba_odds.parquet"),
-            Path("data/raw/bdl/wnba_odds.parquet"),
-        ]
-        for cand in odds_candidates:
-            if cand.exists():
-                odds_df = pd.read_parquet(cand)
-                break
-        if odds_df is not None and not pmfs.empty:
-            anchoring = GameTotalAnchoring(threshold=3.0, max_scale=1.15)
-            # Build per-game player projection list for anchoring
-            for game_id, g_rows in pmfs.groupby("game_id"):
-                pts_rows = g_rows[g_rows["stat"] == "pts"]
-                if pts_rows.empty:
-                    continue
-                game_odds = odds_df[odds_df["game_id"] == game_id] if "game_id" in odds_df.columns else pd.DataFrame()
-                market_total = anchoring.get_market_total(game_odds)
-                if market_total is None:
-                    continue
-                projs = pts_rows[["player_id", "team_id", "mean"]].copy()
-                projs = projs.rename(columns={"mean": "pts_mean"})
-                projs["team"] = projs.apply(
-                    lambda r: "home" if r.get("is_home", True) else "away", axis=1
-                )
-                anchored = anchoring.anchor(projs.to_dict("records"), market_total)
-                scale_map = {
-                    r["player_id"]: r.get("anchor_scale_factor", 1.0) for r in anchored
-                }
-                if "anchor_scale_factor" not in pmfs.columns:
-                    pmfs["anchor_scale_factor"] = 1.0
-                pmfs.loc[pmfs["game_id"] == game_id, "anchor_scale_factor"] = (
-                    pmfs.loc[pmfs["game_id"] == game_id, "player_id"].map(scale_map).fillna(1.0)
-                )
-            typer.echo("Game Total Anchoring applied.")
-    except Exception as exc:
-        typer.echo(f"[WARN] Game Total Anchoring failed (non-fatal): {exc}")
-
-    # P3 Defect #4: the former beta-calibration block wrote an unconsumed beta P(over)
-    # column using an INVALID mean-based fallback when no PMF-derived P(over) existed.
-    # That column was not consumed by the production selector (build_edge_report/deliver
-    # derive model_prob_over from the PMF at the exact line), so the dead path is REMOVED.
-    # A line-specific P(over) must be computed only from a valid normalized PMF at the
-    # quoted line with correct push handling and a matching fold-safe calibrator — never
-    # from an unrelated scalar. If that machinery is reinstated it must carry the line and
-    # calibrator hash in provenance and FAIL (not substitute) on a mismatch.
-
-    # Conformal Prediction Intervals (Item 5D) — flag props where model uncertainty
-    # is too high to have a meaningful edge (line inside conformal interval → no edge).
-    try:
-        import pickle as _pkl  # noqa: PLC0415
-        _conformal_path = Path(effective_cal_dir or "artifacts/models/calibration") / "conformal_predictor.pkl"
-        if _conformal_path.exists() and not pmfs.empty and "mean" in pmfs.columns:
-            with open(_conformal_path, "rb") as _f:
-                _conformal = _pkl.load(_f)
-            _stat_col = pmfs["stat"] if "stat" in pmfs.columns else pd.Series(["pts"] * len(pmfs))
-            _role_col = pmfs["role_bucket"] if "role_bucket" in pmfs.columns else pd.Series(["all"] * len(pmfs))
-            _means = pmfs["mean"].to_numpy(dtype=float)
-            _lows, _highs = np.empty(len(pmfs)), np.empty(len(pmfs))
-            for i, (stat, role, mu) in enumerate(zip(_stat_col, _role_col, _means)):
-                _lows[i], _highs[i] = _conformal.predict_interval(mu, stat=str(stat), role=str(role))
-            pmfs = pmfs.copy()
-            pmfs["conformal_lower"] = _lows
-            pmfs["conformal_upper"] = _highs
-            typer.echo(f"Conformal prediction intervals applied ({len(_conformal.quantiles)} buckets).")
-    except Exception as _exc:
-        typer.echo(f"[WARN] Conformal intervals skipped (non-fatal): {_exc}")
-
     paths = write_delivery(pmfs, out_dir, props_df, game_date=game_date)
     for k, v in paths.items():
         typer.echo(f"  {k}: {v}")
 
     if export_grids_json:
-        import json as _json
         ctx_cols = ["game_id", "game_date", "team_id", "opponent_team_id", "is_home"]
         grids = pmfs_df_to_grids(pmfs, game_context_cols=ctx_cols)
         out_path = Path(out_dir) / f"pmf_grids_{game_date or 'latest'}.json"
         with open(out_path, "w") as f:
-            _json.dump([g.to_dict() for g in grids], f, default=str, indent=2)
+            json.dump([g.to_dict() for g in grids], f, default=str, indent=2)
         typer.echo(f"  pmf_grids_json: {out_path} ({len(grids)} grids)")
 
 
@@ -215,11 +254,8 @@ def _apply_json_overrides(
     game_date: str | None,
     out_dir: str,
 ) -> pd.DataFrame:
-    """Read config/player_overrides.json, apply active overrides, log changes.
+    from wnba_props_model.pipeline.overrides import apply_overrides, override_summary
 
-    Blueprint §6.1: overrides expire after game_date; multiple overrides for
-    the same player on the same date are rejected (last-write-wins with a warning).
-    """
     p = Path(overrides_path)
     if not p.exists():
         typer.echo(f"[OVERRIDES] File not found: {overrides_path} — skipping")
@@ -235,12 +271,11 @@ def _apply_json_overrides(
     if not entries:
         return features_df
 
-    # Filter to active entries for this game_date; de-duplicate (last wins)
     seen: dict[int, dict] = {}
     for entry in entries:
         entry_date = str(entry.get("game_date") or "")
         if game_date and entry_date and entry_date != game_date:
-            continue  # expired or different day
+            continue
         pid = int(entry.get("player_id", 0))
         if pid in seen:
             typer.echo(f"[OVERRIDES] Duplicate for player_id={pid} on {entry_date} — last-write-wins")
@@ -250,7 +285,6 @@ def _apply_json_overrides(
         typer.echo("[OVERRIDES] No active overrides for this game date")
         return features_df
 
-    # Separate DNP (minutes=0) vs minutes overrides
     dnp_ids: list[int] = []
     minutes_map: dict[int, float] = {}
     for pid, entry in seen.items():
@@ -265,19 +299,12 @@ def _apply_json_overrides(
             dnp_ids.append(pid)
 
     original = features_df.copy()
-    features_df = apply_overrides(features_df, dnp_player_ids=dnp_ids or None, minutes_overrides=minutes_map or None)
+    features_df = apply_overrides(
+        features_df, dnp_player_ids=dnp_ids or None, minutes_overrides=minutes_map or None,
+    )
     summary = override_summary(original, features_df)
-
     typer.echo(f"[OVERRIDES] Applied {summary['n_players_changed']} player override(s)")
-    for ch in summary.get("changes", []):
-        reason = seen.get(ch["player_id"], {}).get("reason", "")
-        typer.echo(
-            f"  player_id={ch['player_id']} {ch.get('player_name','')} "
-            f"{ch['original_minutes']:.1f}→{ch['overridden_minutes']:.1f} min "
-            f"({reason})"
-        )
 
-    # Write override log next to delivery outputs
     log_path = Path(out_dir) / "override_log.json"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     import datetime as _dt
@@ -286,10 +313,7 @@ def _apply_json_overrides(
         "game_date": game_date,
         "overrides_file": overrides_path,
         "changes": summary.get("changes", []),
-        "entries_applied": [
-            {k: v for k, v in e.items()}
-            for e in seen.values()
-        ],
+        "entries_applied": [dict(e) for e in seen.values()],
     }
     log_path.write_text(json.dumps(log_payload, indent=2, default=str))
     typer.echo(f"[OVERRIDES] Log written → {log_path}")

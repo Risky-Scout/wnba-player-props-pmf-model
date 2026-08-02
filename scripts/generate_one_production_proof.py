@@ -18,7 +18,7 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def main(
     bundle_dir: str = typer.Option(
-        "artifacts/releases/wnba-pmf-production-v1", "--bundle-dir",
+        "artifacts/releases/wnba-pmf-production-v1.1", "--bundle-dir",
     ),
     out: str = typer.Option(
         "artifacts/sharp_v6/ONE_PRODUCTION_MODEL_PROOF.json", "--out",

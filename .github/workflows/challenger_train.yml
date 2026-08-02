@@ -562,7 +562,9 @@ jobs:
           BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
         run: |
           mkdir -p "$DELIVERY_DIR"
+          # LEGACY_CONTROL: challenger Stage-4 smoke only — not authoritative V6.
           python scripts/predict_today.py \
+            --legacy-stage4 \
             --features-wide data/processed/wnba_player_game_features_wide.parquet \
             --model-dir "$MODEL_DIR" \
             --config "$MODEL_CONFIG" \
