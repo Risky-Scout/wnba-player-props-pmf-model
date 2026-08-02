@@ -1,0 +1,43 @@
+{
+  "artifact": "DOWNSTREAM_TOLERANCES",
+  "frozen_before_comparison": true,
+  "defined_at_utc": "2026-08-02T07:21:00+00:00",
+  "note": "Tolerances frozen before viewing Phase-3 downstream comparison results. Do not alter after comparison begins.",
+  "aggregate_direct_stat_nll": {
+    "rule": "challenger_mean_nll <= control_mean_nll + abs_tolerance",
+    "abs_tolerance": 0.02,
+    "relative_tolerance": 0.01
+  },
+  "per_stat_nll": {
+    "rule": "no_individual_target_material_deterioration",
+    "abs_tolerance": 0.05,
+    "stats": ["pts", "reb", "ast", "fg3m", "stl", "blk", "turnover"]
+  },
+  "subgroup": {
+    "rule": "no_catastrophic_role_or_injury_subgroup",
+    "nll_abs_tolerance": 0.12,
+    "min_rows": 50
+  },
+  "pmf_normalization": {
+    "atom_min": -1e-12,
+    "sum_abs_error_max": 1e-6
+  },
+  "oof_live_parity": {
+    "max_mean_abs_prob_diff": 1e-9
+  },
+  "minutes_gate": {
+    "primary": "full_distribution_nll",
+    "tie_break": "crps",
+    "require_no_catastrophic_outer_fold": true,
+    "catastrophic_nll_multiplier_vs_median_fold": 2.5
+  },
+  "inactive_label_revalidation_gate": {
+    "max_reject_rate_of_prior_confirmed_inactive": 0.02
+  },
+  "shadow_review_thresholds": {
+    "expected_minutes_abs_diff": 4.0,
+    "minutes_sd_abs_diff": 3.0,
+    "prop_probability_abs_diff": 0.05,
+    "publish_abstain_decision_mismatch": true
+  }
+}

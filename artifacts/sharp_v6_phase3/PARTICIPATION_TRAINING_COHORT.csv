@@ -1,0 +1,9 @@
+season,participation_label_class,training_eligible,label_source,rows,distinct_players,distinct_games
+2023,CONFIRMED_ACTIVE,True,injury_workbook_exact_identity,124,56,92
+2023,CONFIRMED_INACTIVE,True,injury_workbook_exact_identity,406,65,145
+2024,CONFIRMED_ACTIVE,True,injury_workbook_exact_identity,730,79,249
+2024,CONFIRMED_INACTIVE,True,injury_workbook_exact_identity,429,63,181
+2025,CONFIRMED_ACTIVE,True,injury_workbook_exact_identity,1614,89,311
+2025,CONFIRMED_INACTIVE,True,injury_workbook_exact_identity,641,82,234
+2026,CONFIRMED_ACTIVE,True,injury_workbook_exact_identity,2354,132,219
+2026,CONFIRMED_INACTIVE,True,injury_workbook_exact_identity,574,98,183

@@ -1,0 +1,74 @@
+{
+  "rows": 24175,
+  "confirmed_active": 20039,
+  "confirmed_inactive": 2050,
+  "rejected_active_labels": 0,
+  "rejected_inactive_labels": 0,
+  "inactive_reject_rate": 0.0,
+  "inactive_reject_gate": 0.02,
+  "inferred_dnp_excluded": 2086,
+  "unknown_eligibility_excluded": 0,
+  "by_season": [
+    {
+      "season": 2023,
+      "confirmed_active": 4918,
+      "confirmed_inactive": 406,
+      "rejected_active_labels": 0,
+      "rejected_inactive_labels": 0,
+      "inferred_dnp_excluded": 470,
+      "unknown_eligibility_excluded": 0,
+      "evidence_source": {
+        "injury_workbook_exact_identity": 406
+      },
+      "distinct_players": 164,
+      "distinct_games": 262,
+      "distinct_game_dates": 109
+    },
+    {
+      "season": 2024,
+      "confirmed_active": 4928,
+      "confirmed_inactive": 429,
+      "rejected_active_labels": 0,
+      "rejected_inactive_labels": 0,
+      "inferred_dnp_excluded": 572,
+      "unknown_eligibility_excluded": 0,
+      "evidence_source": {
+        "injury_workbook_exact_identity": 429
+      },
+      "distinct_players": 157,
+      "distinct_games": 264,
+      "distinct_game_dates": 110
+    },
+    {
+      "season": 2025,
+      "confirmed_active": 5869,
+      "confirmed_inactive": 641,
+      "rejected_active_labels": 0,
+      "rejected_inactive_labels": 0,
+      "inferred_dnp_excluded": 630,
+      "unknown_eligibility_excluded": 0,
+      "evidence_source": {
+        "injury_workbook_exact_identity": 641
+      },
+      "distinct_players": 185,
+      "distinct_games": 312,
+      "distinct_game_dates": 126
+    },
+    {
+      "season": 2026,
+      "confirmed_active": 4324,
+      "confirmed_inactive": 574,
+      "rejected_active_labels": 0,
+      "rejected_inactive_labels": 0,
+      "inferred_dnp_excluded": 414,
+      "unknown_eligibility_excluded": 0,
+      "evidence_source": {
+        "injury_workbook_exact_identity": 574
+      },
+      "distinct_players": 229,
+      "distinct_games": 219,
+      "distinct_game_dates": 75
+    }
+  ],
+  "reject_reasons": {}
+}

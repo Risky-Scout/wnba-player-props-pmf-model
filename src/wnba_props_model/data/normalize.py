@@ -7,6 +7,7 @@ layer is purely parsing and column renaming.
 Provenance columns (source, pull_timestamp_utc) are added by the ingest
 layer after normalization, not here.
 """
+
 from __future__ import annotations
 
 import math
@@ -25,12 +26,26 @@ from wnba_props_model.constants import (
 # Minutes parsing  (stable since Stage 1 – do not modify without tests)
 # ---------------------------------------------------------------------------
 
-_NON_PLAYING_STRINGS: frozenset[str] = frozenset({
-    "--", "-", "dnp", "dnp-cd", "dnp-coach's decision",
-    "did not play", "inactive", "out", "scratch", "dnd",
-    "did not dress", "not with team", "nwt", "suspension",
-    "na", "n/a",
-})
+_NON_PLAYING_STRINGS: frozenset[str] = frozenset(
+    {
+        "--",
+        "-",
+        "dnp",
+        "dnp-cd",
+        "dnp-coach's decision",
+        "did not play",
+        "inactive",
+        "out",
+        "scratch",
+        "dnd",
+        "did not dress",
+        "not with team",
+        "nwt",
+        "suspension",
+        "na",
+        "n/a",
+    }
+)
 
 
 def parse_minutes(value: Any) -> float:
@@ -75,10 +90,16 @@ _FINAL_TOKENS = frozenset({"final", "f", "f/ot", "final/ot", "post"})
 _INPROGRESS_TOKENS = frozenset({"quarter", "half", "overtime", "progress", "halftime", "live"})
 _POSTPONED_TOKENS = frozenset({"postpone", "suspend", "delay"})
 _CANCELED_TOKENS = frozenset({"cancel", "void", "forfeit"})
-_SCHEDULED_TOKENS = frozenset({
-    "scheduled", "tbd", "pre game", "pre-game", "pregame",
-    "pre",  # BDL WNBA uses "pre" for scheduled/upcoming games
-})
+_SCHEDULED_TOKENS = frozenset(
+    {
+        "scheduled",
+        "tbd",
+        "pre game",
+        "pre-game",
+        "pregame",
+        "pre",  # BDL WNBA uses "pre" for scheduled/upcoming games
+    }
+)
 
 
 def normalize_game_status(status: Any) -> str:
@@ -112,6 +133,7 @@ def normalize_game_status(status: Any) -> str:
 # Injury status normalization
 # ---------------------------------------------------------------------------
 
+
 def normalize_injury_status(status: Any) -> str:
     """Return one of: available, probable, questionable, doubtful, out, inactive, unknown."""
     if status is None:
@@ -126,6 +148,7 @@ def normalize_injury_status(status: Any) -> str:
 # Player stat flattening  (stable since Stage 1)
 # ---------------------------------------------------------------------------
 
+
 def flatten_player_stat_row(row: dict[str, Any]) -> dict[str, Any]:
     player = row.get("player") or {}
     team = row.get("team") or {}
@@ -137,7 +160,9 @@ def flatten_player_stat_row(row: dict[str, Any]) -> dict[str, Any]:
 
     out = {
         "player_id": player.get("id") or row.get("player_id"),
-        "player_name": " ".join(x for x in [player.get("first_name"), player.get("last_name")] if x),
+        "player_name": " ".join(
+            x for x in [player.get("first_name"), player.get("last_name")] if x
+        ),
         "team_id": team.get("id") or row.get("team_id"),
         "team_abbr": team.get("abbreviation"),
         "game_id": game.get("id") or row.get("game_id"),
@@ -169,7 +194,9 @@ def flatten_player_stat_row(row: dict[str, Any]) -> dict[str, Any]:
     reb_official = int(out["reb"]) if out["reb"] is not None else 0
     out["reb"] = reb_official
     out["reb_oreb_dreb_sum"] = oreb_i + dreb_i
-    out["reb_reconcile_flag"] = "match" if (oreb_i + dreb_i) == reb_official else "provider_or_team_reb_discrepancy"
+    out["reb_reconcile_flag"] = (
+        "match" if (oreb_i + dreb_i) == reb_official else "provider_or_team_reb_discrepancy"
+    )
     return out
 
 
@@ -186,39 +213,40 @@ def _coerce_int(v: Any) -> int:
 # Games
 # ---------------------------------------------------------------------------
 
+
 def normalize_games(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
         home = r.get("home_team") or {}
         away = r.get("visitor_team") or r.get("away_team") or {}
         home_score = r.get("home_team_score") or r.get("home_score")
-        away_score = (
-            r.get("visitor_team_score")
-            or r.get("away_team_score")
-            or r.get("away_score")
-        )
+        away_score = r.get("visitor_team_score") or r.get("away_team_score") or r.get("away_score")
         status_raw = r.get("status")
         status_norm = normalize_game_status(status_raw)
         is_final = status_norm == "final"
         home_score_n = _to_numeric(home_score) if is_final else None
         away_score_n = _to_numeric(away_score) if is_final else None
-        flat.append({
-            "game_id": r.get("id"),
-            "game_date": pd.to_datetime(r.get("date"), utc=True, errors="coerce"),
-            "season": r.get("season"),
-            "status": status_raw,
-            "status_normalized": status_norm,
-            "postseason": bool(r.get("postseason", False)),
-            "home_team_id": home.get("id") or r.get("home_team_id"),
-            "visitor_team_id": away.get("id") or r.get("visitor_team_id") or r.get("away_team_id"),
-            "home_team_abbreviation": home.get("abbreviation"),
-            "visitor_team_abbreviation": away.get("abbreviation"),
-            "home_team_score": home_score_n,
-            "visitor_team_score": away_score_n,
-            "total_score": (home_score_n + away_score_n) if is_final else None,
-            "has_final_score": is_final,
-            "is_played_game": is_final,
-        })
+        flat.append(
+            {
+                "game_id": r.get("id"),
+                "game_date": pd.to_datetime(r.get("date"), utc=True, errors="coerce"),
+                "season": r.get("season"),
+                "status": status_raw,
+                "status_normalized": status_norm,
+                "postseason": bool(r.get("postseason", False)),
+                "home_team_id": home.get("id") or r.get("home_team_id"),
+                "visitor_team_id": away.get("id")
+                or r.get("visitor_team_id")
+                or r.get("away_team_id"),
+                "home_team_abbreviation": home.get("abbreviation"),
+                "visitor_team_abbreviation": away.get("abbreviation"),
+                "home_team_score": home_score_n,
+                "visitor_team_score": away_score_n,
+                "total_score": (home_score_n + away_score_n) if is_final else None,
+                "has_final_score": is_final,
+                "is_played_game": is_final,
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -229,6 +257,7 @@ def normalize_games(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Player stats  (aggregate + combos)
 # ---------------------------------------------------------------------------
+
 
 def normalize_player_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
     df = pd.DataFrame([flatten_player_stat_row(r) for r in rows])
@@ -245,9 +274,7 @@ def normalize_player_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
     df["pra"] = df["pts"] + df["reb"] + df["ast"]
     df["stocks"] = df["stl"] + df["blk"]
     df["game_date"] = pd.to_datetime(df["game_date"])
-    return df.sort_values(["game_date", "game_id", "team_id", "player_id"]).reset_index(
-        drop=True
-    )
+    return df.sort_values(["game_date", "game_id", "team_id", "player_id"]).reset_index(drop=True)
 
 
 def shooting_identity_violations(df: pd.DataFrame) -> dict[str, int]:
@@ -276,7 +303,7 @@ def shooting_identity_violations(df: pd.DataFrame) -> dict[str, int]:
         "fg3m_gt_fg3a": int((sub["fg3m"] > sub["fg3a"]).sum()),
         "ftm_gt_fta": int((sub["ftm"] > sub["fta"]).sum()),
         "pts_identity_violation": int((pts_check != sub["pts"]).sum()),
-        "rows_evaluated": int(len(sub)),
+        "rows_evaluated": len(sub),
     }
 
 
@@ -284,18 +311,21 @@ def shooting_identity_violations(df: pd.DataFrame) -> dict[str, int]:
 # Teams
 # ---------------------------------------------------------------------------
 
+
 def normalize_teams(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
-        flat.append({
-            "team_id": r.get("id"),
-            "team_abbreviation": r.get("abbreviation"),
-            "team_name": r.get("name"),
-            "team_full_name": r.get("full_name"),
-            "city": r.get("city"),
-            "conference": r.get("conference"),
-            "division": r.get("division"),
-        })
+        flat.append(
+            {
+                "team_id": r.get("id"),
+                "team_abbreviation": r.get("abbreviation"),
+                "team_name": r.get("name"),
+                "team_full_name": r.get("full_name"),
+                "city": r.get("city"),
+                "conference": r.get("conference"),
+                "division": r.get("division"),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -306,30 +336,31 @@ def normalize_teams(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # Players
 # ---------------------------------------------------------------------------
 
+
 def normalize_players(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
         team = r.get("team") or {}
-        flat.append({
-            "player_id": r.get("id"),
-            "first_name": r.get("first_name"),
-            "last_name": r.get("last_name"),
-            "player_name": " ".join(
-                x for x in [r.get("first_name"), r.get("last_name")] if x
-            ),
-            "position": r.get("position"),
-            "position_abbreviation": r.get("position_abbreviation") or r.get("position"),
-            "height": r.get("height"),
-            "weight": r.get("weight"),
-            "jersey_number": r.get("jersey_number"),
-            "college": r.get("college"),
-            "country": r.get("country"),
-            "draft_year": r.get("draft_year"),
-            "draft_round": r.get("draft_round"),
-            "draft_number": r.get("draft_number"),
-            "team_id": team.get("id") or r.get("team_id"),
-            "team_abbreviation": team.get("abbreviation"),
-        })
+        flat.append(
+            {
+                "player_id": r.get("id"),
+                "first_name": r.get("first_name"),
+                "last_name": r.get("last_name"),
+                "player_name": " ".join(x for x in [r.get("first_name"), r.get("last_name")] if x),
+                "position": r.get("position"),
+                "position_abbreviation": r.get("position_abbreviation") or r.get("position"),
+                "height": r.get("height"),
+                "weight": r.get("weight"),
+                "jersey_number": r.get("jersey_number"),
+                "college": r.get("college"),
+                "country": r.get("country"),
+                "draft_year": r.get("draft_year"),
+                "draft_round": r.get("draft_round"),
+                "draft_number": r.get("draft_number"),
+                "team_id": team.get("id") or r.get("team_id"),
+                "team_abbreviation": team.get("abbreviation"),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -340,37 +371,39 @@ def normalize_players(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # Injuries
 # ---------------------------------------------------------------------------
 
+
 def normalize_injuries(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
         player = r.get("player") or {}
         team = r.get("team") or {}
         status_raw = r.get("status")
-        flat.append({
-            "player_id": player.get("id") or r.get("player_id"),
-            "player_name": " ".join(
-                x for x in [player.get("first_name"), player.get("last_name")] if x
-            ),
-            "team_id": team.get("id") or r.get("team_id"),
-            "team_abbreviation": team.get("abbreviation"),
-            "game_id": r.get("game_id"),
-            "report_date": pd.to_datetime(
-                r.get("report_date") or r.get("date"), utc=True, errors="coerce"
-            ),
-            "return_date": pd.to_datetime(
-                r.get("return_date") or r.get("return_date_estimate"),
-                utc=True, errors="coerce",
-            ),
-            "injury_status": status_raw,
-            "injury_status_normalized": normalize_injury_status(status_raw),
-            "injury_description": r.get("description") or r.get("notes"),
-        })
+        flat.append(
+            {
+                "player_id": player.get("id") or r.get("player_id"),
+                "player_name": " ".join(
+                    x for x in [player.get("first_name"), player.get("last_name")] if x
+                ),
+                "team_id": team.get("id") or r.get("team_id"),
+                "team_abbreviation": team.get("abbreviation"),
+                "game_id": r.get("game_id"),
+                "report_date": pd.to_datetime(
+                    r.get("report_date") or r.get("date"), utc=True, errors="coerce"
+                ),
+                "return_date": pd.to_datetime(
+                    r.get("return_date") or r.get("return_date_estimate"),
+                    utc=True,
+                    errors="coerce",
+                ),
+                "injury_status": status_raw,
+                "injury_status_normalized": normalize_injury_status(status_raw),
+                "injury_description": r.get("description") or r.get("notes"),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
-    return df.sort_values(
-        ["report_date", "player_id"], na_position="last"
-    ).reset_index(drop=True)
+    return df.sort_values(["report_date", "player_id"], na_position="last").reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +428,7 @@ def normalize_injuries(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # }
 # Note: game_date and season are NOT in the response; join from games table.
 
+
 def normalize_odds(rows: list[dict[str, Any]]) -> pd.DataFrame:
     """Normalize BDL WNBA game odds rows to canonical format.
 
@@ -404,28 +438,31 @@ def normalize_odds(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
         vendor = r.get("vendor") or r.get("book") or r.get("sportsbook")
-        flat.append({
-            "odds_id": r.get("id"),
-            "game_id": r.get("game_id"),
-            "game_date": None,    # populated in build_canonical_tables
-            "season": None,       # populated in build_canonical_tables
-            "vendor": vendor,
-            "book": vendor,       # alias — same as vendor
-            "sportsbook": vendor, # alias — same as vendor
-            "spread_home_value": _to_numeric(r.get("spread_home_value")),
-            "spread_home_odds": _to_numeric(r.get("spread_home_odds")),
-            "spread_away_value": _to_numeric(r.get("spread_away_value")),
-            "spread_away_odds": _to_numeric(r.get("spread_away_odds")),
-            "moneyline_home_odds": _to_numeric(r.get("moneyline_home_odds")),
-            "moneyline_away_odds": _to_numeric(r.get("moneyline_away_odds")),
-            "total_value": _to_numeric(r.get("total_value")),
-            "total_over_odds": _to_numeric(r.get("total_over_odds")),
-            "total_under_odds": _to_numeric(r.get("total_under_odds")),
-            "updated_at": pd.to_datetime(
-                r.get("updated_at") or r.get("snapshot_timestamp"),
-                utc=True, errors="coerce",
-            ),
-        })
+        flat.append(
+            {
+                "odds_id": r.get("id"),
+                "game_id": r.get("game_id"),
+                "game_date": None,  # populated in build_canonical_tables
+                "season": None,  # populated in build_canonical_tables
+                "vendor": vendor,
+                "book": vendor,  # alias — same as vendor
+                "sportsbook": vendor,  # alias — same as vendor
+                "spread_home_value": _to_numeric(r.get("spread_home_value")),
+                "spread_home_odds": _to_numeric(r.get("spread_home_odds")),
+                "spread_away_value": _to_numeric(r.get("spread_away_value")),
+                "spread_away_odds": _to_numeric(r.get("spread_away_odds")),
+                "moneyline_home_odds": _to_numeric(r.get("moneyline_home_odds")),
+                "moneyline_away_odds": _to_numeric(r.get("moneyline_away_odds")),
+                "total_value": _to_numeric(r.get("total_value")),
+                "total_over_odds": _to_numeric(r.get("total_over_odds")),
+                "total_under_odds": _to_numeric(r.get("total_under_odds")),
+                "updated_at": pd.to_datetime(
+                    r.get("updated_at") or r.get("snapshot_timestamp"),
+                    utc=True,
+                    errors="coerce",
+                ),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -459,6 +496,7 @@ def normalize_odds(rows: list[dict[str, Any]]) -> pd.DataFrame:
 #   "updated_at": "2026-06-09T20:51:04.651Z"
 # }
 # No player dict, no team dict in the live response.
+
 
 def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
     """Normalize BDL WNBA player props rows.
@@ -497,10 +535,7 @@ def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
         market = market if isinstance(market, dict) else {}
 
         # Prop type: BDL live uses "prop_type"; older/mock rows may use "type"
-        raw_type = (
-            r.get("prop_type") or r.get("type")
-            or r.get("stat_type") or ""
-        )
+        raw_type = r.get("prop_type") or r.get("type") or r.get("stat_type") or ""
         # Ensure raw_type is a string (guard against accidentally capturing a dict)
         if not isinstance(raw_type, str):
             raw_type = str(raw_type)
@@ -509,39 +544,41 @@ def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
         )
         vendor = r.get("vendor") or r.get("book") or r.get("sportsbook")
 
-        flat.append({
-            "odds_id": r.get("id"),
-            "game_id": r.get("game_id"),
-            "player_id": player_id,
-            "player_name": " ".join(
-                x for x in [player.get("first_name"), player.get("last_name")] if x
-            ) or None,
-            "team_id": team_id,
-            "team_abbreviation": team.get("abbreviation"),
-            "vendor": vendor,
-            "book": vendor,
-            "sportsbook": vendor,
-            "prop_type_raw": raw_type,
-            "stat": canonical_stat,
-            # BDL live: "line_value"; older rows: "line" or "value"
-            "line": _to_numeric(
-                r.get("line_value") or r.get("line") or r.get("value")
-            ),
-            # P4.1: opening line — earliest recorded line per (player_id, stat, game_id)
-            # set to None here; populated by normalize_player_props after grouping
-            "prop_line_open": None,
-            # BDL live: market.over_odds; older rows: r.over_odds
-            "over_odds": _to_numeric(
-                market.get("over_odds") or r.get("over_odds") or r.get("over")
-            ),
-            "under_odds": _to_numeric(
-                market.get("under_odds") or r.get("under_odds") or r.get("under")
-            ),
-            "updated_at": pd.to_datetime(
-                r.get("updated_at") or r.get("snapshot_timestamp"),
-                utc=True, errors="coerce",
-            ),
-        })
+        flat.append(
+            {
+                "odds_id": r.get("id"),
+                "game_id": r.get("game_id"),
+                "player_id": player_id,
+                "player_name": " ".join(
+                    x for x in [player.get("first_name"), player.get("last_name")] if x
+                )
+                or None,
+                "team_id": team_id,
+                "team_abbreviation": team.get("abbreviation"),
+                "vendor": vendor,
+                "book": vendor,
+                "sportsbook": vendor,
+                "prop_type_raw": raw_type,
+                "stat": canonical_stat,
+                # BDL live: "line_value"; older rows: "line" or "value"
+                "line": _to_numeric(r.get("line_value") or r.get("line") or r.get("value")),
+                # P4.1: opening line — earliest recorded line per (player_id, stat, game_id)
+                # set to None here; populated by normalize_player_props after grouping
+                "prop_line_open": None,
+                # BDL live: market.over_odds; older rows: r.over_odds
+                "over_odds": _to_numeric(
+                    market.get("over_odds") or r.get("over_odds") or r.get("over")
+                ),
+                "under_odds": _to_numeric(
+                    market.get("under_odds") or r.get("under_odds") or r.get("under")
+                ),
+                "updated_at": pd.to_datetime(
+                    r.get("updated_at") or r.get("snapshot_timestamp"),
+                    utc=True,
+                    errors="coerce",
+                ),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -555,7 +592,9 @@ def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
             .rename("prop_line_open")
             .reset_index()
         )
-        df = df.merge(_open, on=["player_id", "stat", "game_id"], how="left", suffixes=("", "_open_dup"))
+        df = df.merge(
+            _open, on=["player_id", "stat", "game_id"], how="left", suffixes=("", "_open_dup")
+        )
         if "prop_line_open_open_dup" in df.columns:
             df = df.drop(columns=["prop_line_open_open_dup"])
         # Overwrite the placeholder None column
@@ -567,34 +606,37 @@ def normalize_player_props(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # Advanced stats (per-game)
 # ---------------------------------------------------------------------------
 
+
 def normalize_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
         player = r.get("player") or {}
         team = r.get("team") or {}
         game = r.get("game") or {}
-        flat.append({
-            "game_id": game.get("id") or r.get("game_id"),
-            "game_date": pd.to_datetime(
-                game.get("date") or r.get("date"), utc=True, errors="coerce"
-            ),
-            "season": game.get("season") or r.get("season"),
-            "player_id": player.get("id") or r.get("player_id"),
-            "player_name": " ".join(
-                x for x in [player.get("first_name"), player.get("last_name")] if x
-            ),
-            "team_id": team.get("id") or r.get("team_id"),
-            "usage_percentage": _to_numeric(r.get("usage_percentage") or r.get("usg_pct")),
-            "pace": _to_numeric(r.get("pace")),
-            "offensive_rating": _to_numeric(r.get("offensive_rating") or r.get("off_rtg")),
-            "defensive_rating": _to_numeric(r.get("defensive_rating") or r.get("def_rtg")),
-            "true_shooting_percentage": _to_numeric(
-                r.get("true_shooting_percentage") or r.get("ts_pct")
-            ),
-            "assist_percentage": _to_numeric(r.get("assist_percentage") or r.get("ast_pct")),
-            "rebound_percentage": _to_numeric(r.get("rebound_percentage") or r.get("reb_pct")),
-            "pie": _to_numeric(r.get("pie")),
-        })
+        flat.append(
+            {
+                "game_id": game.get("id") or r.get("game_id"),
+                "game_date": pd.to_datetime(
+                    game.get("date") or r.get("date"), utc=True, errors="coerce"
+                ),
+                "season": game.get("season") or r.get("season"),
+                "player_id": player.get("id") or r.get("player_id"),
+                "player_name": " ".join(
+                    x for x in [player.get("first_name"), player.get("last_name")] if x
+                ),
+                "team_id": team.get("id") or r.get("team_id"),
+                "usage_percentage": _to_numeric(r.get("usage_percentage") or r.get("usg_pct")),
+                "pace": _to_numeric(r.get("pace")),
+                "offensive_rating": _to_numeric(r.get("offensive_rating") or r.get("off_rtg")),
+                "defensive_rating": _to_numeric(r.get("defensive_rating") or r.get("def_rtg")),
+                "true_shooting_percentage": _to_numeric(
+                    r.get("true_shooting_percentage") or r.get("ts_pct")
+                ),
+                "assist_percentage": _to_numeric(r.get("assist_percentage") or r.get("ast_pct")),
+                "rebound_percentage": _to_numeric(r.get("rebound_percentage") or r.get("reb_pct")),
+                "pie": _to_numeric(r.get("pie")),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -605,6 +647,7 @@ def normalize_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Play-by-play
 # ---------------------------------------------------------------------------
+
 
 def normalize_plays(rows: list[dict[str, Any]]) -> pd.DataFrame:
     """Normalize BDL WNBA play-by-play rows.
@@ -618,36 +661,37 @@ def normalize_plays(rows: list[dict[str, Any]]) -> pd.DataFrame:
     for r in rows:
         player = r.get("player") or {}
         team = r.get("team") or {}
-        flat.append({
-            "game_id": r.get("game_id"),
-            "event_order": r.get("order") or r.get("event_order") or r.get("id"),
-            "period": r.get("period"),
-            "clock": r.get("clock"),
-            "event_type": r.get("type") or r.get("event_type"),
-            # WNBA PBP: attribution lives here. Keep description as a legacy alias.
-            "text": r.get("text") or r.get("description"),
-            "description": r.get("description") or r.get("text"),
-            "player_id": player.get("id") or r.get("player_id"),
-            "team_id": team.get("id") or r.get("team_id"),
-            "team_abbreviation": team.get("abbreviation"),
-            "scoring_play": bool(r.get("scoring_play", False)),
-            "score_value": _to_numeric(r.get("score_value")),
-            "points_scored": _to_numeric(r.get("pts") or r.get("points_scored")),
-            "home_score": _to_numeric(r.get("home_score")),
-            "away_score": _to_numeric(r.get("away_score")),
-            "visitor_score": _to_numeric(r.get("visitor_score") or r.get("away_score")),
-        })
+        flat.append(
+            {
+                "game_id": r.get("game_id"),
+                "event_order": r.get("order") or r.get("event_order") or r.get("id"),
+                "period": r.get("period"),
+                "clock": r.get("clock"),
+                "event_type": r.get("type") or r.get("event_type"),
+                # WNBA PBP: attribution lives here. Keep description as a legacy alias.
+                "text": r.get("text") or r.get("description"),
+                "description": r.get("description") or r.get("text"),
+                "player_id": player.get("id") or r.get("player_id"),
+                "team_id": team.get("id") or r.get("team_id"),
+                "team_abbreviation": team.get("abbreviation"),
+                "scoring_play": bool(r.get("scoring_play", False)),
+                "score_value": _to_numeric(r.get("score_value")),
+                "points_scored": _to_numeric(r.get("pts") or r.get("points_scored")),
+                "home_score": _to_numeric(r.get("home_score")),
+                "away_score": _to_numeric(r.get("away_score")),
+                "visitor_score": _to_numeric(r.get("visitor_score") or r.get("away_score")),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
-    return df.sort_values(["game_id", "event_order"], na_position="last").reset_index(
-        drop=True
-    )
+    return df.sort_values(["game_id", "event_order"], na_position="last").reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
 # Shot locations
 # ---------------------------------------------------------------------------
+
 
 def normalize_shot_locations(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
@@ -655,21 +699,23 @@ def normalize_shot_locations(rows: list[dict[str, Any]]) -> pd.DataFrame:
         player = r.get("player") or {}
         team = r.get("team") or {}
         game = r.get("game") or {}
-        flat.append({
-            "game_id": game.get("id") or r.get("game_id"),
-            "game_date": pd.to_datetime(
-                game.get("date") or r.get("date"), utc=True, errors="coerce"
-            ),
-            "season": game.get("season") or r.get("season"),
-            "player_id": player.get("id") or r.get("player_id"),
-            "team_id": team.get("id") or r.get("team_id"),
-            "x": _to_numeric(r.get("x")),
-            "y": _to_numeric(r.get("y")),
-            "shot_made": r.get("shot_made") or r.get("made"),
-            "shot_type": r.get("shot_type") or r.get("type"),
-            "shot_zone": r.get("shot_zone") or r.get("zone"),
-            "three_point_flag": bool(r.get("three_point") or r.get("is_three_point", False)),
-        })
+        flat.append(
+            {
+                "game_id": game.get("id") or r.get("game_id"),
+                "game_date": pd.to_datetime(
+                    game.get("date") or r.get("date"), utc=True, errors="coerce"
+                ),
+                "season": game.get("season") or r.get("season"),
+                "player_id": player.get("id") or r.get("player_id"),
+                "team_id": team.get("id") or r.get("team_id"),
+                "x": _to_numeric(r.get("x")),
+                "y": _to_numeric(r.get("y")),
+                "shot_made": r.get("shot_made") or r.get("made"),
+                "shot_type": r.get("shot_type") or r.get("type"),
+                "shot_zone": r.get("shot_zone") or r.get("zone"),
+                "three_point_flag": bool(r.get("three_point") or r.get("is_three_point", False)),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
@@ -681,35 +727,37 @@ def normalize_shot_locations(rows: list[dict[str, Any]]) -> pd.DataFrame:
 # Standings
 # ---------------------------------------------------------------------------
 
+
 def normalize_standings(rows: list[dict[str, Any]]) -> pd.DataFrame:
     flat = []
     for r in rows:
         team = r.get("team") or {}
-        flat.append({
-            "season": r.get("season"),
-            "team_id": team.get("id") or r.get("team_id"),
-            "team_abbreviation": team.get("abbreviation"),
-            "conference": r.get("conference"),
-            "wins": _to_numeric(r.get("wins") or r.get("w")),
-            "losses": _to_numeric(r.get("losses") or r.get("l")),
-            "win_pct": _to_numeric(r.get("win_pct") or r.get("pct")),
-            "conference_rank": _to_numeric(r.get("conference_rank") or r.get("rank")),
-            "games_behind": _to_numeric(r.get("games_behind") or r.get("gb")),
-            "home_record": r.get("home_record"),
-            "road_record": r.get("road_record") or r.get("away_record"),
-            "streak": r.get("streak"),
-        })
+        flat.append(
+            {
+                "season": r.get("season"),
+                "team_id": team.get("id") or r.get("team_id"),
+                "team_abbreviation": team.get("abbreviation"),
+                "conference": r.get("conference"),
+                "wins": _to_numeric(r.get("wins") or r.get("w")),
+                "losses": _to_numeric(r.get("losses") or r.get("l")),
+                "win_pct": _to_numeric(r.get("win_pct") or r.get("pct")),
+                "conference_rank": _to_numeric(r.get("conference_rank") or r.get("rank")),
+                "games_behind": _to_numeric(r.get("games_behind") or r.get("gb")),
+                "home_record": r.get("home_record"),
+                "road_record": r.get("road_record") or r.get("away_record"),
+                "streak": r.get("streak"),
+            }
+        )
     df = pd.DataFrame(flat)
     if df.empty:
         return df
-    return df.sort_values(["season", "conference_rank"], na_position="last").reset_index(
-        drop=True
-    )
+    return df.sort_values(["season", "conference_rank"], na_position="last").reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
+
 
 def normalize_season_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
     """Normalize player_season_advanced_stats rows (multiple measure_types) into a flat table."""
@@ -755,12 +803,8 @@ def normalize_team_advanced_stats(rows: list[dict[str, Any]]) -> pd.DataFrame:
             ),
             "season": game.get("season") or r.get("season"),
             "team_id": team.get("id") or r.get("team_id"),
-            "defensive_rating": _to_numeric(
-                stats.get("DEF_RATING") or r.get("defensive_rating")
-            ),
-            "offensive_rating": _to_numeric(
-                stats.get("OFF_RATING") or r.get("offensive_rating")
-            ),
+            "defensive_rating": _to_numeric(stats.get("DEF_RATING") or r.get("defensive_rating")),
+            "offensive_rating": _to_numeric(stats.get("OFF_RATING") or r.get("offensive_rating")),
             "net_rating": _to_numeric(stats.get("NET_RATING") or r.get("net_rating")),
             "pace": _to_numeric(stats.get("PACE") or r.get("pace")),
             "pie": _to_numeric(stats.get("PIE") or r.get("pie")),

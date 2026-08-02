@@ -1,0 +1,14 @@
+{
+  "selected_family": "hgb",
+  "selected_calibrator": "platt",
+  "oof_log_loss": 0.35515424203803064,
+  "oof_brier": 0.10571621755548026,
+  "calibration_intercept": -0.0001316296145324092,
+  "calibration_slope": 1.000623845975304,
+  "ece": 0.01968694969641096,
+  "train_prior": 0.6257606490872211,
+  "n_oof": 3546,
+  "worst_fold_nll": 0.7588740677016007,
+  "self_calibration_prohibited": true,
+  "calibrator_fit_on": "earlier_and_pooled_oof_predictions_only"
+}

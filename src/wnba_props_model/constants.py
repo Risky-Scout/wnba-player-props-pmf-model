@@ -162,65 +162,79 @@ INJURY_STATUS_MAP: dict[str, str] = {
 # Forbidden market / leakage columns (must never appear in model features)
 # ---------------------------------------------------------------------------
 
-FORBIDDEN_MARKET_COLUMNS: frozenset[str] = frozenset({
-    # Prop line and odds
-    "line",
-    "over_odds",
-    "under_odds",
-    "market_id",
-    "odds_id",
-    "book",
-    "sportsbook",
-    "vendor",               # canonical sportsbook identifier
-    "prop_type_raw",        # evaluation-only metadata
-    # Derived market probabilities
-    "market_prob_over",
-    "market_prob_under",
-    "no_vig_prob_over",
-    "no_vig_prob_under",
-    # Evaluation / post-game
-    "edge",
-    "clv",
-    "closing_line",
-    "closing_odds",
-    "hit_result",
-    "outcome",
-    # Legacy names used in earlier feature contract
-    "market_line",
-    "market_prob_over_no_vig",
-    "consensus_total",
-    "consensus_spread",
-    # Game odds columns — actual BDL WNBA flat response field names
-    "spread_home_value",
-    "spread_home_odds",
-    "spread_away_value",
-    "spread_away_odds",
-    "moneyline_home_odds",
-    "moneyline_away_odds",
-    "total_value",
-    "total_over_odds",
-    "total_under_odds",
-    # Legacy / alternate column names
-    "spread_value",
-    "spread_visitor_odds",
-    "moneyline_visitor_odds",
-    "snapshot_timestamp_utc",
-    "updated_at",
-    # Line movement tracking (P4.1) — derived from market data, not model features
-    "prop_line_open",
-    "line_delta",
-    "line_moved_toward_over",
-    "line_moved_toward_under",
-})
+FORBIDDEN_MARKET_COLUMNS: frozenset[str] = frozenset(
+    {
+        # Prop line and odds
+        "line",
+        "over_odds",
+        "under_odds",
+        "market_id",
+        "odds_id",
+        "book",
+        "sportsbook",
+        "vendor",  # canonical sportsbook identifier
+        "prop_type_raw",  # evaluation-only metadata
+        # Derived market probabilities
+        "market_prob_over",
+        "market_prob_under",
+        "no_vig_prob_over",
+        "no_vig_prob_under",
+        # Evaluation / post-game
+        "edge",
+        "clv",
+        "closing_line",
+        "closing_odds",
+        "hit_result",
+        "outcome",
+        # Legacy names used in earlier feature contract
+        "market_line",
+        "market_prob_over_no_vig",
+        "consensus_total",
+        "consensus_spread",
+        # Game odds columns — actual BDL WNBA flat response field names
+        "spread_home_value",
+        "spread_home_odds",
+        "spread_away_value",
+        "spread_away_odds",
+        "moneyline_home_odds",
+        "moneyline_away_odds",
+        "total_value",
+        "total_over_odds",
+        "total_under_odds",
+        # Legacy / alternate column names
+        "spread_value",
+        "spread_visitor_odds",
+        "moneyline_visitor_odds",
+        "snapshot_timestamp_utc",
+        "updated_at",
+        # Line movement tracking (P4.1) — derived from market data, not model features
+        "prop_line_open",
+        "line_delta",
+        "line_moved_toward_over",
+        "line_moved_toward_under",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Model calibration / quantile settings
 # ---------------------------------------------------------------------------
 
 QUANTILES = (
-    0.05, 0.10, 0.15, 0.20, 0.25, 0.30,
-    0.40, 0.50, 0.60, 0.70, 0.75, 0.80,
-    0.85, 0.90, 0.95,
+    0.05,
+    0.10,
+    0.15,
+    0.20,
+    0.25,
+    0.30,
+    0.40,
+    0.50,
+    0.60,
+    0.70,
+    0.75,
+    0.80,
+    0.85,
+    0.90,
+    0.95,
 )
 
 ROLE_BUCKETS = ("inactive_risk", "fringe", "bench", "rotation", "core", "starter")
@@ -240,8 +254,8 @@ ROLE_MIN_ROWS = {
 ROLE_GLOBAL_ONLY_BUCKETS: set = set()
 
 CALIBRATION_GATES = {
-    "pit_ks_max": 0.15,          # year-1; tighten to 0.10 in year 2
-    "ece_max": 0.10,              # year-1; tighten to 0.05 in year 2
+    "pit_ks_max": 0.15,  # year-1; tighten to 0.10 in year 2
+    "ece_max": 0.10,  # year-1; tighten to 0.05 in year 2
     "mean_error_abs_max": 1.00,  # year-1; tighten to 0.50 in year 2
     "variance_error_abs_max": 0.20,
 }

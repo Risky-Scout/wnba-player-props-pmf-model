@@ -1,0 +1,19 @@
+{
+  "artifact": "CURRENT_SLATE_SHADOW_AUDIT",
+  "result": "REVIEW",
+  "n_players": 388,
+  "n_in_domain": 177,
+  "n_ood": 211,
+  "n_critical_flags": 240,
+  "n_minutes_diff_gt4": 240,
+  "n_sd_diff_gt3": 0,
+  "mean_expected_minutes_diff": 4.616262026035615,
+  "median_expected_minutes_diff": 6.234862657798772,
+  "availability": {
+    "NOT_LISTED": 373,
+    "OUT": 11,
+    "UNKNOWN_SOURCE": 4
+  },
+  "unresolved_critical": false,
+  "note": "Latest historical pregame features joined by player_id. Large diffs expected for OOD / retired names on active API list. Prop-line shadow not run."
+}

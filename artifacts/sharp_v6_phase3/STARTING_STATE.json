@@ -1,0 +1,31 @@
+{
+  "artifact": "STARTING_STATE",
+  "phase": "sharp_v6_phase3_participation_minutes",
+  "generated_at_utc": "2026-08-02T07:20:20.728534+00:00",
+  "branch": "cursor/v6-p0-phase3-participation-minutes",
+  "starting_main_sha": "45fcb682ee8db669520eace4713bba4096eb27d6",
+  "origin_main_sha": "45fcb682ee8db669520eace4713bba4096eb27d6",
+  "local_main_equals_origin_main": true,
+  "tracked_tree_clean_at_branch_create": true,
+  "prs_present": {
+    "107": "PMF mass and tail mathematics repair",
+    "108": "canonical BDL fields + participation labels + forward snapshots"
+  },
+  "production_pointer": {
+    "path": "artifacts/releases/PRODUCTION_POINTER.json",
+    "production_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+    "bundle_id": "wnba-pmf-production-v1.1",
+    "changed_in_phase3_so_far": false
+  },
+  "challenger_bundle_target": "artifacts/releases/wnba-pmf-production-v1.2-rc1",
+  "rollback_bundle": "artifacts/releases/wnba-pmf-production-v1.1",
+  "constraints": [
+    "Do not create V7",
+    "Do not create a second predictive model",
+    "Do not change direct-stat families / PMF math except to consume participation/minutes",
+    "Do not destructive full BDL repull",
+    "Do not commit private injury workbook / API payloads / credentials / live picks",
+    "Do not update PRODUCTION_POINTER until promotion gate passes"
+  ],
+  "untracked_local_audit_dir_ignored": "artifacts/data_contract_audit/"
+}

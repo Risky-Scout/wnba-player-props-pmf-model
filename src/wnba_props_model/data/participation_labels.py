@@ -3,6 +3,7 @@
 Does not fit models. Inferred / unknown negatives are excluded from training
 by default.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -22,13 +23,15 @@ LABEL_CLASSES = (
 )
 
 # Columns that must never appear as onset-time features on a minutes panel.
-LEAKAGE_PROHIBITED_ONSET_FEATURES = frozenset({
-    "date_returned",
-    "total_games_missed",
-    "actual_minutes",
-    "minutes",
-    "did_play",
-})
+LEAKAGE_PROHIBITED_ONSET_FEATURES = frozenset(
+    {
+        "date_returned",
+        "total_games_missed",
+        "actual_minutes",
+        "minutes",
+        "did_play",
+    }
+)
 
 
 def classify_box_score_row(
@@ -230,16 +233,18 @@ def build_conditional_minutes_training_table(
         if c not in feat.columns:
             raise ValueError(f"features missing key {c}")
     merged = active.merge(feat[keys + feature_cols], on=keys, how="inner")
-    out = pd.DataFrame({
-        "game_id": merged["game_id"],
-        "game_date": merged["game_date"],
-        "player_id": merged["player_id"],
-        "team_id": merged["team_id"],
-        "actual_minutes": merged["minutes"],
-        "feature_cutoff": feature_cutoff,
-        "data_hash": data_hash,
-        "feature_contract_hash": feature_contract_hash,
-    })
+    out = pd.DataFrame(
+        {
+            "game_id": merged["game_id"],
+            "game_date": merged["game_date"],
+            "player_id": merged["player_id"],
+            "team_id": merged["team_id"],
+            "actual_minutes": merged["minutes"],
+            "feature_cutoff": feature_cutoff,
+            "data_hash": data_hash,
+            "feature_contract_hash": feature_contract_hash,
+        }
+    )
     for c in feature_cols:
         out[c] = merged[c]
     # Safety: never retain non-active classes

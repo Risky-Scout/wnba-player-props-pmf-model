@@ -1,0 +1,43 @@
+{
+  "artifact": "PHASE2_CODE_CLEANUP",
+  "generated_at_utc": "2026-08-02T07:20:31.839057+00:00",
+  "phase2_files": [
+    ".github/workflows/collect_roster_injury_snapshots.yml",
+    "scripts/build_canonical_tables.py",
+    "scripts/collect_roster_injury_snapshots.py",
+    "scripts/phase2_rebuild_canonical_and_labels.py",
+    "src/wnba_props_model/constants.py",
+    "src/wnba_props_model/data/injury_workbook.py",
+    "src/wnba_props_model/data/normalize.py",
+    "src/wnba_props_model/data/participation_labels.py",
+    "src/wnba_props_model/data/schema.py",
+    "tests/test_phase2_canonical_participation_repair.py"
+  ],
+  "ruff_format": "applied_to_phase2_python_only",
+  "ruff_check": "clean_on_phase2_python_files",
+  "repository_wide_style_rewrite": false,
+  "behavior_preserved": true,
+  "snapshot_failure_semantics": {
+    "fail_open_removed": true,
+    "fail_closed": true,
+    "statuses": [
+      "SUCCESS_POPULATED",
+      "SUCCESS_EMPTY",
+      "AUTHENTICATION_FAILURE",
+      "ENTITLEMENT_FAILURE",
+      "RATE_LIMITED",
+      "ENDPOINT_FAILURE",
+      "PARSE_FAILURE"
+    ],
+    "when_scheduled_games_exist": {
+      "roster_source_failure": "workflow_gate_FAILED_ROSTER_SOURCE_exit_1",
+      "injury_source_failure": "availability_gate_FAILED_INJURY_SOURCE_exit_1",
+      "diagnostic_upload_allowed": true,
+      "treat_failure_as_all_healthy": false
+    },
+    "workflow_requires_bdl_api_key": true
+  },
+  "production_pointer_unchanged": true,
+  "updated_at_utc": "2026-08-02T07:33:42.893706+00:00",
+  "snapshot_endpoint_key_fix": "players_active registry key (was players/active)"
+}

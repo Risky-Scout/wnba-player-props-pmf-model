@@ -75,3 +75,13 @@ deliveries/sharp_v3/
 
 data/recovered_v2/wnba_player_shooting_labels.parquet
 deliveries/sharp_v6/
+
+# Phase-3 row-level OOF / rejects (aggregates + contracts are committed)
+artifacts/sharp_v6_phase3/*_OOF_PREDICTIONS.parquet
+artifacts/sharp_v6_phase3/LABEL_REVALIDATION_REJECTS.csv
+artifacts/sharp_v6_phase3/CURRENT_SLATE_PARTICIPATION_MINUTES.csv
+artifacts/sharp_v6_phase3/CURRENT_SLATE_SHADOW_COMPARISON.csv
+artifacts/phase2_repair/ROSTER_INJURY_SNAPSHOT_MANIFEST.json
+artifacts/sharp_v6_phase3/phase3_revalidated_labels_private.parquet
+artifacts/sharp_v6_phase3/FIT_RUN.log
+artifacts/sharp_v6_phase3/SLATE_*.log
