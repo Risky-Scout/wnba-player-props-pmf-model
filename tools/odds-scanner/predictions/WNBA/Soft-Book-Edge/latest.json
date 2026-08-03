@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-03T03:32:48.739124+00:00",
+  "generated_at": "2026-08-03T19:28:37.001718+00:00",
   "game_date": "2026-08-03",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-03",
-    "generated_utc": "2026-08-03T03:32:48.739124+00:00",
+    "generated_utc": "2026-08-03T19:28:37.001718+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1431,
-    "n_scored_rows": 1242,
-    "n_qualifying": 3,
+    "n_quote_rows": 1915,
+    "n_scored_rows": 1688,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -46,23 +46,23 @@
   },
   "games": [
     {
-      "game_id": "9192db295ea37dc4616880169fa9e38d",
-      "odds_api_event_id": "9192db295ea37dc4616880169fa9e38d",
-      "commence_time": "2026-08-03T23:30:00Z",
+      "game_id": "543c1b084ecf7224cb7c70766183859d",
+      "odds_api_event_id": "543c1b084ecf7224cb7c70766183859d",
+      "commence_time": "2026-08-04T01:00:00Z",
       "home_team": {
-        "name": "Atlanta Dream",
-        "abbreviation": "Atlanta Dream"
+        "name": "Chicago Sky",
+        "abbreviation": "Chicago Sky"
       },
       "away_team": {
-        "name": "Las Vegas Aces",
-        "abbreviation": "Las Vegas Aces"
+        "name": "Phoenix Mercury",
+        "abbreviation": "Phoenix Mercury"
       },
       "players": [
         {
-          "player_id": "9192db295ea37dc4616880169fa9e38d:Jordin Canada:ast:8.5:under:betonlineag",
-          "player_name": "Jordin Canada",
+          "player_id": "543c1b084ecf7224cb7c70766183859d:Noemie Brochant:fg3m:0.5:under:betonlineag",
+          "player_name": "Noemie Brochant",
           "team_name": "",
-          "position": "betonlineag -120 \u00b7 EV +3.4%",
+          "position": "betonlineag +130 \u00b7 EV +4.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -70,38 +70,53 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 8.5,
-              "median": 8.5,
+            "threes": {
+              "mean": 0.5,
+              "median": 0.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4362,
-                "edge_vs_market": -0.033688,
-                "kelly_fraction": 0.0101
+                "market_line": 0.5,
+                "p_over": 0.5459,
+                "edge_vs_market": -0.044388,
+                "kelly_fraction": 0.0085
               },
               "soft_book": {
                 "book": "betonlineag",
                 "side": "under",
-                "offered_odds": -120,
-                "ev_pct": 3.369,
-                "fair_p_side": 0.5638,
-                "consensus_p_over": 0.4362,
-                "consensus_n_books": 5,
+                "offered_odds": 130,
+                "ev_pct": 4.439,
+                "fair_p_side": 0.4541,
+                "consensus_p_over": 0.5459,
+                "consensus_n_books": 3,
                 "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4869,
+                "sharp_consensus_p_over": 0.5967,
                 "best_book": "betonlineag",
-                "best_odds": -120
+                "best_odds": 130
               }
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "game_id": "51369aa71fcd604bdf38a760b6bcc223",
+      "odds_api_event_id": "51369aa71fcd604bdf38a760b6bcc223",
+      "commence_time": "2026-08-03T23:00:00Z",
+      "home_team": {
+        "name": "New York Liberty",
+        "abbreviation": "New York Liberty"
+      },
+      "away_team": {
+        "name": "Seattle Storm",
+        "abbreviation": "Seattle Storm"
+      },
+      "players": [
         {
-          "player_id": "9192db295ea37dc4616880169fa9e38d:Rhyne Howard:ast:3.5:under:hardrockbet",
-          "player_name": "Rhyne Howard",
+          "player_id": "51369aa71fcd604bdf38a760b6bcc223:Breanna Stewart:pts:21.5:over:hardrockbet",
+          "player_name": "Breanna Stewart",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +3.3%",
+          "position": "hardrockbet -105 \u00b7 EV +3.1%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -109,68 +124,29 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 3.5,
-              "median": 3.5,
+            "points": {
+              "mean": 21.5,
+              "median": 21.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 3.5,
-                "p_over": 0.5079,
-                "edge_vs_market": -0.033388,
-                "kelly_fraction": 0.0076
+                "market_line": 21.5,
+                "p_over": 0.528,
+                "edge_vs_market": 0.030788,
+                "kelly_fraction": 0.0081
               },
               "soft_book": {
                 "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 3.339,
-                "fair_p_side": 0.4921,
-                "consensus_p_over": 0.5079,
-                "consensus_n_books": 8,
+                "side": "over",
+                "offered_odds": -105,
+                "ev_pct": 3.079,
+                "fair_p_side": 0.528,
+                "consensus_p_over": 0.528,
+                "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
+                "sharp_consensus_p_over": 0.5295,
                 "best_book": "hardrockbet",
-                "best_odds": 110
-              }
-            }
-          }
-        },
-        {
-          "player_id": "9192db295ea37dc4616880169fa9e38d:Jordin Canada:ast:8.5:under:rebet",
-          "player_name": "Jordin Canada",
-          "team_name": "",
-          "position": "rebet -121 \u00b7 EV +3.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4362,
-                "edge_vs_market": -0.029805,
-                "kelly_fraction": 0.009
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "under",
-                "offered_odds": -121,
-                "ev_pct": 2.981,
-                "fair_p_side": 0.5638,
-                "consensus_p_over": 0.4362,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4869,
-                "best_book": "betonlineag",
-                "best_odds": -120
+                "best_odds": -105
               }
             }
           }
