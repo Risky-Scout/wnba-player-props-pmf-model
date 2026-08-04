@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-04T21:11:31.234535+00:00",
+  "generated_at": "2026-08-04T23:02:32.882581+00:00",
   "game_date": "2026-08-04",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-04",
-    "generated_utc": "2026-08-04T21:11:31.234535+00:00",
+    "generated_utc": "2026-08-04T23:02:32.882581+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 1,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 663,
-    "n_scored_rows": 584,
-    "n_qualifying": 6,
+    "n_quote_rows": 667,
+    "n_scored_rows": 586,
+    "n_qualifying": 7,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -62,7 +62,7 @@
           "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Marina Mabrey:fg3m:2.5:under:betparx",
           "player_name": "Marina Mabrey",
           "team_name": "",
-          "position": "betparx +104 \u00b7 EV +9.6%",
+          "position": "betparx +107 \u00b7 EV +11.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,139 +77,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.4627,
-                "edge_vs_market": -0.096091,
-                "kelly_fraction": 0.0231
+                "p_over": 0.4606,
+                "edge_vs_market": -0.116495,
+                "kelly_fraction": 0.0272
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": 104,
-                "ev_pct": 9.609,
-                "fair_p_side": 0.5373,
-                "consensus_p_over": 0.4627,
+                "offered_odds": 107,
+                "ev_pct": 11.649,
+                "fair_p_side": 0.5394,
+                "consensus_p_over": 0.4606,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4579,
                 "best_book": "betparx",
-                "best_odds": 104
-              }
-            }
-          }
-        },
-        {
-          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Marina Mabrey:fg3m:2.5:under:hardrockbet",
-          "player_name": "Marina Mabrey",
-          "team_name": "",
-          "position": "hardrockbet -105 \u00b7 EV +4.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4627,
-                "edge_vs_market": -0.049013,
-                "kelly_fraction": 0.0129
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -105,
-                "ev_pct": 4.901,
-                "fair_p_side": 0.5373,
-                "consensus_p_over": 0.4627,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4579,
-                "best_book": "betparx",
-                "best_odds": 104
-              }
-            }
-          }
-        },
-        {
-          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Julie Allemand:pts:5.5:over:betonlineag",
-          "player_name": "Julie Allemand",
-          "team_name": "",
-          "position": "betonlineag -103 \u00b7 EV +3.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 5.5,
-              "median": 5.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.5227,
-                "edge_vs_market": 0.030104,
-                "kelly_fraction": 0.0078
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": -103,
-                "ev_pct": 3.01,
-                "fair_p_side": 0.5227,
-                "consensus_p_over": 0.5227,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4759,
-                "best_book": "betonlineag",
-                "best_odds": -103
-              }
-            }
-          }
-        },
-        {
-          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Julie Allemand:reb:2.5:over:draftkings",
-          "player_name": "Julie Allemand",
-          "team_name": "",
-          "position": "draftkings -122 \u00b7 EV +3.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5658,
-                "edge_vs_market": 0.029618,
-                "kelly_fraction": 0.009
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "over",
-                "offered_odds": -122,
-                "ev_pct": 2.962,
-                "fair_p_side": 0.5658,
-                "consensus_p_over": 0.5658,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": -122
+                "best_odds": 107
               }
             }
           }
@@ -218,7 +101,7 @@
           "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Julie Allemand:reb:2.5:under:hardrockbet",
           "player_name": "Julie Allemand",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +2.5%",
+          "position": "hardrockbet +115 \u00b7 EV +6.3%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -233,22 +116,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5117,
-                "edge_vs_market": -0.025343,
-                "kelly_fraction": 0.0058
+                "p_over": 0.5055,
+                "edge_vs_market": -0.063207,
+                "kelly_fraction": 0.0137
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 2.534,
-                "fair_p_side": 0.4883,
-                "consensus_p_over": 0.5117,
-                "consensus_n_books": 3,
+                "offered_odds": 115,
+                "ev_pct": 6.321,
+                "fair_p_side": 0.4945,
+                "consensus_p_over": 0.5055,
+                "consensus_n_books": 5,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
+                "sharp_consensus_p_over": 0.5055,
                 "best_book": "hardrockbet",
-                "best_odds": 110
+                "best_odds": 115
               }
             }
           }
@@ -257,7 +140,7 @@
           "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Julie Allemand:reb:2.5:under:betparx",
           "player_name": "Julie Allemand",
           "team_name": "",
-          "position": "betparx +110 \u00b7 EV +2.5%",
+          "position": "betparx +114 \u00b7 EV +5.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -272,22 +155,178 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5117,
-                "edge_vs_market": -0.025343,
-                "kelly_fraction": 0.0058
+                "p_over": 0.5055,
+                "edge_vs_market": -0.058261,
+                "kelly_fraction": 0.0128
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 2.534,
-                "fair_p_side": 0.4883,
-                "consensus_p_over": 0.5117,
-                "consensus_n_books": 3,
+                "offered_odds": 114,
+                "ev_pct": 5.826,
+                "fair_p_side": 0.4945,
+                "consensus_p_over": 0.5055,
+                "consensus_n_books": 5,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
+                "sharp_consensus_p_over": 0.5055,
                 "best_book": "hardrockbet",
-                "best_odds": 110
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Nyara Sabally:reb:4.5:under:hardrockbet",
+          "player_name": "Nyara Sabally",
+          "team_name": "",
+          "position": "hardrockbet -105 \u00b7 EV +4.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.4666,
+                "edge_vs_market": -0.041308,
+                "kelly_fraction": 0.0108
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": -105,
+                "ev_pct": 4.131,
+                "fair_p_side": 0.5334,
+                "consensus_p_over": 0.4666,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4508,
+                "best_book": "hardrockbet",
+                "best_odds": -105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Maria Conde:reb:3.5:over:fanduel",
+          "player_name": "Maria Conde",
+          "team_name": "",
+          "position": "fanduel -104 \u00b7 EV +3.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.5291,
+                "edge_vs_market": 0.037921,
+                "kelly_fraction": 0.0099
+              },
+              "soft_book": {
+                "book": "fanduel",
+                "side": "over",
+                "offered_odds": -104,
+                "ev_pct": 3.792,
+                "fair_p_side": 0.5291,
+                "consensus_p_over": 0.5291,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5391,
+                "best_book": "fanduel",
+                "best_odds": -104
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Nyara Sabally:reb:4.5:under:betparx",
+          "player_name": "Nyara Sabally",
+          "team_name": "",
+          "position": "betparx -108 \u00b7 EV +2.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.4666,
+                "edge_vs_market": -0.027198,
+                "kelly_fraction": 0.0073
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -108,
+                "ev_pct": 2.72,
+                "fair_p_side": 0.5334,
+                "consensus_p_over": 0.4666,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4508,
+                "best_book": "hardrockbet",
+                "best_odds": -105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c1e9df8b911a50375b98c0b0dcfa0f7e:Maria Conde:fg3m:1.5:under:betparx",
+          "player_name": "Maria Conde",
+          "team_name": "",
+          "position": "betparx +102 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.4925,
+                "edge_vs_market": -0.025218,
+                "kelly_fraction": 0.0062
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 102,
+                "ev_pct": 2.522,
+                "fair_p_side": 0.5075,
+                "consensus_p_over": 0.4925,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4869,
+                "best_book": "betparx",
+                "best_odds": 102
               }
             }
           }
