@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-05T19:27:09.583357+00:00",
+  "generated_at": "2026-08-05T21:06:11.704178+00:00",
   "game_date": "2026-08-05",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-05",
-    "generated_utc": "2026-08-05T19:27:09.583357+00:00",
+    "generated_utc": "2026-08-05T21:06:11.704178+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 2442,
-    "n_scored_rows": 2182,
-    "n_qualifying": 9,
+    "n_quote_rows": 2419,
+    "n_scored_rows": 2164,
+    "n_qualifying": 6,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -62,7 +62,46 @@
           "player_id": "80bb6c471358f70e96b4571c4470ac0a:Michaela Onyenwere:ast:2.5:over:betonlineag",
           "player_name": "Michaela Onyenwere",
           "team_name": "",
-          "position": "betonlineag +161 \u00b7 EV +6.8%",
+          "position": "betonlineag +171 \u00b7 EV +10.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4091,
+                "edge_vs_market": 0.108636,
+                "kelly_fraction": 0.0159
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 171,
+                "ev_pct": 10.864,
+                "fair_p_side": 0.4091,
+                "consensus_p_over": 0.4091,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.3374,
+                "best_book": "betonlineag",
+                "best_odds": 171
+              }
+            }
+          }
+        },
+        {
+          "player_id": "80bb6c471358f70e96b4571c4470ac0a:Michaela Onyenwere:ast:2.5:over:rebet",
+          "player_name": "Michaela Onyenwere",
+          "team_name": "",
+          "position": "rebet +161 \u00b7 EV +6.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -82,26 +121,26 @@
                 "kelly_fraction": 0.0105
               },
               "soft_book": {
-                "book": "betonlineag",
+                "book": "rebet",
                 "side": "over",
                 "offered_odds": 161,
                 "ev_pct": 6.773,
                 "fair_p_side": 0.4091,
                 "consensus_p_over": 0.4091,
                 "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.3513,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3374,
                 "best_book": "betonlineag",
-                "best_odds": 161
+                "best_odds": 171
               }
             }
           }
         },
         {
-          "player_id": "80bb6c471358f70e96b4571c4470ac0a:Michaela Onyenwere:ast:2.5:over:rebet",
+          "player_id": "80bb6c471358f70e96b4571c4470ac0a:Michaela Onyenwere:ast:2.5:under:hardrockbet",
           "player_name": "Michaela Onyenwere",
           "team_name": "",
-          "position": "rebet +152 \u00b7 EV +3.1%",
+          "position": "hardrockbet -170 \u00b7 EV +3.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,193 +155,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.4091,
-                "edge_vs_market": 0.030909,
-                "kelly_fraction": 0.0051
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "over",
-                "offered_odds": 152,
-                "ev_pct": 3.091,
-                "fair_p_side": 0.4091,
-                "consensus_p_over": 0.4091,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3513,
-                "best_book": "betonlineag",
-                "best_odds": 161
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "55583b8c075dd483b408ce1ba4c24244",
-      "odds_api_event_id": "55583b8c075dd483b408ce1ba4c24244",
-      "commence_time": "2026-08-05T23:00:00Z",
-      "home_team": {
-        "name": "New York Liberty",
-        "abbreviation": "New York Liberty"
-      },
-      "away_team": {
-        "name": "Seattle Storm",
-        "abbreviation": "Seattle Storm"
-      },
-      "players": [
-        {
-          "player_id": "55583b8c075dd483b408ce1ba4c24244:Jade Melbourne:fg3m:0.5:under:hardrockbet",
-          "player_name": "Jade Melbourne",
-          "team_name": "",
-          "position": "hardrockbet +145 \u00b7 EV +6.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.5666,
-                "edge_vs_market": -0.061735,
-                "kelly_fraction": 0.0106
+                "p_over": 0.3478,
+                "edge_vs_market": -0.035814,
+                "kelly_fraction": 0.0152
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "under",
-                "offered_odds": 145,
-                "ev_pct": 6.173,
-                "fair_p_side": 0.4334,
-                "consensus_p_over": 0.5666,
+                "offered_odds": -170,
+                "ev_pct": 3.581,
+                "fair_p_side": 0.6522,
+                "consensus_p_over": 0.3478,
                 "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5666,
+                "sharp_consensus_p_over": 0.3374,
                 "best_book": "hardrockbet",
-                "best_odds": 145
-              }
-            }
-          }
-        },
-        {
-          "player_id": "55583b8c075dd483b408ce1ba4c24244:Jade Melbourne:fg3m:0.5:over:rebet",
-          "player_name": "Jade Melbourne",
-          "team_name": "",
-          "position": "rebet -148 \u00b7 EV +6.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.6329,
-                "edge_vs_market": 0.060616,
-                "kelly_fraction": 0.0224
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "over",
-                "offered_odds": -148,
-                "ev_pct": 6.062,
-                "fair_p_side": 0.6329,
-                "consensus_p_over": 0.6329,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5666,
-                "best_book": "rebet",
-                "best_odds": -148
-              }
-            }
-          }
-        },
-        {
-          "player_id": "55583b8c075dd483b408ce1ba4c24244:Jade Melbourne:fg3m:0.5:over:betonlineag",
-          "player_name": "Jade Melbourne",
-          "team_name": "",
-          "position": "betonlineag -149 \u00b7 EV +5.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.6329,
-                "edge_vs_market": 0.057746,
-                "kelly_fraction": 0.0215
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": -149,
-                "ev_pct": 5.775,
-                "fair_p_side": 0.6329,
-                "consensus_p_over": 0.6329,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5666,
-                "best_book": "rebet",
-                "best_odds": -148
-              }
-            }
-          }
-        },
-        {
-          "player_id": "55583b8c075dd483b408ce1ba4c24244:Jade Melbourne:fg3m:0.5:under:betparx",
-          "player_name": "Jade Melbourne",
-          "team_name": "",
-          "position": "betparx +143 \u00b7 EV +5.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.5666,
-                "edge_vs_market": -0.053068,
-                "kelly_fraction": 0.0093
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": 143,
-                "ev_pct": 5.307,
-                "fair_p_side": 0.4334,
-                "consensus_p_over": 0.5666,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5666,
-                "best_book": "hardrockbet",
-                "best_odds": 145
+                "best_odds": -170
               }
             }
           }
@@ -323,49 +191,10 @@
       },
       "players": [
         {
-          "player_id": "03dfbda8989e58cb5886ea6e37b348d3:Erica Wheeler:ast:5.5:over:betparx",
-          "player_name": "Erica Wheeler",
+          "player_id": "03dfbda8989e58cb5886ea6e37b348d3:Courtney Vandersloot:pts:11.5:over:hardrockbet",
+          "player_name": "Courtney Vandersloot",
           "team_name": "",
-          "position": "betparx -118 \u00b7 EV +3.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 5.5,
-              "median": 5.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.5607,
-                "edge_vs_market": 0.035945,
-                "kelly_fraction": 0.0106
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -118,
-                "ev_pct": 3.595,
-                "fair_p_side": 0.5607,
-                "consensus_p_over": 0.5607,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5628,
-                "best_book": "betparx",
-                "best_odds": -118
-              }
-            }
-          }
-        },
-        {
-          "player_id": "03dfbda8989e58cb5886ea6e37b348d3:Erica Wheeler:pts:9.5:under:betonlineag",
-          "player_name": "Erica Wheeler",
-          "team_name": "",
-          "position": "betonlineag +110 \u00b7 EV +3.2%",
+          "position": "hardrockbet +110 \u00b7 EV +3.9%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -374,37 +203,52 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 9.5,
-              "median": 9.5,
+              "mean": 11.5,
+              "median": 11.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.5086,
-                "edge_vs_market": -0.03199,
-                "kelly_fraction": 0.0073
+                "market_line": 11.5,
+                "p_over": 0.4946,
+                "edge_vs_market": 0.038587,
+                "kelly_fraction": 0.0088
               },
               "soft_book": {
-                "book": "betonlineag",
-                "side": "under",
+                "book": "hardrockbet",
+                "side": "over",
                 "offered_odds": 110,
-                "ev_pct": 3.199,
-                "fair_p_side": 0.4914,
-                "consensus_p_over": 0.5086,
-                "consensus_n_books": 7,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5561,
-                "best_book": "betonlineag",
+                "ev_pct": 3.859,
+                "fair_p_side": 0.4946,
+                "consensus_p_over": 0.4946,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4945,
+                "best_book": "hardrockbet",
                 "best_odds": 110
               }
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "game_id": "2977c51845a4f2621deca3d4a38a0ac2",
+      "odds_api_event_id": "2977c51845a4f2621deca3d4a38a0ac2",
+      "commence_time": "2026-08-05T23:00:00Z",
+      "home_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "away_team": {
+        "name": "Phoenix Mercury",
+        "abbreviation": "Phoenix Mercury"
+      },
+      "players": [
         {
-          "player_id": "03dfbda8989e58cb5886ea6e37b348d3:Erica Wheeler:ast:5.5:over:hardrockbet",
-          "player_name": "Erica Wheeler",
+          "player_id": "2977c51845a4f2621deca3d4a38a0ac2:Rhyne Howard:fg3m:3.5:under:rebet",
+          "player_name": "Rhyne Howard",
           "team_name": "",
-          "position": "hardrockbet -120 \u00b7 EV +2.8%",
+          "position": "rebet -135 \u00b7 EV +2.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -412,29 +256,68 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 5.5,
-              "median": 5.5,
+            "threes": {
+              "mean": 3.5,
+              "median": 3.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.5607,
-                "edge_vs_market": 0.028025,
-                "kelly_fraction": 0.0084
+                "market_line": 3.5,
+                "p_over": 0.4108,
+                "edge_vs_market": -0.025689,
+                "kelly_fraction": 0.0087
               },
               "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -120,
-                "ev_pct": 2.803,
-                "fair_p_side": 0.5607,
-                "consensus_p_over": 0.5607,
-                "consensus_n_books": 6,
+                "book": "rebet",
+                "side": "under",
+                "offered_odds": -135,
+                "ev_pct": 2.569,
+                "fair_p_side": 0.5892,
+                "consensus_p_over": 0.4108,
+                "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5628,
-                "best_book": "betparx",
-                "best_odds": -118
+                "sharp_consensus_p_over": 0.4579,
+                "best_book": "rebet",
+                "best_odds": -135
+              }
+            }
+          }
+        },
+        {
+          "player_id": "2977c51845a4f2621deca3d4a38a0ac2:Rhyne Howard:fg3m:3.5:under:betonlineag",
+          "player_name": "Rhyne Howard",
+          "team_name": "",
+          "position": "betonlineag -135 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.4108,
+                "edge_vs_market": -0.025689,
+                "kelly_fraction": 0.0087
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "under",
+                "offered_odds": -135,
+                "ev_pct": 2.569,
+                "fair_p_side": 0.5892,
+                "consensus_p_over": 0.4108,
+                "consensus_n_books": 8,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4579,
+                "best_book": "rebet",
+                "best_odds": -135
               }
             }
           }
