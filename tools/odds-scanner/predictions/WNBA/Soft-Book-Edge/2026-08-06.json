@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-06T03:14:13.355600+00:00",
+  "generated_at": "2026-08-06T23:57:32.384980+00:00",
   "game_date": "2026-08-06",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,10 +16,10 @@
   },
   "summary": {
     "date": "2026-08-06",
-    "generated_utc": "2026-08-06T03:14:13.355600+00:00",
+    "generated_utc": "2026-08-06T23:57:32.384980+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
-    "n_events": 2,
+    "n_events": 3,
     "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 740,
-    "n_scored_rows": 676,
-    "n_qualifying": 0,
+    "n_quote_rows": 1308,
+    "n_scored_rows": 1052,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -44,5 +44,114 @@
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "2036e6c92c8c4e14b2b4727f482e74a9",
+      "odds_api_event_id": "2036e6c92c8c4e14b2b4727f482e74a9",
+      "commence_time": "2026-08-07T02:00:00Z",
+      "home_team": {
+        "name": "Portland Fire",
+        "abbreviation": "Portland Fire"
+      },
+      "away_team": {
+        "name": "Toronto Tempo",
+        "abbreviation": "Toronto Tempo"
+      },
+      "players": [
+        {
+          "player_id": "2036e6c92c8c4e14b2b4727f482e74a9:Maria Conde:ast:2.5:under:espnbet",
+          "player_name": "Maria Conde",
+          "team_name": "",
+          "position": "espnbet +135 \u00b7 EV +3.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.5589,
+                "edge_vs_market": -0.036658,
+                "kelly_fraction": 0.0068
+              },
+              "soft_book": {
+                "book": "espnbet",
+                "side": "under",
+                "offered_odds": 135,
+                "ev_pct": 3.666,
+                "fair_p_side": 0.4411,
+                "consensus_p_over": 0.5589,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "espnbet",
+                "best_odds": 135
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "0c6ed7c2d9458b686d96eafc98f9d07d",
+      "odds_api_event_id": "0c6ed7c2d9458b686d96eafc98f9d07d",
+      "commence_time": "2026-08-07T01:00:00Z",
+      "home_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "away_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "players": [
+        {
+          "player_id": "0c6ed7c2d9458b686d96eafc98f9d07d:Kayla McBride:reb:2.5:over:betparx",
+          "player_name": "Kayla McBride",
+          "team_name": "",
+          "position": "betparx -108 \u00b7 EV +2.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.5345,
+                "edge_vs_market": 0.029374,
+                "kelly_fraction": 0.0079
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -108,
+                "ev_pct": 2.937,
+                "fair_p_side": 0.5345,
+                "consensus_p_over": 0.5345,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.537,
+                "best_book": "betparx",
+                "best_odds": -108
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
