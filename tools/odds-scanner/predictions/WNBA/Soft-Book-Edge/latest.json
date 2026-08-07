@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-07T20:39:09.058827+00:00",
+  "generated_at": "2026-08-07T21:37:28.490927+00:00",
   "game_date": "2026-08-07",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-07",
-    "generated_utc": "2026-08-07T20:39:09.058827+00:00",
+    "generated_utc": "2026-08-07T21:37:28.490927+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1689,
-    "n_scored_rows": 1482,
-    "n_qualifying": 7,
+    "n_quote_rows": 1685,
+    "n_scored_rows": 1470,
+    "n_qualifying": 6,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -45,138 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "1abfa68590506baafec863ada56d863d",
-      "odds_api_event_id": "1abfa68590506baafec863ada56d863d",
-      "commence_time": "2026-08-08T01:30:00Z",
-      "home_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "away_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "players": [
-        {
-          "player_id": "1abfa68590506baafec863ada56d863d:Alanna Smith:pts:8.5:over:betparx",
-          "player_name": "Alanna Smith",
-          "team_name": "",
-          "position": "betparx +125 \u00b7 EV +4.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4624,
-                "edge_vs_market": 0.040471,
-                "kelly_fraction": 0.0081
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 125,
-                "ev_pct": 4.047,
-                "fair_p_side": 0.4624,
-                "consensus_p_over": 0.4624,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4609,
-                "best_book": "betparx",
-                "best_odds": 125
-              }
-            }
-          }
-        },
-        {
-          "player_id": "1abfa68590506baafec863ada56d863d:Arike Ogunbowale:pts:15.5:over:betparx",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "betparx +118 \u00b7 EV +3.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 15.5,
-              "median": 15.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.4757,
-                "edge_vs_market": 0.036951,
-                "kelly_fraction": 0.0078
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 118,
-                "ev_pct": 3.695,
-                "fair_p_side": 0.4757,
-                "consensus_p_over": 0.4757,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4705,
-                "best_book": "betparx",
-                "best_odds": 118
-              }
-            }
-          }
-        },
-        {
-          "player_id": "1abfa68590506baafec863ada56d863d:Alanna Smith:pts:7.5:over:betparx",
-          "player_name": "Alanna Smith",
-          "team_name": "",
-          "position": "betparx -109 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 7.5,
-              "median": 7.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.5363,
-                "edge_vs_market": 0.028248,
-                "kelly_fraction": 0.0077
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -109,
-                "ev_pct": 2.825,
-                "fair_p_side": 0.5363,
-                "consensus_p_over": 0.5363,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "betparx",
-                "best_odds": -109
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "19f38817b4595a67366159a1ef5433be",
       "odds_api_event_id": "19f38817b4595a67366159a1ef5433be",
@@ -194,7 +62,7 @@
           "player_id": "19f38817b4595a67366159a1ef5433be:Diamond Miller:fg3m:1.5:over:betparx",
           "player_name": "Diamond Miller",
           "team_name": "",
-          "position": "betparx +170 \u00b7 EV +3.9%",
+          "position": "betparx +170 \u00b7 EV +3.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -209,20 +77,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3849,
-                "edge_vs_market": 0.039255,
-                "kelly_fraction": 0.0058
+                "p_over": 0.3831,
+                "edge_vs_market": 0.034355,
+                "kelly_fraction": 0.0051
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "over",
                 "offered_odds": 170,
-                "ev_pct": 3.925,
-                "fair_p_side": 0.3849,
-                "consensus_p_over": 0.3849,
+                "ev_pct": 3.436,
+                "fair_p_side": 0.3831,
+                "consensus_p_over": 0.3831,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3865,
+                "sharp_consensus_p_over": 0.3829,
                 "best_book": "betparx",
                 "best_odds": 170
               }
@@ -261,7 +129,7 @@
                 "consensus_p_over": 0.5207,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5273,
+                "sharp_consensus_p_over": 0.4967,
                 "best_book": "betparx",
                 "best_odds": -103
               }
@@ -323,10 +191,10 @@
       },
       "players": [
         {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Allisha Gray:fg3m:1.5:over:betparx",
+          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Allisha Gray:pts:17.5:under:betparx",
           "player_name": "Allisha Gray",
           "team_name": "",
-          "position": "betparx +104 \u00b7 EV +3.8%",
+          "position": "betparx +110 \u00b7 EV +2.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -334,29 +202,122 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
+            "points": {
+              "mean": 17.5,
+              "median": 17.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.5087,
-                "edge_vs_market": 0.037824,
-                "kelly_fraction": 0.0091
+                "market_line": 17.5,
+                "p_over": 0.5103,
+                "edge_vs_market": -0.028382,
+                "kelly_fraction": 0.0065
               },
               "soft_book": {
                 "book": "betparx",
+                "side": "under",
+                "offered_odds": 110,
+                "ev_pct": 2.838,
+                "fair_p_side": 0.4897,
+                "consensus_p_over": 0.5103,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5087,
+                "best_book": "betparx",
+                "best_odds": 110
+              }
+            }
+          }
+        },
+        {
+          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Brionna Jones:reb:5.5:over:draftkings",
+          "player_name": "Brionna Jones",
+          "team_name": "",
+          "position": "draftkings +114 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.4793,
+                "edge_vs_market": 0.025694,
+                "kelly_fraction": 0.0056
+              },
+              "soft_book": {
+                "book": "draftkings",
                 "side": "over",
-                "offered_odds": 104,
-                "ev_pct": 3.782,
-                "fair_p_side": 0.5087,
-                "consensus_p_over": 0.5087,
+                "offered_odds": 114,
+                "ev_pct": 2.569,
+                "fair_p_side": 0.4793,
+                "consensus_p_over": 0.4793,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5,
-                "best_book": "betparx",
-                "best_odds": 104
+                "sharp_consensus_p_over": 0.463,
+                "best_book": "draftkings",
+                "best_odds": 114
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "1abfa68590506baafec863ada56d863d",
+      "odds_api_event_id": "1abfa68590506baafec863ada56d863d",
+      "commence_time": "2026-08-08T01:30:00Z",
+      "home_team": {
+        "name": "Dallas Wings",
+        "abbreviation": "Dallas Wings"
+      },
+      "away_team": {
+        "name": "Golden State Valkyries",
+        "abbreviation": "Golden State Valkyries"
+      },
+      "players": [
+        {
+          "player_id": "1abfa68590506baafec863ada56d863d:Jessica Shepard:ast:5.5:over:betonlineag",
+          "player_name": "Jessica Shepard",
+          "team_name": "",
+          "position": "betonlineag +128 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.4501,
+                "edge_vs_market": 0.026214,
+                "kelly_fraction": 0.0051
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 128,
+                "ev_pct": 2.621,
+                "fair_p_side": 0.4501,
+                "consensus_p_over": 0.4501,
+                "consensus_n_books": 6,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "betonlineag",
+                "best_odds": 128
               }
             }
           }
