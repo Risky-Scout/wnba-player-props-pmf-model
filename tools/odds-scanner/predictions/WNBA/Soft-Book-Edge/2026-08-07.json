@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-07T18:53:37.390974+00:00",
+  "generated_at": "2026-08-07T19:52:18.555745+00:00",
   "game_date": "2026-08-07",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-07",
-    "generated_utc": "2026-08-07T18:53:37.390974+00:00",
+    "generated_utc": "2026-08-07T19:52:18.555745+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,8 +33,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1683,
-    "n_scored_rows": 1476,
+    "n_quote_rows": 1687,
+    "n_scored_rows": 1478,
     "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
@@ -116,17 +116,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.5205,
-                "edge_vs_market": 0.025832,
-                "kelly_fraction": 0.0067
+                "p_over": 0.5207,
+                "edge_vs_market": 0.026242,
+                "kelly_fraction": 0.0068
               },
               "soft_book": {
                 "book": "betonlineag",
                 "side": "over",
                 "offered_odds": -103,
-                "ev_pct": 2.583,
-                "fair_p_side": 0.5205,
-                "consensus_p_over": 0.5205,
+                "ev_pct": 2.624,
+                "fair_p_side": 0.5207,
+                "consensus_p_over": 0.5207,
                 "consensus_n_books": 7,
                 "is_sharp_book": true,
                 "sharp_consensus_p_over": 0.4759,
@@ -189,12 +189,27 @@
               }
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "game_id": "0cc93c06f67e3eeac12f320fbf0a5d2f",
+      "odds_api_event_id": "0cc93c06f67e3eeac12f320fbf0a5d2f",
+      "commence_time": "2026-08-07T23:30:00Z",
+      "home_team": {
+        "name": "Washington Mystics",
+        "abbreviation": "Washington Mystics"
+      },
+      "away_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "players": [
         {
-          "player_id": "1abfa68590506baafec863ada56d863d:Kayla Thornton:reb:4.5:over:betparx",
-          "player_name": "Kayla Thornton",
+          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Allisha Gray:fg3m:1.5:under:betonlineag",
+          "player_name": "Allisha Gray",
           "team_name": "",
-          "position": "betparx -110 \u00b7 EV +2.6%",
+          "position": "betonlineag -114 \u00b7 EV +2.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -202,29 +217,29 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.5376,
-                "edge_vs_market": 0.026402,
-                "kelly_fraction": 0.0073
+                "market_line": 1.5,
+                "p_over": 0.4531,
+                "edge_vs_market": -0.026623,
+                "kelly_fraction": 0.0076
               },
               "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -110,
-                "ev_pct": 2.64,
-                "fair_p_side": 0.5376,
-                "consensus_p_over": 0.5376,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5561,
-                "best_book": "betparx",
-                "best_odds": -110
+                "book": "betonlineag",
+                "side": "under",
+                "offered_odds": -114,
+                "ev_pct": 2.662,
+                "fair_p_side": 0.5469,
+                "consensus_p_over": 0.4531,
+                "consensus_n_books": 7,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.5,
+                "best_book": "betonlineag",
+                "best_odds": -114
               }
             }
           }
