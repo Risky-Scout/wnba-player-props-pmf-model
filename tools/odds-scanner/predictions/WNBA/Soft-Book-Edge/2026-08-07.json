@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-07T05:00:03.563030+00:00",
+  "generated_at": "2026-08-07T18:53:37.390974+00:00",
   "game_date": "2026-08-07",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-07",
-    "generated_utc": "2026-08-07T05:00:03.563030+00:00",
+    "generated_utc": "2026-08-07T18:53:37.390974+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1497,
-    "n_scored_rows": 1320,
-    "n_qualifying": 6,
+    "n_quote_rows": 1683,
+    "n_scored_rows": 1476,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -46,23 +46,23 @@
   },
   "games": [
     {
-      "game_id": "0cc93c06f67e3eeac12f320fbf0a5d2f",
-      "odds_api_event_id": "0cc93c06f67e3eeac12f320fbf0a5d2f",
+      "game_id": "19f38817b4595a67366159a1ef5433be",
+      "odds_api_event_id": "19f38817b4595a67366159a1ef5433be",
       "commence_time": "2026-08-07T23:30:00Z",
       "home_team": {
-        "name": "Washington Mystics",
-        "abbreviation": "Washington Mystics"
+        "name": "Connecticut Sun",
+        "abbreviation": "Connecticut Sun"
       },
       "away_team": {
-        "name": "Atlanta Dream",
-        "abbreviation": "Atlanta Dream"
+        "name": "Phoenix Mercury",
+        "abbreviation": "Phoenix Mercury"
       },
       "players": [
         {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Angel Reese:fg3m:0.5:under:betparx",
-          "player_name": "Angel Reese",
+          "player_id": "19f38817b4595a67366159a1ef5433be:Diamond Miller:fg3m:1.5:over:betparx",
+          "player_name": "Diamond Miller",
           "team_name": "",
-          "position": "betparx +106 \u00b7 EV +11.2%",
+          "position": "betparx +170 \u00b7 EV +3.9%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -71,37 +71,37 @@
           "dnp_risk": 0,
           "stat_projections": {
             "threes": {
-              "mean": 0.5,
-              "median": 0.5,
+              "mean": 1.5,
+              "median": 1.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.4603,
-                "edge_vs_market": -0.111801,
-                "kelly_fraction": 0.0264
+                "market_line": 1.5,
+                "p_over": 0.3849,
+                "edge_vs_market": 0.039255,
+                "kelly_fraction": 0.0058
               },
               "soft_book": {
                 "book": "betparx",
-                "side": "under",
-                "offered_odds": 106,
-                "ev_pct": 11.18,
-                "fair_p_side": 0.5397,
-                "consensus_p_over": 0.4603,
-                "consensus_n_books": 3,
+                "side": "over",
+                "offered_odds": 170,
+                "ev_pct": 3.925,
+                "fair_p_side": 0.3849,
+                "consensus_p_over": 0.3849,
+                "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4579,
+                "sharp_consensus_p_over": 0.3865,
                 "best_book": "betparx",
-                "best_odds": 106
+                "best_odds": 170
               }
             }
           }
         },
         {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Angel Reese:fg3m:0.5:over:betonlineag",
-          "player_name": "Angel Reese",
+          "player_id": "19f38817b4595a67366159a1ef5433be:Kelsey Plum:ast:4.5:over:betonlineag",
+          "player_name": "Kelsey Plum",
           "team_name": "",
-          "position": "betonlineag +104 \u00b7 EV +10.5%",
+          "position": "betonlineag -103 \u00b7 EV +2.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -109,38 +109,53 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
+            "assists": {
+              "mean": 4.5,
+              "median": 4.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.5417,
-                "edge_vs_market": 0.105,
-                "kelly_fraction": 0.0252
+                "market_line": 4.5,
+                "p_over": 0.5205,
+                "edge_vs_market": 0.025832,
+                "kelly_fraction": 0.0067
               },
               "soft_book": {
                 "book": "betonlineag",
                 "side": "over",
-                "offered_odds": 104,
-                "ev_pct": 10.5,
-                "fair_p_side": 0.5417,
-                "consensus_p_over": 0.5417,
-                "consensus_n_books": 3,
+                "offered_odds": -103,
+                "ev_pct": 2.583,
+                "fair_p_side": 0.5205,
+                "consensus_p_over": 0.5205,
+                "consensus_n_books": 7,
                 "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4579,
+                "sharp_consensus_p_over": 0.4759,
                 "best_book": "betonlineag",
-                "best_odds": 104
+                "best_odds": -103
               }
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "game_id": "1abfa68590506baafec863ada56d863d",
+      "odds_api_event_id": "1abfa68590506baafec863ada56d863d",
+      "commence_time": "2026-08-08T01:30:00Z",
+      "home_team": {
+        "name": "Dallas Wings",
+        "abbreviation": "Dallas Wings"
+      },
+      "away_team": {
+        "name": "Golden State Valkyries",
+        "abbreviation": "Golden State Valkyries"
+      },
+      "players": [
         {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Angel Reese:fg3m:0.5:over:rebet",
-          "player_name": "Angel Reese",
+          "player_id": "1abfa68590506baafec863ada56d863d:Paige Bueckers:ast:5.5:over:betparx",
+          "player_name": "Paige Bueckers",
           "team_name": "",
-          "position": "rebet +102 \u00b7 EV +9.4%",
+          "position": "betparx +102 \u00b7 EV +2.9%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -148,146 +163,68 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
+            "assists": {
+              "mean": 5.5,
+              "median": 5.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.5417,
-                "edge_vs_market": 0.094167,
-                "kelly_fraction": 0.0231
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "over",
-                "offered_odds": 102,
-                "ev_pct": 9.417,
-                "fair_p_side": 0.5417,
-                "consensus_p_over": 0.5417,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4579,
-                "best_book": "betonlineag",
-                "best_odds": 104
-              }
-            }
-          }
-        },
-        {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Angel Reese:fg3m:0.5:under:hardrockbet",
-          "player_name": "Angel Reese",
-          "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +7.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.4603,
-                "edge_vs_market": -0.079419,
-                "kelly_fraction": 0.0199
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 100,
-                "ev_pct": 7.942,
-                "fair_p_side": 0.5397,
-                "consensus_p_over": 0.4603,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4579,
-                "best_book": "betparx",
-                "best_odds": 106
-              }
-            }
-          }
-        },
-        {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Angel Reese:reb:11.5:under:hardrockbet",
-          "player_name": "Angel Reese",
-          "team_name": "",
-          "position": "hardrockbet -125 \u00b7 EV +3.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 11.5,
-              "median": 11.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 11.5,
-                "p_over": 0.4239,
-                "edge_vs_market": -0.036961,
-                "kelly_fraction": 0.0116
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -125,
-                "ev_pct": 3.696,
-                "fair_p_side": 0.5761,
-                "consensus_p_over": 0.4239,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4183,
-                "best_book": "hardrockbet",
-                "best_odds": -125
-              }
-            }
-          }
-        },
-        {
-          "player_id": "0cc93c06f67e3eeac12f320fbf0a5d2f:Angel Reese:reb:11.5:under:betparx",
-          "player_name": "Angel Reese",
-          "team_name": "",
-          "position": "betparx -125 \u00b7 EV +3.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 11.5,
-              "median": 11.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 11.5,
-                "p_over": 0.4239,
-                "edge_vs_market": -0.036961,
-                "kelly_fraction": 0.0116
+                "market_line": 5.5,
+                "p_over": 0.5095,
+                "edge_vs_market": 0.029101,
+                "kelly_fraction": 0.0071
               },
               "soft_book": {
                 "book": "betparx",
-                "side": "under",
-                "offered_odds": -125,
-                "ev_pct": 3.696,
-                "fair_p_side": 0.5761,
-                "consensus_p_over": 0.4239,
-                "consensus_n_books": 5,
+                "side": "over",
+                "offered_odds": 102,
+                "ev_pct": 2.91,
+                "fair_p_side": 0.5095,
+                "consensus_p_over": 0.5095,
+                "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4183,
-                "best_book": "hardrockbet",
-                "best_odds": -125
+                "sharp_consensus_p_over": 0.5109,
+                "best_book": "betparx",
+                "best_odds": 102
+              }
+            }
+          }
+        },
+        {
+          "player_id": "1abfa68590506baafec863ada56d863d:Kayla Thornton:reb:4.5:over:betparx",
+          "player_name": "Kayla Thornton",
+          "team_name": "",
+          "position": "betparx -110 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.5376,
+                "edge_vs_market": 0.026402,
+                "kelly_fraction": 0.0073
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -110,
+                "ev_pct": 2.64,
+                "fair_p_side": 0.5376,
+                "consensus_p_over": 0.5376,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5561,
+                "best_book": "betparx",
+                "best_odds": -110
               }
             }
           }
