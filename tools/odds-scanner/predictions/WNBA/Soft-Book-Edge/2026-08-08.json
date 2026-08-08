@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-08T21:28:30.690930+00:00",
+  "generated_at": "2026-08-08T22:27:12.587580+00:00",
   "game_date": "2026-08-08",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,10 +16,10 @@
   },
   "summary": {
     "date": "2026-08-08",
-    "generated_utc": "2026-08-08T21:28:30.690930+00:00",
+    "generated_utc": "2026-08-08T22:27:12.587580+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
-    "n_events": 2,
+    "n_events": 1,
     "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 618,
+    "n_quote_rows": 590,
     "n_scored_rows": 522,
-    "n_qualifying": 1,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,10 +59,49 @@
       },
       "players": [
         {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Bridget Carleton:reb:4.5:over:betparx",
-          "player_name": "Bridget Carleton",
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Dominique Malonga:pts:18.5:under:hardrockbet",
+          "player_name": "Dominique Malonga",
           "team_name": "",
-          "position": "betparx -108 \u00b7 EV +3.2%",
+          "position": "hardrockbet +110 \u00b7 EV +3.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 18.5,
+              "median": 18.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 18.5,
+                "p_over": 0.5087,
+                "edge_vs_market": -0.031737,
+                "kelly_fraction": 0.0072
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 110,
+                "ev_pct": 3.174,
+                "fair_p_side": 0.4913,
+                "consensus_p_over": 0.5087,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5087,
+                "best_book": "hardrockbet",
+                "best_odds": 110
+              }
+            }
+          }
+        },
+        {
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Flau'jae Johnson:reb:4.5:over:hardrockbet",
+          "player_name": "Flau'jae Johnson",
+          "team_name": "",
+          "position": "hardrockbet -110 \u00b7 EV +2.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,22 +116,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.5359,
-                "edge_vs_market": 0.032053,
-                "kelly_fraction": 0.0087
+                "p_over": 0.5386,
+                "edge_vs_market": 0.028273,
+                "kelly_fraction": 0.0078
               },
               "soft_book": {
-                "book": "betparx",
+                "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": -108,
-                "ev_pct": 3.205,
-                "fair_p_side": 0.5359,
-                "consensus_p_over": 0.5359,
+                "offered_odds": -110,
+                "ev_pct": 2.827,
+                "fair_p_side": 0.5386,
+                "consensus_p_over": 0.5386,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5,
-                "best_book": "betparx",
-                "best_odds": -108
+                "sharp_consensus_p_over": 0.5391,
+                "best_book": "hardrockbet",
+                "best_odds": -110
               }
             }
           }
