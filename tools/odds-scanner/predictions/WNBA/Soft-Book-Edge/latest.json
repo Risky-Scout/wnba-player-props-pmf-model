@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-08T22:27:12.587580+00:00",
+  "generated_at": "2026-08-08T23:26:36.642248+00:00",
   "game_date": "2026-08-08",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-08",
-    "generated_utc": "2026-08-08T22:27:12.587580+00:00",
+    "generated_utc": "2026-08-08T23:26:36.642248+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 1,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 590,
-    "n_scored_rows": 522,
-    "n_qualifying": 2,
+    "n_quote_rows": 628,
+    "n_scored_rows": 556,
+    "n_qualifying": 6,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -62,7 +62,7 @@
           "player_id": "3a3f78dbbda352b928f084aad1411b27:Dominique Malonga:pts:18.5:under:hardrockbet",
           "player_name": "Dominique Malonga",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +3.2%",
+          "position": "hardrockbet +130 \u00b7 EV +13.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -78,30 +78,30 @@
               "calibrated_p_over": {
                 "market_line": 18.5,
                 "p_over": 0.5087,
-                "edge_vs_market": -0.031737,
-                "kelly_fraction": 0.0072
+                "edge_vs_market": -0.129997,
+                "kelly_fraction": 0.025
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 3.174,
+                "offered_odds": 130,
+                "ev_pct": 13.0,
                 "fair_p_side": 0.4913,
                 "consensus_p_over": 0.5087,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5087,
                 "best_book": "hardrockbet",
-                "best_odds": 110
+                "best_odds": 130
               }
             }
           }
         },
         {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Flau'jae Johnson:reb:4.5:over:hardrockbet",
-          "player_name": "Flau'jae Johnson",
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Dominique Malonga:pts:18.5:under:betparx",
+          "player_name": "Dominique Malonga",
           "team_name": "",
-          "position": "hardrockbet -110 \u00b7 EV +2.8%",
+          "position": "betparx +128 \u00b7 EV +12.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -109,29 +109,185 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
+            "points": {
+              "mean": 18.5,
+              "median": 18.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.5386,
-                "edge_vs_market": 0.028273,
-                "kelly_fraction": 0.0078
+                "market_line": 18.5,
+                "p_over": 0.5087,
+                "edge_vs_market": -0.120171,
+                "kelly_fraction": 0.0235
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 128,
+                "ev_pct": 12.017,
+                "fair_p_side": 0.4913,
+                "consensus_p_over": 0.5087,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5087,
+                "best_book": "hardrockbet",
+                "best_odds": 130
+              }
+            }
+          }
+        },
+        {
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Flau'jae Johnson:ast:3.5:under:hardrockbet",
+          "player_name": "Flau'jae Johnson",
+          "team_name": "",
+          "position": "hardrockbet -120 \u00b7 EV +5.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.4269,
+                "edge_vs_market": -0.050725,
+                "kelly_fraction": 0.0152
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": -120,
+                "ev_pct": 5.072,
+                "fair_p_side": 0.5731,
+                "consensus_p_over": 0.4269,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "hardrockbet",
+                "best_odds": -120
+              }
+            }
+          }
+        },
+        {
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Flau'jae Johnson:ast:3.5:under:betparx",
+          "player_name": "Flau'jae Johnson",
+          "team_name": "",
+          "position": "betparx -121 \u00b7 EV +4.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.4269,
+                "edge_vs_market": -0.046778,
+                "kelly_fraction": 0.0142
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -121,
+                "ev_pct": 4.678,
+                "fair_p_side": 0.5731,
+                "consensus_p_over": 0.4269,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "hardrockbet",
+                "best_odds": -120
+              }
+            }
+          }
+        },
+        {
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Flau'jae Johnson:pts:14.5:under:betparx",
+          "player_name": "Flau'jae Johnson",
+          "team_name": "",
+          "position": "betparx -103 \u00b7 EV +4.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 14.5,
+              "median": 14.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 14.5,
+                "p_over": 0.4699,
+                "edge_vs_market": -0.044826,
+                "kelly_fraction": 0.0115
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -103,
+                "ev_pct": 4.483,
+                "fair_p_side": 0.5301,
+                "consensus_p_over": 0.4699,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": -103
+              }
+            }
+          }
+        },
+        {
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Jade Melbourne:pts:7.5:over:hardrockbet",
+          "player_name": "Jade Melbourne",
+          "team_name": "",
+          "position": "hardrockbet +110 \u00b7 EV +2.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 7.5,
+              "median": 7.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 7.5,
+                "p_over": 0.4891,
+                "edge_vs_market": 0.02706,
+                "kelly_fraction": 0.0061
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": -110,
-                "ev_pct": 2.827,
-                "fair_p_side": 0.5386,
-                "consensus_p_over": 0.5386,
-                "consensus_n_books": 8,
+                "offered_odds": 110,
+                "ev_pct": 2.706,
+                "fair_p_side": 0.4891,
+                "consensus_p_over": 0.4891,
+                "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5391,
+                "sharp_consensus_p_over": 0.4891,
                 "best_book": "hardrockbet",
-                "best_odds": -110
+                "best_odds": 110
               }
             }
           }
