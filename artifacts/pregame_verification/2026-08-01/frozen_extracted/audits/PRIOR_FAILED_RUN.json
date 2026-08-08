@@ -1,0 +1,15 @@
+{
+  "prior_failed_run_id": "30687952825",
+  "prior_stage_timestamp": "20260801T063429Z",
+  "prior_artifact_ids": {
+    "stage": 8814652246,
+    "audits": 8814652423,
+    "smoke_pages": 8814652790
+  },
+  "prior_inputs": {
+    "game_date": "2026-08-01",
+    "dry_run": true,
+    "publish": false
+  },
+  "prior_failure": "validate_forecast_pages rejected null probs on NO_MARKET rows"
+}

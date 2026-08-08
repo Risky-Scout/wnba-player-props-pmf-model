@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "game_date": "2026-08-01",
+  "frozen_stage": "deliveries/pregame_verification/2026-08-01/20260801T162447Z",
+  "workflow_run_id": 30708012898,
+  "prediction_timestamp": "20260801T162447Z",
+  "execution_gate": {
+    "require_games_final": true,
+    "target_game_ids": [
+      24969,
+      24970
+    ],
+    "forbid_prediction_regeneration": true,
+    "forbid_publish": true,
+    "forbid_mutate_frozen_evidence": true
+  },
+  "identity_policy": {
+    "primary_include": "PLAYER_IDENTITY_AUDIT.audit_status == ACCEPTED",
+    "primary_exclude_player_ids": [
+      631
+    ],
+    "primary_exclude_reason": {
+      "631": "VOID_IDENTITY_TEAM_MISMATCH"
+    },
+    "rejected_player_ids": [
+      605,
+      715,
+      67044,
+      67054,
+      74553,
+      74872,
+      75095
+    ],
+    "rejected_bucket": "unresolved_identity_optional"
+  },
+  "outcome_fields": [
+    "game_id",
+    "player_id",
+    "did_play",
+    "actual_minutes",
+    "actual_pts",
+    "actual_reb",
+    "actual_ast",
+    "actual_fg3m",
+    "actual_stl",
+    "actual_blk",
+    "actual_turnover",
+    "dnp_status",
+    "void_status",
+    "source_box_timestamp_utc"
+  ],
+  "full_distribution_metrics": [
+    "atom_nll",
+    "crps",
+    "predictive_mean_error",
+    "mae",
+    "squared_error",
+    "pit_value"
+  ],
+  "quoted_line_metrics": [
+    "binary_log_loss",
+    "brier_score",
+    "model_probability",
+    "no_vig_market_probability",
+    "model_minus_market_log_loss_difference"
+  ],
+  "calibration_label": "INSUFFICIENT_ONE_SLATE_SAMPLE",
+  "join_keys": {
+    "registry": [
+      "game_id",
+      "player_id",
+      "target"
+    ],
+    "quote_pairs": [
+      "canonical_game_id",
+      "canonical_player_id",
+      "stat",
+      "sportsbook",
+      "line",
+      "period"
+    ]
+  },
+  "frozen_inputs": {
+    "registry": "frozen_extracted/audits/FROZEN_PREDICTION_REGISTRY.jsonl",
+    "pmfs": "frozen_extracted/stage_core/full_pmfs_wide.parquet",
+    "quote_pairs": "FROZEN_QUOTE_PAIRS.parquet",
+    "model_market_trace": "FROZEN_MODEL_MARKET_TRACE.csv",
+    "evidence_lock": "FROZEN_EVIDENCE_LOCK.json"
+  }
+}

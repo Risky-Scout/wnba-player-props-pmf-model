@@ -1,0 +1,97 @@
+{
+  "lock_schema_version": "1.0",
+  "immutable": true,
+  "overwrite_policy": "FORBIDDEN",
+  "game_date": "2026-08-01",
+  "slate_timezone": "America/New_York",
+  "workflow_run_id": 30708012898,
+  "workflow_url": "https://github.com/Risky-Scout/wnba-player-props-pmf-model/actions/runs/30708012898",
+  "head_code_sha": "2caef26fa235a9f2cdccc900bd44f42974915e4d",
+  "prediction_timestamp": "20260801T162447Z",
+  "prediction_timestamp_utc": "2026-08-01T16:27:11.435636+00:00",
+  "frozen_stage": "deliveries/pregame_verification/2026-08-01/20260801T162447Z",
+  "scheduled_tips": [
+    {
+      "bdl_game_id": 24969,
+      "matchup": "LV@CHI",
+      "scheduled_tip_utc": "2026-08-01T17:00:00Z",
+      "scheduled_tip_america_new_york": "2026-08-01T13:00:00-04:00",
+      "odds_api_event_id": "d113b66ed1649d47506a6434e06bd1b6"
+    },
+    {
+      "bdl_game_id": 24970,
+      "matchup": "NY@PHX",
+      "scheduled_tip_utc": "2026-08-01T19:00:00Z",
+      "scheduled_tip_america_new_york": "2026-08-01T15:00:00-04:00",
+      "odds_api_event_id": "e9d3ed7c6df9b35e3b167038806ecd53"
+    }
+  ],
+  "hashes": {
+    "data_hash": "83a68c4033f4e5cacf2c8896829d390d0c42e5dcc78e30f4fd0dff0d2f703842",
+    "feature_hash": "8c8d67f49ea510a11b82bb887c8cb6179f1a400641a4ac4d2f170db153535fa1",
+    "model_hash": "d7b190139c0114b5be31093ea85963e58afaa1b84bda1ae9090d16aa001b028b",
+    "calibrator_hash": "6f1eb427af12acbe589b75f02beee8d5a6c7d52d05a9ca73945fc4cbfa8d6502",
+    "quote_hash": "02d9042bfc6a5d169548017eb3d7b88c69ef80dbc4949b213ab3b646119b7ed2",
+    "availability_hash": "6dcd15d7ddf0d23468446ab91832af12d40e134989bc2955a8925050f9ab41e8",
+    "odds_parquet_sha256": "02d9042bfc6a5d169548017eb3d7b88c69ef80dbc4949b213ab3b646119b7ed2",
+    "full_pmfs_wide_sha256": "19fac5a0b4211210e38de4f339a6ff376cbdf7d8e42f1a2a1cacfe12c8ee3004",
+    "frozen_prediction_manifest_sha256": "526db8fdba1b233aec2f11c8e4f80d5f86561b1d9c554d01e9a2f2e38e4078b9",
+    "frozen_prediction_registry_sha256": "296ebae1eb3121640781f1f4a90d83d3ff1d8e744d010fe1e7cfd9e6bfcf78f6"
+  },
+  "pmf_file_hashes": {
+    "full_pmfs_wide.parquet": "19fac5a0b4211210e38de4f339a6ff376cbdf7d8e42f1a2a1cacfe12c8ee3004",
+    "n_frozen_pmf_sample_files": 768
+  },
+  "quote_file_hashes": {
+    "wnba_player_props_oddsapi_2026-08-01.parquet": "02d9042bfc6a5d169548017eb3d7b88c69ef80dbc4949b213ab3b646119b7ed2",
+    "wnba_player_props_oddsapi_latest.parquet": "02d9042bfc6a5d169548017eb3d7b88c69ef80dbc4949b213ab3b646119b7ed2"
+  },
+  "row_counts": {
+    "players_discovered": 64,
+    "players_accepted": 57,
+    "players_rejected": 7,
+    "n_frozen_identities": 768,
+    "accepted_identity_rows": 57,
+    "rejected_identity_rows": 7,
+    "pmf_rows": 768,
+    "original_quote_pairs_valid": 0,
+    "original_quote_pairs_rejected": 0
+  },
+  "artifacts": {
+    "pregame-verification-stage-2026-08-01-20260801T162447Z-30708012898": {
+      "artifact_id": 8820983835,
+      "filename": "pregame-verification-stage-2026-08-01-20260801T162447Z-30708012898.zip",
+      "sha256": "5ec646e3f042ead15b490a4f7235ff801ed26da427572d1c070d7bbccbf82530",
+      "size_bytes": 8158793,
+      "durable_path": "artifacts/pregame_verification/2026-08-01/frozen_github_artifacts/pregame-verification-stage-2026-08-01-20260801T162447Z-30708012898.zip",
+      "github_actions_artifact_id": 8820983835,
+      "github_actions_expires": "ephemeral; do not rely on Actions retention alone"
+    },
+    "pregame-verification-audits-2026-08-01-20260801T162447Z-30708012898": {
+      "artifact_id": 8820984226,
+      "filename": "pregame-verification-audits-2026-08-01-20260801T162447Z-30708012898.zip",
+      "sha256": "57a4f239cc3fe21240613cb20af9def03e4d1623541c06a255cb065df0434815",
+      "size_bytes": 624296,
+      "durable_path": "artifacts/pregame_verification/2026-08-01/frozen_github_artifacts/pregame-verification-audits-2026-08-01-20260801T162447Z-30708012898.zip",
+      "github_actions_artifact_id": 8820984226,
+      "github_actions_expires": "ephemeral; do not rely on Actions retention alone"
+    },
+    "pregame-verification-smoke-pages-2026-08-01-30708012898": {
+      "artifact_id": 8820984722,
+      "filename": "pregame-verification-smoke-pages-2026-08-01-30708012898.zip",
+      "sha256": "3c1ecc92cbcda73f9b8878154a8e1b815a82d626d7ef8427c65cc183875e06b2",
+      "size_bytes": 4809155,
+      "durable_path": "artifacts/pregame_verification/2026-08-01/frozen_github_artifacts/pregame-verification-smoke-pages-2026-08-01-30708012898.zip",
+      "github_actions_artifact_id": 8820984722,
+      "github_actions_expires": "ephemeral; do not rely on Actions retention alone"
+    }
+  },
+  "original_verdict": "PASS_WITH_WARNINGS",
+  "original_warnings": [
+    "BDL dates[]=2026-08-01 includes game 24968 tip ET 2026-07-31 (excluded from ET slate)",
+    "player 631 slate_team=PHX players_table_team=LA",
+    "odds parquet schema not recognized for pairing"
+  ],
+  "preservation_note": "GitHub Actions artifacts are ephemeral. These zip blobs and hashes are committed under artifacts/pregame_verification/2026-08-01/ as durable, overwrite-forbidden prospective evidence.",
+  "locked_at_utc": "2026-08-01T16:55:00.880955+00:00"
+}

@@ -1,0 +1,70 @@
+{
+  "verdict": "PASS_WITH_WARNINGS",
+  "game_date": "2026-08-01",
+  "prediction_timestamp": "20260801T162447Z",
+  "code_sha": "2caef26fa235a9f2cdccc900bd44f42974915e4d",
+  "run_id": "30708012898",
+  "smoke_status": "PASS",
+  "games": [
+    {
+      "game_date_et": "2026-08-01",
+      "bdl_game_id": 24969,
+      "odds_api_event_id": "d113b66ed1649d47506a6434e06bd1b6",
+      "away_team": "LV",
+      "home_team": "CHI",
+      "scheduled_tip_utc": "2026-08-01T17:00:00Z",
+      "odds_commence_utc": "2026-08-01T17:00:00Z",
+      "bdl_tip_utc": "2026-08-01T17:00:00Z",
+      "venue": "",
+      "game_status": "scheduled",
+      "bdl_status": "pre",
+      "source_timestamp_utc": "2026-08-01T16:25:36.676934+00:00",
+      "bdl_source_timestamp_utc": "2026-08-01T16:27:18.397356+00:00",
+      "odds_source_timestamp_utc": "2026-08-01T16:27:18.509907+00:00",
+      "identity_match_status": "MATCH",
+      "bdl_api_match_status": "MATCH"
+    },
+    {
+      "game_date_et": "2026-08-01",
+      "bdl_game_id": 24970,
+      "odds_api_event_id": "e9d3ed7c6df9b35e3b167038806ecd53",
+      "away_team": "NY",
+      "home_team": "PHX",
+      "scheduled_tip_utc": "2026-08-01T19:00:00Z",
+      "odds_commence_utc": "2026-08-01T19:00:00Z",
+      "bdl_tip_utc": "2026-08-01T19:00:00Z",
+      "venue": "",
+      "game_status": "scheduled",
+      "bdl_status": "pre",
+      "source_timestamp_utc": "2026-08-01T16:25:36.676934+00:00",
+      "bdl_source_timestamp_utc": "2026-08-01T16:27:18.397356+00:00",
+      "odds_source_timestamp_utc": "2026-08-01T16:27:18.509907+00:00",
+      "identity_match_status": "MATCH",
+      "bdl_api_match_status": "MATCH"
+    }
+  ],
+  "players_discovered": 64,
+  "players_accepted": 57,
+  "players_rejected": 7,
+  "unresolved_identities": 7,
+  "duplicate_identities": 0,
+  "current_team_mismatches": 1,
+  "pmf_rows": 768,
+  "quote_pairs_valid": 0,
+  "quote_pairs_rejected": 0,
+  "rejected_quote_reasons": {},
+  "monotonicity_violations": 0,
+  "pricing_failures": 0,
+  "status_counts": {
+    "UNKNOWN": 137
+  },
+  "blocking_defects": [],
+  "warnings": [
+    "BDL dates[]=2026-08-01 includes game 24968 tip ET 2026-07-31 (excluded from ET slate)",
+    "player 631 slate_team=PHX players_table_team=LA",
+    "odds parquet schema not recognized for pairing"
+  ],
+  "stage_dir": "deliveries/pregame_verification/2026-08-01/20260801T162447Z",
+  "publish": false,
+  "dry_run": true
+}

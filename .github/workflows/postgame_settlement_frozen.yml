@@ -1,0 +1,151 @@
+# Postgame settlement for a FROZEN pregame verification stage.
+# Never regenerates predictions. Never publishes. Mutates nothing under the
+# frozen evidence lock path except writing new settlement/* outputs.
+name: Postgame Settlement (frozen evidence)
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_date:
+        description: "Slate business date (YYYY-MM-DD)"
+        required: true
+        type: string
+        default: "2026-08-01"
+      frozen_stage:
+        description: "Frozen stage dir under deliveries/ or artifact extract"
+        required: true
+        type: string
+        default: "deliveries/pregame_verification/2026-08-01/20260801T162447Z"
+      workflow_run_id:
+        description: "Frozen pregame verification workflow run id"
+        required: true
+        type: string
+        default: "30708012898"
+      games_final:
+        description: "Operator attestation that all target games are final in BDL"
+        required: true
+        type: boolean
+        default: false
+      dry_run:
+        description: "Plan-only (no BDL pulls / no metric writes)"
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: postgame-settlement-${{ github.event.inputs.game_date }}-${{ github.event.inputs.workflow_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+      GAME_DATE: ${{ github.event.inputs.game_date }}
+      FROZEN_STAGE: ${{ github.event.inputs.frozen_stage }}
+      WORKFLOW_RUN_ID: ${{ github.event.inputs.workflow_run_id }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Enforce settlement gates
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.games_final }}" != "true" ]; then
+            echo "::error::games_final must be true — do not settle before games are final"
+            exit 1
+          fi
+          if [ -z "${BDL_API_KEY:-}" ]; then
+            echo "::error::BDL_API_KEY secret missing"
+            exit 1
+          fi
+          echo "Settlement gates OK (games_final=true). dry_run=${{ github.event.inputs.dry_run }}"
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Verify frozen evidence lock
+        run: |
+          set -euo pipefail
+          LOCK="artifacts/pregame_verification/${GAME_DATE}/FROZEN_EVIDENCE_LOCK.json"
+          test -f "$LOCK"
+          python - <<'PY'
+          import json, os
+          lock = json.load(open(f"artifacts/pregame_verification/{os.environ['GAME_DATE']}/FROZEN_EVIDENCE_LOCK.json"))
+          assert lock["immutable"] is True
+          assert str(lock["workflow_run_id"]) == os.environ["WORKFLOW_RUN_ID"]
+          assert lock["frozen_stage"] == os.environ["FROZEN_STAGE"]
+          print("lock ok", lock["prediction_timestamp"], lock["head_code_sha"])
+          PY
+
+      - name: Confirm BDL games final
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, sys
+          import requests
+          from pathlib import Path
+
+          key = os.environ["BDL_API_KEY"]
+          schema = json.loads(Path(
+              f"artifacts/pregame_verification/{os.environ['GAME_DATE']}/POSTGAME_SETTLEMENT_SCHEMA.json"
+          ).read_text())
+          gids = schema["execution_gate"]["target_game_ids"]
+          headers = {"Authorization": key}
+          not_final = []
+          for gid in gids:
+              r = requests.get(
+                  f"https://api.balldontlie.io/wnba/v1/games/{gid}",
+                  headers=headers,
+                  timeout=60,
+              )
+              r.raise_for_status()
+              game = r.json().get("data") or r.json()
+              status = str(game.get("status", "")).lower()
+              print(f"game {gid} status={status}")
+              if status not in {"final", "post"}:
+                  not_final.append((gid, status))
+          if not_final:
+              print("::error::games not final:", not_final)
+              sys.exit(1)
+          print("all target games final")
+          PY
+
+      - name: Dry-run settlement plan only
+        if: ${{ github.event.inputs.dry_run == true }}
+        run: |
+          set -euo pipefail
+          python scripts/settle_frozen_pregame_evidence.py \
+            --game-date "$GAME_DATE" \
+            --api-key "$BDL_API_KEY" \
+            --dry-run
+          echo "dry_run=true — lock + finals gates passed; no metric writes."
+
+      - name: Execute settlement metrics
+        if: ${{ github.event.inputs.dry_run == false }}
+        run: |
+          set -euo pipefail
+          python scripts/settle_frozen_pregame_evidence.py \
+            --game-date "$GAME_DATE" \
+            --api-key "$BDL_API_KEY"
+
+      - name: Upload settlement outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgame-settlement-${{ github.event.inputs.game_date }}-${{ github.event.inputs.workflow_run_id }}
+          path: artifacts/pregame_verification/${{ github.event.inputs.game_date }}/settlement/
+          if-no-files-found: warn
+          retention-days: 90
