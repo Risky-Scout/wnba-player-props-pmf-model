@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-08T19:28:23.247646+00:00",
+  "generated_at": "2026-08-08T20:27:22.651319+00:00",
   "game_date": "2026-08-08",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-08",
-    "generated_utc": "2026-08-08T19:28:23.247646+00:00",
+    "generated_utc": "2026-08-08T20:27:22.651319+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1167,
-    "n_scored_rows": 1032,
-    "n_qualifying": 8,
+    "n_quote_rows": 676,
+    "n_scored_rows": 524,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,10 +59,10 @@
       },
       "players": [
         {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Carla Leite:reb:2.5:under:draftkings",
-          "player_name": "Carla Leite",
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Bridget Carleton:reb:4.5:under:draftkings",
+          "player_name": "Bridget Carleton",
           "team_name": "",
-          "position": "draftkings -102 \u00b7 EV +9.6%",
+          "position": "draftkings +113 \u00b7 EV +4.3%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -71,145 +71,28 @@
           "dnp_risk": 0,
           "stat_projections": {
             "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
+              "mean": 4.5,
+              "median": 4.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4467,
-                "edge_vs_market": -0.095729,
-                "kelly_fraction": 0.0244
+                "market_line": 4.5,
+                "p_over": 0.5102,
+                "edge_vs_market": -0.043172,
+                "kelly_fraction": 0.0096
               },
               "soft_book": {
                 "book": "draftkings",
                 "side": "under",
-                "offered_odds": -102,
-                "ev_pct": 9.573,
-                "fair_p_side": 0.5533,
-                "consensus_p_over": 0.4467,
-                "consensus_n_books": 3,
+                "offered_odds": 113,
+                "ev_pct": 4.317,
+                "fair_p_side": 0.4898,
+                "consensus_p_over": 0.5102,
+                "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
+                "sharp_consensus_p_over": 0.5,
                 "best_book": "draftkings",
-                "best_odds": -102
-              }
-            }
-          }
-        },
-        {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Carla Leite:reb:2.5:over:hardrockbet",
-          "player_name": "Carla Leite",
-          "team_name": "",
-          "position": "hardrockbet +105 \u00b7 EV +6.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5207,
-                "edge_vs_market": 0.067443,
-                "kelly_fraction": 0.0161
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 105,
-                "ev_pct": 6.744,
-                "fair_p_side": 0.5207,
-                "consensus_p_over": 0.5207,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "hardrockbet",
-                "best_odds": 105
-              }
-            }
-          }
-        },
-        {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Carla Leite:reb:2.5:over:betparx",
-          "player_name": "Carla Leite",
-          "team_name": "",
-          "position": "betparx +104 \u00b7 EV +6.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5207,
-                "edge_vs_market": 0.062236,
-                "kelly_fraction": 0.015
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 104,
-                "ev_pct": 6.224,
-                "fair_p_side": 0.5207,
-                "consensus_p_over": 0.5207,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "hardrockbet",
-                "best_odds": 105
-              }
-            }
-          }
-        },
-        {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Carla Leite:reb:2.5:under:fliff",
-          "player_name": "Carla Leite",
-          "team_name": "",
-          "position": "fliff -110 \u00b7 EV +5.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4467,
-                "edge_vs_market": -0.056279,
-                "kelly_fraction": 0.0155
-              },
-              "soft_book": {
-                "book": "fliff",
-                "side": "under",
-                "offered_odds": -110,
-                "ev_pct": 5.628,
-                "fair_p_side": 0.5533,
-                "consensus_p_over": 0.4467,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": -102
+                "best_odds": 113
               }
             }
           }
@@ -249,138 +132,6 @@
                 "sharp_consensus_p_over": 0.5241,
                 "best_book": "betonlineag",
                 "best_odds": -103
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "800eb336fe4f10021c1fb5b7d4a808f6",
-      "odds_api_event_id": "800eb336fe4f10021c1fb5b7d4a808f6",
-      "commence_time": "2026-08-08T19:35:00Z",
-      "home_team": {
-        "name": "Chicago Sky",
-        "abbreviation": "Chicago Sky"
-      },
-      "away_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
-      },
-      "players": [
-        {
-          "player_id": "800eb336fe4f10021c1fb5b7d4a808f6:Sophie Cunningham:pts:8.5:over:hardrockbet",
-          "player_name": "Sophie Cunningham",
-          "team_name": "",
-          "position": "hardrockbet +120 \u00b7 EV +5.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4803,
-                "edge_vs_market": 0.056688,
-                "kelly_fraction": 0.0118
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 120,
-                "ev_pct": 5.669,
-                "fair_p_side": 0.4803,
-                "consensus_p_over": 0.4803,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4803,
-                "best_book": "hardrockbet",
-                "best_odds": 120
-              }
-            }
-          }
-        },
-        {
-          "player_id": "800eb336fe4f10021c1fb5b7d4a808f6:Sophie Cunningham:pts:8.5:over:betparx",
-          "player_name": "Sophie Cunningham",
-          "team_name": "",
-          "position": "betparx +115 \u00b7 EV +3.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4803,
-                "edge_vs_market": 0.032673,
-                "kelly_fraction": 0.0071
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 115,
-                "ev_pct": 3.267,
-                "fair_p_side": 0.4803,
-                "consensus_p_over": 0.4803,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4803,
-                "best_book": "hardrockbet",
-                "best_odds": 120
-              }
-            }
-          }
-        },
-        {
-          "player_id": "800eb336fe4f10021c1fb5b7d4a808f6:Natasha Cloud:pts:13.5:over:betonlineag",
-          "player_name": "Natasha Cloud",
-          "team_name": "",
-          "position": "betonlineag +115 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 13.5,
-              "median": 13.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 13.5,
-                "p_over": 0.4782,
-                "edge_vs_market": 0.028037,
-                "kelly_fraction": 0.0061
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 115,
-                "ev_pct": 2.804,
-                "fair_p_side": 0.4782,
-                "consensus_p_over": 0.4782,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4334,
-                "best_book": "betonlineag",
-                "best_odds": 115
               }
             }
           }
