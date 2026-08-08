@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-08T20:27:22.651319+00:00",
+  "generated_at": "2026-08-08T21:28:30.690930+00:00",
   "game_date": "2026-08-08",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-08",
-    "generated_utc": "2026-08-08T20:27:22.651319+00:00",
+    "generated_utc": "2026-08-08T21:28:30.690930+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 676,
-    "n_scored_rows": 524,
-    "n_qualifying": 2,
+    "n_quote_rows": 618,
+    "n_scored_rows": 522,
+    "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,10 +59,10 @@
       },
       "players": [
         {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Bridget Carleton:reb:4.5:under:draftkings",
+          "player_id": "3a3f78dbbda352b928f084aad1411b27:Bridget Carleton:reb:4.5:over:betparx",
           "player_name": "Bridget Carleton",
           "team_name": "",
-          "position": "draftkings +113 \u00b7 EV +4.3%",
+          "position": "betparx -108 \u00b7 EV +3.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,61 +77,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.5102,
-                "edge_vs_market": -0.043172,
-                "kelly_fraction": 0.0096
+                "p_over": 0.5359,
+                "edge_vs_market": 0.032053,
+                "kelly_fraction": 0.0087
               },
               "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 113,
-                "ev_pct": 4.317,
-                "fair_p_side": 0.4898,
-                "consensus_p_over": 0.5102,
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -108,
+                "ev_pct": 3.205,
+                "fair_p_side": 0.5359,
+                "consensus_p_over": 0.5359,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5,
-                "best_book": "draftkings",
-                "best_odds": 113
-              }
-            }
-          }
-        },
-        {
-          "player_id": "3a3f78dbbda352b928f084aad1411b27:Emily Engstler:reb:5.5:under:betonlineag",
-          "player_name": "Emily Engstler",
-          "team_name": "",
-          "position": "betonlineag -103 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 5.5,
-              "median": 5.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.4794,
-                "edge_vs_market": -0.026037,
-                "kelly_fraction": 0.0067
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "under",
-                "offered_odds": -103,
-                "ev_pct": 2.604,
-                "fair_p_side": 0.5206,
-                "consensus_p_over": 0.4794,
-                "consensus_n_books": 8,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5241,
-                "best_book": "betonlineag",
-                "best_odds": -103
+                "best_book": "betparx",
+                "best_odds": -108
               }
             }
           }
