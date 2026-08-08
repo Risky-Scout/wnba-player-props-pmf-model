@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-08T03:41:53.292077+00:00",
+  "generated_at": "2026-08-08T18:34:56.126711+00:00",
   "game_date": "2026-08-08",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-08",
-    "generated_utc": "2026-08-08T03:41:53.292077+00:00",
+    "generated_utc": "2026-08-08T18:34:56.126711+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1651,
-    "n_scored_rows": 1460,
-    "n_qualifying": 1,
+    "n_quote_rows": 1301,
+    "n_scored_rows": 1048,
+    "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -44,60 +44,5 @@
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "6d2f787ae472f15e9b403dc611d0a141",
-      "odds_api_event_id": "6d2f787ae472f15e9b403dc611d0a141",
-      "commence_time": "2026-08-08T17:00:00Z",
-      "home_team": {
-        "name": "Minnesota Lynx",
-        "abbreviation": "Minnesota Lynx"
-      },
-      "away_team": {
-        "name": "Las Vegas Aces",
-        "abbreviation": "Las Vegas Aces"
-      },
-      "players": [
-        {
-          "player_id": "6d2f787ae472f15e9b403dc611d0a141:Kayla McBride:reb:2.5:under:betparx",
-          "player_name": "Kayla McBride",
-          "team_name": "",
-          "position": "betparx -106 \u00b7 EV +16.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.3995,
-                "edge_vs_market": -0.166949,
-                "kelly_fraction": 0.0442
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -106,
-                "ev_pct": 16.695,
-                "fair_p_side": 0.6005,
-                "consensus_p_over": 0.3995,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3911,
-                "best_book": "betparx",
-                "best_odds": -106
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
