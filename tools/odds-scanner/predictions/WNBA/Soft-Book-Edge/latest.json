@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-09T22:29:29.375036+00:00",
+  "generated_at": "2026-08-09T23:29:30.438066+00:00",
   "game_date": "2026-08-09",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,88 +16,25 @@
   },
   "summary": {
     "date": "2026-08-09",
-    "generated_utc": "2026-08-09T22:29:29.375036+00:00",
+    "generated_utc": "2026-08-09T23:29:30.438066+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 1,
-    "n_books_seen": 10,
+    "n_books_seen": 2,
     "books_seen": [
-      "betonlineag",
-      "betparx",
-      "betrivers",
       "draftkings",
-      "espnbet",
-      "fanduel",
-      "fliff",
-      "hardrockbet",
-      "rebet",
-      "williamhill_us"
+      "fanduel"
     ],
-    "n_quote_rows": 660,
-    "n_scored_rows": 588,
-    "n_qualifying": 1,
+    "n_quote_rows": 98,
+    "n_scored_rows": 0,
+    "n_qualifying": 0,
     "n_books_per_stat": {
-      "ast": 10,
-      "fg3m": 10,
-      "pts": 10,
-      "reb": 10
+      "ast": 2,
+      "fg3m": 2,
+      "pts": 2,
+      "reb": 2
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "2d963c26f66f1a3f27f9d699e022d413",
-      "odds_api_event_id": "2d963c26f66f1a3f27f9d699e022d413",
-      "commence_time": "2026-08-09T23:00:00Z",
-      "home_team": {
-        "name": "Los Angeles Sparks",
-        "abbreviation": "Los Angeles Sparks"
-      },
-      "away_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "players": [
-        {
-          "player_id": "2d963c26f66f1a3f27f9d699e022d413:Nneka Ogwumike:reb:8.5:under:hardrockbet",
-          "player_name": "Nneka Ogwumike",
-          "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +3.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4822,
-                "edge_vs_market": -0.035502,
-                "kelly_fraction": 0.0089
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 100,
-                "ev_pct": 3.55,
-                "fair_p_side": 0.5178,
-                "consensus_p_over": 0.4822,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4803,
-                "best_book": "hardrockbet",
-                "best_odds": 100
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
