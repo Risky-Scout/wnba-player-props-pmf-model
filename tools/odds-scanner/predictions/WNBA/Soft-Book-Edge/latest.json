@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-09T19:31:53.489512+00:00",
+  "generated_at": "2026-08-09T20:30:07.994220+00:00",
   "game_date": "2026-08-09",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-09",
-    "generated_utc": "2026-08-09T19:31:53.489512+00:00",
+    "generated_utc": "2026-08-09T20:30:07.994220+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1282,
-    "n_scored_rows": 1058,
-    "n_qualifying": 2,
+    "n_quote_rows": 785,
+    "n_scored_rows": 584,
+    "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -93,60 +93,6 @@
                 "sharp_consensus_p_over": 0.3955,
                 "best_book": "betonlineag",
                 "best_odds": 134
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "e52e6c804045050e1ba3d90ff4fc0387",
-      "odds_api_event_id": "e52e6c804045050e1ba3d90ff4fc0387",
-      "commence_time": "2026-08-09T19:33:00Z",
-      "home_team": {
-        "name": "Minnesota Lynx",
-        "abbreviation": "Minnesota Lynx"
-      },
-      "away_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "players": [
-        {
-          "player_id": "e52e6c804045050e1ba3d90ff4fc0387:Olivia Miles:reb:4.5:under:betparx",
-          "player_name": "Olivia Miles",
-          "team_name": "",
-          "position": "betparx -109 \u00b7 EV +3.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.4624,
-                "edge_vs_market": -0.030751,
-                "kelly_fraction": 0.0084
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -109,
-                "ev_pct": 3.075,
-                "fair_p_side": 0.5376,
-                "consensus_p_over": 0.4624,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4609,
-                "best_book": "betparx",
-                "best_odds": -109
               }
             }
           }
