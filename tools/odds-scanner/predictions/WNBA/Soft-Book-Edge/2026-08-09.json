@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-09T04:23:05.771162+00:00",
+  "generated_at": "2026-08-09T18:37:50.265641+00:00",
   "game_date": "2026-08-09",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,30 +16,220 @@
   },
   "summary": {
     "date": "2026-08-09",
-    "generated_utc": "2026-08-09T04:23:05.771162+00:00",
+    "generated_utc": "2026-08-09T18:37:50.265641+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
-    "n_events": 4,
-    "n_books_seen": 7,
+    "n_events": 3,
+    "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
+      "betparx",
+      "betrivers",
       "draftkings",
       "espnbet",
       "fanduel",
       "fliff",
+      "hardrockbet",
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1476,
-    "n_scored_rows": 1410,
-    "n_qualifying": 0,
+    "n_quote_rows": 1761,
+    "n_scored_rows": 1538,
+    "n_qualifying": 4,
     "n_books_per_stat": {
-      "ast": 7,
-      "fg3m": 7,
-      "pts": 7,
-      "reb": 7
+      "ast": 10,
+      "fg3m": 10,
+      "pts": 10,
+      "reb": 10
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "e52e6c804045050e1ba3d90ff4fc0387",
+      "odds_api_event_id": "e52e6c804045050e1ba3d90ff4fc0387",
+      "commence_time": "2026-08-09T19:30:00Z",
+      "home_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "away_team": {
+        "name": "Dallas Wings",
+        "abbreviation": "Dallas Wings"
+      },
+      "players": [
+        {
+          "player_id": "e52e6c804045050e1ba3d90ff4fc0387:Natasha Howard:pts:12.5:over:betparx",
+          "player_name": "Natasha Howard",
+          "team_name": "",
+          "position": "betparx +128 \u00b7 EV +6.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 12.5,
+              "median": 12.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 12.5,
+                "p_over": 0.4688,
+                "edge_vs_market": 0.068819,
+                "kelly_fraction": 0.0134
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 128,
+                "ev_pct": 6.882,
+                "fair_p_side": 0.4688,
+                "consensus_p_over": 0.4688,
+                "consensus_n_books": 4,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": 128
+              }
+            }
+          }
+        },
+        {
+          "player_id": "e52e6c804045050e1ba3d90ff4fc0387:Olivia Miles:pts:19.5:under:betparx",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "betparx +102 \u00b7 EV +5.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 19.5,
+              "median": 19.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 19.5,
+                "p_over": 0.4793,
+                "edge_vs_market": -0.051822,
+                "kelly_fraction": 0.0127
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 102,
+                "ev_pct": 5.182,
+                "fair_p_side": 0.5207,
+                "consensus_p_over": 0.4793,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4727,
+                "best_book": "betparx",
+                "best_odds": 102
+              }
+            }
+          }
+        },
+        {
+          "player_id": "e52e6c804045050e1ba3d90ff4fc0387:Jessica Shepard:pts:14.5:over:betparx",
+          "player_name": "Jessica Shepard",
+          "team_name": "",
+          "position": "betparx +117 \u00b7 EV +2.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 14.5,
+              "median": 14.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 14.5,
+                "p_over": 0.4732,
+                "edge_vs_market": 0.026936,
+                "kelly_fraction": 0.0058
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 117,
+                "ev_pct": 2.694,
+                "fair_p_side": 0.4732,
+                "consensus_p_over": 0.4732,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": 117
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "2d963c26f66f1a3f27f9d699e022d413",
+      "odds_api_event_id": "2d963c26f66f1a3f27f9d699e022d413",
+      "commence_time": "2026-08-09T23:00:00Z",
+      "home_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "away_team": {
+        "name": "Golden State Valkyries",
+        "abbreviation": "Golden State Valkyries"
+      },
+      "players": [
+        {
+          "player_id": "2d963c26f66f1a3f27f9d699e022d413:Kiah Stokes:pts:5.5:over:betonlineag",
+          "player_name": "Kiah Stokes",
+          "team_name": "",
+          "position": "betonlineag +134 \u00b7 EV +3.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.4422,
+                "edge_vs_market": 0.034694,
+                "kelly_fraction": 0.0065
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 134,
+                "ev_pct": 3.469,
+                "fair_p_side": 0.4422,
+                "consensus_p_over": 0.4422,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.3955,
+                "best_book": "betonlineag",
+                "best_odds": 134
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
