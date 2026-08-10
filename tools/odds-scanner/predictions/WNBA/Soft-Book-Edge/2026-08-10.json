@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-10T20:41:15.359521+00:00",
+  "generated_at": "2026-08-10T21:40:17.562249+00:00",
   "game_date": "2026-08-10",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-10",
-    "generated_utc": "2026-08-10T20:41:15.359521+00:00",
+    "generated_utc": "2026-08-10T21:40:17.562249+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1257,
-    "n_scored_rows": 1118,
-    "n_qualifying": 5,
+    "n_quote_rows": 1269,
+    "n_scored_rows": 1124,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,88 +59,10 @@
       },
       "players": [
         {
-          "player_id": "381926a79915a74b2c089625ca320d82:Dominique Malonga:ast:2.5:over:betonlineag",
-          "player_name": "Dominique Malonga",
+          "player_id": "381926a79915a74b2c089625ca320d82:Ezi Magbegor:pts:7.5:under:betonlineag",
+          "player_name": "Ezi Magbegor",
           "team_name": "",
-          "position": "betonlineag +167 \u00b7 EV +8.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4078,
-                "edge_vs_market": 0.088768,
-                "kelly_fraction": 0.0133
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 167,
-                "ev_pct": 8.877,
-                "fair_p_side": 0.4078,
-                "consensus_p_over": 0.4078,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.3425,
-                "best_book": "betonlineag",
-                "best_odds": 167
-              }
-            }
-          }
-        },
-        {
-          "player_id": "381926a79915a74b2c089625ca320d82:Dominique Malonga:ast:2.5:over:rebet",
-          "player_name": "Dominique Malonga",
-          "team_name": "",
-          "position": "rebet +158 \u00b7 EV +5.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4078,
-                "edge_vs_market": 0.052068,
-                "kelly_fraction": 0.0082
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "over",
-                "offered_odds": 158,
-                "ev_pct": 5.207,
-                "fair_p_side": 0.4078,
-                "consensus_p_over": 0.4078,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3425,
-                "best_book": "betonlineag",
-                "best_odds": 167
-              }
-            }
-          }
-        },
-        {
-          "player_id": "381926a79915a74b2c089625ca320d82:Natisha Hiedeman:pts:15.5:over:hardrockbet",
-          "player_name": "Natisha Hiedeman",
-          "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +3.9%",
+          "position": "betonlineag -111 \u00b7 EV +4.1%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -149,28 +71,67 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 15.5,
-              "median": 15.5,
+              "mean": 7.5,
+              "median": 7.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.4946,
-                "edge_vs_market": 0.038587,
-                "kelly_fraction": 0.0088
+                "market_line": 7.5,
+                "p_over": 0.4522,
+                "edge_vs_market": -0.041246,
+                "kelly_fraction": 0.0114
               },
               "soft_book": {
-                "book": "hardrockbet",
+                "book": "betonlineag",
+                "side": "under",
+                "offered_odds": -111,
+                "ev_pct": 4.125,
+                "fair_p_side": 0.5478,
+                "consensus_p_over": 0.4522,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.5055,
+                "best_book": "betonlineag",
+                "best_odds": -111
+              }
+            }
+          }
+        },
+        {
+          "player_id": "381926a79915a74b2c089625ca320d82:Dominique Malonga:ast:2.5:over:betonlineag",
+          "player_name": "Dominique Malonga",
+          "team_name": "",
+          "position": "betonlineag +167 \u00b7 EV +3.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.3888,
+                "edge_vs_market": 0.038225,
+                "kelly_fraction": 0.0057
+              },
+              "soft_book": {
+                "book": "betonlineag",
                 "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 3.859,
-                "fair_p_side": 0.4946,
-                "consensus_p_over": 0.4946,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4945,
-                "best_book": "hardrockbet",
-                "best_odds": 110
+                "offered_odds": 167,
+                "ev_pct": 3.822,
+                "fair_p_side": 0.3888,
+                "consensus_p_over": 0.3888,
+                "consensus_n_books": 4,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.3425,
+                "best_book": "betonlineag",
+                "best_odds": 167
               }
             }
           }
@@ -215,10 +176,10 @@
           }
         },
         {
-          "player_id": "381926a79915a74b2c089625ca320d82:Kamilla Cardoso:pts:15.5:over:betparx",
-          "player_name": "Kamilla Cardoso",
+          "player_id": "381926a79915a74b2c089625ca320d82:Ezi Magbegor:pts:7.5:under:rebet",
+          "player_name": "Ezi Magbegor",
           "team_name": "",
-          "position": "betparx +115 \u00b7 EV +2.8%",
+          "position": "rebet -113 \u00b7 EV +3.3%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -227,28 +188,28 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 15.5,
-              "median": 15.5,
+              "mean": 7.5,
+              "median": 7.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.4782,
-                "edge_vs_market": 0.028152,
-                "kelly_fraction": 0.0061
+                "market_line": 7.5,
+                "p_over": 0.4522,
+                "edge_vs_market": -0.032511,
+                "kelly_fraction": 0.0092
               },
               "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 115,
-                "ev_pct": 2.815,
-                "fair_p_side": 0.4782,
-                "consensus_p_over": 0.4782,
-                "consensus_n_books": 6,
+                "book": "rebet",
+                "side": "under",
+                "offered_odds": -113,
+                "ev_pct": 3.251,
+                "fair_p_side": 0.5478,
+                "consensus_p_over": 0.4522,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4727,
-                "best_book": "betparx",
-                "best_odds": 115
+                "sharp_consensus_p_over": 0.5055,
+                "best_book": "betonlineag",
+                "best_odds": -111
               }
             }
           }
