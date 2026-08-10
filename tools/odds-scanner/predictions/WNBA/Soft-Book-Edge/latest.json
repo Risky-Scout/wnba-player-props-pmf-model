@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-10T04:44:22.398367+00:00",
+  "generated_at": "2026-08-10T18:55:09.944375+00:00",
   "game_date": "2026-08-10",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,30 +16,181 @@
   },
   "summary": {
     "date": "2026-08-10",
-    "generated_utc": "2026-08-10T04:44:22.398367+00:00",
+    "generated_utc": "2026-08-10T18:55:09.944375+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
-    "n_books_seen": 7,
+    "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
+      "betparx",
+      "betrivers",
       "draftkings",
       "espnbet",
       "fanduel",
       "fliff",
+      "hardrockbet",
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 756,
-    "n_scored_rows": 734,
-    "n_qualifying": 0,
+    "n_quote_rows": 1224,
+    "n_scored_rows": 1090,
+    "n_qualifying": 3,
     "n_books_per_stat": {
-      "ast": 7,
-      "fg3m": 7,
-      "pts": 7,
-      "reb": 7
+      "ast": 10,
+      "fg3m": 10,
+      "pts": 10,
+      "reb": 10
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "381926a79915a74b2c089625ca320d82",
+      "odds_api_event_id": "381926a79915a74b2c089625ca320d82",
+      "commence_time": "2026-08-11T02:00:00Z",
+      "home_team": {
+        "name": "Seattle Storm",
+        "abbreviation": "Seattle Storm"
+      },
+      "away_team": {
+        "name": "Chicago Sky",
+        "abbreviation": "Chicago Sky"
+      },
+      "players": [
+        {
+          "player_id": "381926a79915a74b2c089625ca320d82:Dominique Malonga:ast:2.5:over:betonlineag",
+          "player_name": "Dominique Malonga",
+          "team_name": "",
+          "position": "betonlineag +155 \u00b7 EV +4.3%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4091,
+                "edge_vs_market": 0.043182,
+                "kelly_fraction": 0.007
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 155,
+                "ev_pct": 4.318,
+                "fair_p_side": 0.4091,
+                "consensus_p_over": 0.4091,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.3606,
+                "best_book": "betonlineag",
+                "best_odds": 155
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "92e369aa70824ac85f725db03a3a2be0",
+      "odds_api_event_id": "92e369aa70824ac85f725db03a3a2be0",
+      "commence_time": "2026-08-11T00:00:00Z",
+      "home_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "away_team": {
+        "name": "Toronto Tempo",
+        "abbreviation": "Toronto Tempo"
+      },
+      "players": [
+        {
+          "player_id": "92e369aa70824ac85f725db03a3a2be0:Maria Conde:pts:9.5:over:hardrockbet",
+          "player_name": "Maria Conde",
+          "team_name": "",
+          "position": "hardrockbet +105 \u00b7 EV +2.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 9.5,
+              "median": 9.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 9.5,
+                "p_over": 0.5016,
+                "edge_vs_market": 0.028311,
+                "kelly_fraction": 0.0067
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 105,
+                "ev_pct": 2.831,
+                "fair_p_side": 0.5016,
+                "consensus_p_over": 0.5016,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5055,
+                "best_book": "hardrockbet",
+                "best_odds": 105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "92e369aa70824ac85f725db03a3a2be0:Brionna Jones:reb:5.5:under:betonlineag",
+          "player_name": "Brionna Jones",
+          "team_name": "",
+          "position": "betonlineag +114 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.5207,
+                "edge_vs_market": -0.025694,
+                "kelly_fraction": 0.0056
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "under",
+                "offered_odds": 114,
+                "ev_pct": 2.569,
+                "fair_p_side": 0.4793,
+                "consensus_p_over": 0.5207,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.5639,
+                "best_book": "betonlineag",
+                "best_odds": 114
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
