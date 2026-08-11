@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-11T22:39:24.722761+00:00",
+  "generated_at": "2026-08-11T23:38:10.477053+00:00",
   "game_date": "2026-08-11",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-11",
-    "generated_utc": "2026-08-11T22:39:24.722761+00:00",
+    "generated_utc": "2026-08-11T23:38:10.477053+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1905,
-    "n_scored_rows": 1656,
-    "n_qualifying": 17,
+    "n_quote_rows": 1910,
+    "n_scored_rows": 1086,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -45,528 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "38b0b03d1b7fb6593df20834189cb081",
-      "odds_api_event_id": "38b0b03d1b7fb6593df20834189cb081",
-      "commence_time": "2026-08-12T02:00:00Z",
-      "home_team": {
-        "name": "Los Angeles Sparks",
-        "abbreviation": "Los Angeles Sparks"
-      },
-      "away_team": {
-        "name": "Phoenix Mercury",
-        "abbreviation": "Phoenix Mercury"
-      },
-      "players": [
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Erica Wheeler:pts:9.5:under:hardrockbet",
-          "player_name": "Erica Wheeler",
-          "team_name": "",
-          "position": "hardrockbet +115 \u00b7 EV +13.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.4732,
-                "edge_vs_market": -0.132528,
-                "kelly_fraction": 0.0288
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 115,
-                "ev_pct": 13.253,
-                "fair_p_side": 0.5268,
-                "consensus_p_over": 0.4732,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4674,
-                "best_book": "hardrockbet",
-                "best_odds": 115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Rae Burrell:ast:2.5:over:betparx",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "betparx +130 \u00b7 EV +12.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4897,
-                "edge_vs_market": 0.126227,
-                "kelly_fraction": 0.0243
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 130,
-                "ev_pct": 12.623,
-                "fair_p_side": 0.4897,
-                "consensus_p_over": 0.4897,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "betparx",
-                "best_odds": 130
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Erica Wheeler:pts:9.5:under:betparx",
-          "player_name": "Erica Wheeler",
-          "team_name": "",
-          "position": "betparx +112 \u00b7 EV +11.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.4732,
-                "edge_vs_market": -0.116726,
-                "kelly_fraction": 0.0261
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": 112,
-                "ev_pct": 11.673,
-                "fair_p_side": 0.5268,
-                "consensus_p_over": 0.4732,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4674,
-                "best_book": "hardrockbet",
-                "best_odds": 115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Rae Burrell:ast:2.5:under:draftkings",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "draftkings -114 \u00b7 EV +6.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4304,
-                "edge_vs_market": -0.069244,
-                "kelly_fraction": 0.0197
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": -114,
-                "ev_pct": 6.924,
-                "fair_p_side": 0.5696,
-                "consensus_p_over": 0.4304,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": -114
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Rae Burrell:pts:15.5:over:hardrockbet",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "hardrockbet +115 \u00b7 EV +6.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 15.5,
-              "median": 15.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.4937,
-                "edge_vs_market": 0.061541,
-                "kelly_fraction": 0.0134
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 115,
-                "ev_pct": 6.154,
-                "fair_p_side": 0.4937,
-                "consensus_p_over": 0.4937,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
-                "best_book": "hardrockbet",
-                "best_odds": 115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Rae Burrell:pts:15.5:over:betparx",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "betparx +112 \u00b7 EV +4.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 15.5,
-              "median": 15.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.4937,
-                "edge_vs_market": 0.046729,
-                "kelly_fraction": 0.0104
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 112,
-                "ev_pct": 4.673,
-                "fair_p_side": 0.4937,
-                "consensus_p_over": 0.4937,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
-                "best_book": "hardrockbet",
-                "best_odds": 115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Ariel Atkins:reb:2.5:over:hardrockbet",
-          "player_name": "Ariel Atkins",
-          "team_name": "",
-          "position": "hardrockbet -135 \u00b7 EV +4.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5993,
-                "edge_vs_market": 0.043249,
-                "kelly_fraction": 0.0146
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -135,
-                "ev_pct": 4.325,
-                "fair_p_side": 0.5993,
-                "consensus_p_over": 0.5993,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.6045,
-                "best_book": "hardrockbet",
-                "best_odds": -135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Ariel Atkins:reb:2.5:over:betparx",
-          "player_name": "Ariel Atkins",
-          "team_name": "",
-          "position": "betparx -137 \u00b7 EV +3.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5993,
-                "edge_vs_market": 0.036768,
-                "kelly_fraction": 0.0126
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -137,
-                "ev_pct": 3.677,
-                "fair_p_side": 0.5993,
-                "consensus_p_over": 0.5993,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.6045,
-                "best_book": "hardrockbet",
-                "best_odds": -135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Rae Burrell:ast:2.5:over:hardrockbet",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4897,
-                "edge_vs_market": 0.028295,
-                "kelly_fraction": 0.0064
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 2.829,
-                "fair_p_side": 0.4897,
-                "consensus_p_over": 0.4897,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "betparx",
-                "best_odds": 130
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Ariel Atkins:fg3m:1.5:over:hardrockbet",
-          "player_name": "Ariel Atkins",
-          "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.4894,
-                "edge_vs_market": 0.027784,
-                "kelly_fraction": 0.0063
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 2.778,
-                "fair_p_side": 0.4894,
-                "consensus_p_over": 0.4894,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4869,
-                "best_book": "hardrockbet",
-                "best_odds": 110
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Ariel Atkins:pts:9.5:over:hardrockbet",
-          "player_name": "Ariel Atkins",
-          "team_name": "",
-          "position": "hardrockbet -105 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.5264,
-                "edge_vs_market": 0.027755,
-                "kelly_fraction": 0.0073
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -105,
-                "ev_pct": 2.776,
-                "fair_p_side": 0.5264,
-                "consensus_p_over": 0.5264,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5273,
-                "best_book": "hardrockbet",
-                "best_odds": -105
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Dearica Hamby:reb:7.5:under:espnbet",
-          "player_name": "Dearica Hamby",
-          "team_name": "",
-          "position": "espnbet -140 \u00b7 EV +2.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 7.5,
-              "median": 7.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.4008,
-                "edge_vs_market": -0.027211,
-                "kelly_fraction": 0.0095
-              },
-              "soft_book": {
-                "book": "espnbet",
-                "side": "under",
-                "offered_odds": -140,
-                "ev_pct": 2.721,
-                "fair_p_side": 0.5992,
-                "consensus_p_over": 0.4008,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "espnbet",
-                "best_odds": -140
-              }
-            }
-          }
-        },
-        {
-          "player_id": "38b0b03d1b7fb6593df20834189cb081:Rae Burrell:ast:2.5:under:fliff",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "fliff -125 \u00b7 EV +2.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4304,
-                "edge_vs_market": -0.025275,
-                "kelly_fraction": 0.0079
-              },
-              "soft_book": {
-                "book": "fliff",
-                "side": "under",
-                "offered_odds": -125,
-                "ev_pct": 2.527,
-                "fair_p_side": 0.5696,
-                "consensus_p_over": 0.4304,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": -114
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "d2ac2c666293e102417b78a5093d2aec",
       "odds_api_event_id": "d2ac2c666293e102417b78a5093d2aec",
@@ -700,23 +178,23 @@
       ]
     },
     {
-      "game_id": "7f6be8b73fe0d176884f6aee616e3006",
-      "odds_api_event_id": "7f6be8b73fe0d176884f6aee616e3006",
-      "commence_time": "2026-08-11T23:30:00Z",
+      "game_id": "38b0b03d1b7fb6593df20834189cb081",
+      "odds_api_event_id": "38b0b03d1b7fb6593df20834189cb081",
+      "commence_time": "2026-08-12T02:00:00Z",
       "home_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
       },
       "away_team": {
-        "name": "New York Liberty",
-        "abbreviation": "New York Liberty"
+        "name": "Phoenix Mercury",
+        "abbreviation": "Phoenix Mercury"
       },
       "players": [
         {
-          "player_id": "7f6be8b73fe0d176884f6aee616e3006:Rebecca Allen:pts:6.5:over:hardrockbet",
-          "player_name": "Rebecca Allen",
+          "player_id": "38b0b03d1b7fb6593df20834189cb081:Erica Wheeler:pts:9.5:under:betparx",
+          "player_name": "Erica Wheeler",
           "team_name": "",
-          "position": "hardrockbet +125 \u00b7 EV +5.1%",
+          "position": "betparx +105 \u00b7 EV +6.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -725,28 +203,28 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 6.5,
-              "median": 6.5,
+              "mean": 9.5,
+              "median": 9.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.4671,
-                "edge_vs_market": 0.051085,
-                "kelly_fraction": 0.0102
+                "market_line": 9.5,
+                "p_over": 0.4798,
+                "edge_vs_market": -0.066481,
+                "kelly_fraction": 0.0158
               },
               "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 125,
-                "ev_pct": 5.109,
-                "fair_p_side": 0.4671,
-                "consensus_p_over": 0.4671,
-                "consensus_n_books": 6,
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 105,
+                "ev_pct": 6.648,
+                "fair_p_side": 0.5202,
+                "consensus_p_over": 0.4798,
+                "consensus_n_books": 4,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4705,
-                "best_book": "hardrockbet",
-                "best_odds": 125
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": 105
               }
             }
           }
