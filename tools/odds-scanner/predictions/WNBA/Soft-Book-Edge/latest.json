@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-12T19:00:09.733847+00:00",
+  "generated_at": "2026-08-12T20:05:07.362325+00:00",
   "game_date": "2026-08-12",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-12",
-    "generated_utc": "2026-08-12T19:00:09.733847+00:00",
+    "generated_utc": "2026-08-12T20:05:07.362325+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,8 +32,8 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1728,
-    "n_scored_rows": 1504,
+    "n_quote_rows": 1644,
+    "n_scored_rows": 1404,
     "n_qualifying": 5,
     "n_books_per_stat": {
       "ast": 9,
@@ -44,138 +44,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "744d7516c6ce883856e697bfe904153d",
-      "odds_api_event_id": "744d7516c6ce883856e697bfe904153d",
-      "commence_time": "2026-08-13T00:00:00Z",
-      "home_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "away_team": {
-        "name": "Toronto Tempo",
-        "abbreviation": "Toronto Tempo"
-      },
-      "players": [
-        {
-          "player_id": "744d7516c6ce883856e697bfe904153d:Alanna Smith:pts:12.5:over:espnbet",
-          "player_name": "Alanna Smith",
-          "team_name": "",
-          "position": "espnbet +120 \u00b7 EV +5.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 12.5,
-              "median": 12.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 12.5,
-                "p_over": 0.4771,
-                "edge_vs_market": 0.04971,
-                "kelly_fraction": 0.0104
-              },
-              "soft_book": {
-                "book": "espnbet",
-                "side": "over",
-                "offered_odds": 120,
-                "ev_pct": 4.971,
-                "fair_p_side": 0.4771,
-                "consensus_p_over": 0.4771,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "espnbet",
-                "best_odds": 120
-              }
-            }
-          }
-        },
-        {
-          "player_id": "744d7516c6ce883856e697bfe904153d:Arike Ogunbowale:pts:15.5:over:hardrockbet",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "hardrockbet -105 \u00b7 EV +3.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 15.5,
-              "median": 15.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.5304,
-                "edge_vs_market": 0.035577,
-                "kelly_fraction": 0.0093
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -105,
-                "ev_pct": 3.558,
-                "fair_p_side": 0.5304,
-                "consensus_p_over": 0.5304,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5326,
-                "best_book": "hardrockbet",
-                "best_odds": -105
-              }
-            }
-          }
-        },
-        {
-          "player_id": "744d7516c6ce883856e697bfe904153d:Arike Ogunbowale:pts:16.5:over:betparx",
-          "player_name": "Arike Ogunbowale",
-          "team_name": "",
-          "position": "betparx +112 \u00b7 EV +3.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 16.5,
-              "median": 16.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 16.5,
-                "p_over": 0.487,
-                "edge_vs_market": 0.032461,
-                "kelly_fraction": 0.0072
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 112,
-                "ev_pct": 3.246,
-                "fair_p_side": 0.487,
-                "consensus_p_over": 0.487,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "betparx",
-                "best_odds": 112
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "92025da862cb0756a756006bc12a79e6",
       "odds_api_event_id": "92025da862cb0756a756006bc12a79e6",
@@ -190,10 +58,10 @@
       },
       "players": [
         {
-          "player_id": "92025da862cb0756a756006bc12a79e6:Gabby Williams:reb:2.5:over:betparx",
-          "player_name": "Gabby Williams",
+          "player_id": "92025da862cb0756a756006bc12a79e6:Courtney Vandersloot:reb:2.5:under:draftkings",
+          "player_name": "Courtney Vandersloot",
           "team_name": "",
-          "position": "betparx +102 \u00b7 EV +4.2%",
+          "position": "draftkings +124 \u00b7 EV +6.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -208,31 +76,139 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5158,
-                "edge_vs_market": 0.041934,
-                "kelly_fraction": 0.0103
+                "p_over": 0.5249,
+                "edge_vs_market": -0.064297,
+                "kelly_fraction": 0.013
               },
               "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 102,
-                "ev_pct": 4.193,
-                "fair_p_side": 0.5158,
-                "consensus_p_over": 0.5158,
-                "consensus_n_books": 4,
+                "book": "draftkings",
+                "side": "under",
+                "offered_odds": 124,
+                "ev_pct": 6.43,
+                "fair_p_side": 0.4751,
+                "consensus_p_over": 0.5249,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5241,
-                "best_book": "betparx",
-                "best_odds": 102
+                "sharp_consensus_p_over": null,
+                "best_book": "draftkings",
+                "best_odds": 124
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "744d7516c6ce883856e697bfe904153d",
+      "odds_api_event_id": "744d7516c6ce883856e697bfe904153d",
+      "commence_time": "2026-08-13T00:00:00Z",
+      "home_team": {
+        "name": "Dallas Wings",
+        "abbreviation": "Dallas Wings"
+      },
+      "away_team": {
+        "name": "Toronto Tempo",
+        "abbreviation": "Toronto Tempo"
+      },
+      "players": [
+        {
+          "player_id": "744d7516c6ce883856e697bfe904153d:Arike Ogunbowale:fg3m:1.5:under:espnbet",
+          "player_name": "Arike Ogunbowale",
+          "team_name": "",
+          "position": "espnbet +145 \u00b7 EV +5.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.5696,
+                "edge_vs_market": -0.054487,
+                "kelly_fraction": 0.0094
+              },
+              "soft_book": {
+                "book": "espnbet",
+                "side": "under",
+                "offered_odds": 145,
+                "ev_pct": 5.449,
+                "fair_p_side": 0.4304,
+                "consensus_p_over": 0.5696,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "espnbet",
+                "best_odds": 145
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "62ed8d04c26de1f3164b3c15775a52e6",
+      "odds_api_event_id": "62ed8d04c26de1f3164b3c15775a52e6",
+      "commence_time": "2026-08-13T02:00:00Z",
+      "home_team": {
+        "name": "Portland Fire",
+        "abbreviation": "Portland Fire"
+      },
+      "away_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "players": [
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Bridget Carleton:reb:5.5:over:betonlineag",
+          "player_name": "Bridget Carleton",
+          "team_name": "",
+          "position": "betonlineag +128 \u00b7 EV +4.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.4583,
+                "edge_vs_market": 0.045,
+                "kelly_fraction": 0.0088
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 128,
+                "ev_pct": 4.5,
+                "fair_p_side": 0.4583,
+                "consensus_p_over": 0.4583,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "betonlineag",
+                "best_odds": 128
               }
             }
           }
         },
         {
-          "player_id": "92025da862cb0756a756006bc12a79e6:Gabby Williams:reb:2.5:over:hardrockbet",
-          "player_name": "Gabby Williams",
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Bridget Carleton:ast:2.5:over:betonlineag",
+          "player_name": "Bridget Carleton",
           "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +3.2%",
+          "position": "betonlineag -110 \u00b7 EV +4.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -240,29 +216,68 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "rebounds": {
+            "assists": {
               "mean": 2.5,
               "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5158,
-                "edge_vs_market": 0.031617,
-                "kelly_fraction": 0.0079
+                "p_over": 0.5448,
+                "edge_vs_market": 0.040073,
+                "kelly_fraction": 0.011
               },
               "soft_book": {
-                "book": "hardrockbet",
+                "book": "betonlineag",
                 "side": "over",
-                "offered_odds": 100,
-                "ev_pct": 3.162,
-                "fair_p_side": 0.5158,
-                "consensus_p_over": 0.5158,
+                "offered_odds": -110,
+                "ev_pct": 4.007,
+                "fair_p_side": 0.5448,
+                "consensus_p_over": 0.5448,
                 "consensus_n_books": 4,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4913,
+                "best_book": "betonlineag",
+                "best_odds": -110
+              }
+            }
+          }
+        },
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Olivia Miles:fg3m:1.5:under:betparx",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "betparx -137 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.4074,
+                "edge_vs_market": -0.025142,
+                "kelly_fraction": 0.0086
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -137,
+                "ev_pct": 2.514,
+                "fair_p_side": 0.5926,
+                "consensus_p_over": 0.4074,
+                "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5241,
+                "sharp_consensus_p_over": 0.4066,
                 "best_book": "betparx",
-                "best_odds": 102
+                "best_odds": -137
               }
             }
           }
