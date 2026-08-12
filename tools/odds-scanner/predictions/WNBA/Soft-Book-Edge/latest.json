@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-12T21:42:34.645536+00:00",
+  "generated_at": "2026-08-12T22:39:02.670422+00:00",
   "game_date": "2026-08-12",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-12",
-    "generated_utc": "2026-08-12T21:42:34.645536+00:00",
+    "generated_utc": "2026-08-12T22:39:02.670422+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1610,
-    "n_scored_rows": 1394,
-    "n_qualifying": 1,
+    "n_quote_rows": 1632,
+    "n_scored_rows": 1420,
+    "n_qualifying": 6,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -44,6 +44,216 @@
     "status": "ok"
   },
   "games": [
+    {
+      "game_id": "62ed8d04c26de1f3164b3c15775a52e6",
+      "odds_api_event_id": "62ed8d04c26de1f3164b3c15775a52e6",
+      "commence_time": "2026-08-13T02:00:00Z",
+      "home_team": {
+        "name": "Portland Fire",
+        "abbreviation": "Portland Fire"
+      },
+      "away_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "players": [
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Olivia Miles:pts:17.5:under:hardrockbet",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "hardrockbet +125 \u00b7 EV +6.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 17.5,
+              "median": 17.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 17.5,
+                "p_over": 0.527,
+                "edge_vs_market": -0.064234,
+                "kelly_fraction": 0.0128
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 125,
+                "ev_pct": 6.423,
+                "fair_p_side": 0.473,
+                "consensus_p_over": 0.527,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5326,
+                "best_book": "hardrockbet",
+                "best_odds": 125
+              }
+            }
+          }
+        },
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Olivia Miles:pts:17.5:under:betparx",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "betparx +120 \u00b7 EV +4.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 17.5,
+              "median": 17.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 17.5,
+                "p_over": 0.527,
+                "edge_vs_market": -0.040584,
+                "kelly_fraction": 0.0085
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 120,
+                "ev_pct": 4.058,
+                "fair_p_side": 0.473,
+                "consensus_p_over": 0.527,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5326,
+                "best_book": "hardrockbet",
+                "best_odds": 125
+              }
+            }
+          }
+        },
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Olivia Miles:reb:4.5:under:hardrockbet",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "hardrockbet -105 \u00b7 EV +3.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.468,
+                "edge_vs_market": -0.038681,
+                "kelly_fraction": 0.0102
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": -105,
+                "ev_pct": 3.868,
+                "fair_p_side": 0.532,
+                "consensus_p_over": 0.468,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4945,
+                "best_book": "hardrockbet",
+                "best_odds": -105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Olivia Miles:reb:4.5:under:betparx",
+          "player_name": "Olivia Miles",
+          "team_name": "",
+          "position": "betparx -106 \u00b7 EV +3.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.468,
+                "edge_vs_market": -0.033901,
+                "kelly_fraction": 0.009
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -106,
+                "ev_pct": 3.39,
+                "fair_p_side": 0.532,
+                "consensus_p_over": 0.468,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4945,
+                "best_book": "hardrockbet",
+                "best_odds": -105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "62ed8d04c26de1f3164b3c15775a52e6:Napheesa Collier:pts:20.5:over:hardrockbet",
+          "player_name": "Napheesa Collier",
+          "team_name": "",
+          "position": "hardrockbet +110 \u00b7 EV +2.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 20.5,
+              "median": 20.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 20.5,
+                "p_over": 0.4893,
+                "edge_vs_market": 0.027483,
+                "kelly_fraction": 0.0062
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 110,
+                "ev_pct": 2.748,
+                "fair_p_side": 0.4893,
+                "consensus_p_over": 0.4893,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4759,
+                "best_book": "hardrockbet",
+                "best_odds": 110
+              }
+            }
+          }
+        }
+      ]
+    },
     {
       "game_id": "744d7516c6ce883856e697bfe904153d",
       "odds_api_event_id": "744d7516c6ce883856e697bfe904153d",
@@ -58,10 +268,10 @@
       },
       "players": [
         {
-          "player_id": "744d7516c6ce883856e697bfe904153d:Alanna Smith:reb:7.5:under:draftkings",
+          "player_id": "744d7516c6ce883856e697bfe904153d:Alanna Smith:reb:7.5:over:betonlineag",
           "player_name": "Alanna Smith",
           "team_name": "",
-          "position": "draftkings +101 \u00b7 EV +8.7%",
+          "position": "betonlineag +115 \u00b7 EV +3.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -76,22 +286,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 7.5,
-                "p_over": 0.4594,
-                "edge_vs_market": -0.086628,
-                "kelly_fraction": 0.0214
+                "p_over": 0.4793,
+                "edge_vs_market": 0.030487,
+                "kelly_fraction": 0.0066
               },
               "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 101,
-                "ev_pct": 8.663,
-                "fair_p_side": 0.5406,
-                "consensus_p_over": 0.4594,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 115,
+                "ev_pct": 3.049,
+                "fair_p_side": 0.4793,
+                "consensus_p_over": 0.4793,
+                "consensus_n_books": 7,
+                "is_sharp_book": true,
                 "sharp_consensus_p_over": 0.4334,
-                "best_book": "draftkings",
-                "best_odds": 101
+                "best_book": "betonlineag",
+                "best_odds": 115
               }
             }
           }
