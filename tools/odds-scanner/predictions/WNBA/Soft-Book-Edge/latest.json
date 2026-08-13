@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-13T22:39:33.063665+00:00",
+  "generated_at": "2026-08-13T23:39:57.662451+00:00",
   "game_date": "2026-08-13",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-13",
-    "generated_utc": "2026-08-13T22:39:33.063665+00:00",
+    "generated_utc": "2026-08-13T23:39:57.662451+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1558,
-    "n_scored_rows": 1334,
-    "n_qualifying": 0,
+    "n_quote_rows": 1222,
+    "n_scored_rows": 956,
+    "n_qualifying": 3,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -43,5 +43,153 @@
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "adc6dd060846838773f87fb71bbbad5d",
+      "odds_api_event_id": "adc6dd060846838773f87fb71bbbad5d",
+      "commence_time": "2026-08-14T00:00:00Z",
+      "home_team": {
+        "name": "New York Liberty",
+        "abbreviation": "New York Liberty"
+      },
+      "away_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "players": [
+        {
+          "player_id": "adc6dd060846838773f87fb71bbbad5d:Rebecca Allen:reb:2.5:under:betonlineag",
+          "player_name": "Rebecca Allen",
+          "team_name": "",
+          "position": "betonlineag +115 \u00b7 EV +5.3%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.5104,
+                "edge_vs_market": -0.052743,
+                "kelly_fraction": 0.0115
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "under",
+                "offered_odds": 115,
+                "ev_pct": 5.274,
+                "fair_p_side": 0.4896,
+                "consensus_p_over": 0.5104,
+                "consensus_n_books": 4,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.5666,
+                "best_book": "betonlineag",
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
+          "player_id": "adc6dd060846838773f87fb71bbbad5d:Pauline Astier:pts:7.5:over:hardrockbet",
+          "player_name": "Pauline Astier",
+          "team_name": "",
+          "position": "hardrockbet +105 \u00b7 EV +3.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 7.5,
+              "median": 7.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 7.5,
+                "p_over": 0.5043,
+                "edge_vs_market": 0.03387,
+                "kelly_fraction": 0.0081
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 105,
+                "ev_pct": 3.387,
+                "fair_p_side": 0.5043,
+                "consensus_p_over": 0.5043,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5209,
+                "best_book": "hardrockbet",
+                "best_odds": 105
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "b7f37fe3659219219e03ac3a2ceaea8d",
+      "odds_api_event_id": "b7f37fe3659219219e03ac3a2ceaea8d",
+      "commence_time": "2026-08-14T02:00:00Z",
+      "home_team": {
+        "name": "Las Vegas Aces",
+        "abbreviation": "Las Vegas Aces"
+      },
+      "away_team": {
+        "name": "Washington Mystics",
+        "abbreviation": "Washington Mystics"
+      },
+      "players": [
+        {
+          "player_id": "b7f37fe3659219219e03ac3a2ceaea8d:NaLyssa Smith:reb:6.5:under:draftkings",
+          "player_name": "NaLyssa Smith",
+          "team_name": "",
+          "position": "draftkings -103 \u00b7 EV +3.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 6.5,
+              "median": 6.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 6.5,
+                "p_over": 0.4751,
+                "edge_vs_market": -0.034491,
+                "kelly_fraction": 0.0089
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "under",
+                "offered_odds": -103,
+                "ev_pct": 3.449,
+                "fair_p_side": 0.5249,
+                "consensus_p_over": 0.4751,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "draftkings",
+                "best_odds": -103
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
