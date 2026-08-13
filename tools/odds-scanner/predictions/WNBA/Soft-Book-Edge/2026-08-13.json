@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-13T19:01:14.067946+00:00",
+  "generated_at": "2026-08-13T20:40:22.391775+00:00",
   "game_date": "2026-08-13",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-13",
-    "generated_utc": "2026-08-13T19:01:14.067946+00:00",
+    "generated_utc": "2026-08-13T20:40:22.391775+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1537,
-    "n_scored_rows": 1304,
-    "n_qualifying": 3,
+    "n_quote_rows": 1553,
+    "n_scored_rows": 1324,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -44,6 +44,60 @@
     "status": "ok"
   },
   "games": [
+    {
+      "game_id": "b7f37fe3659219219e03ac3a2ceaea8d",
+      "odds_api_event_id": "b7f37fe3659219219e03ac3a2ceaea8d",
+      "commence_time": "2026-08-14T02:00:00Z",
+      "home_team": {
+        "name": "Las Vegas Aces",
+        "abbreviation": "Las Vegas Aces"
+      },
+      "away_team": {
+        "name": "Washington Mystics",
+        "abbreviation": "Washington Mystics"
+      },
+      "players": [
+        {
+          "player_id": "b7f37fe3659219219e03ac3a2ceaea8d:Jackie Young:pts:20.5:under:betparx",
+          "player_name": "Jackie Young",
+          "team_name": "",
+          "position": "betparx -103 \u00b7 EV +3.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 20.5,
+              "median": 20.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 20.5,
+                "p_over": 0.4764,
+                "edge_vs_market": -0.032025,
+                "kelly_fraction": 0.0082
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -103,
+                "ev_pct": 3.203,
+                "fair_p_side": 0.5236,
+                "consensus_p_over": 0.4764,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": -103
+              }
+            }
+          }
+        }
+      ]
+    },
     {
       "game_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348",
       "odds_api_event_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348",
@@ -58,10 +112,10 @@
       },
       "players": [
         {
-          "player_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348:Brittney Griner:pts:12.5:under:betonlineag",
-          "player_name": "Brittney Griner",
+          "player_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348:Le\u00efla Lacan:reb:2.5:under:draftkings",
+          "player_name": "Le\u00efla Lacan",
           "team_name": "",
-          "position": "betonlineag +109 \u00b7 EV +4.5%",
+          "position": "draftkings -143 \u00b7 EV +3.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -69,38 +123,38 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "points": {
-              "mean": 12.5,
-              "median": 12.5,
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 12.5,
-                "p_over": 0.5,
-                "edge_vs_market": -0.045,
-                "kelly_fraction": 0.0103
+                "market_line": 2.5,
+                "p_over": 0.3941,
+                "edge_vs_market": -0.029566,
+                "kelly_fraction": 0.0106
               },
               "soft_book": {
-                "book": "betonlineag",
+                "book": "draftkings",
                 "side": "under",
-                "offered_odds": 109,
-                "ev_pct": 4.5,
-                "fair_p_side": 0.5,
-                "consensus_p_over": 0.5,
-                "consensus_n_books": 5,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5533,
-                "best_book": "betonlineag",
-                "best_odds": 109
+                "offered_odds": -143,
+                "ev_pct": 2.957,
+                "fair_p_side": 0.6059,
+                "consensus_p_over": 0.3941,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4439,
+                "best_book": "draftkings",
+                "best_odds": -143
               }
             }
           }
         },
         {
-          "player_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348:Jordin Canada:pts:11.5:over:betonlineag",
-          "player_name": "Jordin Canada",
+          "player_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348:Le\u00efla Lacan:reb:2.5:under:betonlineag",
+          "player_name": "Le\u00efla Lacan",
           "team_name": "",
-          "position": "betonlineag +112 \u00b7 EV +3.7%",
+          "position": "betonlineag -143 \u00b7 EV +3.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -108,83 +162,68 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "points": {
-              "mean": 11.5,
-              "median": 11.5,
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 11.5,
-                "p_over": 0.4892,
-                "edge_vs_market": 0.037056,
-                "kelly_fraction": 0.0083
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 112,
-                "ev_pct": 3.706,
-                "fair_p_side": 0.4892,
-                "consensus_p_over": 0.4892,
-                "consensus_n_books": 5,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4399,
-                "best_book": "betonlineag",
-                "best_odds": 112
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "adc6dd060846838773f87fb71bbbad5d",
-      "odds_api_event_id": "adc6dd060846838773f87fb71bbbad5d",
-      "commence_time": "2026-08-14T00:00:00Z",
-      "home_team": {
-        "name": "New York Liberty",
-        "abbreviation": "New York Liberty"
-      },
-      "away_team": {
-        "name": "Los Angeles Sparks",
-        "abbreviation": "Los Angeles Sparks"
-      },
-      "players": [
-        {
-          "player_id": "adc6dd060846838773f87fb71bbbad5d:Nneka Ogwumike:pts:16.5:under:betonlineag",
-          "player_name": "Nneka Ogwumike",
-          "team_name": "",
-          "position": "betonlineag +110 \u00b7 EV +3.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 16.5,
-              "median": 16.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 16.5,
-                "p_over": 0.5087,
-                "edge_vs_market": -0.031651,
-                "kelly_fraction": 0.0072
+                "market_line": 2.5,
+                "p_over": 0.3941,
+                "edge_vs_market": -0.029566,
+                "kelly_fraction": 0.0106
               },
               "soft_book": {
                 "book": "betonlineag",
                 "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 3.165,
-                "fair_p_side": 0.4913,
-                "consensus_p_over": 0.5087,
-                "consensus_n_books": 7,
+                "offered_odds": -143,
+                "ev_pct": 2.957,
+                "fair_p_side": 0.6059,
+                "consensus_p_over": 0.3941,
+                "consensus_n_books": 3,
                 "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5561,
+                "sharp_consensus_p_over": 0.4439,
+                "best_book": "draftkings",
+                "best_odds": -143
+              }
+            }
+          }
+        },
+        {
+          "player_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348:Allisha Gray:fg3m:1.5:over:betonlineag",
+          "player_name": "Allisha Gray",
+          "team_name": "",
+          "position": "betonlineag -108 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.5325,
+                "edge_vs_market": 0.025497,
+                "kelly_fraction": 0.0069
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": -108,
+                "ev_pct": 2.55,
+                "fair_p_side": 0.5325,
+                "consensus_p_over": 0.5325,
+                "consensus_n_books": 6,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4869,
                 "best_book": "betonlineag",
-                "best_odds": 110
+                "best_odds": -108
               }
             }
           }
