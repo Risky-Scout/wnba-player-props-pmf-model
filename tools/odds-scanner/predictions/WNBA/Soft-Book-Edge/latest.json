@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-13T20:40:22.391775+00:00",
+  "generated_at": "2026-08-13T21:42:45.347073+00:00",
   "game_date": "2026-08-13",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-13",
-    "generated_utc": "2026-08-13T20:40:22.391775+00:00",
+    "generated_utc": "2026-08-13T21:42:45.347073+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,8 +32,8 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1553,
-    "n_scored_rows": 1324,
+    "n_quote_rows": 1556,
+    "n_scored_rows": 1326,
     "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 9,
@@ -44,6 +44,60 @@
     "status": "ok"
   },
   "games": [
+    {
+      "game_id": "adc6dd060846838773f87fb71bbbad5d",
+      "odds_api_event_id": "adc6dd060846838773f87fb71bbbad5d",
+      "commence_time": "2026-08-14T00:00:00Z",
+      "home_team": {
+        "name": "New York Liberty",
+        "abbreviation": "New York Liberty"
+      },
+      "away_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "players": [
+        {
+          "player_id": "adc6dd060846838773f87fb71bbbad5d:Erica Wheeler:pts:9.5:over:betparx",
+          "player_name": "Erica Wheeler",
+          "team_name": "",
+          "position": "betparx -106 \u00b7 EV +3.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 9.5,
+              "median": 9.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 9.5,
+                "p_over": 0.5332,
+                "edge_vs_market": 0.036295,
+                "kelly_fraction": 0.0096
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -106,
+                "ev_pct": 3.63,
+                "fair_p_side": 0.5332,
+                "consensus_p_over": 0.5332,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5326,
+                "best_book": "betparx",
+                "best_odds": -106
+              }
+            }
+          }
+        }
+      ]
+    },
     {
       "game_id": "b7f37fe3659219219e03ac3a2ceaea8d",
       "odds_api_event_id": "b7f37fe3659219219e03ac3a2ceaea8d",
@@ -61,7 +115,7 @@
           "player_id": "b7f37fe3659219219e03ac3a2ceaea8d:Jackie Young:pts:20.5:under:betparx",
           "player_name": "Jackie Young",
           "team_name": "",
-          "position": "betparx -103 \u00b7 EV +3.2%",
+          "position": "betparx -103 \u00b7 EV +3.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -76,20 +130,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 20.5,
-                "p_over": 0.4764,
-                "edge_vs_market": -0.032025,
-                "kelly_fraction": 0.0082
+                "p_over": 0.4756,
+                "edge_vs_market": -0.033508,
+                "kelly_fraction": 0.0086
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": -103,
-                "ev_pct": 3.203,
-                "fair_p_side": 0.5236,
-                "consensus_p_over": 0.4764,
+                "ev_pct": 3.351,
+                "fair_p_side": 0.5244,
+                "consensus_p_over": 0.4756,
                 "consensus_n_books": 6,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4674,
+                "sharp_consensus_p_over": 0.4705,
                 "best_book": "betparx",
                 "best_odds": -103
               }
@@ -185,45 +239,6 @@
                 "sharp_consensus_p_over": 0.4439,
                 "best_book": "draftkings",
                 "best_odds": -143
-              }
-            }
-          }
-        },
-        {
-          "player_id": "9a2fa5d20edb2bc7e2ce1298cb3d5348:Allisha Gray:fg3m:1.5:over:betonlineag",
-          "player_name": "Allisha Gray",
-          "team_name": "",
-          "position": "betonlineag -108 \u00b7 EV +2.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.5325,
-                "edge_vs_market": 0.025497,
-                "kelly_fraction": 0.0069
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": -108,
-                "ev_pct": 2.55,
-                "fair_p_side": 0.5325,
-                "consensus_p_over": 0.5325,
-                "consensus_n_books": 6,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4869,
-                "best_book": "betonlineag",
-                "best_odds": -108
               }
             }
           }
