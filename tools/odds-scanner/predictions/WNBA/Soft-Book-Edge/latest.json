@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-14T22:21:47.356372+00:00",
+  "generated_at": "2026-08-14T23:20:26.683542+00:00",
   "game_date": "2026-08-14",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-14",
-    "generated_utc": "2026-08-14T22:21:47.356372+00:00",
+    "generated_utc": "2026-08-14T23:20:26.683542+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1088,
-    "n_scored_rows": 934,
-    "n_qualifying": 5,
+    "n_quote_rows": 1117,
+    "n_scored_rows": 972,
+    "n_qualifying": 12,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -58,10 +58,49 @@
       },
       "players": [
         {
-          "player_id": "39bf012a0015d3c6753cc0b21100866e:Makayla Timpson:reb:6.5:under:draftkings",
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Kelsey Mitchell:ast:2.5:under:betparx",
+          "player_name": "Kelsey Mitchell",
+          "team_name": "",
+          "position": "betparx +120 \u00b7 EV +13.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4823,
+                "edge_vs_market": -0.138961,
+                "kelly_fraction": 0.0289
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 120,
+                "ev_pct": 13.896,
+                "fair_p_side": 0.5177,
+                "consensus_p_over": 0.4823,
+                "consensus_n_books": 4,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5033,
+                "best_book": "betparx",
+                "best_odds": 120
+              }
+            }
+          }
+        },
+        {
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Makayla Timpson:reb:5.5:under:betonlineag",
           "player_name": "Makayla Timpson",
           "team_name": "",
-          "position": "draftkings -110 \u00b7 EV +6.0%",
+          "position": "betonlineag +128 \u00b7 EV +10.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -70,28 +109,106 @@
           "dnp_risk": 0,
           "stat_projections": {
             "rebounds": {
-              "mean": 6.5,
-              "median": 6.5,
+              "mean": 5.5,
+              "median": 5.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.4447,
-                "edge_vs_market": -0.060043,
-                "kelly_fraction": 0.0165
+                "market_line": 5.5,
+                "p_over": 0.5145,
+                "edge_vs_market": -0.106991,
+                "kelly_fraction": 0.0209
               },
               "soft_book": {
-                "book": "draftkings",
+                "book": "betonlineag",
                 "side": "under",
-                "offered_odds": -110,
-                "ev_pct": 6.004,
-                "fair_p_side": 0.5553,
-                "consensus_p_over": 0.4447,
+                "offered_odds": 128,
+                "ev_pct": 10.699,
+                "fair_p_side": 0.4855,
+                "consensus_p_over": 0.5145,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.5934,
+                "best_book": "betonlineag",
+                "best_odds": 128
+              }
+            }
+          }
+        },
+        {
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Makayla Timpson:reb:5.5:under:fanduel",
+          "player_name": "Makayla Timpson",
+          "team_name": "",
+          "position": "fanduel +118 \u00b7 EV +5.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.5145,
+                "edge_vs_market": -0.058439,
+                "kelly_fraction": 0.0124
+              },
+              "soft_book": {
+                "book": "fanduel",
+                "side": "under",
+                "offered_odds": 118,
+                "ev_pct": 5.844,
+                "fair_p_side": 0.4855,
+                "consensus_p_over": 0.5145,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5934,
+                "best_book": "betonlineag",
+                "best_odds": 128
+              }
+            }
+          }
+        },
+        {
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Lexie Hull:pts:4.5:over:hardrockbet",
+          "player_name": "Lexie Hull",
+          "team_name": "",
+          "position": "hardrockbet +100 \u00b7 EV +5.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.5262,
+                "edge_vs_market": 0.05231,
+                "kelly_fraction": 0.0131
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 100,
+                "ev_pct": 5.231,
+                "fair_p_side": 0.5262,
+                "consensus_p_over": 0.5262,
                 "consensus_n_books": 4,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": -110
+                "sharp_consensus_p_over": 0.5241,
+                "best_book": "hardrockbet",
+                "best_odds": 100
               }
             }
           }
@@ -128,7 +245,7 @@
                 "consensus_p_over": 0.5,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5087,
+                "sharp_consensus_p_over": 0.5,
                 "best_book": "betparx",
                 "best_odds": 110
               }
@@ -136,10 +253,10 @@
           }
         },
         {
-          "player_id": "39bf012a0015d3c6753cc0b21100866e:Alanna Smith:ast:2.5:under:fliff",
-          "player_name": "Alanna Smith",
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Makayla Timpson:reb:5.5:over:hardrockbet",
+          "player_name": "Makayla Timpson",
           "team_name": "",
-          "position": "fliff +125 \u00b7 EV +4.8%",
+          "position": "hardrockbet -125 \u00b7 EV +3.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -147,38 +264,77 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
+            "rebounds": {
+              "mean": 5.5,
+              "median": 5.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5341,
-                "edge_vs_market": -0.048213,
-                "kelly_fraction": 0.0096
+                "market_line": 5.5,
+                "p_over": 0.5768,
+                "edge_vs_market": 0.038319,
+                "kelly_fraction": 0.012
               },
               "soft_book": {
-                "book": "fliff",
-                "side": "under",
-                "offered_odds": 125,
-                "ev_pct": 4.821,
-                "fair_p_side": 0.4659,
-                "consensus_p_over": 0.5341,
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": -125,
+                "ev_pct": 3.832,
+                "fair_p_side": 0.5768,
+                "consensus_p_over": 0.5768,
                 "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5561,
-                "best_book": "fliff",
-                "best_odds": 125
+                "sharp_consensus_p_over": 0.5934,
+                "best_book": "hardrockbet",
+                "best_odds": -125
               }
             }
           }
         },
         {
-          "player_id": "39bf012a0015d3c6753cc0b21100866e:Kelsey Mitchell:pts:25.5:under:betparx",
-          "player_name": "Kelsey Mitchell",
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Makayla Timpson:reb:5.5:over:betparx",
+          "player_name": "Makayla Timpson",
           "team_name": "",
-          "position": "betparx +102 \u00b7 EV +4.3%",
+          "position": "betparx -127 \u00b7 EV +3.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 5.5,
+              "median": 5.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 5.5,
+                "p_over": 0.5768,
+                "edge_vs_market": 0.031051,
+                "kelly_fraction": 0.0099
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -127,
+                "ev_pct": 3.105,
+                "fair_p_side": 0.5768,
+                "consensus_p_over": 0.5768,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5934,
+                "best_book": "hardrockbet",
+                "best_odds": -125
+              }
+            }
+          }
+        },
+        {
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Lexie Hull:pts:4.5:over:betparx",
+          "player_name": "Lexie Hull",
+          "team_name": "",
+          "position": "betparx -105 \u00b7 EV +2.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -187,28 +343,67 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 25.5,
-              "median": 25.5,
+              "mean": 4.5,
+              "median": 4.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 25.5,
-                "p_over": 0.4838,
-                "edge_vs_market": -0.042662,
-                "kelly_fraction": 0.0105
+                "market_line": 4.5,
+                "p_over": 0.5262,
+                "edge_vs_market": 0.027255,
+                "kelly_fraction": 0.0072
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -105,
+                "ev_pct": 2.725,
+                "fair_p_side": 0.5262,
+                "consensus_p_over": 0.5262,
+                "consensus_n_books": 4,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5241,
+                "best_book": "hardrockbet",
+                "best_odds": 100
+              }
+            }
+          }
+        },
+        {
+          "player_id": "39bf012a0015d3c6753cc0b21100866e:Paige Bueckers:pts:21.5:under:betparx",
+          "player_name": "Paige Bueckers",
+          "team_name": "",
+          "position": "betparx -103 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 21.5,
+              "median": 21.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 21.5,
+                "p_over": 0.4793,
+                "edge_vs_market": -0.026242,
+                "kelly_fraction": 0.0068
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": 102,
-                "ev_pct": 4.266,
-                "fair_p_side": 0.5162,
-                "consensus_p_over": 0.4838,
-                "consensus_n_books": 3,
+                "offered_odds": -103,
+                "ev_pct": 2.624,
+                "fair_p_side": 0.5207,
+                "consensus_p_over": 0.4793,
+                "consensus_n_books": 5,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
+                "sharp_consensus_p_over": 0.4674,
                 "best_book": "betparx",
-                "best_odds": 102
+                "best_odds": -103
               }
             }
           }
@@ -229,10 +424,88 @@
       },
       "players": [
         {
-          "player_id": "6b4f25c1f4c4acebd21a5e1e465343c9:Dominique Malonga:pts:20.5:over:espnbet",
+          "player_id": "6b4f25c1f4c4acebd21a5e1e465343c9:Ezi Magbegor:fg3m:0.5:under:betparx",
+          "player_name": "Ezi Magbegor",
+          "team_name": "",
+          "position": "betparx +115 \u00b7 EV +7.3%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 0.5,
+              "median": 0.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 0.5,
+                "p_over": 0.5011,
+                "edge_vs_market": -0.072707,
+                "kelly_fraction": 0.0158
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 115,
+                "ev_pct": 7.271,
+                "fair_p_side": 0.4989,
+                "consensus_p_over": 0.5011,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
+          "player_id": "6b4f25c1f4c4acebd21a5e1e465343c9:Bridget Carleton:ast:2.5:over:fanduel",
+          "player_name": "Bridget Carleton",
+          "team_name": "",
+          "position": "fanduel +122 \u00b7 EV +3.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4671,
+                "edge_vs_market": 0.03689,
+                "kelly_fraction": 0.0076
+              },
+              "soft_book": {
+                "book": "fanduel",
+                "side": "over",
+                "offered_odds": 122,
+                "ev_pct": 3.689,
+                "fair_p_side": 0.4671,
+                "consensus_p_over": 0.4671,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4609,
+                "best_book": "fanduel",
+                "best_odds": 122
+              }
+            }
+          }
+        },
+        {
+          "player_id": "6b4f25c1f4c4acebd21a5e1e465343c9:Dominique Malonga:pts:19.5:under:betparx",
           "player_name": "Dominique Malonga",
           "team_name": "",
-          "position": "espnbet +105 \u00b7 EV +3.6%",
+          "position": "betparx +118 \u00b7 EV +3.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -241,28 +514,28 @@
           "dnp_risk": 0,
           "stat_projections": {
             "points": {
-              "mean": 20.5,
-              "median": 20.5,
+              "mean": 19.5,
+              "median": 19.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 20.5,
-                "p_over": 0.5053,
-                "edge_vs_market": 0.035835,
-                "kelly_fraction": 0.0085
+                "market_line": 19.5,
+                "p_over": 0.5258,
+                "edge_vs_market": -0.033756,
+                "kelly_fraction": 0.0072
               },
               "soft_book": {
-                "book": "espnbet",
-                "side": "over",
-                "offered_odds": 105,
-                "ev_pct": 3.583,
-                "fair_p_side": 0.5053,
-                "consensus_p_over": 0.5053,
-                "consensus_n_books": 3,
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 118,
+                "ev_pct": 3.376,
+                "fair_p_side": 0.4742,
+                "consensus_p_over": 0.5258,
+                "consensus_n_books": 5,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "espnbet",
-                "best_odds": 105
+                "sharp_consensus_p_over": 0.5131,
+                "best_book": "betparx",
+                "best_odds": 118
               }
             }
           }
