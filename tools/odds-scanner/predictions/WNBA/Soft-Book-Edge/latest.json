@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-14T18:51:31.461744+00:00",
+  "generated_at": "2026-08-14T19:47:29.468398+00:00",
   "game_date": "2026-08-14",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-14",
-    "generated_utc": "2026-08-14T18:51:31.461744+00:00",
+    "generated_utc": "2026-08-14T19:47:29.468398+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -32,8 +32,8 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1081,
-    "n_scored_rows": 936,
+    "n_quote_rows": 1085,
+    "n_scored_rows": 932,
     "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 9,
@@ -61,7 +61,7 @@
           "player_id": "39bf012a0015d3c6753cc0b21100866e:Makayla Timpson:reb:6.5:under:draftkings",
           "player_name": "Makayla Timpson",
           "team_name": "",
-          "position": "draftkings -118 \u00b7 EV +3.9%",
+          "position": "draftkings -118 \u00b7 EV +4.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -76,17 +76,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 6.5,
-                "p_over": 0.4377,
-                "edge_vs_market": -0.0389,
-                "kelly_fraction": 0.0115
+                "p_over": 0.4359,
+                "edge_vs_market": -0.042186,
+                "kelly_fraction": 0.0124
               },
               "soft_book": {
                 "book": "draftkings",
                 "side": "under",
                 "offered_odds": -118,
-                "ev_pct": 3.89,
-                "fair_p_side": 0.5623,
-                "consensus_p_over": 0.4377,
+                "ev_pct": 4.219,
+                "fair_p_side": 0.5641,
+                "consensus_p_over": 0.4359,
                 "consensus_n_books": 4,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": null,
