@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-15T20:20:39.015070+00:00",
+  "generated_at": "2026-08-15T21:19:24.699843+00:00",
   "game_date": "2026-08-15",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-15",
-    "generated_utc": "2026-08-15T20:20:39.015070+00:00",
+    "generated_utc": "2026-08-15T21:19:24.699843+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -32,8 +32,8 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1134,
-    "n_scored_rows": 960,
+    "n_quote_rows": 1132,
+    "n_scored_rows": 958,
     "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 9,
@@ -57,6 +57,45 @@
         "abbreviation": "Los Angeles Sparks"
       },
       "players": [
+        {
+          "player_id": "715e100a948c5cb2e5bb0c5f73ae4d19:Sonia Citron:fg3m:1.5:over:betonlineag",
+          "player_name": "Sonia Citron",
+          "team_name": "",
+          "position": "betonlineag +124 \u00b7 EV +3.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.4606,
+                "edge_vs_market": 0.03184,
+                "kelly_fraction": 0.0064
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 124,
+                "ev_pct": 3.184,
+                "fair_p_side": 0.4606,
+                "consensus_p_over": 0.4606,
+                "consensus_n_books": 6,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4148,
+                "best_book": "betonlineag",
+                "best_odds": 124
+              }
+            }
+          }
+        },
         {
           "player_id": "715e100a948c5cb2e5bb0c5f73ae4d19:Michaela Onyenwere:reb:2.5:under:betonlineag",
           "player_name": "Michaela Onyenwere",
@@ -92,45 +131,6 @@
                 "sharp_consensus_p_over": 0.5628,
                 "best_book": "betonlineag",
                 "best_odds": 113
-              }
-            }
-          }
-        },
-        {
-          "player_id": "715e100a948c5cb2e5bb0c5f73ae4d19:Ariel Atkins:ast:2.5:over:betparx",
-          "player_name": "Ariel Atkins",
-          "team_name": "",
-          "position": "betparx -137 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5943,
-                "edge_vs_market": 0.028054,
-                "kelly_fraction": 0.0096
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -137,
-                "ev_pct": 2.805,
-                "fair_p_side": 0.5943,
-                "consensus_p_over": 0.5943,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5894,
-                "best_book": "betparx",
-                "best_odds": -137
               }
             }
           }
