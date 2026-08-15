@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-15T01:36:58.248529+00:00",
+  "generated_at": "2026-08-15T02:57:13.059020+00:00",
   "game_date": "2026-08-15",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,11 +16,11 @@
   },
   "summary": {
     "date": "2026-08-15",
-    "generated_utc": "2026-08-15T01:36:58.248529+00:00",
+    "generated_utc": "2026-08-15T02:57:13.059020+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
-    "n_books_seen": 8,
+    "n_books_seen": 9,
     "books_seen": [
       "betonlineag",
       "betparx",
@@ -29,16 +29,17 @@
       "espnbet",
       "fanduel",
       "fliff",
-      "hardrockbet"
+      "hardrockbet",
+      "williamhill_us"
     ],
-    "n_quote_rows": 889,
-    "n_scored_rows": 828,
+    "n_quote_rows": 1035,
+    "n_scored_rows": 976,
     "n_qualifying": 1,
     "n_books_per_stat": {
-      "ast": 8,
-      "fg3m": 8,
-      "pts": 8,
-      "reb": 8
+      "ast": 9,
+      "fg3m": 9,
+      "pts": 9,
+      "reb": 9
     },
     "status": "ok"
   },
@@ -60,7 +61,7 @@
           "player_id": "23fa20addebd0a27549bb5d96bf060d7:Jonquel Jones:pts:14.5:over:betparx",
           "player_name": "Jonquel Jones",
           "team_name": "",
-          "position": "betparx +112 \u00b7 EV +3.8%",
+          "position": "betparx +112 \u00b7 EV +3.5%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -75,20 +76,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 14.5,
-                "p_over": 0.4897,
-                "edge_vs_market": 0.038088,
-                "kelly_fraction": 0.0085
+                "p_over": 0.4883,
+                "edge_vs_market": 0.035145,
+                "kelly_fraction": 0.0078
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "over",
                 "offered_odds": 112,
-                "ev_pct": 3.809,
-                "fair_p_side": 0.4897,
-                "consensus_p_over": 0.4897,
-                "consensus_n_books": 5,
+                "ev_pct": 3.514,
+                "fair_p_side": 0.4883,
+                "consensus_p_over": 0.4883,
+                "consensus_n_books": 6,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4945,
+                "sharp_consensus_p_over": 0.4869,
                 "best_book": "betparx",
                 "best_odds": 112
               }
