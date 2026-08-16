@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-16T21:06:15.472899+00:00",
+  "generated_at": "2026-08-16T22:05:44.966963+00:00",
   "game_date": "2026-08-16",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-16",
-    "generated_utc": "2026-08-16T21:06:15.472899+00:00",
+    "generated_utc": "2026-08-16T22:05:44.966963+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1724,
+    "n_quote_rows": 772,
     "n_scored_rows": 512,
-    "n_qualifying": 1,
+    "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -43,60 +43,5 @@
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "7f616c3e2ee934da2bb1cafe7c814f6c",
-      "odds_api_event_id": "7f616c3e2ee934da2bb1cafe7c814f6c",
-      "commence_time": "2026-08-16T23:00:00Z",
-      "home_team": {
-        "name": "Phoenix Mercury",
-        "abbreviation": "Phoenix Mercury"
-      },
-      "away_team": {
-        "name": "Portland Fire",
-        "abbreviation": "Portland Fire"
-      },
-      "players": [
-        {
-          "player_id": "7f616c3e2ee934da2bb1cafe7c814f6c:Valeriane Ayayi:pts:6.5:over:hardrockbet",
-          "player_name": "Valeriane Ayayi",
-          "team_name": "",
-          "position": "hardrockbet -105 \u00b7 EV +4.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.5348,
-                "edge_vs_market": 0.044053,
-                "kelly_fraction": 0.0116
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -105,
-                "ev_pct": 4.405,
-                "fair_p_side": 0.5348,
-                "consensus_p_over": 0.5348,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "hardrockbet",
-                "best_odds": -105
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
