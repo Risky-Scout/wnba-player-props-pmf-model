@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-16T22:05:44.966963+00:00",
+  "generated_at": "2026-08-16T23:06:13.376040+00:00",
   "game_date": "2026-08-16",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-16",
-    "generated_utc": "2026-08-16T22:05:44.966963+00:00",
+    "generated_utc": "2026-08-16T23:06:13.376040+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 772,
-    "n_scored_rows": 512,
-    "n_qualifying": 0,
+    "n_quote_rows": 644,
+    "n_scored_rows": 526,
+    "n_qualifying": 3,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -43,5 +43,138 @@
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "7f616c3e2ee934da2bb1cafe7c814f6c",
+      "odds_api_event_id": "7f616c3e2ee934da2bb1cafe7c814f6c",
+      "commence_time": "2026-08-16T23:07:00Z",
+      "home_team": {
+        "name": "Phoenix Mercury",
+        "abbreviation": "Phoenix Mercury"
+      },
+      "away_team": {
+        "name": "Portland Fire",
+        "abbreviation": "Portland Fire"
+      },
+      "players": [
+        {
+          "player_id": "7f616c3e2ee934da2bb1cafe7c814f6c:Noemie Brochant:pts:8.5:over:hardrockbet",
+          "player_name": "Noemie Brochant",
+          "team_name": "",
+          "position": "hardrockbet +115 \u00b7 EV +5.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 8.5,
+              "median": 8.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 8.5,
+                "p_over": 0.4891,
+                "edge_vs_market": 0.051514,
+                "kelly_fraction": 0.0112
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 115,
+                "ev_pct": 5.151,
+                "fair_p_side": 0.4891,
+                "consensus_p_over": 0.4891,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4891,
+                "best_book": "hardrockbet",
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
+          "player_id": "7f616c3e2ee934da2bb1cafe7c814f6c:Noemie Brochant:pts:8.5:over:betparx",
+          "player_name": "Noemie Brochant",
+          "team_name": "",
+          "position": "betparx +114 \u00b7 EV +4.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 8.5,
+              "median": 8.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 8.5,
+                "p_over": 0.4891,
+                "edge_vs_market": 0.046623,
+                "kelly_fraction": 0.0102
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 114,
+                "ev_pct": 4.662,
+                "fair_p_side": 0.4891,
+                "consensus_p_over": 0.4891,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4891,
+                "best_book": "hardrockbet",
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
+          "player_id": "7f616c3e2ee934da2bb1cafe7c814f6c:Valeriane Ayayi:pts:6.5:over:betparx",
+          "player_name": "Valeriane Ayayi",
+          "team_name": "",
+          "position": "betparx +100 \u00b7 EV +4.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 6.5,
+              "median": 6.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 6.5,
+                "p_over": 0.5207,
+                "edge_vs_market": 0.041408,
+                "kelly_fraction": 0.0104
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 100,
+                "ev_pct": 4.141,
+                "fair_p_side": 0.5207,
+                "consensus_p_over": 0.5207,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": 100
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
