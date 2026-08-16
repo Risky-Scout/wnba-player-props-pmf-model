@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-16T01:42:57.062733+00:00",
+  "generated_at": "2026-08-16T03:06:16.987981+00:00",
   "game_date": "2026-08-16",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-16",
-    "generated_utc": "2026-08-16T01:42:57.062733+00:00",
+    "generated_utc": "2026-08-16T03:06:16.987981+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -29,9 +29,9 @@
       "fliff",
       "williamhill_us"
     ],
-    "n_quote_rows": 1062,
-    "n_scored_rows": 1008,
-    "n_qualifying": 1,
+    "n_quote_rows": 1086,
+    "n_scored_rows": 1016,
+    "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 6,
       "fg3m": 6,
@@ -40,60 +40,5 @@
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "7748b7323012e52de45a2c18b561c590",
-      "odds_api_event_id": "7748b7323012e52de45a2c18b561c590",
-      "commence_time": "2026-08-16T21:00:00Z",
-      "home_team": {
-        "name": "Seattle Storm",
-        "abbreviation": "Seattle Storm"
-      },
-      "away_team": {
-        "name": "Chicago Sky",
-        "abbreviation": "Chicago Sky"
-      },
-      "players": [
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Courtney Vandersloot:reb:2.5:under:betonlineag",
-          "player_name": "Courtney Vandersloot",
-          "team_name": "",
-          "position": "betonlineag +110 \u00b7 EV +7.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4897,
-                "edge_vs_market": -0.071705,
-                "kelly_fraction": 0.0163
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "under",
-                "offered_odds": 110,
-                "ev_pct": 7.17,
-                "fair_p_side": 0.5103,
-                "consensus_p_over": 0.4897,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5561,
-                "best_book": "betonlineag",
-                "best_odds": 110
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
