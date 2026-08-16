@@ -1,0 +1,231 @@
+{
+  "source_file": "frozen_extracted/stage_core/wnba_player_props_oddsapi_2026-08-01.parquet",
+  "n_rows": 146,
+  "columns": [
+    "event_id",
+    "game_date",
+    "bookmaker",
+    "market_key",
+    "player_name",
+    "line",
+    "stat",
+    "over_odds",
+    "outcome_link_over",
+    "event_link",
+    "market_link",
+    "home_team",
+    "away_team",
+    "commence_time",
+    "last_update",
+    "under_odds",
+    "outcome_link_under",
+    "market_prob_over_no_vig",
+    "market_prob_under_no_vig",
+    "shin_z",
+    "deep_link",
+    "pulled_at_utc",
+    "source",
+    "number_of_books_offering",
+    "best_over_odds",
+    "best_under_odds",
+    "vendor"
+  ],
+  "dtypes": {
+    "event_id": "str",
+    "game_date": "str",
+    "bookmaker": "str",
+    "market_key": "str",
+    "player_name": "str",
+    "line": "float64",
+    "stat": "str",
+    "over_odds": "int64",
+    "outcome_link_over": "str",
+    "event_link": "str",
+    "market_link": "object",
+    "home_team": "str",
+    "away_team": "str",
+    "commence_time": "str",
+    "last_update": "str",
+    "under_odds": "float64",
+    "outcome_link_under": "str",
+    "market_prob_over_no_vig": "float64",
+    "market_prob_under_no_vig": "float64",
+    "shin_z": "float64",
+    "deep_link": "str",
+    "pulled_at_utc": "str",
+    "source": "str",
+    "number_of_books_offering": "int64",
+    "best_over_odds": "int64",
+    "best_under_odds": "float64",
+    "vendor": "str"
+  },
+  "null_counts": {
+    "event_id": 0,
+    "game_date": 0,
+    "bookmaker": 0,
+    "market_key": 0,
+    "player_name": 0,
+    "line": 0,
+    "stat": 0,
+    "over_odds": 0,
+    "outcome_link_over": 53,
+    "event_link": 0,
+    "market_link": 146,
+    "home_team": 0,
+    "away_team": 0,
+    "commence_time": 0,
+    "last_update": 0,
+    "under_odds": 0,
+    "outcome_link_under": 53,
+    "market_prob_over_no_vig": 0,
+    "market_prob_under_no_vig": 0,
+    "shin_z": 0,
+    "deep_link": 0,
+    "pulled_at_utc": 0,
+    "source": 0,
+    "number_of_books_offering": 0,
+    "best_over_odds": 0,
+    "best_under_odds": 0,
+    "vendor": 0
+  },
+  "sample_values": [
+    {
+      "event_id": "d113b66ed1649d47506a6434e06bd1b6",
+      "game_date": "2026-08-01",
+      "bookmaker": "fanduel",
+      "market_key": "player_threes",
+      "player_name": "Natasha Cloud",
+      "line": 1.5,
+      "stat": "fg3m",
+      "over_odds": 178,
+      "outcome_link_over": "https://sportsbook.fanduel.com/addToBetslip?marketId=42.596120652&selectionId=69203664",
+      "event_link": "https://sportsbook.fanduel.com/basketball/wnba/las-vegas-aces-%40-chicago-sky-35882818",
+      "market_link": null,
+      "home_team": "Chicago Sky",
+      "away_team": "Las Vegas Aces",
+      "commence_time": "2026-08-01T17:00:00Z",
+      "last_update": "2026-08-01T16:26:04Z",
+      "under_odds": -245.0,
+      "outcome_link_under": "https://sportsbook.fanduel.com/addToBetslip?marketId=42.596120652&selectionId=69203668",
+      "market_prob_over_no_vig": 0.3247836513,
+      "market_prob_under_no_vig": 0.6752163487,
+      "shin_z": 0.0704957272,
+      "deep_link": "https://sportsbook.fanduel.com/addToBetslip?marketId=42.596120652&selectionId=69203664",
+      "pulled_at_utc": "2026-08-01T16:26:58.414256+00:00",
+      "source": "odds_api_v4",
+      "number_of_books_offering": 3,
+      "best_over_odds": 178,
+      "best_under_odds": -222.0,
+      "vendor": "fanduel"
+    },
+    {
+      "event_id": "e9d3ed7c6df9b35e3b167038806ecd53",
+      "game_date": "2026-08-01",
+      "bookmaker": "betonlineag",
+      "market_key": "player_rebounds",
+      "player_name": "Monique Akoa Makani",
+      "line": 2.5,
+      "stat": "reb",
+      "over_odds": 171,
+      "outcome_link_over": null,
+      "event_link": "https://sports.betonline.ag/sportsbook/basketball/wnba/game/491092523",
+      "market_link": null,
+      "home_team": "Phoenix Mercury",
+      "away_team": "New York Liberty",
+      "commence_time": "2026-08-01T19:00:00Z",
+      "last_update": "2026-08-01T16:26:51Z",
+      "under_odds": -227.0,
+      "outcome_link_under": null,
+      "market_prob_over_no_vig": 0.3374070438,
+      "market_prob_under_no_vig": 0.6625929562,
+      "shin_z": 0.0636374451,
+      "deep_link": "https://sports.betonline.ag/sportsbook/basketball/wnba/game/491092523",
+      "pulled_at_utc": "2026-08-01T16:26:58.414256+00:00",
+      "source": "odds_api_v4",
+      "number_of_books_offering": 1,
+      "best_over_odds": 171,
+      "best_under_odds": -227.0,
+      "vendor": "betonlineag"
+    }
+  ],
+  "canonical_field_mapping": {
+    "provider": {
+      "frozen": "source",
+      "notes": "constant odds_api_v4"
+    },
+    "odds_api_event_id": {
+      "frozen": "event_id"
+    },
+    "canonical_game_id": {
+      "frozen": null,
+      "derived": "exact event_id join to GAME_AUDIT.bdl_game_id (frozen)"
+    },
+    "bookmaker": {
+      "frozen": "bookmaker",
+      "alias": "vendor"
+    },
+    "market_key": {
+      "frozen": "market_key"
+    },
+    "player_description": {
+      "frozen": "player_name"
+    },
+    "canonical_player_id": {
+      "frozen": null,
+      "derived": "exact player_name equality join to frozen slate (no fuzzy)"
+    },
+    "line": {
+      "frozen": "line"
+    },
+    "side": {
+      "frozen": null,
+      "derived": "expand over_odds/under_odds wide row into over|under atomic sides"
+    },
+    "price": {
+      "frozen": [
+        "over_odds",
+        "under_odds"
+      ]
+    },
+    "provider_quote_timestamp": {
+      "frozen": "last_update"
+    },
+    "market_last_update": {
+      "frozen": "last_update"
+    },
+    "ingestion_timestamp": {
+      "frozen": "pulled_at_utc"
+    },
+    "scheduled_tip": {
+      "frozen": "commence_time"
+    },
+    "prediction_cutoff": {
+      "frozen": null,
+      "derived": "run_metadata.prediction_timestamp_utc (frozen)"
+    },
+    "stat": {
+      "frozen": "stat"
+    },
+    "period": {
+      "frozen": null,
+      "derived": "q1 if market_key endswith _q1 else game"
+    }
+  },
+  "why_original_quote_valid_was_zero": "run_pregame_verification_package.py required player_id + over_odds + under_odds (or long side format). Frozen parquet is wide over/under with player_name but NO player_id/game_id columns, so the schema branch was not recognized and quote_pairs_valid stayed 0 without inspecting row contents.",
+  "adapter_allowed_operations": [
+    "rename columns",
+    "cast dtypes",
+    "expand wide over/under into atomic side rows",
+    "exact event_id -> game_id join from frozen GAME_AUDIT",
+    "exact player_name -> player_id join from frozen slate"
+  ],
+  "adapter_forbidden_operations": [
+    "Odds API recall",
+    "timestamp replacement",
+    "price changes",
+    "invented player IDs",
+    "global fuzzy name match",
+    "forecast alteration",
+    "post-prediction quotes"
+  ]
+}

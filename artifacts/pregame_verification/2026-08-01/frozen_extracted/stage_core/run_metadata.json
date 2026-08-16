@@ -1,0 +1,13 @@
+{
+  "github_run_id": "30708012898",
+  "git_commit": "2caef26fa235a9f2cdccc900bd44f42974915e4d",
+  "prediction_timestamp": "20260801T162447Z",
+  "prediction_timestamp_utc": "2026-08-01T16:27:11.435636+00:00",
+  "game_date": "2026-08-01",
+  "stage_dir": "deliveries/pregame_verification/2026-08-01/20260801T162447Z",
+  "source_model_run_id": "30704998747",
+  "source_calibrators_run_id": "29741061620",
+  "dry_run": true,
+  "publish": false,
+  "injury_snapshot_timestamp": "2026-08-01T16:26:59.394591+00:00"
+}
