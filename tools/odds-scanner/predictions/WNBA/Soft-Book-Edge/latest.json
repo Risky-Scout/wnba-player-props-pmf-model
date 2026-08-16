@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-16T18:25:44.766574+00:00",
+  "generated_at": "2026-08-16T19:08:03.114743+00:00",
   "game_date": "2026-08-16",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-16",
-    "generated_utc": "2026-08-16T18:25:44.766574+00:00",
+    "generated_utc": "2026-08-16T19:08:03.114743+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1822,
-    "n_scored_rows": 1544,
-    "n_qualifying": 10,
+    "n_quote_rows": 1808,
+    "n_scored_rows": 1536,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -58,10 +58,10 @@
       },
       "players": [
         {
-          "player_id": "7f616c3e2ee934da2bb1cafe7c814f6c:Natasha Mack:pts:6.5:under:betonlineag",
-          "player_name": "Natasha Mack",
+          "player_id": "7f616c3e2ee934da2bb1cafe7c814f6c:Valeriane Ayayi:pts:6.5:over:hardrockbet",
+          "player_name": "Valeriane Ayayi",
           "team_name": "",
-          "position": "betonlineag -108 \u00b7 EV +4.7%",
+          "position": "hardrockbet -105 \u00b7 EV +4.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -76,154 +76,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 6.5,
-                "p_over": 0.4561,
-                "edge_vs_market": -0.047484,
-                "kelly_fraction": 0.0128
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "under",
-                "offered_odds": -108,
-                "ev_pct": 4.748,
-                "fair_p_side": 0.5439,
-                "consensus_p_over": 0.4561,
-                "consensus_n_books": 4,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5131,
-                "best_book": "betonlineag",
-                "best_odds": -108
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "873224496c331ddad2dc0cb9daf17ffb",
-      "odds_api_event_id": "873224496c331ddad2dc0cb9daf17ffb",
-      "commence_time": "2026-08-16T21:00:00Z",
-      "home_team": {
-        "name": "Atlanta Dream",
-        "abbreviation": "Atlanta Dream"
-      },
-      "away_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
-      },
-      "players": [
-        {
-          "player_id": "873224496c331ddad2dc0cb9daf17ffb:Caitlin Clark:ast:9.5:under:hardrockbet",
-          "player_name": "Caitlin Clark",
-          "team_name": "",
-          "position": "hardrockbet -115 \u00b7 EV +4.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.4439,
-                "edge_vs_market": -0.039661,
-                "kelly_fraction": 0.0114
+                "p_over": 0.5348,
+                "edge_vs_market": 0.044053,
+                "kelly_fraction": 0.0116
               },
               "soft_book": {
                 "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -115,
-                "ev_pct": 3.966,
-                "fair_p_side": 0.5561,
-                "consensus_p_over": 0.4439,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4609,
-                "best_book": "hardrockbet",
-                "best_odds": -115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "873224496c331ddad2dc0cb9daf17ffb:Angel Reese:reb:12.5:over:betonlineag",
-          "player_name": "Angel Reese",
-          "team_name": "",
-          "position": "betonlineag +118 \u00b7 EV +3.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 12.5,
-              "median": 12.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 12.5,
-                "p_over": 0.4766,
-                "edge_vs_market": 0.038944,
-                "kelly_fraction": 0.0083
-              },
-              "soft_book": {
-                "book": "betonlineag",
                 "side": "over",
-                "offered_odds": 118,
-                "ev_pct": 3.894,
-                "fair_p_side": 0.4766,
-                "consensus_p_over": 0.4766,
-                "consensus_n_books": 7,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4262,
-                "best_book": "betonlineag",
-                "best_odds": 118
-              }
-            }
-          }
-        },
-        {
-          "player_id": "873224496c331ddad2dc0cb9daf17ffb:Caitlin Clark:ast:9.5:under:betparx",
-          "player_name": "Caitlin Clark",
-          "team_name": "",
-          "position": "betparx -117 \u00b7 EV +3.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.4439,
-                "edge_vs_market": -0.031395,
-                "kelly_fraction": 0.0092
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -117,
-                "ev_pct": 3.139,
-                "fair_p_side": 0.5561,
-                "consensus_p_over": 0.4439,
-                "consensus_n_books": 7,
+                "offered_odds": -105,
+                "ev_pct": 4.405,
+                "fair_p_side": 0.5348,
+                "consensus_p_over": 0.5348,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4609,
+                "sharp_consensus_p_over": null,
                 "best_book": "hardrockbet",
-                "best_odds": -115
+                "best_odds": -105
               }
             }
           }
@@ -244,10 +112,10 @@
       },
       "players": [
         {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Courtney Vandersloot:reb:2.5:over:hardrockbet",
-          "player_name": "Courtney Vandersloot",
+          "player_id": "7748b7323012e52de45a2c18b561c590:Jordan Horston:reb:4.5:over:hardrockbet",
+          "player_name": "Jordan Horston",
           "team_name": "",
-          "position": "hardrockbet -110 \u00b7 EV +3.6%",
+          "position": "hardrockbet -110 \u00b7 EV +4.1%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -256,223 +124,121 @@
           "dnp_risk": 0,
           "stat_projections": {
             "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5428,
-                "edge_vs_market": 0.036212,
-                "kelly_fraction": 0.01
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -110,
-                "ev_pct": 3.621,
-                "fair_p_side": 0.5428,
-                "consensus_p_over": 0.5428,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5295,
-                "best_book": "hardrockbet",
-                "best_odds": -110
-              }
-            }
-          }
-        },
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Courtney Vandersloot:reb:2.5:over:betparx",
-          "player_name": "Courtney Vandersloot",
-          "team_name": "",
-          "position": "betparx -110 \u00b7 EV +3.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5428,
-                "edge_vs_market": 0.036212,
-                "kelly_fraction": 0.01
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -110,
-                "ev_pct": 3.621,
-                "fair_p_side": 0.5428,
-                "consensus_p_over": 0.5428,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5295,
-                "best_book": "hardrockbet",
-                "best_odds": -110
-              }
-            }
-          }
-        },
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Courtney Vandersloot:ast:4.5:over:hardrockbet",
-          "player_name": "Courtney Vandersloot",
-          "team_name": "",
-          "position": "hardrockbet -125 \u00b7 EV +3.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
               "mean": 4.5,
               "median": 4.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.574,
-                "edge_vs_market": 0.03313,
-                "kelly_fraction": 0.0104
+                "p_over": 0.5454,
+                "edge_vs_market": 0.041144,
+                "kelly_fraction": 0.0113
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": -125,
-                "ev_pct": 3.313,
-                "fair_p_side": 0.574,
-                "consensus_p_over": 0.574,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5842,
-                "best_book": "hardrockbet",
-                "best_odds": -125
-              }
-            }
-          }
-        },
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Courtney Vandersloot:ast:4.5:over:betparx",
-          "player_name": "Courtney Vandersloot",
-          "team_name": "",
-          "position": "betparx -125 \u00b7 EV +3.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.574,
-                "edge_vs_market": 0.03313,
-                "kelly_fraction": 0.0104
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -125,
-                "ev_pct": 3.313,
-                "fair_p_side": 0.574,
-                "consensus_p_over": 0.574,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5842,
-                "best_book": "hardrockbet",
-                "best_odds": -125
-              }
-            }
-          }
-        },
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Courtney Vandersloot:reb:2.5:under:draftkings",
-          "player_name": "Courtney Vandersloot",
-          "team_name": "",
-          "position": "draftkings +108 \u00b7 EV +3.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5044,
-                "edge_vs_market": -0.030896,
-                "kelly_fraction": 0.0072
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 108,
-                "ev_pct": 3.09,
-                "fair_p_side": 0.4956,
-                "consensus_p_over": 0.5044,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5295,
-                "best_book": "draftkings",
-                "best_odds": 108
-              }
-            }
-          }
-        },
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Jade Melbourne:pts:10.5:over:hardrockbet",
-          "player_name": "Jade Melbourne",
-          "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 10.5,
-              "median": 10.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 10.5,
-                "p_over": 0.4897,
-                "edge_vs_market": 0.028295,
-                "kelly_fraction": 0.0064
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 2.829,
-                "fair_p_side": 0.4897,
-                "consensus_p_over": 0.4897,
+                "offered_odds": -110,
+                "ev_pct": 4.114,
+                "fair_p_side": 0.5454,
+                "consensus_p_over": 0.5454,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4825,
+                "sharp_consensus_p_over": 0.5533,
                 "best_book": "hardrockbet",
-                "best_odds": 110
+                "best_odds": -110
+              }
+            }
+          }
+        },
+        {
+          "player_id": "7748b7323012e52de45a2c18b561c590:Jordan Horston:reb:4.5:over:betparx",
+          "player_name": "Jordan Horston",
+          "team_name": "",
+          "position": "betparx -110 \u00b7 EV +4.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.5454,
+                "edge_vs_market": 0.041144,
+                "kelly_fraction": 0.0113
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": -110,
+                "ev_pct": 4.114,
+                "fair_p_side": 0.5454,
+                "consensus_p_over": 0.5454,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5533,
+                "best_book": "hardrockbet",
+                "best_odds": -110
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "873224496c331ddad2dc0cb9daf17ffb",
+      "odds_api_event_id": "873224496c331ddad2dc0cb9daf17ffb",
+      "commence_time": "2026-08-16T21:00:00Z",
+      "home_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "away_team": {
+        "name": "Indiana Fever",
+        "abbreviation": "Indiana Fever"
+      },
+      "players": [
+        {
+          "player_id": "873224496c331ddad2dc0cb9daf17ffb:Naz Hillmon:reb:4.5:over:betparx",
+          "player_name": "Naz Hillmon",
+          "team_name": "",
+          "position": "betparx +128 \u00b7 EV +3.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.4554,
+                "edge_vs_market": 0.038325,
+                "kelly_fraction": 0.0075
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 128,
+                "ev_pct": 3.833,
+                "fair_p_side": 0.4554,
+                "consensus_p_over": 0.4554,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": 128
               }
             }
           }
