@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-16T20:05:25.136481+00:00",
+  "generated_at": "2026-08-16T21:06:15.472899+00:00",
   "game_date": "2026-08-16",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-16",
-    "generated_utc": "2026-08-16T20:05:25.136481+00:00",
+    "generated_utc": "2026-08-16T21:06:15.472899+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1614,
-    "n_scored_rows": 1356,
-    "n_qualifying": 5,
+    "n_quote_rows": 1724,
+    "n_scored_rows": 512,
+    "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -92,192 +92,6 @@
                 "sharp_consensus_p_over": null,
                 "best_book": "hardrockbet",
                 "best_odds": -105
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "7748b7323012e52de45a2c18b561c590",
-      "odds_api_event_id": "7748b7323012e52de45a2c18b561c590",
-      "commence_time": "2026-08-16T21:00:00Z",
-      "home_team": {
-        "name": "Seattle Storm",
-        "abbreviation": "Seattle Storm"
-      },
-      "away_team": {
-        "name": "Chicago Sky",
-        "abbreviation": "Chicago Sky"
-      },
-      "players": [
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Jordan Horston:reb:4.5:over:betparx",
-          "player_name": "Jordan Horston",
-          "team_name": "",
-          "position": "betparx -109 \u00b7 EV +4.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.5424,
-                "edge_vs_market": 0.039998,
-                "kelly_fraction": 0.0109
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": -109,
-                "ev_pct": 4.0,
-                "fair_p_side": 0.5424,
-                "consensus_p_over": 0.5424,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5492,
-                "best_book": "betparx",
-                "best_odds": -109
-              }
-            }
-          }
-        },
-        {
-          "player_id": "7748b7323012e52de45a2c18b561c590:Jordan Horston:reb:4.5:over:hardrockbet",
-          "player_name": "Jordan Horston",
-          "team_name": "",
-          "position": "hardrockbet -110 \u00b7 EV +3.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.5424,
-                "edge_vs_market": 0.035474,
-                "kelly_fraction": 0.0098
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": -110,
-                "ev_pct": 3.547,
-                "fair_p_side": 0.5424,
-                "consensus_p_over": 0.5424,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5492,
-                "best_book": "betparx",
-                "best_odds": -109
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "873224496c331ddad2dc0cb9daf17ffb",
-      "odds_api_event_id": "873224496c331ddad2dc0cb9daf17ffb",
-      "commence_time": "2026-08-16T21:00:00Z",
-      "home_team": {
-        "name": "Atlanta Dream",
-        "abbreviation": "Atlanta Dream"
-      },
-      "away_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
-      },
-      "players": [
-        {
-          "player_id": "873224496c331ddad2dc0cb9daf17ffb:Makayla Timpson:reb:5.5:under:betonlineag",
-          "player_name": "Makayla Timpson",
-          "team_name": "",
-          "position": "betonlineag -106 \u00b7 EV +4.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 5.5,
-              "median": 5.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.465,
-                "edge_vs_market": -0.039767,
-                "kelly_fraction": 0.0105
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "under",
-                "offered_odds": -106,
-                "ev_pct": 3.977,
-                "fair_p_side": 0.535,
-                "consensus_p_over": 0.465,
-                "consensus_n_books": 4,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5175,
-                "best_book": "betonlineag",
-                "best_odds": -106
-              }
-            }
-          }
-        },
-        {
-          "player_id": "873224496c331ddad2dc0cb9daf17ffb:Makayla Timpson:reb:5.5:under:draftkings",
-          "player_name": "Makayla Timpson",
-          "team_name": "",
-          "position": "draftkings -109 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 5.5,
-              "median": 5.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 5.5,
-                "p_over": 0.465,
-                "edge_vs_market": -0.025875,
-                "kelly_fraction": 0.0071
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": -109,
-                "ev_pct": 2.587,
-                "fair_p_side": 0.535,
-                "consensus_p_over": 0.465,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5175,
-                "best_book": "betonlineag",
-                "best_odds": -106
               }
             }
           }
