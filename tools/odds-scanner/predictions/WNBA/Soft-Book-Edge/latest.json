@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-17T19:13:47.876919+00:00",
+  "generated_at": "2026-08-17T20:08:32.944064+00:00",
   "game_date": "2026-08-17",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-17",
-    "generated_utc": "2026-08-17T19:13:47.876919+00:00",
+    "generated_utc": "2026-08-17T20:08:32.944064+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 1,
@@ -32,9 +32,9 @@
       "hardrockbet",
       "williamhill_us"
     ],
-    "n_quote_rows": 629,
-    "n_scored_rows": 556,
-    "n_qualifying": 1,
+    "n_quote_rows": 625,
+    "n_scored_rows": 554,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 9,
       "fg3m": 9,
@@ -58,10 +58,10 @@
       },
       "players": [
         {
-          "player_id": "f160b99581637ed10718a0bf90a33d38:Jessica Shepard:pts:11.5:under:betonlineag",
-          "player_name": "Jessica Shepard",
+          "player_id": "f160b99581637ed10718a0bf90a33d38:Arike Ogunbowale:ast:2.5:under:betonlineag",
+          "player_name": "Arike Ogunbowale",
           "team_name": "",
-          "position": "betonlineag -103 \u00b7 EV +2.6%",
+          "position": "betonlineag +118 \u00b7 EV +5.1%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -69,29 +69,68 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "points": {
-              "mean": 11.5,
-              "median": 11.5,
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 11.5,
-                "p_over": 0.4793,
-                "edge_vs_market": -0.026242,
-                "kelly_fraction": 0.0068
+                "market_line": 2.5,
+                "p_over": 0.5177,
+                "edge_vs_market": -0.051439,
+                "kelly_fraction": 0.0109
               },
               "soft_book": {
                 "book": "betonlineag",
                 "side": "under",
-                "offered_odds": -103,
-                "ev_pct": 2.624,
-                "fair_p_side": 0.5207,
-                "consensus_p_over": 0.4793,
-                "consensus_n_books": 7,
+                "offered_odds": 118,
+                "ev_pct": 5.144,
+                "fair_p_side": 0.4823,
+                "consensus_p_over": 0.5177,
+                "consensus_n_books": 4,
                 "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5241,
+                "sharp_consensus_p_over": 0.5738,
                 "best_book": "betonlineag",
-                "best_odds": -103
+                "best_odds": 118
+              }
+            }
+          }
+        },
+        {
+          "player_id": "f160b99581637ed10718a0bf90a33d38:Gabby Williams:ast:2.5:under:betparx",
+          "player_name": "Gabby Williams",
+          "team_name": "",
+          "position": "betparx -130 \u00b7 EV +2.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.4192,
+                "edge_vs_market": -0.027657,
+                "kelly_fraction": 0.009
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -130,
+                "ev_pct": 2.766,
+                "fair_p_side": 0.5808,
+                "consensus_p_over": 0.4192,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": -130
               }
             }
           }
