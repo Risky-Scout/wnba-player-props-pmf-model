@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-18T20:06:54.276620+00:00",
+  "generated_at": "2026-08-18T21:07:29.698066+00:00",
   "game_date": "2026-08-18",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-18",
-    "generated_utc": "2026-08-18T20:06:54.276620+00:00",
+    "generated_utc": "2026-08-18T21:07:29.698066+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
@@ -33,8 +33,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 2299,
-    "n_scored_rows": 2038,
+    "n_quote_rows": 2127,
+    "n_scored_rows": 1864,
     "n_qualifying": 7,
     "n_books_per_stat": {
       "ast": 10,
@@ -45,177 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "4182f31a2a8dbb90fbfd76b2b1cf0493",
-      "odds_api_event_id": "4182f31a2a8dbb90fbfd76b2b1cf0493",
-      "commence_time": "2026-08-18T23:00:00Z",
-      "home_team": {
-        "name": "Connecticut Sun",
-        "abbreviation": "Connecticut Sun"
-      },
-      "away_team": {
-        "name": "Los Angeles Sparks",
-        "abbreviation": "Los Angeles Sparks"
-      },
-      "players": [
-        {
-          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Kennedy Burke:reb:4.5:over:betonlineag",
-          "player_name": "Kennedy Burke",
-          "team_name": "",
-          "position": "betonlineag +136 \u00b7 EV +4.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.4439,
-                "edge_vs_market": 0.04761,
-                "kelly_fraction": 0.0088
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 136,
-                "ev_pct": 4.761,
-                "fair_p_side": 0.4439,
-                "consensus_p_over": 0.4439,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.3911,
-                "best_book": "betonlineag",
-                "best_odds": 136
-              }
-            }
-          }
-        },
-        {
-          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Rae Burrell:reb:2.5:under:betonlineag",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "betonlineag +107 \u00b7 EV +4.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4959,
-                "edge_vs_market": -0.043554,
-                "kelly_fraction": 0.0102
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "under",
-                "offered_odds": 107,
-                "ev_pct": 4.355,
-                "fair_p_side": 0.5041,
-                "consensus_p_over": 0.4959,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5492,
-                "best_book": "betonlineag",
-                "best_odds": 107
-              }
-            }
-          }
-        },
-        {
-          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Rae Burrell:reb:2.5:under:rebet",
-          "player_name": "Rae Burrell",
-          "team_name": "",
-          "position": "rebet +104 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4959,
-                "edge_vs_market": -0.02843,
-                "kelly_fraction": 0.0068
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "under",
-                "offered_odds": 104,
-                "ev_pct": 2.843,
-                "fair_p_side": 0.5041,
-                "consensus_p_over": 0.4959,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5492,
-                "best_book": "betonlineag",
-                "best_odds": 107
-              }
-            }
-          }
-        },
-        {
-          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Kennedy Burke:reb:4.5:over:rebet",
-          "player_name": "Kennedy Burke",
-          "team_name": "",
-          "position": "rebet +131 \u00b7 EV +2.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.4439,
-                "edge_vs_market": 0.025415,
-                "kelly_fraction": 0.0048
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "over",
-                "offered_odds": 131,
-                "ev_pct": 2.542,
-                "fair_p_side": 0.4439,
-                "consensus_p_over": 0.4439,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3911,
-                "best_book": "betonlineag",
-                "best_odds": 136
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "89ad79c1f38cc357b48573134ca858b7",
       "odds_api_event_id": "89ad79c1f38cc357b48573134ca858b7",
@@ -230,49 +59,10 @@
       },
       "players": [
         {
-          "player_id": "89ad79c1f38cc357b48573134ca858b7:Azura Stevens:fg3m:0.5:under:draftkings",
-          "player_name": "Azura Stevens",
-          "team_name": "",
-          "position": "draftkings +179 \u00b7 EV +3.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 0.5,
-              "median": 0.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 0.5,
-                "p_over": 0.6277,
-                "edge_vs_market": -0.038627,
-                "kelly_fraction": 0.0054
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 179,
-                "ev_pct": 3.863,
-                "fair_p_side": 0.3723,
-                "consensus_p_over": 0.6277,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "draftkings",
-                "best_odds": 179
-              }
-            }
-          }
-        },
-        {
           "player_id": "89ad79c1f38cc357b48573134ca858b7:Breanna Stewart:fg3m:0.5:under:betparx",
           "player_name": "Breanna Stewart",
           "team_name": "",
-          "position": "betparx +132 \u00b7 EV +3.7%",
+          "position": "betparx +132 \u00b7 EV +7.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -287,22 +77,232 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 0.5,
-                "p_over": 0.5532,
-                "edge_vs_market": -0.036576,
-                "kelly_fraction": 0.0069
+                "p_over": 0.536,
+                "edge_vs_market": -0.076503,
+                "kelly_fraction": 0.0145
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": 132,
-                "ev_pct": 3.658,
-                "fair_p_side": 0.4468,
-                "consensus_p_over": 0.5532,
+                "ev_pct": 7.65,
+                "fair_p_side": 0.464,
+                "consensus_p_over": 0.536,
                 "consensus_n_books": 5,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5326,
                 "best_book": "betparx",
                 "best_odds": 132
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "4182f31a2a8dbb90fbfd76b2b1cf0493",
+      "odds_api_event_id": "4182f31a2a8dbb90fbfd76b2b1cf0493",
+      "commence_time": "2026-08-18T23:00:00Z",
+      "home_team": {
+        "name": "Connecticut Sun",
+        "abbreviation": "Connecticut Sun"
+      },
+      "away_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "players": [
+        {
+          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Olivia Nelson-Ododa:reb:8.5:under:draftkings",
+          "player_name": "Olivia Nelson-Ododa",
+          "team_name": "",
+          "position": "draftkings -103 \u00b7 EV +5.3%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 8.5,
+              "median": 8.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 8.5,
+                "p_over": 0.4659,
+                "edge_vs_market": -0.052698,
+                "kelly_fraction": 0.0136
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "under",
+                "offered_odds": -103,
+                "ev_pct": 5.27,
+                "fair_p_side": 0.5341,
+                "consensus_p_over": 0.4659,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "draftkings",
+                "best_odds": -103
+              }
+            }
+          }
+        },
+        {
+          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Kennedy Burke:reb:4.5:over:betonlineag",
+          "player_name": "Kennedy Burke",
+          "team_name": "",
+          "position": "betonlineag +134 \u00b7 EV +3.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.4439,
+                "edge_vs_market": 0.038732,
+                "kelly_fraction": 0.0072
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 134,
+                "ev_pct": 3.873,
+                "fair_p_side": 0.4439,
+                "consensus_p_over": 0.4439,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.3955,
+                "best_book": "betonlineag",
+                "best_odds": 134
+              }
+            }
+          }
+        },
+        {
+          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Olivia Nelson-Ododa:reb:8.5:over:fanduel",
+          "player_name": "Olivia Nelson-Ododa",
+          "team_name": "",
+          "position": "fanduel +116 \u00b7 EV +3.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 8.5,
+              "median": 8.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 8.5,
+                "p_over": 0.4793,
+                "edge_vs_market": 0.03528,
+                "kelly_fraction": 0.0076
+              },
+              "soft_book": {
+                "book": "fanduel",
+                "side": "over",
+                "offered_odds": 116,
+                "ev_pct": 3.528,
+                "fair_p_side": 0.4793,
+                "consensus_p_over": 0.4793,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "fanduel",
+                "best_odds": 116
+              }
+            }
+          }
+        },
+        {
+          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Le\u00efla Lacan:pts:12.5:under:espnbet",
+          "player_name": "Le\u00efla Lacan",
+          "team_name": "",
+          "position": "espnbet -105 \u00b7 EV +3.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 12.5,
+              "median": 12.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 12.5,
+                "p_over": 0.4721,
+                "edge_vs_market": -0.030605,
+                "kelly_fraction": 0.008
+              },
+              "soft_book": {
+                "book": "espnbet",
+                "side": "under",
+                "offered_odds": -105,
+                "ev_pct": 3.061,
+                "fair_p_side": 0.5279,
+                "consensus_p_over": 0.4721,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "espnbet",
+                "best_odds": -105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "4182f31a2a8dbb90fbfd76b2b1cf0493:Le\u00efla Lacan:pts:12.5:under:draftkings",
+          "player_name": "Le\u00efla Lacan",
+          "team_name": "",
+          "position": "draftkings -105 \u00b7 EV +3.1%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 12.5,
+              "median": 12.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 12.5,
+                "p_over": 0.4721,
+                "edge_vs_market": -0.030605,
+                "kelly_fraction": 0.008
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "under",
+                "offered_odds": -105,
+                "ev_pct": 3.061,
+                "fair_p_side": 0.5279,
+                "consensus_p_over": 0.4721,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "espnbet",
+                "best_odds": -105
               }
             }
           }
@@ -326,7 +326,7 @@
           "player_id": "82e9dd1bf34357364d7cda4ebfacc413:Kiki Rice:reb:4.5:under:betparx",
           "player_name": "Kiki Rice",
           "team_name": "",
-          "position": "betparx -118 \u00b7 EV +3.3%",
+          "position": "betparx -118 \u00b7 EV +3.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -341,17 +341,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.4407,
-                "edge_vs_market": -0.033316,
-                "kelly_fraction": 0.0098
+                "p_over": 0.4427,
+                "edge_vs_market": -0.029546,
+                "kelly_fraction": 0.0087
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": -118,
-                "ev_pct": 3.332,
-                "fair_p_side": 0.5593,
-                "consensus_p_over": 0.4407,
+                "ev_pct": 2.955,
+                "fair_p_side": 0.5573,
+                "consensus_p_over": 0.4427,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4334,
