@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-18T02:29:47.021940+00:00",
+  "generated_at": "2026-08-18T03:22:49.186291+00:00",
   "game_date": "2026-08-18",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-18",
-    "generated_utc": "2026-08-18T02:29:47.021940+00:00",
+    "generated_utc": "2026-08-18T03:22:49.186291+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
@@ -29,9 +29,9 @@
       "fliff",
       "williamhill_us"
     ],
-    "n_quote_rows": 1180,
-    "n_scored_rows": 1136,
-    "n_qualifying": 1,
+    "n_quote_rows": 1187,
+    "n_scored_rows": 1134,
+    "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 6,
       "fg3m": 6,
@@ -40,60 +40,5 @@
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "4f2f45c7a054f97a496a1edc30e4bd41",
-      "odds_api_event_id": "4f2f45c7a054f97a496a1edc30e4bd41",
-      "commence_time": "2026-08-19T02:00:00Z",
-      "home_team": {
-        "name": "Las Vegas Aces",
-        "abbreviation": "Las Vegas Aces"
-      },
-      "away_team": {
-        "name": "Atlanta Dream",
-        "abbreviation": "Atlanta Dream"
-      },
-      "players": [
-        {
-          "player_id": "4f2f45c7a054f97a496a1edc30e4bd41:Angel Reese:pts:15.5:over:draftkings",
-          "player_name": "Angel Reese",
-          "team_name": "",
-          "position": "draftkings -101 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 15.5,
-              "median": 15.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 15.5,
-                "p_over": 0.5168,
-                "edge_vs_market": 0.028491,
-                "kelly_fraction": 0.0072
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "over",
-                "offered_odds": -101,
-                "ev_pct": 2.849,
-                "fair_p_side": 0.5168,
-                "consensus_p_over": 0.5168,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5131,
-                "best_book": "draftkings",
-                "best_odds": -101
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
