@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-19T22:07:38.802407+00:00",
+  "generated_at": "2026-08-19T23:07:52.093306+00:00",
   "game_date": "2026-08-19",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-19",
-    "generated_utc": "2026-08-19T22:07:38.802407+00:00",
+    "generated_utc": "2026-08-19T23:07:52.093306+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1198,
-    "n_scored_rows": 1058,
-    "n_qualifying": 7,
+    "n_quote_rows": 1209,
+    "n_scored_rows": 1064,
+    "n_qualifying": 8,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -98,10 +98,49 @@
           }
         },
         {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Napheesa Collier:reb:7.5:under:betparx",
+          "player_name": "Napheesa Collier",
+          "team_name": "",
+          "position": "betparx +106 \u00b7 EV +5.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 7.5,
+              "median": 7.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 7.5,
+                "p_over": 0.4859,
+                "edge_vs_market": -0.059119,
+                "kelly_fraction": 0.0139
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 106,
+                "ev_pct": 5.912,
+                "fair_p_side": 0.5141,
+                "consensus_p_over": 0.4859,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4869,
+                "best_book": "betparx",
+                "best_odds": 106
+              }
+            }
+          }
+        },
+        {
           "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:reb:2.5:under:betparx",
           "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "betparx -129 \u00b7 EV +6.8%",
+          "position": "betparx -129 \u00b7 EV +4.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,20 +155,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.3983,
-                "edge_vs_market": -0.06819,
-                "kelly_fraction": 0.022
+                "p_over": 0.4097,
+                "edge_vs_market": -0.047845,
+                "kelly_fraction": 0.0154
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": -129,
-                "ev_pct": 6.819,
-                "fair_p_side": 0.6017,
-                "consensus_p_over": 0.3983,
-                "consensus_n_books": 5,
+                "ev_pct": 4.785,
+                "fair_p_side": 0.5903,
+                "consensus_p_over": 0.4097,
+                "consensus_n_books": 6,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3911,
+                "sharp_consensus_p_over": 0.4066,
                 "best_book": "betparx",
                 "best_odds": -129
               }
@@ -140,7 +179,7 @@
           "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:reb:2.5:under:hardrockbet",
           "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "hardrockbet -130 \u00b7 EV +6.5%",
+          "position": "hardrockbet -130 \u00b7 EV +4.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -155,61 +194,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.3983,
-                "edge_vs_market": -0.064602,
-                "kelly_fraction": 0.021
+                "p_over": 0.4097,
+                "edge_vs_market": -0.044325,
+                "kelly_fraction": 0.0144
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "under",
                 "offered_odds": -130,
-                "ev_pct": 6.46,
-                "fair_p_side": 0.6017,
-                "consensus_p_over": 0.3983,
-                "consensus_n_books": 5,
+                "ev_pct": 4.433,
+                "fair_p_side": 0.5903,
+                "consensus_p_over": 0.4097,
+                "consensus_n_books": 6,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3911,
+                "sharp_consensus_p_over": 0.4066,
                 "best_book": "betparx",
                 "best_odds": -129
-              }
-            }
-          }
-        },
-        {
-          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:hardrockbet",
-          "player_name": "Cecilia Zandalasini",
-          "team_name": "",
-          "position": "hardrockbet +165 \u00b7 EV +3.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.3898,
-                "edge_vs_market": 0.032863,
-                "kelly_fraction": 0.005
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 165,
-                "ev_pct": 3.286,
-                "fair_p_side": 0.3898,
-                "consensus_p_over": 0.3898,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4033,
-                "best_book": "hardrockbet",
-                "best_odds": 165
               }
             }
           }
@@ -254,10 +254,10 @@
           }
         },
         {
-          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:betparx",
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:hardrockbet",
           "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "betparx +163 \u00b7 EV +2.5%",
+          "position": "hardrockbet +165 \u00b7 EV +2.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -272,22 +272,61 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3898,
-                "edge_vs_market": 0.025068,
-                "kelly_fraction": 0.0038
+                "p_over": 0.3875,
+                "edge_vs_market": 0.026991,
+                "kelly_fraction": 0.0041
               },
               "soft_book": {
-                "book": "betparx",
+                "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": 163,
-                "ev_pct": 2.507,
-                "fair_p_side": 0.3898,
-                "consensus_p_over": 0.3898,
+                "offered_odds": 165,
+                "ev_pct": 2.699,
+                "fair_p_side": 0.3875,
+                "consensus_p_over": 0.3875,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4033,
                 "best_book": "hardrockbet",
                 "best_odds": 165
+              }
+            }
+          }
+        },
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Napheesa Collier:pts:18.5:under:betparx",
+          "player_name": "Napheesa Collier",
+          "team_name": "",
+          "position": "betparx -107 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 18.5,
+              "median": 18.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 18.5,
+                "p_over": 0.4699,
+                "edge_vs_market": -0.025585,
+                "kelly_fraction": 0.0068
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -107,
+                "ev_pct": 2.558,
+                "fair_p_side": 0.5301,
+                "consensus_p_over": 0.4699,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": -107
               }
             }
           }
@@ -311,7 +350,7 @@
           "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:pts:19.5:under:betparx",
           "player_name": "Shakira Austin",
           "team_name": "",
-          "position": "betparx -106 \u00b7 EV +5.0%",
+          "position": "betparx -108 \u00b7 EV +4.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -327,21 +366,21 @@
               "calibrated_p_over": {
                 "market_line": 19.5,
                 "p_over": 0.46,
-                "edge_vs_market": -0.049501,
-                "kelly_fraction": 0.0131
+                "edge_vs_market": -0.040066,
+                "kelly_fraction": 0.0108
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": -106,
-                "ev_pct": 4.95,
+                "offered_odds": -108,
+                "ev_pct": 4.007,
                 "fair_p_side": 0.54,
                 "consensus_p_over": 0.46,
                 "consensus_n_books": 6,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4439,
                 "best_book": "betparx",
-                "best_odds": -106
+                "best_odds": -108
               }
             }
           }
