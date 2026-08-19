@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-19T00:20:43.487184+00:00",
+  "generated_at": "2026-08-19T01:34:25.472318+00:00",
   "game_date": "2026-08-19",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,27 +16,28 @@
   },
   "summary": {
     "date": "2026-08-19",
-    "generated_utc": "2026-08-19T00:20:43.487184+00:00",
+    "generated_utc": "2026-08-19T01:34:25.472318+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
-    "n_books_seen": 6,
+    "n_books_seen": 7,
     "books_seen": [
       "betonlineag",
       "draftkings",
       "espnbet",
       "fanduel",
       "fliff",
-      "rebet"
+      "rebet",
+      "williamhill_us"
     ],
-    "n_quote_rows": 360,
-    "n_scored_rows": 354,
+    "n_quote_rows": 440,
+    "n_scored_rows": 428,
     "n_qualifying": 0,
     "n_books_per_stat": {
-      "ast": 6,
-      "fg3m": 6,
-      "pts": 6,
-      "reb": 6
+      "ast": 7,
+      "fg3m": 7,
+      "pts": 7,
+      "reb": 7
     },
     "status": "ok"
   },
