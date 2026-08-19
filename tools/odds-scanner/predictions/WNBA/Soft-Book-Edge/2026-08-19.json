@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-19T21:08:58.112737+00:00",
+  "generated_at": "2026-08-19T22:07:38.802407+00:00",
   "game_date": "2026-08-19",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-19",
-    "generated_utc": "2026-08-19T21:08:58.112737+00:00",
+    "generated_utc": "2026-08-19T22:07:38.802407+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1186,
-    "n_scored_rows": 1042,
-    "n_qualifying": 5,
+    "n_quote_rows": 1198,
+    "n_scored_rows": 1058,
+    "n_qualifying": 7,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -45,6 +45,255 @@
     "status": "ok"
   },
   "games": [
+    {
+      "game_id": "09563bab4edf9cf2073ee946ad95d61b",
+      "odds_api_event_id": "09563bab4edf9cf2073ee946ad95d61b",
+      "commence_time": "2026-08-20T02:10:00Z",
+      "home_team": {
+        "name": "Golden State Valkyries",
+        "abbreviation": "Golden State Valkyries"
+      },
+      "away_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "players": [
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:ast:2.5:over:betonlineag",
+          "player_name": "Cecilia Zandalasini",
+          "team_name": "",
+          "position": "betonlineag +186 \u00b7 EV +7.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.375,
+                "edge_vs_market": 0.0725,
+                "kelly_fraction": 0.0097
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 186,
+                "ev_pct": 7.25,
+                "fair_p_side": 0.375,
+                "consensus_p_over": 0.375,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.3177,
+                "best_book": "betonlineag",
+                "best_odds": 186
+              }
+            }
+          }
+        },
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:reb:2.5:under:betparx",
+          "player_name": "Cecilia Zandalasini",
+          "team_name": "",
+          "position": "betparx -129 \u00b7 EV +6.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.3983,
+                "edge_vs_market": -0.06819,
+                "kelly_fraction": 0.022
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -129,
+                "ev_pct": 6.819,
+                "fair_p_side": 0.6017,
+                "consensus_p_over": 0.3983,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3911,
+                "best_book": "betparx",
+                "best_odds": -129
+              }
+            }
+          }
+        },
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:reb:2.5:under:hardrockbet",
+          "player_name": "Cecilia Zandalasini",
+          "team_name": "",
+          "position": "hardrockbet -130 \u00b7 EV +6.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.3983,
+                "edge_vs_market": -0.064602,
+                "kelly_fraction": 0.021
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": -130,
+                "ev_pct": 6.46,
+                "fair_p_side": 0.6017,
+                "consensus_p_over": 0.3983,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3911,
+                "best_book": "betparx",
+                "best_odds": -129
+              }
+            }
+          }
+        },
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:hardrockbet",
+          "player_name": "Cecilia Zandalasini",
+          "team_name": "",
+          "position": "hardrockbet +165 \u00b7 EV +3.3%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.3898,
+                "edge_vs_market": 0.032863,
+                "kelly_fraction": 0.005
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 165,
+                "ev_pct": 3.286,
+                "fair_p_side": 0.3898,
+                "consensus_p_over": 0.3898,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4033,
+                "best_book": "hardrockbet",
+                "best_odds": 165
+              }
+            }
+          }
+        },
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:ast:2.5:over:rebet",
+          "player_name": "Cecilia Zandalasini",
+          "team_name": "",
+          "position": "rebet +174 \u00b7 EV +2.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.375,
+                "edge_vs_market": 0.0275,
+                "kelly_fraction": 0.004
+              },
+              "soft_book": {
+                "book": "rebet",
+                "side": "over",
+                "offered_odds": 174,
+                "ev_pct": 2.75,
+                "fair_p_side": 0.375,
+                "consensus_p_over": 0.375,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3177,
+                "best_book": "betonlineag",
+                "best_odds": 186
+              }
+            }
+          }
+        },
+        {
+          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:betparx",
+          "player_name": "Cecilia Zandalasini",
+          "team_name": "",
+          "position": "betparx +163 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.3898,
+                "edge_vs_market": 0.025068,
+                "kelly_fraction": 0.0038
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 163,
+                "ev_pct": 2.507,
+                "fair_p_side": 0.3898,
+                "consensus_p_over": 0.3898,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4033,
+                "best_book": "hardrockbet",
+                "best_odds": 165
+              }
+            }
+          }
+        }
+      ]
+    },
     {
       "game_id": "c162d60ca8c8caf4195c3abf4566747a",
       "odds_api_event_id": "c162d60ca8c8caf4195c3abf4566747a",
@@ -58,45 +307,6 @@
         "abbreviation": "Toronto Tempo"
       },
       "players": [
-        {
-          "player_id": "c162d60ca8c8caf4195c3abf4566747a:Lauren Betts:pts:7.5:over:hardrockbet",
-          "player_name": "Lauren Betts",
-          "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +5.4%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 7.5,
-              "median": 7.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.5268,
-                "edge_vs_market": 0.053515,
-                "kelly_fraction": 0.0134
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 100,
-                "ev_pct": 5.351,
-                "fair_p_side": 0.5268,
-                "consensus_p_over": 0.5268,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5273,
-                "best_book": "hardrockbet",
-                "best_odds": 100
-              }
-            }
-          }
-        },
         {
           "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:pts:19.5:under:betparx",
           "player_name": "Shakira Austin",
@@ -132,138 +342,6 @@
                 "sharp_consensus_p_over": 0.4439,
                 "best_book": "betparx",
                 "best_odds": -106
-              }
-            }
-          }
-        },
-        {
-          "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:ast:2.5:under:hardrockbet",
-          "player_name": "Shakira Austin",
-          "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.487,
-                "edge_vs_market": -0.02598,
-                "kelly_fraction": 0.0065
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 100,
-                "ev_pct": 2.598,
-                "fair_p_side": 0.513,
-                "consensus_p_over": 0.487,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4869,
-                "best_book": "hardrockbet",
-                "best_odds": 100
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "09563bab4edf9cf2073ee946ad95d61b",
-      "odds_api_event_id": "09563bab4edf9cf2073ee946ad95d61b",
-      "commence_time": "2026-08-20T02:10:00Z",
-      "home_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "away_team": {
-        "name": "Minnesota Lynx",
-        "abbreviation": "Minnesota Lynx"
-      },
-      "players": [
-        {
-          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:reb:2.5:under:hardrockbet",
-          "player_name": "Cecilia Zandalasini",
-          "team_name": "",
-          "position": "hardrockbet -130 \u00b7 EV +5.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4054,
-                "edge_vs_market": -0.051897,
-                "kelly_fraction": 0.0169
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -130,
-                "ev_pct": 5.19,
-                "fair_p_side": 0.5946,
-                "consensus_p_over": 0.4054,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3993,
-                "best_book": "hardrockbet",
-                "best_odds": -130
-              }
-            }
-          }
-        },
-        {
-          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:reb:2.5:under:betparx",
-          "player_name": "Cecilia Zandalasini",
-          "team_name": "",
-          "position": "betparx -132 \u00b7 EV +4.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4054,
-                "edge_vs_market": -0.044968,
-                "kelly_fraction": 0.0148
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -132,
-                "ev_pct": 4.497,
-                "fair_p_side": 0.5946,
-                "consensus_p_over": 0.4054,
-                "consensus_n_books": 5,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3993,
-                "best_book": "hardrockbet",
-                "best_odds": -130
               }
             }
           }
