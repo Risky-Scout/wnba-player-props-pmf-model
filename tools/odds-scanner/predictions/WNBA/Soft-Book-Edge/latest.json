@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-19T18:08:36.765204+00:00",
+  "generated_at": "2026-08-19T19:10:27.434981+00:00",
   "game_date": "2026-08-19",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-19",
-    "generated_utc": "2026-08-19T18:08:36.765204+00:00",
+    "generated_utc": "2026-08-19T19:10:27.434981+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1138,
-    "n_scored_rows": 1002,
-    "n_qualifying": 9,
+    "n_quote_rows": 1184,
+    "n_scored_rows": 1040,
+    "n_qualifying": 7,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -62,7 +62,7 @@
           "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:pts:19.5:under:betparx",
           "player_name": "Shakira Austin",
           "team_name": "",
-          "position": "betparx -106 \u00b7 EV +4.4%",
+          "position": "betparx -106 \u00b7 EV +5.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,18 +77,18 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 19.5,
-                "p_over": 0.4628,
-                "edge_vs_market": -0.044059,
-                "kelly_fraction": 0.0117
+                "p_over": 0.4555,
+                "edge_vs_market": -0.058254,
+                "kelly_fraction": 0.0154
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": -106,
-                "ev_pct": 4.406,
-                "fair_p_side": 0.5372,
-                "consensus_p_over": 0.4628,
-                "consensus_n_books": 5,
+                "ev_pct": 5.825,
+                "fair_p_side": 0.5445,
+                "consensus_p_over": 0.4555,
+                "consensus_n_books": 6,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4439,
                 "best_book": "betparx",
@@ -98,10 +98,49 @@
           }
         },
         {
+          "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:ast:2.5:over:betonlineag",
+          "player_name": "Shakira Austin",
+          "team_name": "",
+          "position": "betonlineag -103 \u00b7 EV +5.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.536,
+                "edge_vs_market": 0.056369,
+                "kelly_fraction": 0.0145
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": -103,
+                "ev_pct": 5.637,
+                "fair_p_side": 0.536,
+                "consensus_p_over": 0.536,
+                "consensus_n_books": 5,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4759,
+                "best_book": "betonlineag",
+                "best_odds": -103
+              }
+            }
+          }
+        },
+        {
           "player_id": "c162d60ca8c8caf4195c3abf4566747a:Lauren Betts:pts:7.5:over:hardrockbet",
           "player_name": "Lauren Betts",
           "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +3.7%",
+          "position": "hardrockbet +100 \u00b7 EV +5.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,100 +155,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 7.5,
-                "p_over": 0.5183,
-                "edge_vs_market": 0.036663,
-                "kelly_fraction": 0.0092
+                "p_over": 0.526,
+                "edge_vs_market": 0.052094,
+                "kelly_fraction": 0.013
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
                 "offered_odds": 100,
-                "ev_pct": 3.666,
-                "fair_p_side": 0.5183,
-                "consensus_p_over": 0.5183,
-                "consensus_n_books": 5,
+                "ev_pct": 5.209,
+                "fair_p_side": 0.526,
+                "consensus_p_over": 0.526,
+                "consensus_n_books": 4,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5197,
+                "sharp_consensus_p_over": 0.5273,
                 "best_book": "hardrockbet",
                 "best_odds": 100
-              }
-            }
-          }
-        },
-        {
-          "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:ast:2.5:over:betonlineag",
-          "player_name": "Shakira Austin",
-          "team_name": "",
-          "position": "betonlineag -103 \u00b7 EV +3.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.5258,
-                "edge_vs_market": 0.036285,
-                "kelly_fraction": 0.0093
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": -103,
-                "ev_pct": 3.628,
-                "fair_p_side": 0.5258,
-                "consensus_p_over": 0.5258,
-                "consensus_n_books": 5,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4759,
-                "best_book": "betonlineag",
-                "best_odds": -103
-              }
-            }
-          }
-        },
-        {
-          "player_id": "c162d60ca8c8caf4195c3abf4566747a:Cotie McMahon:pts:8.5:over:betonlineag",
-          "player_name": "Cotie McMahon",
-          "team_name": "",
-          "position": "betonlineag +103 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.5065,
-                "edge_vs_market": 0.028185,
-                "kelly_fraction": 0.0068
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 103,
-                "ev_pct": 2.818,
-                "fair_p_side": 0.5065,
-                "consensus_p_over": 0.5065,
-                "consensus_n_books": 4,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4609,
-                "best_book": "betonlineag",
-                "best_odds": 103
               }
             }
           }
@@ -218,7 +179,7 @@
           "player_id": "c162d60ca8c8caf4195c3abf4566747a:Shakira Austin:ast:2.5:over:rebet",
           "player_name": "Shakira Austin",
           "team_name": "",
-          "position": "rebet -105 \u00b7 EV +2.7%",
+          "position": "rebet -105 \u00b7 EV +4.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -233,22 +194,61 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5258,
-                "edge_vs_market": 0.026562,
-                "kelly_fraction": 0.007
+                "p_over": 0.536,
+                "edge_vs_market": 0.046457,
+                "kelly_fraction": 0.0122
               },
               "soft_book": {
                 "book": "rebet",
                 "side": "over",
                 "offered_odds": -105,
-                "ev_pct": 2.656,
-                "fair_p_side": 0.5258,
-                "consensus_p_over": 0.5258,
+                "ev_pct": 4.646,
+                "fair_p_side": 0.536,
+                "consensus_p_over": 0.536,
                 "consensus_n_books": 5,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4759,
                 "best_book": "betonlineag",
                 "best_odds": -103
+              }
+            }
+          }
+        },
+        {
+          "player_id": "c162d60ca8c8caf4195c3abf4566747a:Aneesah Morrow:pts:12.5:under:hardrockbet",
+          "player_name": "Aneesah Morrow",
+          "team_name": "",
+          "position": "hardrockbet +110 \u00b7 EV +2.7%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 12.5,
+              "median": 12.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 12.5,
+                "p_over": 0.5109,
+                "edge_vs_market": -0.02706,
+                "kelly_fraction": 0.0061
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 110,
+                "ev_pct": 2.706,
+                "fair_p_side": 0.4891,
+                "consensus_p_over": 0.5109,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5109,
+                "best_book": "hardrockbet",
+                "best_odds": 110
               }
             }
           }
@@ -272,7 +272,7 @@
           "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:hardrockbet",
           "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "hardrockbet +170 \u00b7 EV +3.3%",
+          "position": "hardrockbet +170 \u00b7 EV +3.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -287,20 +287,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3824,
-                "edge_vs_market": 0.03255,
-                "kelly_fraction": 0.0048
+                "p_over": 0.3821,
+                "edge_vs_market": 0.031673,
+                "kelly_fraction": 0.0047
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
                 "offered_odds": 170,
-                "ev_pct": 3.255,
-                "fair_p_side": 0.3824,
-                "consensus_p_over": 0.3824,
+                "ev_pct": 3.167,
+                "fair_p_side": 0.3821,
+                "consensus_p_over": 0.3821,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3829,
+                "sharp_consensus_p_over": 0.3779,
                 "best_book": "hardrockbet",
                 "best_odds": 170
               }
@@ -311,7 +311,7 @@
           "player_id": "09563bab4edf9cf2073ee946ad95d61b:Cecilia Zandalasini:fg3m:1.5:over:betparx",
           "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "betparx +170 \u00b7 EV +3.3%",
+          "position": "betparx +170 \u00b7 EV +3.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -326,100 +326,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3824,
-                "edge_vs_market": 0.03255,
-                "kelly_fraction": 0.0048
+                "p_over": 0.3821,
+                "edge_vs_market": 0.031673,
+                "kelly_fraction": 0.0047
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "over",
                 "offered_odds": 170,
-                "ev_pct": 3.255,
-                "fair_p_side": 0.3824,
-                "consensus_p_over": 0.3824,
+                "ev_pct": 3.167,
+                "fair_p_side": 0.3821,
+                "consensus_p_over": 0.3821,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3829,
+                "sharp_consensus_p_over": 0.3779,
                 "best_book": "hardrockbet",
                 "best_odds": 170
-              }
-            }
-          }
-        },
-        {
-          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Olivia Miles:ast:6.5:under:hardrockbet",
-          "player_name": "Olivia Miles",
-          "team_name": "",
-          "position": "hardrockbet -115 \u00b7 EV +3.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.4484,
-                "edge_vs_market": -0.031167,
-                "kelly_fraction": 0.009
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -115,
-                "ev_pct": 3.117,
-                "fair_p_side": 0.5516,
-                "consensus_p_over": 0.4484,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4467,
-                "best_book": "hardrockbet",
-                "best_odds": -115
-              }
-            }
-          }
-        },
-        {
-          "player_id": "09563bab4edf9cf2073ee946ad95d61b:Courtney Williams:ast:4.5:under:betparx",
-          "player_name": "Courtney Williams",
-          "team_name": "",
-          "position": "betparx -139 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 4.5,
-              "median": 4.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 4.5,
-                "p_over": 0.4024,
-                "edge_vs_market": -0.027536,
-                "kelly_fraction": 0.0096
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -139,
-                "ev_pct": 2.754,
-                "fair_p_side": 0.5976,
-                "consensus_p_over": 0.4024,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3993,
-                "best_book": "betparx",
-                "best_odds": -139
               }
             }
           }
