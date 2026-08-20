@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-20T21:09:19.028440+00:00",
+  "generated_at": "2026-08-20T22:07:54.339505+00:00",
   "game_date": "2026-08-20",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-20",
-    "generated_utc": "2026-08-20T21:09:19.028440+00:00",
+    "generated_utc": "2026-08-20T22:07:54.339505+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,7 +33,7 @@
       "williamhill_us"
     ],
     "n_quote_rows": 1804,
-    "n_scored_rows": 1536,
+    "n_scored_rows": 1530,
     "n_qualifying": 5,
     "n_books_per_stat": {
       "ast": 9,
@@ -61,7 +61,7 @@
           "player_id": "cdd0cd4e662b83ac6836cb4a84a152e3:Le\u00efla Lacan:ast:4.5:under:betparx",
           "player_name": "Le\u00efla Lacan",
           "team_name": "",
-          "position": "betparx -110 \u00b7 EV +12.7%",
+          "position": "betparx -120 \u00b7 EV +8.3%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,21 +77,60 @@
               "calibrated_p_over": {
                 "market_line": 4.5,
                 "p_over": 0.4095,
-                "edge_vs_market": -0.127341,
-                "kelly_fraction": 0.035
+                "edge_vs_market": -0.082605,
+                "kelly_fraction": 0.0248
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": -110,
-                "ev_pct": 12.734,
+                "offered_odds": -120,
+                "ev_pct": 8.261,
                 "fair_p_side": 0.5905,
                 "consensus_p_over": 0.4095,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4033,
                 "best_book": "betparx",
-                "best_odds": -110
+                "best_odds": -120
+              }
+            }
+          }
+        },
+        {
+          "player_id": "cdd0cd4e662b83ac6836cb4a84a152e3:Le\u00efla Lacan:pts:11.5:over:betparx",
+          "player_name": "Le\u00efla Lacan",
+          "team_name": "",
+          "position": "betparx +114 \u00b7 EV +8.2%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 11.5,
+              "median": 11.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 11.5,
+                "p_over": 0.5054,
+                "edge_vs_market": 0.081522,
+                "kelly_fraction": 0.0179
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 114,
+                "ev_pct": 8.152,
+                "fair_p_side": 0.5054,
+                "consensus_p_over": 0.5054,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5055,
+                "best_book": "betparx",
+                "best_odds": 114
               }
             }
           }
@@ -100,7 +139,7 @@
           "player_id": "cdd0cd4e662b83ac6836cb4a84a152e3:Diamond Miller:fg3m:1.5:under:betparx",
           "player_name": "Diamond Miller",
           "team_name": "",
-          "position": "betparx -137 \u00b7 EV +7.4%",
+          "position": "betparx -136 \u00b7 EV +7.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,99 +155,21 @@
               "calibrated_p_over": {
                 "market_line": 1.5,
                 "p_over": 0.3794,
-                "edge_vs_market": -0.073536,
-                "kelly_fraction": 0.0252
+                "edge_vs_market": -0.076867,
+                "kelly_fraction": 0.0261
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": -137,
-                "ev_pct": 7.354,
+                "offered_odds": -136,
+                "ev_pct": 7.687,
                 "fair_p_side": 0.6206,
                 "consensus_p_over": 0.3794,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.3779,
                 "best_book": "betparx",
-                "best_odds": -137
-              }
-            }
-          }
-        },
-        {
-          "player_id": "cdd0cd4e662b83ac6836cb4a84a152e3:Le\u00efla Lacan:reb:2.5:under:betparx",
-          "player_name": "Le\u00efla Lacan",
-          "team_name": "",
-          "position": "betparx -106 \u00b7 EV +5.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4581,
-                "edge_vs_market": -0.053184,
-                "kelly_fraction": 0.0141
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -106,
-                "ev_pct": 5.318,
-                "fair_p_side": 0.5419,
-                "consensus_p_over": 0.4581,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4439,
-                "best_book": "betparx",
-                "best_odds": -106
-              }
-            }
-          }
-        },
-        {
-          "player_id": "cdd0cd4e662b83ac6836cb4a84a152e3:Jackie Young:ast:6.5:under:betparx",
-          "player_name": "Jackie Young",
-          "team_name": "",
-          "position": "betparx -112 \u00b7 EV +2.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.4583,
-                "edge_vs_market": -0.025298,
-                "kelly_fraction": 0.0071
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -112,
-                "ev_pct": 2.53,
-                "fair_p_side": 0.5417,
-                "consensus_p_over": 0.4583,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4579,
-                "best_book": "betparx",
-                "best_odds": -112
+                "best_odds": -136
               }
             }
           }
@@ -229,8 +190,62 @@
       },
       "players": [
         {
-          "player_id": "bc3ff76ba21ecf6ee8a5ac2067a5aa81:Sophie Cunningham:pts:7.5:over:betparx",
-          "player_name": "Sophie Cunningham",
+          "player_id": "bc3ff76ba21ecf6ee8a5ac2067a5aa81:Paige Bueckers:pts:21.5:under:betparx",
+          "player_name": "Paige Bueckers",
+          "team_name": "",
+          "position": "betparx +107 \u00b7 EV +5.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 21.5,
+              "median": 21.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 21.5,
+                "p_over": 0.4897,
+                "edge_vs_market": -0.056395,
+                "kelly_fraction": 0.0132
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 107,
+                "ev_pct": 5.639,
+                "fair_p_side": 0.5103,
+                "consensus_p_over": 0.4897,
+                "consensus_n_books": 7,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4674,
+                "best_book": "betparx",
+                "best_odds": 107
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "1633124eeb20fd6dff51c151adeeb077",
+      "odds_api_event_id": "1633124eeb20fd6dff51c151adeeb077",
+      "commence_time": "2026-08-21T02:00:00Z",
+      "home_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "away_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "players": [
+        {
+          "player_id": "1633124eeb20fd6dff51c151adeeb077:Cameron Brink:reb:4.5:under:betparx",
+          "player_name": "Cameron Brink",
           "team_name": "",
           "position": "betparx +110 \u00b7 EV +3.2%",
           "is_starter": true,
@@ -240,27 +255,27 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "points": {
-              "mean": 7.5,
-              "median": 7.5,
+            "rebounds": {
+              "mean": 4.5,
+              "median": 4.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.4913,
-                "edge_vs_market": 0.031651,
-                "kelly_fraction": 0.0072
+                "market_line": 4.5,
+                "p_over": 0.5086,
+                "edge_vs_market": -0.03199,
+                "kelly_fraction": 0.0073
               },
               "soft_book": {
                 "book": "betparx",
-                "side": "over",
+                "side": "under",
                 "offered_odds": 110,
-                "ev_pct": 3.165,
-                "fair_p_side": 0.4913,
-                "consensus_p_over": 0.4913,
+                "ev_pct": 3.199,
+                "fair_p_side": 0.4914,
+                "consensus_p_over": 0.5086,
                 "consensus_n_books": 5,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4913,
+                "sharp_consensus_p_over": 0.5175,
                 "best_book": "betparx",
                 "best_odds": 110
               }
