@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-20T02:30:16.619554+00:00",
+  "generated_at": "2026-08-20T03:22:31.478692+00:00",
   "game_date": "2026-08-20",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-20",
-    "generated_utc": "2026-08-20T02:30:16.619554+00:00",
+    "generated_utc": "2026-08-20T03:22:31.478692+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -30,9 +30,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1242,
-    "n_scored_rows": 1214,
-    "n_qualifying": 0,
+    "n_quote_rows": 1262,
+    "n_scored_rows": 1244,
+    "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 7,
       "fg3m": 7,
@@ -41,5 +41,60 @@
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "1633124eeb20fd6dff51c151adeeb077",
+      "odds_api_event_id": "1633124eeb20fd6dff51c151adeeb077",
+      "commence_time": "2026-08-21T02:00:00Z",
+      "home_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "away_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "players": [
+        {
+          "player_id": "1633124eeb20fd6dff51c151adeeb077:Rae Burrell:pts:16.5:over:draftkings",
+          "player_name": "Rae Burrell",
+          "team_name": "",
+          "position": "draftkings -103 \u00b7 EV +4.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 16.5,
+              "median": 16.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 16.5,
+                "p_over": 0.5319,
+                "edge_vs_market": 0.048254,
+                "kelly_fraction": 0.0124
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "over",
+                "offered_odds": -103,
+                "ev_pct": 4.825,
+                "fair_p_side": 0.5319,
+                "consensus_p_over": 0.5319,
+                "consensus_n_books": 6,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.537,
+                "best_book": "draftkings",
+                "best_odds": -103
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
