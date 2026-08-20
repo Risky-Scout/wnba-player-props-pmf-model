@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-20T00:20:31.274076+00:00",
+  "generated_at": "2026-08-20T01:34:00.705549+00:00",
   "game_date": "2026-08-20",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,85 +16,29 @@
   },
   "summary": {
     "date": "2026-08-20",
-    "generated_utc": "2026-08-20T00:20:31.274076+00:00",
+    "generated_utc": "2026-08-20T01:34:00.705549+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
-    "n_books_seen": 7,
+    "n_books_seen": 6,
     "books_seen": [
       "betonlineag",
       "draftkings",
       "espnbet",
       "fanduel",
       "fliff",
-      "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 984,
-    "n_scored_rows": 958,
-    "n_qualifying": 1,
+    "n_quote_rows": 930,
+    "n_scored_rows": 900,
+    "n_qualifying": 0,
     "n_books_per_stat": {
-      "ast": 7,
-      "fg3m": 7,
-      "pts": 7,
-      "reb": 7
+      "ast": 6,
+      "fg3m": 6,
+      "pts": 6,
+      "reb": 6
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "bc3ff76ba21ecf6ee8a5ac2067a5aa81",
-      "odds_api_event_id": "bc3ff76ba21ecf6ee8a5ac2067a5aa81",
-      "commence_time": "2026-08-21T00:00:00Z",
-      "home_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "away_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
-      },
-      "players": [
-        {
-          "player_id": "bc3ff76ba21ecf6ee8a5ac2067a5aa81:Jessica Shepard:reb:10.5:under:espnbet",
-          "player_name": "Jessica Shepard",
-          "team_name": "",
-          "position": "espnbet +105 \u00b7 EV +3.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 10.5,
-              "median": 10.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 10.5,
-                "p_over": 0.4951,
-                "edge_vs_market": -0.034966,
-                "kelly_fraction": 0.0083
-              },
-              "soft_book": {
-                "book": "espnbet",
-                "side": "under",
-                "offered_odds": 105,
-                "ev_pct": 3.497,
-                "fair_p_side": 0.5049,
-                "consensus_p_over": 0.4951,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4913,
-                "best_book": "espnbet",
-                "best_odds": 105
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
