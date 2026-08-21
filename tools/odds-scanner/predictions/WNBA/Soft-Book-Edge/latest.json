@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-21T02:33:58.578839+00:00",
+  "generated_at": "2026-08-21T03:25:31.738314+00:00",
   "game_date": "2026-08-21",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-21",
-    "generated_utc": "2026-08-21T02:33:58.578839+00:00",
+    "generated_utc": "2026-08-21T03:25:31.738314+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -30,8 +30,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 838,
-    "n_scored_rows": 792,
+    "n_quote_rows": 912,
+    "n_scored_rows": 864,
     "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 7,
@@ -59,7 +59,7 @@
           "player_id": "6beeb0d93ae359986dfe8ecdffc4c85e:Courtney Williams:fg3m:1.5:over:fanduel",
           "player_name": "Courtney Williams",
           "team_name": "",
-          "position": "fanduel +168 \u00b7 EV +3.5%",
+          "position": "fanduel +168 \u00b7 EV +2.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -74,18 +74,18 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3863,
-                "edge_vs_market": 0.035336,
-                "kelly_fraction": 0.0053
+                "p_over": 0.3829,
+                "edge_vs_market": 0.026192,
+                "kelly_fraction": 0.0039
               },
               "soft_book": {
                 "book": "fanduel",
                 "side": "over",
                 "offered_odds": 168,
-                "ev_pct": 3.534,
-                "fair_p_side": 0.3863,
-                "consensus_p_over": 0.3863,
-                "consensus_n_books": 4,
+                "ev_pct": 2.619,
+                "fair_p_side": 0.3829,
+                "consensus_p_over": 0.3829,
+                "consensus_n_books": 5,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.3829,
                 "best_book": "fanduel",
