@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-21T01:34:20.720084+00:00",
+  "generated_at": "2026-08-21T02:33:58.578839+00:00",
   "game_date": "2026-08-21",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-21",
-    "generated_utc": "2026-08-21T01:34:20.720084+00:00",
+    "generated_utc": "2026-08-21T02:33:58.578839+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -30,9 +30,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 796,
-    "n_scored_rows": 768,
-    "n_qualifying": 0,
+    "n_quote_rows": 838,
+    "n_scored_rows": 792,
+    "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 7,
       "fg3m": 7,
@@ -41,5 +41,60 @@
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "6beeb0d93ae359986dfe8ecdffc4c85e",
+      "odds_api_event_id": "6beeb0d93ae359986dfe8ecdffc4c85e",
+      "commence_time": "2026-08-21T23:30:00Z",
+      "home_team": {
+        "name": "Washington Mystics",
+        "abbreviation": "Washington Mystics"
+      },
+      "away_team": {
+        "name": "Minnesota Lynx",
+        "abbreviation": "Minnesota Lynx"
+      },
+      "players": [
+        {
+          "player_id": "6beeb0d93ae359986dfe8ecdffc4c85e:Courtney Williams:fg3m:1.5:over:fanduel",
+          "player_name": "Courtney Williams",
+          "team_name": "",
+          "position": "fanduel +168 \u00b7 EV +3.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.3863,
+                "edge_vs_market": 0.035336,
+                "kelly_fraction": 0.0053
+              },
+              "soft_book": {
+                "book": "fanduel",
+                "side": "over",
+                "offered_odds": 168,
+                "ev_pct": 3.534,
+                "fair_p_side": 0.3863,
+                "consensus_p_over": 0.3863,
+                "consensus_n_books": 4,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3829,
+                "best_book": "fanduel",
+                "best_odds": 168
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
