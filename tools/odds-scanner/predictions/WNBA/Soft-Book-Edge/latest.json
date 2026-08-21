@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-21T20:06:52.116053+00:00",
+  "generated_at": "2026-08-21T21:07:18.511695+00:00",
   "game_date": "2026-08-21",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-21",
-    "generated_utc": "2026-08-21T20:06:52.116053+00:00",
+    "generated_utc": "2026-08-21T21:07:18.511695+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1709,
-    "n_scored_rows": 1512,
-    "n_qualifying": 5,
+    "n_quote_rows": 1738,
+    "n_scored_rows": 1548,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -147,138 +147,6 @@
                 "sharp_consensus_p_over": 0.4891,
                 "best_book": "draftkings",
                 "best_odds": 102
-              }
-            }
-          }
-        },
-        {
-          "player_id": "6beeb0d93ae359986dfe8ecdffc4c85e:Olivia Miles:ast:6.5:over:betonlineag",
-          "player_name": "Olivia Miles",
-          "team_name": "",
-          "position": "betonlineag +134 \u00b7 EV +2.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.4397,
-                "edge_vs_market": 0.028917,
-                "kelly_fraction": 0.0054
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 134,
-                "ev_pct": 2.892,
-                "fair_p_side": 0.4397,
-                "consensus_p_over": 0.4397,
-                "consensus_n_books": 7,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.3955,
-                "best_book": "betonlineag",
-                "best_odds": 134
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "8643e7ef86c42f8f9cdded87326060fc",
-      "odds_api_event_id": "8643e7ef86c42f8f9cdded87326060fc",
-      "commence_time": "2026-08-21T23:30:00Z",
-      "home_team": {
-        "name": "Chicago Sky",
-        "abbreviation": "Chicago Sky"
-      },
-      "away_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "players": [
-        {
-          "player_id": "8643e7ef86c42f8f9cdded87326060fc:Kamilla Cardoso:reb:8.5:under:betparx",
-          "player_name": "Kamilla Cardoso",
-          "team_name": "",
-          "position": "betparx +104 \u00b7 EV +3.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 8.5,
-              "median": 8.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 8.5,
-                "p_over": 0.4952,
-                "edge_vs_market": -0.029797,
-                "kelly_fraction": 0.0072
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": 104,
-                "ev_pct": 2.98,
-                "fair_p_side": 0.5048,
-                "consensus_p_over": 0.4952,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4803,
-                "best_book": "betparx",
-                "best_odds": 104
-              }
-            }
-          }
-        },
-        {
-          "player_id": "8643e7ef86c42f8f9cdded87326060fc:Kamilla Cardoso:ast:2.5:over:betonlineag",
-          "player_name": "Kamilla Cardoso",
-          "team_name": "",
-          "position": "betonlineag +120 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.4671,
-                "edge_vs_market": 0.027549,
-                "kelly_fraction": 0.0057
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 120,
-                "ev_pct": 2.755,
-                "fair_p_side": 0.4671,
-                "consensus_p_over": 0.4671,
-                "consensus_n_books": 5,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4226,
-                "best_book": "betonlineag",
-                "best_odds": 120
               }
             }
           }
