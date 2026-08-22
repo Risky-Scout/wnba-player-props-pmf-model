@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-22T21:06:51.740300+00:00",
+  "generated_at": "2026-08-22T22:05:30.149622+00:00",
   "game_date": "2026-08-22",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-22",
-    "generated_utc": "2026-08-22T21:06:51.740300+00:00",
+    "generated_utc": "2026-08-22T22:05:30.149622+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 2064,
-    "n_scored_rows": 1832,
-    "n_qualifying": 6,
+    "n_quote_rows": 2058,
+    "n_scored_rows": 1822,
+    "n_qualifying": 7,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -101,7 +101,7 @@
           "player_id": "a05ae0cd5516fbbcdd9fda35e698f70d:Rebecca Allen:pts:7.5:under:betparx",
           "player_name": "Rebecca Allen",
           "team_name": "",
-          "position": "betparx -120 \u00b7 EV +5.6%",
+          "position": "betparx -118 \u00b7 EV +6.4%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -117,21 +117,21 @@
               "calibrated_p_over": {
                 "market_line": 7.5,
                 "p_over": 0.4239,
-                "edge_vs_market": -0.056164,
-                "kelly_fraction": 0.0168
+                "edge_vs_market": -0.064301,
+                "kelly_fraction": 0.019
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
-                "offered_odds": -120,
-                "ev_pct": 5.616,
+                "offered_odds": -118,
+                "ev_pct": 6.43,
                 "fair_p_side": 0.5761,
                 "consensus_p_over": 0.4239,
                 "consensus_n_books": 3,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.4183,
                 "best_book": "betparx",
-                "best_odds": -120
+                "best_odds": -118
               }
             }
           }
@@ -191,6 +191,123 @@
           }
         },
         {
+          "player_id": "d2c4b90e59812d0ba7bb21319e5c25a6:Diamond Miller:ast:1.5:over:betonlineag",
+          "player_name": "Diamond Miller",
+          "team_name": "",
+          "position": "betonlineag -123 \u00b7 EV +3.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.5733,
+                "edge_vs_market": 0.039418,
+                "kelly_fraction": 0.0121
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": -123,
+                "ev_pct": 3.942,
+                "fair_p_side": 0.5733,
+                "consensus_p_over": 0.5733,
+                "consensus_n_books": 3,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.5197,
+                "best_book": "betonlineag",
+                "best_odds": -123
+              }
+            }
+          }
+        },
+        {
+          "player_id": "d2c4b90e59812d0ba7bb21319e5c25a6:Diamond Miller:ast:1.5:over:rebet",
+          "player_name": "Diamond Miller",
+          "team_name": "",
+          "position": "rebet -124 \u00b7 EV +3.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.5733,
+                "edge_vs_market": 0.035659,
+                "kelly_fraction": 0.0111
+              },
+              "soft_book": {
+                "book": "rebet",
+                "side": "over",
+                "offered_odds": -124,
+                "ev_pct": 3.566,
+                "fair_p_side": 0.5733,
+                "consensus_p_over": 0.5733,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5197,
+                "best_book": "betonlineag",
+                "best_odds": -123
+              }
+            }
+          }
+        },
+        {
+          "player_id": "d2c4b90e59812d0ba7bb21319e5c25a6:Diamond Miller:ast:1.5:under:hardrockbet",
+          "player_name": "Diamond Miller",
+          "team_name": "",
+          "position": "hardrockbet +115 \u00b7 EV +3.3%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.5197,
+                "edge_vs_market": -0.032673,
+                "kelly_fraction": 0.0071
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 115,
+                "ev_pct": 3.267,
+                "fair_p_side": 0.4803,
+                "consensus_p_over": 0.5197,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5197,
+                "best_book": "hardrockbet",
+                "best_odds": 115
+              }
+            }
+          }
+        },
+        {
           "player_id": "d2c4b90e59812d0ba7bb21319e5c25a6:Ariel Atkins:reb:2.5:under:betonlineag",
           "player_name": "Ariel Atkins",
           "team_name": "",
@@ -224,99 +341,6 @@
                 "is_sharp_book": true,
                 "sharp_consensus_p_over": 0.5326,
                 "best_book": "betonlineag",
-                "best_odds": 100
-              }
-            }
-          }
-        },
-        {
-          "player_id": "d2c4b90e59812d0ba7bb21319e5c25a6:Diamond Miller:ast:1.5:over:betonlineag",
-          "player_name": "Diamond Miller",
-          "team_name": "",
-          "position": "betonlineag -123 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.5658,
-                "edge_vs_market": 0.025848,
-                "kelly_fraction": 0.0079
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": -123,
-                "ev_pct": 2.585,
-                "fair_p_side": 0.5658,
-                "consensus_p_over": 0.5658,
-                "consensus_n_books": 3,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.5197,
-                "best_book": "betonlineag",
-                "best_odds": -123
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "c51758bb72914739b6e6cc2d16ed0882",
-      "odds_api_event_id": "c51758bb72914739b6e6cc2d16ed0882",
-      "commence_time": "2026-08-23T02:00:00Z",
-      "home_team": {
-        "name": "Phoenix Mercury",
-        "abbreviation": "Phoenix Mercury"
-      },
-      "away_team": {
-        "name": "Atlanta Dream",
-        "abbreviation": "Atlanta Dream"
-      },
-      "players": [
-        {
-          "player_id": "c51758bb72914739b6e6cc2d16ed0882:Alyssa Thomas:pts:14.5:over:hardrockbet",
-          "player_name": "Alyssa Thomas",
-          "team_name": "",
-          "position": "hardrockbet +100 \u00b7 EV +2.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 14.5,
-              "median": 14.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 14.5,
-                "p_over": 0.5136,
-                "edge_vs_market": 0.027121,
-                "kelly_fraction": 0.0068
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 100,
-                "ev_pct": 2.712,
-                "fair_p_side": 0.5136,
-                "consensus_p_over": 0.5136,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5197,
-                "best_book": "hardrockbet",
                 "best_odds": 100
               }
             }
