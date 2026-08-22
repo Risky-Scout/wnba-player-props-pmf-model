@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-22T01:33:51.971239+00:00",
+  "generated_at": "2026-08-22T02:28:18.488741+00:00",
   "game_date": "2026-08-22",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-22",
-    "generated_utc": "2026-08-22T01:33:51.971239+00:00",
+    "generated_utc": "2026-08-22T02:28:18.488741+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,8 +33,8 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1442,
-    "n_scored_rows": 1280,
+    "n_quote_rows": 1446,
+    "n_scored_rows": 1284,
     "n_qualifying": 3,
     "n_books_per_stat": {
       "ast": 10,
@@ -58,6 +58,84 @@
         "abbreviation": "Indiana Fever"
       },
       "players": [
+        {
+          "player_id": "a05ae0cd5516fbbcdd9fda35e698f70d:Sophie Cunningham:fg3m:1.5:over:hardrockbet",
+          "player_name": "Sophie Cunningham",
+          "team_name": "",
+          "position": "hardrockbet +150 \u00b7 EV +3.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.4118,
+                "edge_vs_market": 0.029553,
+                "kelly_fraction": 0.0049
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": 150,
+                "ev_pct": 2.955,
+                "fair_p_side": 0.4118,
+                "consensus_p_over": 0.4118,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "hardrockbet",
+                "best_odds": 150
+              }
+            }
+          }
+        },
+        {
+          "player_id": "a05ae0cd5516fbbcdd9fda35e698f70d:Sophie Cunningham:fg3m:1.5:over:betparx",
+          "player_name": "Sophie Cunningham",
+          "team_name": "",
+          "position": "betparx +150 \u00b7 EV +3.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.4118,
+                "edge_vs_market": 0.029553,
+                "kelly_fraction": 0.0049
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 150,
+                "ev_pct": 2.955,
+                "fair_p_side": 0.4118,
+                "consensus_p_over": 0.4118,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "hardrockbet",
+                "best_odds": 150
+              }
+            }
+          }
+        },
         {
           "player_id": "a05ae0cd5516fbbcdd9fda35e698f70d:Sophie Cunningham:pts:6.5:over:hardrockbet",
           "player_name": "Sophie Cunningham",
@@ -93,84 +171,6 @@
                 "sharp_consensus_p_over": 0.5273,
                 "best_book": "hardrockbet",
                 "best_odds": -105
-              }
-            }
-          }
-        },
-        {
-          "player_id": "a05ae0cd5516fbbcdd9fda35e698f70d:Sophie Cunningham:fg3m:1.5:over:hardrockbet",
-          "player_name": "Sophie Cunningham",
-          "team_name": "",
-          "position": "hardrockbet +150 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.4104,
-                "edge_vs_market": 0.026072,
-                "kelly_fraction": 0.0043
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 150,
-                "ev_pct": 2.607,
-                "fair_p_side": 0.4104,
-                "consensus_p_over": 0.4104,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4066,
-                "best_book": "hardrockbet",
-                "best_odds": 150
-              }
-            }
-          }
-        },
-        {
-          "player_id": "a05ae0cd5516fbbcdd9fda35e698f70d:Sophie Cunningham:fg3m:1.5:over:betparx",
-          "player_name": "Sophie Cunningham",
-          "team_name": "",
-          "position": "betparx +150 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.4104,
-                "edge_vs_market": 0.026072,
-                "kelly_fraction": 0.0043
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 150,
-                "ev_pct": 2.607,
-                "fair_p_side": 0.4104,
-                "consensus_p_over": 0.4104,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4066,
-                "best_book": "hardrockbet",
-                "best_odds": 150
               }
             }
           }
