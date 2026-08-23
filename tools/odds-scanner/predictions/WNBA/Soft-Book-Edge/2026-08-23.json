@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-23T03:25:02.703733+00:00",
+  "generated_at": "2026-08-23T18:05:42.452771+00:00",
   "game_date": "2026-08-23",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,30 +16,88 @@
   },
   "summary": {
     "date": "2026-08-23",
-    "generated_utc": "2026-08-23T03:25:02.703733+00:00",
+    "generated_utc": "2026-08-23T18:05:42.452771+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
-    "n_books_seen": 7,
+    "n_books_seen": 10,
     "books_seen": [
       "betonlineag",
+      "betparx",
+      "betrivers",
       "draftkings",
       "espnbet",
       "fanduel",
       "fliff",
+      "hardrockbet",
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1254,
-    "n_scored_rows": 1206,
-    "n_qualifying": 0,
+    "n_quote_rows": 2084,
+    "n_scored_rows": 1812,
+    "n_qualifying": 1,
     "n_books_per_stat": {
-      "ast": 7,
-      "fg3m": 7,
-      "pts": 7,
-      "reb": 7
+      "ast": 10,
+      "fg3m": 10,
+      "pts": 10,
+      "reb": 10
     },
     "status": "ok"
   },
-  "games": []
+  "games": [
+    {
+      "game_id": "df428ab65c7800c0b0bc4773de724cb3",
+      "odds_api_event_id": "df428ab65c7800c0b0bc4773de724cb3",
+      "commence_time": "2026-08-23T20:00:00Z",
+      "home_team": {
+        "name": "Dallas Wings",
+        "abbreviation": "Dallas Wings"
+      },
+      "away_team": {
+        "name": "Seattle Storm",
+        "abbreviation": "Seattle Storm"
+      },
+      "players": [
+        {
+          "player_id": "df428ab65c7800c0b0bc4773de724cb3:Dominique Malonga:pts:19.5:over:betonlineag",
+          "player_name": "Dominique Malonga",
+          "team_name": "",
+          "position": "betonlineag +110 \u00b7 EV +2.9%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 19.5,
+              "median": 19.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 19.5,
+                "p_over": 0.49,
+                "edge_vs_market": 0.029062,
+                "kelly_fraction": 0.0066
+              },
+              "soft_book": {
+                "book": "betonlineag",
+                "side": "over",
+                "offered_odds": 110,
+                "ev_pct": 2.906,
+                "fair_p_side": 0.49,
+                "consensus_p_over": 0.49,
+                "consensus_n_books": 6,
+                "is_sharp_book": true,
+                "sharp_consensus_p_over": 0.4439,
+                "best_book": "betonlineag",
+                "best_odds": 110
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
