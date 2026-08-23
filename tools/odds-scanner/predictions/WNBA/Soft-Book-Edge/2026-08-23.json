@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-23T19:07:47.404349+00:00",
+  "generated_at": "2026-08-23T20:05:01.619973+00:00",
   "game_date": "2026-08-23",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-23",
-    "generated_utc": "2026-08-23T19:07:47.404349+00:00",
+    "generated_utc": "2026-08-23T20:05:01.619973+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 2106,
-    "n_scored_rows": 1820,
-    "n_qualifying": 8,
+    "n_quote_rows": 2104,
+    "n_scored_rows": 1270,
+    "n_qualifying": 4,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -45,270 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "bc3a81f7e77e90a0c34cd5cda709243d",
-      "odds_api_event_id": "bc3a81f7e77e90a0c34cd5cda709243d",
-      "commence_time": "2026-08-23T23:00:00Z",
-      "home_team": {
-        "name": "Chicago Sky",
-        "abbreviation": "Chicago Sky"
-      },
-      "away_team": {
-        "name": "Indiana Fever",
-        "abbreviation": "Indiana Fever"
-      },
-      "players": [
-        {
-          "player_id": "bc3a81f7e77e90a0c34cd5cda709243d:Azura Stevens:reb:7.5:under:betparx",
-          "player_name": "Azura Stevens",
-          "team_name": "",
-          "position": "betparx -112 \u00b7 EV +11.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 7.5,
-              "median": 7.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.4137,
-                "edge_vs_market": -0.109747,
-                "kelly_fraction": 0.0307
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -112,
-                "ev_pct": 10.975,
-                "fair_p_side": 0.5863,
-                "consensus_p_over": 0.4137,
-                "consensus_n_books": 6,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4066,
-                "best_book": "betparx",
-                "best_odds": -112
-              }
-            }
-          }
-        },
-        {
-          "player_id": "bc3a81f7e77e90a0c34cd5cda709243d:Kelsey Mitchell:reb:2.5:under:betparx",
-          "player_name": "Kelsey Mitchell",
-          "team_name": "",
-          "position": "betparx -167 \u00b7 EV +2.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 2.5,
-              "median": 2.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 2.5,
-                "p_over": 0.3581,
-                "edge_vs_market": -0.026206,
-                "kelly_fraction": 0.0109
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -167,
-                "ev_pct": 2.621,
-                "fair_p_side": 0.6419,
-                "consensus_p_over": 0.3581,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3561,
-                "best_book": "betparx",
-                "best_odds": -167
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "game_id": "df428ab65c7800c0b0bc4773de724cb3",
-      "odds_api_event_id": "df428ab65c7800c0b0bc4773de724cb3",
-      "commence_time": "2026-08-23T20:00:00Z",
-      "home_team": {
-        "name": "Dallas Wings",
-        "abbreviation": "Dallas Wings"
-      },
-      "away_team": {
-        "name": "Seattle Storm",
-        "abbreviation": "Seattle Storm"
-      },
-      "players": [
-        {
-          "player_id": "df428ab65c7800c0b0bc4773de724cb3:Dominique Malonga:pts:19.5:over:betonlineag",
-          "player_name": "Dominique Malonga",
-          "team_name": "",
-          "position": "betonlineag +110 \u00b7 EV +4.5%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 19.5,
-              "median": 19.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 19.5,
-                "p_over": 0.4975,
-                "edge_vs_market": 0.044697,
-                "kelly_fraction": 0.0102
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 4.47,
-                "fair_p_side": 0.4975,
-                "consensus_p_over": 0.4975,
-                "consensus_n_books": 8,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.4439,
-                "best_book": "betonlineag",
-                "best_odds": 110
-              }
-            }
-          }
-        },
-        {
-          "player_id": "df428ab65c7800c0b0bc4773de724cb3:Dominique Malonga:pts:19.5:over:rebet",
-          "player_name": "Dominique Malonga",
-          "team_name": "",
-          "position": "rebet +107 \u00b7 EV +3.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 19.5,
-              "median": 19.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 19.5,
-                "p_over": 0.4975,
-                "edge_vs_market": 0.029773,
-                "kelly_fraction": 0.007
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "over",
-                "offered_odds": 107,
-                "ev_pct": 2.977,
-                "fair_p_side": 0.4975,
-                "consensus_p_over": 0.4975,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4439,
-                "best_book": "betonlineag",
-                "best_odds": 110
-              }
-            }
-          }
-        },
-        {
-          "player_id": "df428ab65c7800c0b0bc4773de724cb3:Paige Bueckers:ast:6.5:over:betonlineag",
-          "player_name": "Paige Bueckers",
-          "team_name": "",
-          "position": "betonlineag +139 \u00b7 EV +2.9%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.4304,
-                "edge_vs_market": 0.028663,
-                "kelly_fraction": 0.0052
-              },
-              "soft_book": {
-                "book": "betonlineag",
-                "side": "over",
-                "offered_odds": 139,
-                "ev_pct": 2.866,
-                "fair_p_side": 0.4304,
-                "consensus_p_over": 0.4304,
-                "consensus_n_books": 8,
-                "is_sharp_book": true,
-                "sharp_consensus_p_over": 0.3865,
-                "best_book": "betonlineag",
-                "best_odds": 139
-              }
-            }
-          }
-        },
-        {
-          "player_id": "df428ab65c7800c0b0bc4773de724cb3:Flau'jae Johnson:pts:14.5:over:betparx",
-          "player_name": "Flau'jae Johnson",
-          "team_name": "",
-          "position": "betparx +114 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 14.5,
-              "median": 14.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 14.5,
-                "p_over": 0.4803,
-                "edge_vs_market": 0.027869,
-                "kelly_fraction": 0.0061
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 114,
-                "ev_pct": 2.787,
-                "fair_p_side": 0.4803,
-                "consensus_p_over": 0.4803,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4803,
-                "best_book": "betparx",
-                "best_odds": 114
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "efc616f676575f27e95d18e9ea20a747",
       "odds_api_event_id": "efc616f676575f27e95d18e9ea20a747",
@@ -323,10 +59,10 @@
       },
       "players": [
         {
-          "player_id": "efc616f676575f27e95d18e9ea20a747:Kiki Rice:pts:14.5:over:hardrockbet",
-          "player_name": "Kiki Rice",
+          "player_id": "efc616f676575f27e95d18e9ea20a747:Laura Juskaite:fg3m:1.5:under:hardrockbet",
+          "player_name": "Laura Juskaite",
           "team_name": "",
-          "position": "hardrockbet +105 \u00b7 EV +3.9%",
+          "position": "hardrockbet -135 \u00b7 EV +4.6%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -334,29 +70,68 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "points": {
-              "mean": 14.5,
-              "median": 14.5,
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 14.5,
-                "p_over": 0.507,
-                "edge_vs_market": 0.039413,
-                "kelly_fraction": 0.0094
+                "market_line": 1.5,
+                "p_over": 0.399,
+                "edge_vs_market": -0.046137,
+                "kelly_fraction": 0.0156
               },
               "soft_book": {
                 "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 105,
-                "ev_pct": 3.941,
-                "fair_p_side": 0.507,
-                "consensus_p_over": 0.507,
+                "side": "under",
+                "offered_odds": -135,
+                "ev_pct": 4.614,
+                "fair_p_side": 0.601,
+                "consensus_p_over": 0.399,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
+                "sharp_consensus_p_over": 0.3865,
                 "best_book": "hardrockbet",
-                "best_odds": 105
+                "best_odds": -135
+              }
+            }
+          }
+        },
+        {
+          "player_id": "efc616f676575f27e95d18e9ea20a747:Laura Juskaite:fg3m:1.5:under:betparx",
+          "player_name": "Laura Juskaite",
+          "team_name": "",
+          "position": "betparx -137 \u00b7 EV +4.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.399,
+                "edge_vs_market": -0.039638,
+                "kelly_fraction": 0.0136
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -137,
+                "ev_pct": 3.964,
+                "fair_p_side": 0.601,
+                "consensus_p_over": 0.399,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3865,
+                "best_book": "hardrockbet",
+                "best_odds": -135
               }
             }
           }
@@ -380,7 +155,7 @@
           "player_id": "4329aee135ac130aa177b8dfb7b3ffac:Bridget Carleton:reb:4.5:under:betparx",
           "player_name": "Bridget Carleton",
           "team_name": "",
-          "position": "betparx +104 \u00b7 EV +3.8%",
+          "position": "betparx +104 \u00b7 EV +4.1%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -395,22 +170,76 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 4.5,
-                "p_over": 0.4913,
-                "edge_vs_market": -0.037659,
-                "kelly_fraction": 0.0091
+                "p_over": 0.4897,
+                "edge_vs_market": -0.041085,
+                "kelly_fraction": 0.0099
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": 104,
-                "ev_pct": 3.766,
-                "fair_p_side": 0.5087,
-                "consensus_p_over": 0.4913,
+                "ev_pct": 4.109,
+                "fair_p_side": 0.5103,
+                "consensus_p_over": 0.4897,
                 "consensus_n_books": 7,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4913,
+                "sharp_consensus_p_over": 0.4891,
                 "best_book": "betparx",
                 "best_odds": 104
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "bc3a81f7e77e90a0c34cd5cda709243d",
+      "odds_api_event_id": "bc3a81f7e77e90a0c34cd5cda709243d",
+      "commence_time": "2026-08-23T23:00:00Z",
+      "home_team": {
+        "name": "Chicago Sky",
+        "abbreviation": "Chicago Sky"
+      },
+      "away_team": {
+        "name": "Indiana Fever",
+        "abbreviation": "Indiana Fever"
+      },
+      "players": [
+        {
+          "player_id": "bc3a81f7e77e90a0c34cd5cda709243d:Kelsey Mitchell:reb:2.5:under:betparx",
+          "player_name": "Kelsey Mitchell",
+          "team_name": "",
+          "position": "betparx -167 \u00b7 EV +3.4%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 2.5,
+                "p_over": 0.353,
+                "edge_vs_market": -0.034371,
+                "kelly_fraction": 0.0143
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -167,
+                "ev_pct": 3.437,
+                "fair_p_side": 0.647,
+                "consensus_p_over": 0.353,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3425,
+                "best_book": "betparx",
+                "best_odds": -167
               }
             }
           }
