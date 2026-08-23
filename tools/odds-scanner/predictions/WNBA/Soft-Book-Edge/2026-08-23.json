@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-23T20:05:01.619973+00:00",
+  "generated_at": "2026-08-23T21:06:34.092964+00:00",
   "game_date": "2026-08-23",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-23",
-    "generated_utc": "2026-08-23T20:05:01.619973+00:00",
+    "generated_utc": "2026-08-23T21:06:34.092964+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 4,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 2104,
-    "n_scored_rows": 1270,
-    "n_qualifying": 4,
+    "n_quote_rows": 1506,
+    "n_scored_rows": 1274,
+    "n_qualifying": 6,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -45,99 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "efc616f676575f27e95d18e9ea20a747",
-      "odds_api_event_id": "efc616f676575f27e95d18e9ea20a747",
-      "commence_time": "2026-08-23T23:00:00Z",
-      "home_team": {
-        "name": "Toronto Tempo",
-        "abbreviation": "Toronto Tempo"
-      },
-      "away_team": {
-        "name": "Las Vegas Aces",
-        "abbreviation": "Las Vegas Aces"
-      },
-      "players": [
-        {
-          "player_id": "efc616f676575f27e95d18e9ea20a747:Laura Juskaite:fg3m:1.5:under:hardrockbet",
-          "player_name": "Laura Juskaite",
-          "team_name": "",
-          "position": "hardrockbet -135 \u00b7 EV +4.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.399,
-                "edge_vs_market": -0.046137,
-                "kelly_fraction": 0.0156
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -135,
-                "ev_pct": 4.614,
-                "fair_p_side": 0.601,
-                "consensus_p_over": 0.399,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3865,
-                "best_book": "hardrockbet",
-                "best_odds": -135
-              }
-            }
-          }
-        },
-        {
-          "player_id": "efc616f676575f27e95d18e9ea20a747:Laura Juskaite:fg3m:1.5:under:betparx",
-          "player_name": "Laura Juskaite",
-          "team_name": "",
-          "position": "betparx -137 \u00b7 EV +4.0%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.399,
-                "edge_vs_market": -0.039638,
-                "kelly_fraction": 0.0136
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -137,
-                "ev_pct": 3.964,
-                "fair_p_side": 0.601,
-                "consensus_p_over": 0.399,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3865,
-                "best_book": "hardrockbet",
-                "best_odds": -135
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "4329aee135ac130aa177b8dfb7b3ffac",
       "odds_api_event_id": "4329aee135ac130aa177b8dfb7b3ffac",
@@ -193,6 +100,138 @@
       ]
     },
     {
+      "game_id": "efc616f676575f27e95d18e9ea20a747",
+      "odds_api_event_id": "efc616f676575f27e95d18e9ea20a747",
+      "commence_time": "2026-08-23T23:00:00Z",
+      "home_team": {
+        "name": "Toronto Tempo",
+        "abbreviation": "Toronto Tempo"
+      },
+      "away_team": {
+        "name": "Las Vegas Aces",
+        "abbreviation": "Las Vegas Aces"
+      },
+      "players": [
+        {
+          "player_id": "efc616f676575f27e95d18e9ea20a747:NaLyssa Smith:pts:14.5:over:betparx",
+          "player_name": "NaLyssa Smith",
+          "team_name": "",
+          "position": "betparx +114 \u00b7 EV +3.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 14.5,
+              "median": 14.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 14.5,
+                "p_over": 0.4848,
+                "edge_vs_market": 0.037559,
+                "kelly_fraction": 0.0082
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "over",
+                "offered_odds": 114,
+                "ev_pct": 3.756,
+                "fair_p_side": 0.4848,
+                "consensus_p_over": 0.4848,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": 114
+              }
+            }
+          }
+        },
+        {
+          "player_id": "efc616f676575f27e95d18e9ea20a747:Laura Juskaite:fg3m:1.5:under:hardrockbet",
+          "player_name": "Laura Juskaite",
+          "team_name": "",
+          "position": "hardrockbet -135 \u00b7 EV +3.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "threes": {
+              "mean": 1.5,
+              "median": 1.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 1.5,
+                "p_over": 0.4082,
+                "edge_vs_market": -0.030085,
+                "kelly_fraction": 0.0102
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": -135,
+                "ev_pct": 3.009,
+                "fair_p_side": 0.5918,
+                "consensus_p_over": 0.4082,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.3865,
+                "best_book": "hardrockbet",
+                "best_odds": -135
+              }
+            }
+          }
+        },
+        {
+          "player_id": "efc616f676575f27e95d18e9ea20a747:Isabelle Harrison:reb:6.5:over:hardrockbet",
+          "player_name": "Isabelle Harrison",
+          "team_name": "",
+          "position": "hardrockbet -110 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 6.5,
+              "median": 6.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 6.5,
+                "p_over": 0.5376,
+                "edge_vs_market": 0.026402,
+                "kelly_fraction": 0.0073
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "over",
+                "offered_odds": -110,
+                "ev_pct": 2.64,
+                "fair_p_side": 0.5376,
+                "consensus_p_over": 0.5376,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5421,
+                "best_book": "hardrockbet",
+                "best_odds": -110
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
       "game_id": "bc3a81f7e77e90a0c34cd5cda709243d",
       "odds_api_event_id": "bc3a81f7e77e90a0c34cd5cda709243d",
       "commence_time": "2026-08-23T23:00:00Z",
@@ -209,7 +248,7 @@
           "player_id": "bc3a81f7e77e90a0c34cd5cda709243d:Kelsey Mitchell:reb:2.5:under:betparx",
           "player_name": "Kelsey Mitchell",
           "team_name": "",
-          "position": "betparx -167 \u00b7 EV +3.4%",
+          "position": "betparx -167 \u00b7 EV +3.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -224,22 +263,61 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.353,
-                "edge_vs_market": -0.034371,
-                "kelly_fraction": 0.0143
+                "p_over": 0.3513,
+                "edge_vs_market": -0.037119,
+                "kelly_fraction": 0.0155
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "under",
                 "offered_odds": -167,
-                "ev_pct": 3.437,
-                "fair_p_side": 0.647,
-                "consensus_p_over": 0.353,
+                "ev_pct": 3.712,
+                "fair_p_side": 0.6487,
+                "consensus_p_over": 0.3513,
                 "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3425,
+                "sharp_consensus_p_over": 0.3513,
                 "best_book": "betparx",
                 "best_odds": -167
+              }
+            }
+          }
+        },
+        {
+          "player_id": "bc3a81f7e77e90a0c34cd5cda709243d:Azura Stevens:reb:7.5:under:betparx",
+          "player_name": "Azura Stevens",
+          "team_name": "",
+          "position": "betparx -129 \u00b7 EV +3.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 7.5,
+              "median": 7.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 7.5,
+                "p_over": 0.4196,
+                "edge_vs_market": -0.030357,
+                "kelly_fraction": 0.0098
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -129,
+                "ev_pct": 3.036,
+                "fair_p_side": 0.5804,
+                "consensus_p_over": 0.4196,
+                "consensus_n_books": 5,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4066,
+                "best_book": "betparx",
+                "best_odds": -129
               }
             }
           }
