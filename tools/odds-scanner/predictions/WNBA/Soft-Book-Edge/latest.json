@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-24T03:26:36.874887+00:00",
+  "generated_at": "2026-08-24T18:10:24.663328+00:00",
   "game_date": "2026-08-24",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-24",
-    "generated_utc": "2026-08-24T03:26:36.874887+00:00",
+    "generated_utc": "2026-08-24T18:10:24.663328+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1270,
-    "n_scored_rows": 1122,
-    "n_qualifying": 3,
+    "n_quote_rows": 1434,
+    "n_scored_rows": 1282,
+    "n_qualifying": 5,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,10 +59,10 @@
       },
       "players": [
         {
-          "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:hardrockbet",
-          "player_name": "Olivia Miles",
+          "player_id": "409b5df2946c7913e77a1c509e505fdb:Cecilia Zandalasini:reb:2.5:over:draftkings",
+          "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +6.7%",
+          "position": "draftkings +136 \u00b7 EV +4.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -70,38 +70,38 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.508,
-                "edge_vs_market": 0.066848,
-                "kelly_fraction": 0.0152
+                "market_line": 2.5,
+                "p_over": 0.4439,
+                "edge_vs_market": 0.04761,
+                "kelly_fraction": 0.0088
               },
               "soft_book": {
-                "book": "hardrockbet",
+                "book": "draftkings",
                 "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 6.685,
-                "fair_p_side": 0.508,
-                "consensus_p_over": 0.508,
-                "consensus_n_books": 8,
+                "offered_odds": 136,
+                "ev_pct": 4.761,
+                "fair_p_side": 0.4439,
+                "consensus_p_over": 0.4439,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5109,
-                "best_book": "hardrockbet",
-                "best_odds": 110
+                "sharp_consensus_p_over": null,
+                "best_book": "draftkings",
+                "best_odds": 136
               }
             }
           }
         },
         {
-          "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:betparx",
-          "player_name": "Olivia Miles",
+          "player_id": "409b5df2946c7913e77a1c509e505fdb:Cecilia Zandalasini:reb:2.5:under:betparx",
+          "player_name": "Cecilia Zandalasini",
           "team_name": "",
-          "position": "betparx +108 \u00b7 EV +5.7%",
+          "position": "betparx -137 \u00b7 EV +3.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -109,38 +109,131 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
+            "rebounds": {
+              "mean": 2.5,
+              "median": 2.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 6.5,
-                "p_over": 0.508,
-                "edge_vs_market": 0.056687,
-                "kelly_fraction": 0.0131
+                "market_line": 2.5,
+                "p_over": 0.4008,
+                "edge_vs_market": -0.036583,
+                "kelly_fraction": 0.0125
               },
               "soft_book": {
                 "book": "betparx",
-                "side": "over",
-                "offered_odds": 108,
-                "ev_pct": 5.669,
-                "fair_p_side": 0.508,
-                "consensus_p_over": 0.508,
-                "consensus_n_books": 8,
+                "side": "under",
+                "offered_odds": -137,
+                "ev_pct": 3.658,
+                "fair_p_side": 0.5992,
+                "consensus_p_over": 0.4008,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5109,
-                "best_book": "hardrockbet",
-                "best_odds": 110
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": -137
               }
             }
           }
         },
         {
-          "player_id": "409b5df2946c7913e77a1c509e505fdb:Napheesa Collier:fg3m:1.5:over:draftkings",
-          "player_name": "Napheesa Collier",
+          "player_id": "409b5df2946c7913e77a1c509e505fdb:Veronica Burton:reb:3.5:under:hardrockbet",
+          "player_name": "Veronica Burton",
           "team_name": "",
-          "position": "draftkings +137 \u00b7 EV +2.7%",
+          "position": "hardrockbet +105 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.5,
+                "edge_vs_market": -0.025,
+                "kelly_fraction": 0.006
+              },
+              "soft_book": {
+                "book": "hardrockbet",
+                "side": "under",
+                "offered_odds": 105,
+                "ev_pct": 2.5,
+                "fair_p_side": 0.5,
+                "consensus_p_over": 0.5,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4945,
+                "best_book": "hardrockbet",
+                "best_odds": 105
+              }
+            }
+          }
+        },
+        {
+          "player_id": "409b5df2946c7913e77a1c509e505fdb:Veronica Burton:reb:3.5:under:betparx",
+          "player_name": "Veronica Burton",
+          "team_name": "",
+          "position": "betparx +105 \u00b7 EV +2.5%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.5,
+                "edge_vs_market": -0.025,
+                "kelly_fraction": 0.006
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": 105,
+                "ev_pct": 2.5,
+                "fair_p_side": 0.5,
+                "consensus_p_over": 0.5,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4945,
+                "best_book": "hardrockbet",
+                "best_odds": 105
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "6be5d7c309d85e0d9d1c237ac81f414c",
+      "odds_api_event_id": "6be5d7c309d85e0d9d1c237ac81f414c",
+      "commence_time": "2026-08-25T02:00:00Z",
+      "home_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "away_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "players": [
+        {
+          "player_id": "6be5d7c309d85e0d9d1c237ac81f414c:Allisha Gray:fg3m:1.5:over:hardrockbet",
+          "player_name": "Allisha Gray",
+          "team_name": "",
+          "position": "hardrockbet -125 \u00b7 EV +2.5%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -155,22 +248,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.4334,
-                "edge_vs_market": 0.027183,
-                "kelly_fraction": 0.005
+                "p_over": 0.5696,
+                "edge_vs_market": 0.025275,
+                "kelly_fraction": 0.0079
               },
               "soft_book": {
-                "book": "draftkings",
+                "book": "hardrockbet",
                 "side": "over",
-                "offered_odds": 137,
-                "ev_pct": 2.718,
-                "fair_p_side": 0.4334,
-                "consensus_p_over": 0.4334,
+                "offered_odds": -125,
+                "ev_pct": 2.527,
+                "fair_p_side": 0.5696,
+                "consensus_p_over": 0.5696,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4226,
-                "best_book": "draftkings",
-                "best_odds": 137
+                "sharp_consensus_p_over": 0.5712,
+                "best_book": "hardrockbet",
+                "best_odds": -125
               }
             }
           }
