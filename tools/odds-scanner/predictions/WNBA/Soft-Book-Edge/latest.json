@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-24T02:34:24.401756+00:00",
+  "generated_at": "2026-08-24T03:26:36.874887+00:00",
   "game_date": "2026-08-24",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-24",
-    "generated_utc": "2026-08-24T02:34:24.401756+00:00",
+    "generated_utc": "2026-08-24T03:26:36.874887+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1180,
-    "n_scored_rows": 1040,
-    "n_qualifying": 4,
+    "n_quote_rows": 1270,
+    "n_scored_rows": 1122,
+    "n_qualifying": 3,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,49 +59,10 @@
       },
       "players": [
         {
-          "player_id": "409b5df2946c7913e77a1c509e505fdb:Kayla McBride:pts:16.5:over:betparx",
-          "player_name": "Kayla McBride",
-          "team_name": "",
-          "position": "betparx +107 \u00b7 EV +5.6%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 16.5,
-              "median": 16.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 16.5,
-                "p_over": 0.5103,
-                "edge_vs_market": 0.056395,
-                "kelly_fraction": 0.0132
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 107,
-                "ev_pct": 5.639,
-                "fair_p_side": 0.5103,
-                "consensus_p_over": 0.5103,
-                "consensus_n_books": 3,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "betparx",
-                "best_odds": 107
-              }
-            }
-          }
-        },
-        {
           "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:hardrockbet",
           "player_name": "Olivia Miles",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +5.6%",
+          "position": "hardrockbet +110 \u00b7 EV +6.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,20 +77,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 6.5,
-                "p_over": 0.5027,
-                "edge_vs_market": 0.055653,
-                "kelly_fraction": 0.0126
+                "p_over": 0.508,
+                "edge_vs_market": 0.066848,
+                "kelly_fraction": 0.0152
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
                 "offered_odds": 110,
-                "ev_pct": 5.565,
-                "fair_p_side": 0.5027,
-                "consensus_p_over": 0.5027,
+                "ev_pct": 6.685,
+                "fair_p_side": 0.508,
+                "consensus_p_over": 0.508,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
+                "sharp_consensus_p_over": 0.5109,
                 "best_book": "hardrockbet",
                 "best_odds": 110
               }
@@ -140,7 +101,7 @@
           "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:betparx",
           "player_name": "Olivia Miles",
           "team_name": "",
-          "position": "betparx +108 \u00b7 EV +4.6%",
+          "position": "betparx +108 \u00b7 EV +5.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -155,20 +116,20 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 6.5,
-                "p_over": 0.5027,
-                "edge_vs_market": 0.045599,
-                "kelly_fraction": 0.0106
+                "p_over": 0.508,
+                "edge_vs_market": 0.056687,
+                "kelly_fraction": 0.0131
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "over",
                 "offered_odds": 108,
-                "ev_pct": 4.56,
-                "fair_p_side": 0.5027,
-                "consensus_p_over": 0.5027,
+                "ev_pct": 5.669,
+                "fair_p_side": 0.508,
+                "consensus_p_over": 0.508,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
+                "sharp_consensus_p_over": 0.5109,
                 "best_book": "hardrockbet",
                 "best_odds": 110
               }
@@ -179,7 +140,7 @@
           "player_id": "409b5df2946c7913e77a1c509e505fdb:Napheesa Collier:fg3m:1.5:over:draftkings",
           "player_name": "Napheesa Collier",
           "team_name": "",
-          "position": "draftkings +140 \u00b7 EV +4.0%",
+          "position": "draftkings +137 \u00b7 EV +2.7%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -195,21 +156,21 @@
               "calibrated_p_over": {
                 "market_line": 1.5,
                 "p_over": 0.4334,
-                "edge_vs_market": 0.040186,
-                "kelly_fraction": 0.0072
+                "edge_vs_market": 0.027183,
+                "kelly_fraction": 0.005
               },
               "soft_book": {
                 "book": "draftkings",
                 "side": "over",
-                "offered_odds": 140,
-                "ev_pct": 4.019,
+                "offered_odds": 137,
+                "ev_pct": 2.718,
                 "fair_p_side": 0.4334,
                 "consensus_p_over": 0.4334,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4183,
+                "sharp_consensus_p_over": 0.4226,
                 "best_book": "draftkings",
-                "best_odds": 140
+                "best_odds": 137
               }
             }
           }
