@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-24T00:21:49.918839+00:00",
+  "generated_at": "2026-08-24T01:34:30.110465+00:00",
   "game_date": "2026-08-24",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,11 +16,11 @@
   },
   "summary": {
     "date": "2026-08-24",
-    "generated_utc": "2026-08-24T00:21:49.918839+00:00",
+    "generated_utc": "2026-08-24T01:34:30.110465+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
-    "n_books_seen": 10,
+    "n_books_seen": 9,
     "books_seen": [
       "betonlineag",
       "betparx",
@@ -29,18 +29,17 @@
       "espnbet",
       "fanduel",
       "fliff",
-      "hardrockbet",
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1048,
-    "n_scored_rows": 922,
-    "n_qualifying": 2,
+    "n_quote_rows": 1080,
+    "n_scored_rows": 934,
+    "n_qualifying": 3,
     "n_books_per_stat": {
-      "ast": 10,
-      "fg3m": 10,
-      "pts": 10,
-      "reb": 10
+      "ast": 9,
+      "fg3m": 9,
+      "pts": 9,
+      "reb": 9
     },
     "status": "ok"
   },
@@ -59,10 +58,10 @@
       },
       "players": [
         {
-          "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:hardrockbet",
+          "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:betparx",
           "player_name": "Olivia Miles",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +5.0%",
+          "position": "betparx +108 \u00b7 EV +4.0%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -78,28 +77,28 @@
               "calibrated_p_over": {
                 "market_line": 6.5,
                 "p_over": 0.5,
-                "edge_vs_market": 0.05,
-                "kelly_fraction": 0.0114
+                "edge_vs_market": 0.04,
+                "kelly_fraction": 0.0093
               },
               "soft_book": {
-                "book": "hardrockbet",
+                "book": "betparx",
                 "side": "over",
-                "offered_odds": 110,
-                "ev_pct": 5.0,
+                "offered_odds": 108,
+                "ev_pct": 4.0,
                 "fair_p_side": 0.5,
                 "consensus_p_over": 0.5,
-                "consensus_n_books": 8,
+                "consensus_n_books": 7,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5,
-                "best_book": "hardrockbet",
-                "best_odds": 110
+                "best_book": "betparx",
+                "best_odds": 108
               }
             }
           }
         },
         {
-          "player_id": "409b5df2946c7913e77a1c509e505fdb:Olivia Miles:ast:6.5:over:betparx",
-          "player_name": "Olivia Miles",
+          "player_id": "409b5df2946c7913e77a1c509e505fdb:Kayla McBride:pts:16.5:over:betparx",
+          "player_name": "Kayla McBride",
           "team_name": "",
           "position": "betparx +107 \u00b7 EV +3.5%",
           "is_starter": true,
@@ -109,13 +108,13 @@
           },
           "dnp_risk": 0,
           "stat_projections": {
-            "assists": {
-              "mean": 6.5,
-              "median": 6.5,
+            "points": {
+              "mean": 16.5,
+              "median": 16.5,
               "pmf": {},
               "conformal_90_ci": null,
               "calibrated_p_over": {
-                "market_line": 6.5,
+                "market_line": 16.5,
                 "p_over": 0.5,
                 "edge_vs_market": 0.035,
                 "kelly_fraction": 0.0082
@@ -127,11 +126,65 @@
                 "ev_pct": 3.5,
                 "fair_p_side": 0.5,
                 "consensus_p_over": 0.5,
-                "consensus_n_books": 8,
+                "consensus_n_books": 3,
                 "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5,
-                "best_book": "hardrockbet",
-                "best_odds": 110
+                "sharp_consensus_p_over": null,
+                "best_book": "betparx",
+                "best_odds": 107
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "6be5d7c309d85e0d9d1c237ac81f414c",
+      "odds_api_event_id": "6be5d7c309d85e0d9d1c237ac81f414c",
+      "commence_time": "2026-08-25T02:00:00Z",
+      "home_team": {
+        "name": "Los Angeles Sparks",
+        "abbreviation": "Los Angeles Sparks"
+      },
+      "away_team": {
+        "name": "Atlanta Dream",
+        "abbreviation": "Atlanta Dream"
+      },
+      "players": [
+        {
+          "player_id": "6be5d7c309d85e0d9d1c237ac81f414c:Madina Okot:pts:6.5:over:draftkings",
+          "player_name": "Madina Okot",
+          "team_name": "",
+          "position": "draftkings -107 \u00b7 EV +3.0%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "points": {
+              "mean": 6.5,
+              "median": 6.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 6.5,
+                "p_over": 0.5326,
+                "edge_vs_market": 0.030374,
+                "kelly_fraction": 0.0081
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "over",
+                "offered_odds": -107,
+                "ev_pct": 3.037,
+                "fair_p_side": 0.5326,
+                "consensus_p_over": 0.5326,
+                "consensus_n_books": 3,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5326,
+                "best_book": "draftkings",
+                "best_odds": -107
               }
             }
           }
