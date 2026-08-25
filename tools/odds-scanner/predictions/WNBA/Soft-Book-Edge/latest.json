@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-25T02:30:55.003368+00:00",
+  "generated_at": "2026-08-25T03:23:03.247851+00:00",
   "game_date": "2026-08-25",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-25",
-    "generated_utc": "2026-08-25T02:30:55.003368+00:00",
+    "generated_utc": "2026-08-25T03:23:03.247851+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1414,
-    "n_scored_rows": 1240,
-    "n_qualifying": 4,
+    "n_quote_rows": 1472,
+    "n_scored_rows": 1290,
+    "n_qualifying": 1,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -59,49 +59,10 @@
       },
       "players": [
         {
-          "player_id": "1fb615886a5e9855f01b8c3824e8d937:Kahleah Copper:pts:20.5:under:hardrockbet",
-          "player_name": "Kahleah Copper",
-          "team_name": "",
-          "position": "hardrockbet +105 \u00b7 EV +4.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 20.5,
-              "median": 20.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 20.5,
-                "p_over": 0.4892,
-                "edge_vs_market": -0.047186,
-                "kelly_fraction": 0.0112
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": 105,
-                "ev_pct": 4.719,
-                "fair_p_side": 0.5108,
-                "consensus_p_over": 0.4892,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4891,
-                "best_book": "hardrockbet",
-                "best_odds": 105
-              }
-            }
-          }
-        },
-        {
           "player_id": "1fb615886a5e9855f01b8c3824e8d937:Michaela Onyenwere:reb:2.5:under:draftkings",
           "player_name": "Michaela Onyenwere",
           "team_name": "",
-          "position": "draftkings +123 \u00b7 EV +3.8%",
+          "position": "draftkings +123 \u00b7 EV +2.5%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,100 +77,22 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5345,
-                "edge_vs_market": -0.038103,
-                "kelly_fraction": 0.0077
+                "p_over": 0.5402,
+                "edge_vs_market": -0.025353,
+                "kelly_fraction": 0.0052
               },
               "soft_book": {
                 "book": "draftkings",
                 "side": "under",
                 "offered_odds": 123,
-                "ev_pct": 3.81,
-                "fair_p_side": 0.4655,
-                "consensus_p_over": 0.5345,
-                "consensus_n_books": 5,
+                "ev_pct": 2.535,
+                "fair_p_side": 0.4598,
+                "consensus_p_over": 0.5402,
+                "consensus_n_books": 6,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5533,
                 "best_book": "draftkings",
                 "best_odds": 123
-              }
-            }
-          }
-        },
-        {
-          "player_id": "1fb615886a5e9855f01b8c3824e8d937:Kahleah Copper:reb:3.5:under:betparx",
-          "player_name": "Kahleah Copper",
-          "team_name": "",
-          "position": "betparx -124 \u00b7 EV +3.2%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 3.5,
-              "median": 3.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 3.5,
-                "p_over": 0.4288,
-                "edge_vs_market": -0.031796,
-                "kelly_fraction": 0.0099
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -124,
-                "ev_pct": 3.18,
-                "fair_p_side": 0.5712,
-                "consensus_p_over": 0.4288,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4288,
-                "best_book": "betparx",
-                "best_odds": -124
-              }
-            }
-          }
-        },
-        {
-          "player_id": "1fb615886a5e9855f01b8c3824e8d937:Kahleah Copper:reb:3.5:under:hardrockbet",
-          "player_name": "Kahleah Copper",
-          "team_name": "",
-          "position": "hardrockbet -125 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 3.5,
-              "median": 3.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 3.5,
-                "p_over": 0.4288,
-                "edge_vs_market": -0.028111,
-                "kelly_fraction": 0.0088
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "under",
-                "offered_odds": -125,
-                "ev_pct": 2.811,
-                "fair_p_side": 0.5712,
-                "consensus_p_over": 0.4288,
-                "consensus_n_books": 7,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4288,
-                "best_book": "betparx",
-                "best_odds": -124
               }
             }
           }
