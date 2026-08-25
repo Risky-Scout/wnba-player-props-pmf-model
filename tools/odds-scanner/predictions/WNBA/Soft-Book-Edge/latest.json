@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-25T00:20:58.274020+00:00",
+  "generated_at": "2026-08-25T01:34:22.297425+00:00",
   "game_date": "2026-08-25",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-25",
-    "generated_utc": "2026-08-25T00:20:58.274020+00:00",
+    "generated_utc": "2026-08-25T01:34:22.297425+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 3,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1138,
-    "n_scored_rows": 1008,
-    "n_qualifying": 1,
+    "n_quote_rows": 1278,
+    "n_scored_rows": 1144,
+    "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -62,7 +62,7 @@
           "player_id": "1fb615886a5e9855f01b8c3824e8d937:Michaela Onyenwere:reb:2.5:under:draftkings",
           "player_name": "Michaela Onyenwere",
           "team_name": "",
-          "position": "draftkings +123 \u00b7 EV +4.6%",
+          "position": "draftkings +123 \u00b7 EV +3.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,22 +77,76 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 2.5,
-                "p_over": 0.5311,
-                "edge_vs_market": -0.045566,
-                "kelly_fraction": 0.0093
+                "p_over": 0.5345,
+                "edge_vs_market": -0.038103,
+                "kelly_fraction": 0.0077
               },
               "soft_book": {
                 "book": "draftkings",
                 "side": "under",
                 "offered_odds": 123,
-                "ev_pct": 4.557,
-                "fair_p_side": 0.4689,
-                "consensus_p_over": 0.5311,
+                "ev_pct": 3.81,
+                "fair_p_side": 0.4655,
+                "consensus_p_over": 0.5345,
                 "consensus_n_books": 5,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5533,
                 "best_book": "draftkings",
                 "best_odds": 123
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "game_id": "f7dfec13dd9570adbd59427145a195c9",
+      "odds_api_event_id": "f7dfec13dd9570adbd59427145a195c9",
+      "commence_time": "2026-08-26T00:00:00Z",
+      "home_team": {
+        "name": "Dallas Wings",
+        "abbreviation": "Dallas Wings"
+      },
+      "away_team": {
+        "name": "Portland Fire",
+        "abbreviation": "Portland Fire"
+      },
+      "players": [
+        {
+          "player_id": "f7dfec13dd9570adbd59427145a195c9:Jessica Shepard:ast:4.5:under:draftkings",
+          "player_name": "Jessica Shepard",
+          "team_name": "",
+          "position": "draftkings +110 \u00b7 EV +2.6%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "assists": {
+              "mean": 4.5,
+              "median": 4.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 4.5,
+                "p_over": 0.5116,
+                "edge_vs_market": -0.025634,
+                "kelly_fraction": 0.0058
+              },
+              "soft_book": {
+                "book": "draftkings",
+                "side": "under",
+                "offered_odds": 110,
+                "ev_pct": 2.563,
+                "fair_p_side": 0.4884,
+                "consensus_p_over": 0.5116,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.5273,
+                "best_book": "draftkings",
+                "best_odds": 110
               }
             }
           }
