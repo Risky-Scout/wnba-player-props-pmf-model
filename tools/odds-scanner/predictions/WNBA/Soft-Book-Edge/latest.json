@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-26T18:39:07.366521+00:00",
+  "generated_at": "2026-08-26T19:35:07.773969+00:00",
   "game_date": "2026-08-26",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-26",
-    "generated_utc": "2026-08-26T18:39:07.366521+00:00",
+    "generated_utc": "2026-08-26T19:35:07.773969+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1161,
-    "n_scored_rows": 1034,
-    "n_qualifying": 5,
+    "n_quote_rows": 1143,
+    "n_scored_rows": 1018,
+    "n_qualifying": 3,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -45,138 +45,6 @@
     "status": "ok"
   },
   "games": [
-    {
-      "game_id": "3f4381eed1a924a849ea9959a1f16db1",
-      "odds_api_event_id": "3f4381eed1a924a849ea9959a1f16db1",
-      "commence_time": "2026-08-27T02:00:00Z",
-      "home_team": {
-        "name": "Seattle Storm",
-        "abbreviation": "Seattle Storm"
-      },
-      "away_team": {
-        "name": "Toronto Tempo",
-        "abbreviation": "Toronto Tempo"
-      },
-      "players": [
-        {
-          "player_id": "3f4381eed1a924a849ea9959a1f16db1:Dominique Malonga:reb:9.5:under:williamhill_us",
-          "player_name": "Dominique Malonga",
-          "team_name": "",
-          "position": "williamhill_us +111 \u00b7 EV +3.3%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.5104,
-                "edge_vs_market": -0.033157,
-                "kelly_fraction": 0.0075
-              },
-              "soft_book": {
-                "book": "williamhill_us",
-                "side": "under",
-                "offered_odds": 111,
-                "ev_pct": 3.316,
-                "fair_p_side": 0.4896,
-                "consensus_p_over": 0.5104,
-                "consensus_n_books": 4,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": null,
-                "best_book": "williamhill_us",
-                "best_odds": 111
-              }
-            }
-          }
-        },
-        {
-          "player_id": "3f4381eed1a924a849ea9959a1f16db1:Isabelle Harrison:reb:7.5:under:draftkings",
-          "player_name": "Isabelle Harrison",
-          "team_name": "",
-          "position": "draftkings +103 \u00b7 EV +3.1%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 7.5,
-              "median": 7.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 7.5,
-                "p_over": 0.4921,
-                "edge_vs_market": -0.031073,
-                "kelly_fraction": 0.0075
-              },
-              "soft_book": {
-                "book": "draftkings",
-                "side": "under",
-                "offered_odds": 103,
-                "ev_pct": 3.107,
-                "fair_p_side": 0.5079,
-                "consensus_p_over": 0.4921,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5055,
-                "best_book": "draftkings",
-                "best_odds": 103
-              }
-            }
-          }
-        },
-        {
-          "player_id": "3f4381eed1a924a849ea9959a1f16db1:Laura Juskaite:fg3m:1.5:under:rebet",
-          "player_name": "Laura Juskaite",
-          "team_name": "",
-          "position": "rebet -165 \u00b7 EV +2.7%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.3608,
-                "edge_vs_market": -0.026641,
-                "kelly_fraction": 0.011
-              },
-              "soft_book": {
-                "book": "rebet",
-                "side": "under",
-                "offered_odds": -165,
-                "ev_pct": 2.664,
-                "fair_p_side": 0.6392,
-                "consensus_p_over": 0.3608,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4066,
-                "best_book": "rebet",
-                "best_odds": -165
-              }
-            }
-          }
-        }
-      ]
-    },
     {
       "game_id": "8c94c1b3ead27f83634f28eecbee96ee",
       "odds_api_event_id": "8c94c1b3ead27f83634f28eecbee96ee",
@@ -191,10 +59,49 @@
       },
       "players": [
         {
+          "player_id": "8c94c1b3ead27f83634f28eecbee96ee:Tiffany Hayes:reb:3.5:under:betparx",
+          "player_name": "Tiffany Hayes",
+          "team_name": "",
+          "position": "betparx -113 \u00b7 EV +5.8%",
+          "is_starter": true,
+          "injury_status": null,
+          "projected_minutes": {
+            "mean": null
+          },
+          "dnp_risk": 0,
+          "stat_projections": {
+            "rebounds": {
+              "mean": 3.5,
+              "median": 3.5,
+              "pmf": {},
+              "conformal_90_ci": null,
+              "calibrated_p_over": {
+                "market_line": 3.5,
+                "p_over": 0.4386,
+                "edge_vs_market": -0.058242,
+                "kelly_fraction": 0.0165
+              },
+              "soft_book": {
+                "book": "betparx",
+                "side": "under",
+                "offered_odds": -113,
+                "ev_pct": 5.824,
+                "fair_p_side": 0.5614,
+                "consensus_p_over": 0.4386,
+                "consensus_n_books": 8,
+                "is_sharp_book": false,
+                "sharp_consensus_p_over": 0.4334,
+                "best_book": "betparx",
+                "best_odds": -113
+              }
+            }
+          }
+        },
+        {
           "player_id": "8c94c1b3ead27f83634f28eecbee96ee:Diamond Miller:fg3m:1.5:over:hardrockbet",
           "player_name": "Diamond Miller",
           "team_name": "",
-          "position": "hardrockbet +170 \u00b7 EV +3.0%",
+          "position": "hardrockbet +170 \u00b7 EV +2.8%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -209,17 +116,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 1.5,
-                "p_over": 0.3813,
-                "edge_vs_market": 0.029634,
-                "kelly_fraction": 0.0044
+                "p_over": 0.3807,
+                "edge_vs_market": 0.027859,
+                "kelly_fraction": 0.0041
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
                 "offered_odds": 170,
-                "ev_pct": 2.963,
-                "fair_p_side": 0.3813,
-                "consensus_p_over": 0.3813,
+                "ev_pct": 2.786,
+                "fair_p_side": 0.3807,
+                "consensus_p_over": 0.3807,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.3865,
