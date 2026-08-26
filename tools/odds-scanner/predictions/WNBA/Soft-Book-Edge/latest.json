@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-26T01:34:34.895651+00:00",
+  "generated_at": "2026-08-26T02:35:32.644569+00:00",
   "game_date": "2026-08-26",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-26",
-    "generated_utc": "2026-08-26T01:34:34.895651+00:00",
+    "generated_utc": "2026-08-26T02:35:32.644569+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -34,7 +34,7 @@
       "williamhill_us"
     ],
     "n_quote_rows": 487,
-    "n_scored_rows": 418,
+    "n_scored_rows": 420,
     "n_qualifying": 2,
     "n_books_per_stat": {
       "ast": 10,
@@ -62,7 +62,7 @@
           "player_id": "3f4381eed1a924a849ea9959a1f16db1:Laura Juskaite:pts:12.5:over:hardrockbet",
           "player_name": "Laura Juskaite",
           "team_name": "",
-          "position": "hardrockbet +110 \u00b7 EV +6.1%",
+          "position": "hardrockbet +110 \u00b7 EV +7.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -77,17 +77,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 12.5,
-                "p_over": 0.5054,
-                "edge_vs_market": 0.061364,
-                "kelly_fraction": 0.0139
+                "p_over": 0.5106,
+                "edge_vs_market": 0.072216,
+                "kelly_fraction": 0.0164
               },
               "soft_book": {
                 "book": "hardrockbet",
                 "side": "over",
                 "offered_odds": 110,
-                "ev_pct": 6.136,
-                "fair_p_side": 0.5054,
-                "consensus_p_over": 0.5054,
+                "ev_pct": 7.222,
+                "fair_p_side": 0.5106,
+                "consensus_p_over": 0.5106,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5109,
@@ -101,7 +101,7 @@
           "player_id": "3f4381eed1a924a849ea9959a1f16db1:Laura Juskaite:pts:12.5:over:betparx",
           "player_name": "Laura Juskaite",
           "team_name": "",
-          "position": "betparx +104 \u00b7 EV +3.1%",
+          "position": "betparx +104 \u00b7 EV +4.2%",
           "is_starter": true,
           "injury_status": null,
           "projected_minutes": {
@@ -116,17 +116,17 @@
               "conformal_90_ci": null,
               "calibrated_p_over": {
                 "market_line": 12.5,
-                "p_over": 0.5054,
-                "edge_vs_market": 0.031039,
-                "kelly_fraction": 0.0075
+                "p_over": 0.5106,
+                "edge_vs_market": 0.041582,
+                "kelly_fraction": 0.01
               },
               "soft_book": {
                 "book": "betparx",
                 "side": "over",
                 "offered_odds": 104,
-                "ev_pct": 3.104,
-                "fair_p_side": 0.5054,
-                "consensus_p_over": 0.5054,
+                "ev_pct": 4.158,
+                "fair_p_side": 0.5106,
+                "consensus_p_over": 0.5106,
                 "consensus_n_books": 8,
                 "is_sharp_book": false,
                 "sharp_consensus_p_over": 0.5109,
