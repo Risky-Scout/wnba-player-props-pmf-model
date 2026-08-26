@@ -1,6 +1,6 @@
 {
   "schema_version": "soft_book_edge_v1",
-  "generated_at": "2026-08-26T19:35:07.773969+00:00",
+  "generated_at": "2026-08-26T20:49:40.609863+00:00",
   "game_date": "2026-08-26",
   "board_type": "soft_book_ev",
   "model_version": "soft_book_edge_v1 (Definition B: market-vs-market, no PMF model)",
@@ -16,7 +16,7 @@
   },
   "summary": {
     "date": "2026-08-26",
-    "generated_utc": "2026-08-26T19:35:07.773969+00:00",
+    "generated_utc": "2026-08-26T20:49:40.609863+00:00",
     "ev_threshold_pct": 2.5,
     "min_consensus_books": 3,
     "n_events": 2,
@@ -33,9 +33,9 @@
       "rebet",
       "williamhill_us"
     ],
-    "n_quote_rows": 1143,
-    "n_scored_rows": 1018,
-    "n_qualifying": 3,
+    "n_quote_rows": 1129,
+    "n_scored_rows": 1014,
+    "n_qualifying": 0,
     "n_books_per_stat": {
       "ast": 10,
       "fg3m": 10,
@@ -44,138 +44,5 @@
     },
     "status": "ok"
   },
-  "games": [
-    {
-      "game_id": "8c94c1b3ead27f83634f28eecbee96ee",
-      "odds_api_event_id": "8c94c1b3ead27f83634f28eecbee96ee",
-      "commence_time": "2026-08-26T23:10:00Z",
-      "home_team": {
-        "name": "Connecticut Sun",
-        "abbreviation": "Connecticut Sun"
-      },
-      "away_team": {
-        "name": "Golden State Valkyries",
-        "abbreviation": "Golden State Valkyries"
-      },
-      "players": [
-        {
-          "player_id": "8c94c1b3ead27f83634f28eecbee96ee:Tiffany Hayes:reb:3.5:under:betparx",
-          "player_name": "Tiffany Hayes",
-          "team_name": "",
-          "position": "betparx -113 \u00b7 EV +5.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "rebounds": {
-              "mean": 3.5,
-              "median": 3.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 3.5,
-                "p_over": 0.4386,
-                "edge_vs_market": -0.058242,
-                "kelly_fraction": 0.0165
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "under",
-                "offered_odds": -113,
-                "ev_pct": 5.824,
-                "fair_p_side": 0.5614,
-                "consensus_p_over": 0.4386,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.4334,
-                "best_book": "betparx",
-                "best_odds": -113
-              }
-            }
-          }
-        },
-        {
-          "player_id": "8c94c1b3ead27f83634f28eecbee96ee:Diamond Miller:fg3m:1.5:over:hardrockbet",
-          "player_name": "Diamond Miller",
-          "team_name": "",
-          "position": "hardrockbet +170 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "threes": {
-              "mean": 1.5,
-              "median": 1.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 1.5,
-                "p_over": 0.3807,
-                "edge_vs_market": 0.027859,
-                "kelly_fraction": 0.0041
-              },
-              "soft_book": {
-                "book": "hardrockbet",
-                "side": "over",
-                "offered_odds": 170,
-                "ev_pct": 2.786,
-                "fair_p_side": 0.3807,
-                "consensus_p_over": 0.3807,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.3865,
-                "best_book": "hardrockbet",
-                "best_odds": 170
-              }
-            }
-          }
-        },
-        {
-          "player_id": "8c94c1b3ead27f83634f28eecbee96ee:Diamond Miller:pts:9.5:over:betparx",
-          "player_name": "Diamond Miller",
-          "team_name": "",
-          "position": "betparx +100 \u00b7 EV +2.8%",
-          "is_starter": true,
-          "injury_status": null,
-          "projected_minutes": {
-            "mean": null
-          },
-          "dnp_risk": 0,
-          "stat_projections": {
-            "points": {
-              "mean": 9.5,
-              "median": 9.5,
-              "pmf": {},
-              "conformal_90_ci": null,
-              "calibrated_p_over": {
-                "market_line": 9.5,
-                "p_over": 0.5139,
-                "edge_vs_market": 0.027829,
-                "kelly_fraction": 0.007
-              },
-              "soft_book": {
-                "book": "betparx",
-                "side": "over",
-                "offered_odds": 100,
-                "ev_pct": 2.783,
-                "fair_p_side": 0.5139,
-                "consensus_p_over": 0.5139,
-                "consensus_n_books": 8,
-                "is_sharp_book": false,
-                "sharp_consensus_p_over": 0.5273,
-                "best_book": "betparx",
-                "best_odds": 100
-              }
-            }
-          }
-        }
-      ]
-    }
-  ]
+  "games": []
 }
