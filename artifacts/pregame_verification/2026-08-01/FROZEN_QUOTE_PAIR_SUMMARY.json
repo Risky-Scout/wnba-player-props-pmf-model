@@ -1,0 +1,56 @@
+{
+  "raw_quote_wide_rows": 146,
+  "raw_quote_sides": 292,
+  "exact_pairs": 146,
+  "exact_pairs_game_period": 137,
+  "exact_pairs_q1_period": 9,
+  "model_trace_eligible_pairs": 137,
+  "q1_pairs_note": "player_points_q1 exact quote pairs are valid for quote audit but have no frozen game-level PMF target named pts_q1; excluded from model/market trace",
+  "rejected_pairs": 0,
+  "books": [
+    "betonlineag",
+    "draftkings",
+    "fanduel",
+    "pinnacle"
+  ],
+  "players": 20,
+  "markets": [
+    "ast",
+    "fg3m",
+    "pts",
+    "pts_ast",
+    "pts_q1",
+    "pts_reb",
+    "pts_reb_ast",
+    "reb",
+    "reb_ast"
+  ],
+  "pairs_by_market": {
+    "ast": 15,
+    "fg3m": 13,
+    "pts": 22,
+    "pts_ast": 16,
+    "pts_q1": 9,
+    "pts_reb": 21,
+    "pts_reb_ast": 17,
+    "reb": 20,
+    "reb_ast": 13
+  },
+  "pairs_by_market_key": {
+    "player_assists": 15,
+    "player_points": 22,
+    "player_points_assists": 16,
+    "player_points_q1": 9,
+    "player_points_rebounds": 21,
+    "player_points_rebounds_assists": 17,
+    "player_rebounds": 20,
+    "player_rebounds_assists": 13,
+    "player_threes": 13
+  },
+  "quote_timestamp_min": "2026-08-01T16:24:59Z",
+  "quote_timestamp_max": "2026-08-01T16:26:51Z",
+  "median_age_seconds": 38.435636,
+  "max_age_seconds": 132.435636,
+  "rejects_by_reason": {},
+  "zero_pair_root_cause_if_applicable": null
+}

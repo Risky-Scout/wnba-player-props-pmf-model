@@ -1,0 +1,25 @@
+{
+  "game_date": "2026-08-01",
+  "scheduled_game_count": 2,
+  "game_ids": [
+    "24969",
+    "24970"
+  ],
+  "games": [
+    {
+      "game_id": 24969,
+      "home_team": "CHI",
+      "away_team": "LV"
+    },
+    {
+      "game_id": 24970,
+      "home_team": "PHX",
+      "away_team": "NY"
+    }
+  ],
+  "total_players": 64,
+  "injury_flagged": [],
+  "high_dnp_risk": [],
+  "github_run_id": "30708012898",
+  "git_commit": "2caef26fa235a9f2cdccc900bd44f42974915e4d"
+}
