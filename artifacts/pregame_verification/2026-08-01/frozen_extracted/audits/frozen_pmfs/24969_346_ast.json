@@ -1,0 +1,17 @@
+{
+  "identity": {
+    "game_id": 24969,
+    "player_id": 346,
+    "target": "ast",
+    "prediction_timestamp": "20260801T162447Z",
+    "forecast_horizon": "2026-08-01",
+    "model_hash": "d7b190139c0114b5be31093ea85963e58afaa1b84bda1ae9090d16aa001b028b",
+    "distribution_hash": "90f0c62486197f2b914f4a9e229079e5c71ca1474e830fdf6f9dea88159968bb"
+  },
+  "atoms": [
+    [
+      0.0,
+      1.0
+    ]
+  ]
+}

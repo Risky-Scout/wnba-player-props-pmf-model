@@ -1,0 +1,16 @@
+{
+  "game_date": "2026-08-01",
+  "prediction_timestamp": "20260801T162447Z",
+  "code_sha": "2caef26fa235a9f2cdccc900bd44f42974915e4d",
+  "run_id": "30708012898",
+  "stage_dir": "deliveries/pregame_verification/2026-08-01/20260801T162447Z",
+  "n_frozen_identities": 768,
+  "model_hash": "d7b190139c0114b5be31093ea85963e58afaa1b84bda1ae9090d16aa001b028b",
+  "calibrator_hash": "6f1eb427af12acbe589b75f02beee8d5a6c7d52d05a9ca73945fc4cbfa8d6502",
+  "feature_hash": "8c8d67f49ea510a11b82bb887c8cb6179f1a400641a4ac4d2f170db153535fa1",
+  "data_hash": "83a68c4033f4e5cacf2c8896829d390d0c42e5dcc78e30f4fd0dff0d2f703842",
+  "quote_hash": "02d9042bfc6a5d169548017eb3d7b88c69ef80dbc4949b213ab3b646119b7ed2",
+  "availability_hash": "6dcd15d7ddf0d23468446ab91832af12d40e134989bc2955a8925050f9ab41e8",
+  "smoke_status": "PASS",
+  "generated_at_utc": "2026-08-01T16:27:20.370220+00:00"
+}

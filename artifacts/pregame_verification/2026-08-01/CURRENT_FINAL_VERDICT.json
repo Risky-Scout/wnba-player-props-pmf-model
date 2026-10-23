@@ -1,0 +1,37 @@
+{
+  "current_final_verdict": "PASS_FOR_PROSPECTIVE_PMF_AND_MARKET_EVALUATION",
+  "pmf_prospective_evaluation_status": "VALID_WITH_DOCUMENTED_EXCLUSIONS",
+  "market_comparison_readiness_status": "READY_EXACT_PAIRS_RECONSTRUCTED",
+  "postgame_settlement_readiness_status": "READY_PLAN_AND_SCHEMA_PRESENT_WAIT_FOR_FINAL",
+  "exact_quote_pairs": 146,
+  "pairs_by_market": {
+    "ast": 15,
+    "fg3m": 13,
+    "pts": 22,
+    "pts_ast": 16,
+    "pts_q1": 9,
+    "pts_reb": 21,
+    "pts_reb_ast": 17,
+    "reb": 20,
+    "reb_ast": 13
+  },
+  "quote_rejects_by_reason": {},
+  "model_market_trace_rows": 137,
+  "trace_reproduces_delivered_rate": 0.8978102189781022,
+  "rejected_players": 7,
+  "remaining_warnings": [
+    "Seven players rejected for player_id_not_in_players_table (IDENTITY_TABLE_GAP); exclude from primary settlement",
+    "Player 631 Kiana Williams accepted with PHX slate team vs LA players-table team; EXCLUDE from settlement (slate-construction / post-signing stale PHX assignment)",
+    "BDL UTC-date response includes IND@POR (24968) whose ET tip date is 2026-07-31; correctly excluded \u2014 production must set slate_timezone=America/New_York",
+    "Original verification quote_pairs_valid=0 due to unrecognized wide odds schema without player_id (resolved via frozen adapter; does not alter forecasts)",
+    "9 exact player_points_q1 quote pairs have no frozen pts_q1 PMF target; excluded from model/market trace (game-period pairs remain 137)",
+    "14 Pinnacle game-period pairs lack delivered model_prob_over_final in market_comparison (likely unknown-book fail-closed at delivery); frozen PMF probs still traced",
+    "STATUS_AUDIT shows UNKNOWN for quoted rows pending postgame settlement",
+    "Calibration evidence labeled INSUFFICIENT_ONE_SLATE_SAMPLE \u2014 do not compute ECE from one slate",
+    "GitHub Actions artifact retention is ephemeral; durable copies are the committed zip blobs under frozen_github_artifacts/"
+  ],
+  "do_not_fail_solely_for_original_quote_parse": true,
+  "do_not_upgrade_without_exact_pairs": true,
+  "frozen_evidence_lock": "artifacts/pregame_verification/2026-08-01/FROZEN_EVIDENCE_LOCK.json",
+  "updated_at_utc": "2026-08-01T16:55:01.353192+00:00"
+}

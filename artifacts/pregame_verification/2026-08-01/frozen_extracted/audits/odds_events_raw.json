@@ -1,0 +1,53 @@
+{
+  "fetched_at_utc": "2026-08-01T16:27:18.509907+00:00",
+  "events": [
+    {
+      "id": "d113b66ed1649d47506a6434e06bd1b6",
+      "sport_key": "basketball_wnba",
+      "sport_title": "WNBA",
+      "commence_time": "2026-08-01T17:00:00Z",
+      "home_team": "Chicago Sky",
+      "away_team": "Las Vegas Aces"
+    },
+    {
+      "id": "e9d3ed7c6df9b35e3b167038806ecd53",
+      "sport_key": "basketball_wnba",
+      "sport_title": "WNBA",
+      "commence_time": "2026-08-01T19:00:00Z",
+      "home_team": "Phoenix Mercury",
+      "away_team": "New York Liberty"
+    },
+    {
+      "id": "0ec7356c2a72bd70a2ddb870e33f24a3",
+      "sport_key": "basketball_wnba",
+      "sport_title": "WNBA",
+      "commence_time": "2026-08-02T17:00:00Z",
+      "home_team": "Minnesota Lynx",
+      "away_team": "Indiana Fever"
+    },
+    {
+      "id": "e15c637f66763f4ab0621898bd92d2bb",
+      "sport_key": "basketball_wnba",
+      "sport_title": "WNBA",
+      "commence_time": "2026-08-02T19:30:00Z",
+      "home_team": "Portland Fire",
+      "away_team": "Los Angeles Sparks"
+    },
+    {
+      "id": "8cb92d45e2c4570ff14320738ec395f2",
+      "sport_key": "basketball_wnba",
+      "sport_title": "WNBA",
+      "commence_time": "2026-08-02T23:00:00Z",
+      "home_team": "Dallas Wings",
+      "away_team": "Connecticut Sun"
+    },
+    {
+      "id": "b69cd4efd717cb22355b34ad83ba553a",
+      "sport_key": "basketball_wnba",
+      "sport_title": "WNBA",
+      "commence_time": "2026-08-03T00:30:00Z",
+      "home_team": "Golden State Valkyries",
+      "away_team": "Toronto Tempo"
+    }
+  ]
+}
