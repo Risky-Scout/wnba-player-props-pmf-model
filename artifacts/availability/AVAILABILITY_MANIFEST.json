@@ -1,6 +1,6 @@
 {
   "date": "2026-07-28",
-  "pulled_at_utc": "2026-07-28T18:48:52.186471+00:00",
+  "pulled_at_utc": "2026-07-28T20:17:06.550015+00:00",
   "n_games": 5,
   "teams_playing": [
     {
@@ -46,8 +46,8 @@
   ],
   "n_injury_rows": 37,
   "n_out_players": 32,
-  "snapshot_path": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/injuries_20260728T184852Z.parquet",
-  "games_snapshot_path": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/games_20260728T184852Z.parquet",
+  "snapshot_path": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/injuries_20260728T201706Z.parquet",
+  "games_snapshot_path": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/games_20260728T201706Z.parquet",
   "status": "ok",
   "fail_open": true
 }

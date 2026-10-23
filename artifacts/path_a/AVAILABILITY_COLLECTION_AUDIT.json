@@ -1,0 +1,41 @@
+{
+  "schema_version": "path_a_availability_audit_v1",
+  "path": "A",
+  "date": "2026-07-28",
+  "source_timestamp_utc": "2026-07-28T20:17:06.550015+00:00",
+  "ingestion_timestamp_utc": "2026-07-28T20:17:06.550015+00:00",
+  "prediction_cutoff_utc": "2026-07-28T20:17:06.550015+00:00",
+  "forward_collection": true,
+  "append_only": true,
+  "endpoints": {
+    "games": {
+      "status": "documented_success",
+      "success": true,
+      "n_rows": 5,
+      "error": null
+    },
+    "injuries": {
+      "status": "documented_success",
+      "success": true,
+      "n_rows": 37,
+      "error": null
+    }
+  },
+  "coverage": {
+    "n_injury_rows": 37,
+    "n_with_canonical_player_id": 37,
+    "identity_resolution_rate": 1.0,
+    "n_out_players": 32,
+    "n_out_slate_linkage_known": 32,
+    "slate_linkage_rate": 1.0,
+    "n_teams_playing": 5
+  },
+  "snapshot_paths": {
+    "injuries": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/injuries_20260728T201706Z.parquet",
+    "games": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/games_20260728T201706Z.parquet"
+  },
+  "snapshot_payload_hash": "e821aa3e7e08f27a6c9c7b7f8433662af20e93cb41b3f4e96f99d94fdece7084",
+  "overall_status": "ok",
+  "failure_reasons": [],
+  "note": "Forward pregame availability accrual. A 403/auth/empty/unresolved result is recorded as an explicit structured failure \u2014 never as successful empty data."
+}

@@ -28,7 +28,15 @@ from pathlib import Path
 
 import pandas as pd
 
-from wnba_props_model.data.bdl_client import BDLAPIError, BDLClient
+from wnba_props_model.data.availability_audit import (
+    append_snapshot_manifest,
+    assert_no_snapshot_overwrite,
+    build_availability_audit,
+    classify_endpoint_result,
+    compute_coverage,
+    payload_hash,
+)
+from wnba_props_model.data.bdl_client import BDLAPIError, BDLClient, EndpointStatus
 from wnba_props_model.data.normalize import normalize_injuries
 
 
@@ -82,13 +90,21 @@ def main() -> None:
     ap.add_argument("--out-dir", default="data/snapshots/availability_forward")
     ap.add_argument("--manifest-out",
                     default="artifacts/availability/AVAILABILITY_MANIFEST.json")
+    ap.add_argument("--audit-out",
+                    default="artifacts/path_a/AVAILABILITY_COLLECTION_AUDIT.json")
+    ap.add_argument("--snapshot-manifest-out",
+                    default="artifacts/path_a/FORWARD_SNAPSHOT_MANIFEST.json")
+    ap.add_argument("--prediction-cutoff", default=None,
+                    help="Prediction cutoff UTC ISO (defaults to pull time = pregame).")
     args = ap.parse_args()
 
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
+    ingestion_ts = now.isoformat()
+    prediction_cutoff = args.prediction_cutoff or ingestion_ts
     manifest: dict = {
         "date": args.date,
-        "pulled_at_utc": now.isoformat(),
+        "pulled_at_utc": ingestion_ts,
         "n_games": 0,
         "teams_playing": [],
         "n_injury_rows": 0,
@@ -103,49 +119,70 @@ def main() -> None:
         Path(args.manifest_out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.manifest_out).write_text(json.dumps(manifest, indent=2, default=str))
 
+    def _write_audit(games_result, injuries_result, coverage, snapshot_paths, snap_hash):
+        audit = build_availability_audit(
+            date=args.date,
+            source_timestamp_utc=ingestion_ts,
+            ingestion_timestamp_utc=ingestion_ts,
+            prediction_cutoff_utc=prediction_cutoff,
+            games_result=games_result,
+            injuries_result=injuries_result,
+            coverage=coverage,
+            snapshot_paths=snapshot_paths,
+            snapshot_payload_hash=snap_hash,
+        )
+        Path(args.audit_out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.audit_out).write_text(json.dumps(audit, indent=2, default=str))
+        return audit
+
     try:
         client = BDLClient()
     except BDLAPIError as exc:
+        # No key is an EXPLICIT auth failure — not "successful empty data".
         manifest["status"] = "no_bdl_api_key"
         manifest["error"] = str(exc)
         _write_manifest()
-        print(f"[availability] no BDL_API_KEY; fail-open manifest at {args.manifest_out}")
+        fail = {"status": EndpointStatus.DOCUMENTED_AUTH_FAILED, "success": False,
+                "n_rows": 0, "error": str(exc)[:300]}
+        _write_audit(fail, fail, compute_coverage([], []), {}, None)
+        print(f"[availability] no BDL_API_KEY; explicit auth-failure audit at {args.audit_out}")
         return
 
     # 1) Tonight's games (which teams are active). BDL files games under their UTC date,
     #    so a full Eastern evening slate spans two UTC dates — pull both and window-filter.
     next_day = (datetime.strptime(args.date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    games_error = None
     try:
         games = client.list_endpoint("games", {"dates": [args.date, next_day]})
     except BDLAPIError as exc:
         games = []
+        games_error = str(exc)
         manifest["games_error"] = str(exc)[:200]
     teams = _teams_playing(games, args.date)
     manifest["n_games"] = len(teams)
     manifest["teams_playing"] = teams
+    games_result = classify_endpoint_result(len(teams), games_error)
 
     # 2) Current injuries (the availability signal). Endpoint is current-state only.
+    injuries_error = None
     try:
         inj_rows = client.list_endpoint("player_injuries")
     except BDLAPIError as exc:
         inj_rows = []
+        injuries_error = str(exc)
         manifest["injuries_error"] = str(exc)[:200]
     inj = normalize_injuries(inj_rows)
     manifest["n_injury_rows"] = len(inj)
-
-    if len(inj) == 0 and not teams:
-        manifest["status"] = "no_games_no_injuries"
-        _write_manifest()
-        print(f"[availability] no games and no injuries for {args.date}; fail-open no-op.")
-        return
+    injuries_result = classify_endpoint_result(len(inj), injuries_error)
 
     # 3) Build append-only snapshot rows (AS PULLED NOW; no postgame reconstruction).
     out_dir = Path(args.out_dir) / f"snapshot_date_utc={args.date}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    snapshot_rows: list[dict] = []
+    snapshot_paths: dict = {}
     if len(inj):
         active_team_ids = {t["home_team_id"] for t in teams} | {t["away_team_id"] for t in teams}
-        rows = []
         for _, r in inj.iterrows():
             status_norm = str(r.get("injury_status_normalized") or "").lower()
             payload = {
@@ -156,7 +193,7 @@ def main() -> None:
                 "status_raw": r.get("injury_status"),
                 "status_normalized": status_norm,
                 "description": r.get("injury_description"),
-                "pulled_at_utc": now.isoformat(),
+                "pulled_at_utc": ingestion_ts,
             }
             row = dict(payload)
             row["is_out"] = status_norm in {"out", "inactive"}
@@ -165,22 +202,54 @@ def main() -> None:
                 (r.get("team_id") in active_team_ids) if active_team_ids else None
             )
             row["payload_sha256"] = _payload_hash(payload)
-            rows.append(row)
-        snap = pd.DataFrame(rows)
+            snapshot_rows.append(row)
+        snap = pd.DataFrame(snapshot_rows)
         manifest["n_out_players"] = int(snap["is_out"].sum())
         snap_path = out_dir / f"injuries_{stamp}.parquet"
+        assert_no_snapshot_overwrite(snap_path)   # append-only: never clobber
         snap.to_parquet(snap_path, index=False)
         manifest["snapshot_path"] = str(snap_path)
+        snapshot_paths["injuries"] = str(snap_path)
 
     if teams:
         games_path = out_dir / f"games_{stamp}.parquet"
+        assert_no_snapshot_overwrite(games_path)
         pd.DataFrame(teams).to_parquet(games_path, index=False)
         manifest["games_snapshot_path"] = str(games_path)
+        snapshot_paths["games"] = str(games_path)
+
+    coverage = compute_coverage(snapshot_rows, teams)
+    snap_hash = payload_hash({"date": args.date, "rows": snapshot_rows, "teams": teams}) \
+        if (snapshot_rows or teams) else None
+
+    audit = _write_audit(games_result, injuries_result, coverage, snapshot_paths, snap_hash)
+    manifest["status"] = audit["overall_status"]
+
+    # 4) Forward snapshot manifest — strictly append-only (never overwrite prior slates).
+    if snapshot_paths:
+        append_snapshot_manifest(args.snapshot_manifest_out, {
+            "date": args.date,
+            "source_timestamp_utc": ingestion_ts,
+            "ingestion_timestamp_utc": ingestion_ts,
+            "prediction_cutoff_utc": prediction_cutoff,
+            "snapshot_payload_hash": snap_hash,
+            "snapshot_paths": snapshot_paths,
+            "coverage": coverage,
+            "overall_status": audit["overall_status"],
+        })
 
     _write_manifest()
-    print(json.dumps({k: manifest[k] for k in
-                      ("date", "n_games", "n_injury_rows", "n_out_players",
-                       "snapshot_path", "status")}, indent=2))
+    print(json.dumps({
+        "date": args.date,
+        "n_games": manifest["n_games"],
+        "n_injury_rows": manifest["n_injury_rows"],
+        "n_out_players": manifest["n_out_players"],
+        "games_status": games_result["status"],
+        "injuries_status": injuries_result["status"],
+        "overall_status": audit["overall_status"],
+        "audit": args.audit_out,
+        "snapshot_manifest": args.snapshot_manifest_out,
+    }, indent=2))
 
 
 if __name__ == "__main__":

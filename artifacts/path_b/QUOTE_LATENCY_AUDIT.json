@@ -1,0 +1,77 @@
+{
+  "schema_version": "path_b_dislocation_audit_v1",
+  "game_date": "2026-07-28",
+  "source_type": "MARKET_DISLOCATION",
+  "generated_at": "2026-07-28T20:16:48.394259+00:00",
+  "latency": {
+    "n_quotes_with_age": 2158,
+    "max_quote_age_seconds": 132.396559,
+    "median_quote_age_seconds": 40.396559,
+    "configured_max_quote_age_seconds": null,
+    "n_malformed_timestamp": 0
+  },
+  "price_survival": {
+    "rechecked": 1,
+    "survived_30s": 2,
+    "survived_60s": 2,
+    "waits_seconds": [
+      30,
+      60
+    ],
+    "details": [
+      {
+        "event_id": "e4dc370d08264200533bf3816f82c622",
+        "wait_s": 30,
+        "player_name": "Michaela Onyenwere",
+        "book": "hardrockbet",
+        "market_key": "player_points",
+        "side": "over",
+        "line": 9.5,
+        "original_odds": 105.0,
+        "found": true,
+        "new_odds": 105.0,
+        "survived": true
+      },
+      {
+        "event_id": "e4dc370d08264200533bf3816f82c622",
+        "wait_s": 30,
+        "player_name": "Olivia Nelson-Ododa",
+        "book": "betparx",
+        "market_key": "player_rebounds",
+        "side": "under",
+        "line": 6.5,
+        "original_odds": -121.0,
+        "found": true,
+        "new_odds": -121.0,
+        "survived": true
+      },
+      {
+        "event_id": "e4dc370d08264200533bf3816f82c622",
+        "wait_s": 60,
+        "player_name": "Michaela Onyenwere",
+        "book": "hardrockbet",
+        "market_key": "player_points",
+        "side": "over",
+        "line": 9.5,
+        "original_odds": 105.0,
+        "found": true,
+        "new_odds": 105.0,
+        "survived": true
+      },
+      {
+        "event_id": "e4dc370d08264200533bf3816f82c622",
+        "wait_s": 60,
+        "player_name": "Olivia Nelson-Ododa",
+        "book": "betparx",
+        "market_key": "player_rebounds",
+        "side": "under",
+        "line": 6.5,
+        "original_odds": -121.0,
+        "found": true,
+        "new_odds": -121.0,
+        "survived": true
+      }
+    ],
+    "note": "price-survival recheck of candidate prices; survived = still offered and not worse for the bettor"
+  }
+}

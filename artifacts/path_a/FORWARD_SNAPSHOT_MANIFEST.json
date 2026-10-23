@@ -1,0 +1,29 @@
+{
+  "schema_version": "path_a_forward_snapshot_manifest_v1",
+  "append_only": true,
+  "snapshots": [
+    {
+      "date": "2026-07-28",
+      "source_timestamp_utc": "2026-07-28T20:17:06.550015+00:00",
+      "ingestion_timestamp_utc": "2026-07-28T20:17:06.550015+00:00",
+      "prediction_cutoff_utc": "2026-07-28T20:17:06.550015+00:00",
+      "snapshot_payload_hash": "e821aa3e7e08f27a6c9c7b7f8433662af20e93cb41b3f4e96f99d94fdece7084",
+      "snapshot_paths": {
+        "injuries": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/injuries_20260728T201706Z.parquet",
+        "games": "data/snapshots/availability_forward/snapshot_date_utc=2026-07-28/games_20260728T201706Z.parquet"
+      },
+      "coverage": {
+        "n_injury_rows": 37,
+        "n_with_canonical_player_id": 37,
+        "identity_resolution_rate": 1.0,
+        "n_out_players": 32,
+        "n_out_slate_linkage_known": 32,
+        "slate_linkage_rate": 1.0,
+        "n_teams_playing": 5
+      },
+      "overall_status": "ok"
+    }
+  ],
+  "last_write_skipped_duplicate": false,
+  "n_snapshots": 1
+}
